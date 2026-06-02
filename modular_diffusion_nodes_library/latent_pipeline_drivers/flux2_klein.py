@@ -8,6 +8,7 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.flux2_base import Flux2BaseLatentPipelineDriver
+from modular_diffusion_nodes_library.utils.conditioning_utils import resolve_conditioning_image
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -64,6 +65,12 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
         return_fully_denoised: bool = False,
         **kwargs: Any,
     ) -> torch.Tensor:
+        media_gen_conditioning = kwargs.pop("media_gen_conditioning", None)
+        if media_gen_conditioning is not None:
+            image_reference = self._build_image_reference(media_gen_conditioning)
+            if image_reference:
+                kwargs["image_reference"] = image_reference
+
         denoised = super().denoise_latent(
             latents,
             latents_source_shape,
@@ -80,3 +87,21 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
         output_latent = Flux2VaeEncoderStep._patchify_latents(denoised)
         output_latent = self._normalize_latent(output_latent)
         return output_latent
+
+    @staticmethod
+    def _build_image_reference(
+        media_gen_conditioning: dict[str, Any] | list[dict[str, Any]],
+    ) -> list[Any] | None:
+        """Convert media_gen_conditioning into a list of PIL images for image_reference."""
+        if not isinstance(media_gen_conditioning, list):
+            media_gen_conditioning = [media_gen_conditioning]
+
+        reference_images: list[Any] = []
+        for conditioning in media_gen_conditioning:
+            mode = conditioning.get("mode")
+            if mode == "image":
+                for image_item in conditioning.get("images", []):
+                    image = resolve_conditioning_image(image_item.get("image"))
+                    reference_images.append(image)
+
+        return reference_images or None
