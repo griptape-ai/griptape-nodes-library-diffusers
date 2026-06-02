@@ -1,112 +1,94 @@
-# Contributing
+# Contributing to Griptape Nodes Modular Diffusion Library
+
+We welcome contributions to the Griptape Nodes Modular Diffusion Library! This library provides modular, latent-level diffusion nodes for [Griptape Nodes](https://github.com/griptape-ai/griptape-nodes), built on Hugging Face 🧨 Diffusers.
 
 ## Development Setup
 
-This project uses [uv](https://docs.astral.sh/uv/) for dependency management. Install dev dependencies with:
+This is a standalone repository — all development happens here.
 
-```bash
-make install/dev
-```
+1. **Clone the repository:**
 
-To install all dependencies including core and extras:
+    ```shell
+    git clone https://github.com/griptape-ai/griptape-nodes-library-modular-diffusion.git
+    cd griptape-nodes-library-modular-diffusion
+    ```
 
-```bash
-make install
-```
+1. **Install `uv`:** Follow the official instructions at [Astral's uv installation guide](https://docs.astral.sh/uv/getting-started/installation/).
 
-## Makefile Targets
+1. **Install dependencies:**
 
-Run `make` with no arguments to see all available targets.
+    ```shell
+    uv sync --all-groups --all-extras
+    ```
 
-### Checks
+    This creates a `.venv/` and installs runtime and dev dependencies as defined in `pyproject.toml`.
 
-Run all checks (format, lint, types) before submitting a PR:
+## Project Layout
 
-```bash
-make check
-```
+Top-level layout of this repository:
 
-Individual checks:
+- `modular_diffusion_nodes_library/` — the main node package, organized into submodules:
+    - `nodes/` — node implementations (Pipeline, Create, Processing, Transform, Conditioning, Encode/Decode, IO, etc.)
+    - `latent_pipeline_drivers/` — per-model latent pipeline drivers (Flux, Flux Fill, LTX, LTX2, Qwen, Z-Image, etc.)
+    - `artifact_utils/` — shared artifact types (`LatentArtifact`, `InpaintMaskArtifact`, …)
+    - `parameters/` — reusable parameter components used by nodes
+    - `standard_parameters/` — Pipeline builder parameters
+    - `runtime_parameters/` — runtime-resolved parameter helpers for each provider
+    - `mixins/` — shared node mixins
+    - `utils/` — general utilities (pipeline, torch, memory helpers)
+    - `misc/` — miscellaneous helpers
+- `workflows/` — workflow templates shipped with the library (plus `assets/`)
+- `docs/` — documentation sources (`assets/`, `index.md`)
+- `tests/` — unit and workflow tests
+- `griptape_nodes_library.json` — library manifest (node registry, settings, dependencies, workflows)
+- `pyproject.toml` / `pytest.ini` — project and test configuration
 
-```bash
-make check/format   # ruff format --check
-make check/lint     # ruff check
-make check/types    # pyright
-make check/json     # validate JSON files with jq
-```
+## Contributing Code
 
-### Fixing Issues
+1. **Make your changes** — follow the existing code structure and style.
 
-Auto-fix formatting and linting issues:
+1. **Run tests:**
 
-```bash
-make fix
-```
+    ```shell
+    uv run pytest tests/
+    ```
 
-### Dependency Sync
+1. **Check code quality:**
 
-The `pip_dependencies` field in the library JSON is kept in sync with `pyproject.toml`. Run this after adding or removing dependencies:
+    ```shell
+    uv run ruff check .
+    uv run ruff format . --check
+    ```
 
-```bash
-make deps/sync
-```
+    To auto-fix:
 
-This is also run automatically as part of `make install/core` and `make install/all`.
+    ```shell
+    uv run ruff check . --fix
+    uv run ruff format .
+    ```
 
-## CI
+1. **Submit a pull request** against the `main` branch of this repository. Describe your changes clearly in the PR description.
 
-The CI workflow runs `make check` on every pull request and push to `main`. PRs must pass all checks before merging.
+## Making a Release (Maintainers)
 
-## Releases
+1. Bump the version in `pyproject.toml` and in the `metadata.library_version` field of `griptape_nodes_library.json`.
 
-Library versions follow [semantic versioning](https://semver.org/). The version is stored in the library JSON file under `metadata.library_version`.
+1. Commit and push:
 
-To check the current version:
+    ```shell
+    git add pyproject.toml griptape_nodes_library.json
+    git commit -m "chore: bump griptape-nodes-library-modular-diffusion to vX.Y.Z"
+    git push origin main
+    ```
 
-```bash
-make version/get
-```
+1. Go to the [Actions](https://github.com/griptape-ai/griptape-nodes-library-modular-diffusion/actions) tab on GitHub and run the **Publish Version** workflow manually to:
 
-To set a specific version:
+    - Create the version tag (e.g. `vX.Y.Z`)
+    - Update the `stable` tag
+    - Create a GitHub release with auto-generated notes
 
-```bash
-make version/set v=1.2.3
-```
+## Questions or Issues?
 
-### Regular Release
+For questions, bugs, or feature requests, please [open an issue](https://github.com/griptape-ai/griptape-nodes-library-modular-diffusion/issues) in this repository.
 
-1. Merge your changes to `main`.
-
-2. Run **Actions > Version Bump (Patch)** or **Actions > Version Bump (Minor)** on `main`. This increments the version in the library JSON and commits the change.
-
-   Or bump locally and push:
-
-   ```bash
-   make version/patch   # 1.2.3 → 1.2.4
-   make version/minor   # 1.2.3 → 1.3.0
-   make version/major   # 1.2.3 → 2.0.0
-   ```
-
-3. Run **Actions > Version Publish** on `main`. This creates and pushes the version tag (e.g. `v1.2.3`), updates the `stable` tag, and creates a GitHub release with auto-generated release notes.
-
-### Patch Release
-
-To release a fix without including all commits on `main`, use a release branch:
-
-1. Create a branch from the tag you want to patch:
-
-   ```bash
-   git checkout -b release/v0.50 v0.50.0
-   git push -u origin release/v0.50
-   ```
-
-2. Cherry-pick the fix commit(s) you want to include:
-
-   ```bash
-   git cherry-pick <commit-sha>
-   git push
-   ```
-
-3. Run **Actions > Version Bump (Patch)** and set the branch to `release/v0.50`.
-
-4. Run **Actions > Version Publish** and set the branch to `release/v0.50`.
+Thank you for contributing!

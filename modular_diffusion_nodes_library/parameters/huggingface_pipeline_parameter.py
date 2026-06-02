@@ -1,0 +1,146 @@
+import logging
+from typing import Any
+
+from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
+from griptape_nodes.exe_types.node_types import BaseNode
+from griptape_nodes.traits.options import Options
+
+logger = logging.getLogger("modular_diffusers_nodes_library")
+
+
+class HuggingFacePipelineParameter:
+    def __init__(self, node: BaseNode):
+        self._node = node
+
+    @classmethod
+    def get_hf_pipeline_parameter_names(cls) -> list[str]:
+        return [
+            "memory_optimization_strategy",
+            "attention_slicing",
+            "vae_slicing",
+            "vae_tiling",
+            "transformer_layerwise_casting",
+            "cpu_offload_strategy",
+            "quantization_mode",
+        ]
+
+    def get_hf_pipeline_parameters(self) -> dict[str, Any]:
+        return {
+            "memory_optimization_strategy": self._node.get_parameter_value("memory_optimization_strategy"),
+            "attention_slicing": self._node.get_parameter_value("attention_slicing"),
+            "vae_slicing": self._node.get_parameter_value("vae_slicing"),
+            "vae_tiling": self._node.get_parameter_value("vae_tiling"),
+            "transformer_layerwise_casting": self._node.get_parameter_value("transformer_layerwise_casting"),
+            "cpu_offload_strategy": self._node.get_parameter_value("cpu_offload_strategy"),
+            "quantization_mode": self._node.get_parameter_value("quantization_mode"),
+        }
+
+    def add_input_parameters(self) -> None:
+        memory_optimization_strategy_choices = ["Manual", "Automatic"]
+        memory_optimization_strategy_param = Parameter(
+            name="memory_optimization_strategy",
+            default_value=memory_optimization_strategy_choices[0],
+            type="str",
+            traits={
+                Options(
+                    choices=memory_optimization_strategy_choices,
+                )
+            },
+            allowed_modes={ParameterMode.PROPERTY},
+            tooltip="Choose Manual to expose individual memory knobs, or Automatic to let Griptape pick reasonable defaults.",
+        )
+        memory_optimization_strategy_param.set_badge(
+            variant="help",
+            title="Memory optimization help",
+            message=(
+                "**Manual** exposes per-knob toggles (attention slicing, VAE slicing, layerwise casting, "
+                "CPU offload, quantization). **Automatic** lets Griptape pick reasonable defaults for you.\n\n"
+                "Not sure which knob does what? See "
+                "[Manual Memory Settings](https://docs.griptapenodes.com/en/latest/nodes/advanced_media_library/diffusion_pipelines/#manual-memory-settings) "
+                "for guidance on when to enable each option."
+            ),
+        )
+        self._node.add_parameter(memory_optimization_strategy_param)
+        self._node.add_parameter(
+            Parameter(
+                name="attention_slicing",
+                type="bool",
+                output_type="bool",
+                tooltip="Process attention in slices to reduce peak VRAM at a small speed cost. Enable on memory-constrained GPUs.",
+                allowed_modes={ParameterMode.PROPERTY},
+                default_value=False,
+            )
+        )
+        self._node.add_parameter(
+            Parameter(
+                name="vae_slicing",
+                type="bool",
+                output_type="bool",
+                tooltip="Decode the VAE one slice at a time to reduce peak VRAM. Useful for large images or batches.",
+                allowed_modes={ParameterMode.PROPERTY},
+                default_value=False,
+            )
+        )
+        self._node.add_parameter(
+            Parameter(
+                name="vae_tiling",
+                type="bool",
+                output_type="bool",
+                tooltip="Enable VAE tiling to reduce memory usage during decode.",
+                allowed_modes={ParameterMode.PROPERTY},
+                default_value=False,
+            )
+        )
+        self._node.add_parameter(
+            Parameter(
+                name="transformer_layerwise_casting",
+                type="bool",
+                output_type="bool",
+                tooltip="Cast transformer layers to a lower-precision dtype on the fly to reduce VRAM. May slow inference slightly.",
+                allowed_modes={ParameterMode.PROPERTY},
+                default_value=False,
+            )
+        )
+        cpu_offload_strategy_choices = ["None", "Model", "Sequential"]
+        self._node.add_parameter(
+            Parameter(
+                name="cpu_offload_strategy",
+                default_value=cpu_offload_strategy_choices[0],
+                type="str",
+                traits={
+                    Options(
+                        choices=cpu_offload_strategy_choices,
+                    )
+                },
+                tooltip="Offload unused modules to CPU/disk during inference. 'Model' offloads whole submodels; 'Sequential' offloads finer-grained at a larger speed cost.",
+                allowed_modes={ParameterMode.PROPERTY},
+            )
+        )
+        quantization_mode_choices = ["None", "fp8", "int8", "int4"]
+        self._node.add_parameter(
+            Parameter(
+                name="quantization_mode",
+                type="str",
+                default_value=quantization_mode_choices[0],
+                allowed_modes={ParameterMode.PROPERTY},
+                tooltip="Quantize model weights to reduce VRAM. fp8/int8/int4 trade increasing memory savings for some quality/speed loss.",
+                traits={Options(choices=quantization_mode_choices)},
+            )
+        )
+
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        if parameter.name == "memory_optimization_strategy":
+            if value == "Automatic":
+                self._node.hide_parameter_by_name("attention_slicing")
+                self._node.hide_parameter_by_name("vae_slicing")
+                self._node.hide_parameter_by_name("vae_tiling")
+                self._node.hide_parameter_by_name("transformer_layerwise_casting")
+                self._node.hide_parameter_by_name("cpu_offload_strategy")
+                self._node.hide_parameter_by_name("quantization_mode")
+            else:
+                self._node.show_parameter_by_name("attention_slicing")
+                self._node.show_parameter_by_name("vae_slicing")
+                self._node.show_parameter_by_name("vae_tiling")
+                self._node.show_parameter_by_name("transformer_layerwise_casting")
+                self._node.show_parameter_by_name("cpu_offload_strategy")
+                self._node.show_parameter_by_name("quantization_mode")
