@@ -6,8 +6,16 @@ The Modular Diffusion Nodes Library is a node library for creators who want more
 ### [How it works](#how-it-works) | [Quick start](#quick-start) | [Supported models](#supported-models) | [Workflows](#workflow-templates-included) | [Docs](docs/index.md) | [Support](#support)
 
 > ## ⚠️ Experimental — under active development
-> APIs, node interfaces, workflow templates, and library structure may change at any time without notice or migration support. Pin to a specific commit if you need stability, and expect breakage when updating. 
+> APIs, node interfaces, workflow templates, and library structure may change at any time without notice or migration support. Pin to a specific commit if you need stability, and expect breakage when updating.
 >
+
+> ## ⚠️ Using alongside the Advanced Media Library
+> The Modular Diffusion Library and the Advanced Media Library share several upstream dependencies (e.g. `diffusers`, `transformers`, `torch`) and may pin them to different versions. Installing both libraries from their default branches can cause dependency mismatches and runtime errors.
+>
+> If you need both libraries in the same environment, install the Advanced Media Library from its [`modular-diffusion-library-compatible-branch`](https://github.com/griptape-ai/griptape-nodes-library-advanced-media/compare/main...modular-diffusion-library-compatible-branch) instead of `main`:
+> ```text
+> https://github.com/griptape-ai/griptape-nodes-library-advanced-media@modular-diffusion-library-compatible-branch
+> ```
 
 ![Modular Diffusion Nodes](docs/assets/hero.png)
 
@@ -99,6 +107,9 @@ For lower-VRAM setups, the builder exposes a **Memory Optimization Strategy** se
     - **Transformer layerwise casting** — keeps the transformer in a lower precision and upcasts per layer during compute.
 
 Enable only what you need — each option trades some speed for memory. The Pipeline Builder includes per-parameter help badges with more detail.
+
+> ## ⚠️ Separate pipeline caches when using both libraries
+> The Modular Diffusion Library and the Advanced Media Library's fixed diffusion pipelines each maintain their own in-memory pipeline cache. If both libraries are loaded and used in the same session, you may end up holding two full copies of overlapping model weights in VRAM/RAM at once, leading to significantly higher memory usage and out-of-memory errors. Prefer using one library per session, or reduce memory pressure via the optimization knobs above.
 
 ## Workflow templates included
 
