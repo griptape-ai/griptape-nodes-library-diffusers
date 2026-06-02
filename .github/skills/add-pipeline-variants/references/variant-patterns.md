@@ -1,4 +1,4 @@
-# Variant Pattern Templates
+﻿# Variant Pattern Templates
 
 Progressive-load reference. Use when implementing one of the three runtime variant patterns.
 
@@ -8,7 +8,7 @@ Progressive-load reference. Use when implementing one of the three runtime varia
 
 **Trigger**: `control_net_model_lists: list[str] | str | None` is supplied to the pipeline builder. The two driver classmethods are called during pipeline construction, not during denoising.
 
-**Reference**: [`stable_diffusion_xl.py`](../../../../modular_diffusion_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) lines 68-96.
+**Reference**: [`stable_diffusion_xl.py`](../../../../diffusers_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) lines 68-96.
 
 ### Template
 
@@ -62,7 +62,7 @@ class MyDriver(LatentPipelineDriver):
 **Trigger**: `inpaint_mask_artifact` kwarg present in `denoise_latent` kwargs.
 **Mechanism**: Base class handles everything. You declare one ClassVar.
 
-**Reference**: [`base_driver.py`](../../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py) `_get_inpaint_pipe()` and `_get_inpaint_kwargs()` (lines 284-302), and the `denoise_latent` inpaint branch (lines 232-247). SDXL example: [`stable_diffusion_xl.py`](../../../../modular_diffusion_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) line 63.
+**Reference**: [`base_driver.py`](../../../../diffusers_nodes_library/latent_pipeline_drivers/base_driver.py) `_get_inpaint_pipe()` and `_get_inpaint_kwargs()` (lines 284-302), and the `denoise_latent` inpaint branch (lines 232-247). SDXL example: [`stable_diffusion_xl.py`](../../../../diffusers_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) line 63.
 
 ### Template
 
@@ -104,14 +104,14 @@ For packed-latent models (Flux, Qwen), the base passes unpacked latents — the 
 **Trigger**: A custom input kwarg (e.g., `media_gen_conditioning` for LTX) detected at denoise time.
 **Mechanism**: Override `denoise_latent`, swap `self._pipe` to a variant class, restore in `finally`, delegate to `super()`.
 
-**Reference**: [`ltx.py`](../../../../modular_diffusion_nodes_library/latent_pipeline_drivers/ltx.py) lines 260-294 — the canonical implementation using `LTXConditionPipeline`.
+**Reference**: [`ltx.py`](../../../../diffusers_nodes_library/latent_pipeline_drivers/ltx.py) lines 260-294 — the canonical implementation using `LTXConditionPipeline`.
 
 ### Template
 
 ```python
 from diffusers import <VariantPipelineClass>  # verify it exists
 
-from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
+from diffusers_nodes_library.utils.pipeline_utils import create_pipe_variant
 
 @override
 def denoise_latent(
@@ -152,7 +152,7 @@ def denoise_latent(
 
 ### Critical invariants
 - **`finally` is mandatory.** An exception during denoising must not leave `self._pipe` swapped. Cite this when justifying the implementation.
-- **Use `create_pipe_variant`**, not `<VariantPipelineClass>.from_pipe()` directly. `create_pipe_variant` preserves the source pipeline's CPU/sequential offload state. See [`utils/pipeline_utils.py`](../../../../modular_diffusion_nodes_library/utils/pipeline_utils.py) `create_pipe_variant` (around line 40).
+- **Use `create_pipe_variant`**, not `<VariantPipelineClass>.from_pipe()` directly. `create_pipe_variant` preserves the source pipeline's CPU/sequential offload state. See [`utils/pipeline_utils.py`](../../../../diffusers_nodes_library/utils/pipeline_utils.py) `create_pipe_variant` (around line 40).
 - **`super().denoise_latent` does the actual call.** Do not call `self._pipe(...)` directly — you'd lose partial-denoise, callback, cancellation, and inpaint routing.
 - **Pack/unpack inside the override** if the variant pipeline expects packed latents and the base pipeline didn't. See the LTX override at line 280: it calls `self._pack_latents(latents)` only when `media_gen_conditioning_list is None` (the variant path lets the LTXConditionPipeline handle its own packing).
 
