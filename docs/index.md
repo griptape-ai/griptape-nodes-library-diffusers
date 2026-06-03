@@ -33,6 +33,7 @@ Node groups mirror the categories in [`griptape_nodes_library.json`](../griptape
 - [Encode Media Latent](nodes/encode_media_latent.md)
 - [Encode Masked Media Latent](nodes/encode_masked_media_latent.md)
 - [Decode Media Latent](nodes/decode_media_latent.md)
+- [Decode HDR Latents](nodes/decode_hdr_latents.md)
 
 ### IO
 - [Save Latent Tensor](nodes/save_latent_tensor.md)

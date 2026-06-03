@@ -211,6 +211,14 @@ def _automatic_optimize_diffusion_pipeline(  # noqa: C901 PLR0911 PLR0912 PLR091
             logger.info("Enabling VAE tiling")
             pipe.vae.enable_tiling()
 
+        # Temporal VAEs (video pipelines) additionally support framewise encode/decode
+        if hasattr(pipe, "vae") and hasattr(pipe.vae, "use_framewise_decoding"):
+            logger.info("Enabling VAE framewise decoding")
+            pipe.vae.use_framewise_decoding = True
+        if hasattr(pipe, "vae") and hasattr(pipe.vae, "use_framewise_encoding"):
+            logger.info("Enabling VAE framewise encoding")
+            pipe.vae.use_framewise_encoding = True
+
         # Pipelines loaded with device_map already have device placement handled.
         # Skip .to(device) and CPU offload strategies as they're incompatible.
         if requires_device_map:
@@ -333,6 +341,13 @@ def _manual_optimize_diffusion_pipeline(  # noqa: C901 PLR0912 PLR0913
             logger.debug("VAE does not support slicing (e.g., AutoencoderKLTemporalDecoder), skipping")
     if vae_tiling and hasattr(pipe, "vae") and hasattr(pipe.vae, "enable_tiling"):
         pipe.vae.enable_tiling()
+    # Temporal VAEs (video pipelines) additionally support framewise encode/decode
+    if vae_tiling and hasattr(pipe, "vae") and hasattr(pipe.vae, "use_framewise_decoding"):
+        logger.info("Enabling vae framewise decoding")
+        pipe.vae.use_framewise_decoding = True
+    if vae_tiling and hasattr(pipe, "vae") and hasattr(pipe.vae, "use_framewise_encoding"):
+        logger.info("Enabling vae framewise encoding")
+        pipe.vae.use_framewise_encoding = True
     if transformer_layerwise_casting and hasattr(pipe, "transformer"):
         if is_prequantized:
             logger.info("Pipeline is pre-quantized; skipping fp8 layerwise casting for transformer")

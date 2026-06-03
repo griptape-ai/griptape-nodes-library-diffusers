@@ -37,6 +37,7 @@
     "dependencies": {
       "pip_dependencies": [
         "accelerate>=1.6.0",
+        "av>=14.0.0",
         "beautifulsoup4>=4.13.4",
         "controlnet-aux>=0.0.9",
         "static-ffmpeg>=2.8",
@@ -67,7 +68,8 @@
         "scipy>=1.10.0",
         "matplotlib>=3.10.3",
         "supervision>=0.27.0",
-        "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.8.12"
+        "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.8.12",
+        "openexr>=3.3.0"
       ],
       "pip_install_flags": [
         "--preview",
@@ -198,6 +200,16 @@
         "category": "ModularDiffusion/Encode\\Decode",
         "description": "Decode VAE latent images or video via 🧨 Diffusers Pipelines.",
         "display_name": "Decode Media",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "DecodeHdrNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/decode_hdr_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Encode\\Decode",
+        "description": "Decode HDR VAE latent, apply tone mapping, and optionally save a raw EXR sequence.",
+        "display_name": "Decode HDR Latents",
         "group": "diffusion"
       }
     },

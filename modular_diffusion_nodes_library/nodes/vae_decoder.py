@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any
 
 import diffusers  # type: ignore[reportMissingImports]
+import numpy as np
+from diffusers.pipelines.ltx2.export_utils import encode_hdr_tensor_to_mp4  # type: ignore[reportMissingImports]
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode
@@ -47,7 +49,15 @@ class VaeDecodeNode(ControlNode):
                 serializable=False,
             )
         )
+        self._additional_parameters()
         self._initializing = False
+
+    def _additional_parameters(self) -> None:
+        """Hook for subclasses to add additional parameters during __init__.
+
+        Called while ``self._initializing`` is still ``True`` so subclasses can add
+        parameters through the normal ``add_parameter`` path.
+        """
 
     def add_parameter(self, param: Parameter) -> None:
         """Add a parameter to the node.
@@ -164,13 +174,21 @@ class VaeDecodeNode(ControlNode):
 
     def _reorder_parameters_for_video(self) -> None:
         """Reorder parameters to ensure fps appears before output_video in the GUI."""
-        all_params = [element.name for element in self.root_ui_element._children]
+        all_params = [element.name for element in self.root_ui_element.children]
+        tail = [name for name in self._tail_parameter_names() if name in all_params]
+        for name in tail:
+            all_params.remove(name)
         # Move fps before output_video if both exist
         if "fps" in all_params and "output_video" in all_params:
             all_params.remove("fps")
             video_index = all_params.index("output_video")
             all_params.insert(video_index, "fps")
-            self.reorder_elements(all_params)
+        all_params.extend(tail)
+        self.reorder_elements(all_params)
+
+    def _tail_parameter_names(self) -> list[str]:
+        """Names of parameters that must remain pinned to the bottom on reorder."""
+        return []
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors: list[Exception] = []
@@ -222,17 +240,28 @@ class VaeDecodeNode(ControlNode):
                 temp_path = Path(temp_file_obj.name)
             try:
                 fps = int(self.get_parameter_value("fps") or latents_pipeline_driver.video_fps)
-                diffusers.utils.export_to_video(output, str(temp_path), fps=fps)  # type: ignore[attr-defined]
+                self._encode_video_output(output, temp_path, fps)
                 self._publish_output_video(temp_path)
             finally:
                 if temp_path.exists():
                     temp_path.unlink()
         else:
-            if isinstance(output, list):
-                raise ValueError("Decoder returned an unexpected list of outputs.")
-            image_artifact = pil_to_image_artifact(output)
-            self.set_parameter_value("output_image", image_artifact)
-            self.parameter_output_values["output_image"] = image_artifact
+            self._handle_image_output(output)
+
+    def _encode_video_output(self, output: Any, dest_path: Path, fps: int) -> None:
+        """Encode a video output to ``dest_path``. Override to customize HDR/tone-mapping."""
+        if isinstance(output, np.ndarray):
+            encode_hdr_tensor_to_mp4(output[0], str(dest_path), frame_rate=fps)
+        else:
+            diffusers.utils.export_to_video(output, str(dest_path), fps=fps)  # type: ignore[attr-defined]
+
+    def _handle_image_output(self, output: Any) -> None:
+        """Publish a decoded image output. Override to customize HDR handling."""
+        if isinstance(output, list):
+            raise ValueError("Decoder returned an unexpected list of outputs.")
+        image_artifact = pil_to_image_artifact(output)
+        self.set_parameter_value("output_image", image_artifact)
+        self.parameter_output_values["output_image"] = image_artifact
 
     def _publish_output_video(self, video_path: Path) -> None:
         filename = f"{uuid.uuid4()}{video_path.suffix}"
