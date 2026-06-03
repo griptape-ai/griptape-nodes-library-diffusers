@@ -3,11 +3,14 @@ from typing import override
 
 import PIL.Image
 import torch  # type: ignore[reportMissingImports]
+import torchvision.transforms.functional as TF  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.flux2.before_denoise import (  # type: ignore[reportMissingImports]
     Flux2PrepareLatentsStep,
     Flux2SetTimestepsStep,
 )
 from diffusers.modular_pipelines.flux2.decoders import Flux2UnpackLatentsStep  # type: ignore[reportMissingImports]
+from diffusers.modular_pipelines.flux2.encoders import Flux2VaeEncoderStep  # type: ignore[reportMissingImports]
+from diffusers.modular_pipelines.flux2.inputs import Flux2ProcessImagesInputStep  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.flux2.modular_blocks_flux2 import Flux2AutoBlocks  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
@@ -75,6 +78,22 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
         output_state = self._call_block(encode_block, image=image, height=image.height, width=image.width)
         return output_state.get("image_latents")[0]
+
+    @override
+    def encode_masked_image(self, image: Image, mask: Image) -> torch.Tensor:
+        # PIL -> aligned, normalized tensor (multiple-of-32 alignment + <=1024^2 cap).
+        pre = self._call_block(Flux2ProcessImagesInputStep(), image=image)
+        source_t = pre.get("condition_images")[0]
+
+        # Resize mask to match the (possibly aligned/cropped) tensor dims.
+        aligned_h, aligned_w = source_t.shape[-2:]
+        mask_resized = mask.convert("L").resize((aligned_w, aligned_h), PIL.Image.NEAREST)
+        mask_t = TF.to_tensor(mask_resized)[None]  # (1, 1, H, W), float32 in [0, 1]
+
+        masked_t = source_t * (mask_t < 0.5)
+
+        out = self._call_block(Flux2VaeEncoderStep(), condition_images=[masked_t])
+        return out.get("image_latents")[0]
 
     @override
     def add_noise_to_latent(
