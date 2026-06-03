@@ -10,6 +10,7 @@ Node groups mirror the categories in [`griptape_nodes_library.json`](../griptape
 - [Modular Diffusion Pipeline Builder](nodes/pipeline_builder.md)
 - [ControlNet Pipeline](nodes/controlnet_pipeline.md)
 - [Load LoRA](nodes/load_lora.md)
+- [LoRA Pipeline](nodes/lora_pipeline.md)
 
 ### Create
 - [Create Noise Latents](nodes/create-noise-latents.md)

@@ -37,4 +37,7 @@ class LoadLora(ControlNode):
         self.lora_file_path_params.validate_parameter_values()
         lora_path = str(self.lora_file_path_params.get_file_path())
         lora_weight = self.lora_weight_and_output_params.get_weight()
-        self.lora_weight_and_output_params.set_output_lora({lora_path: lora_weight})
+        trigger_phrase = self.get_parameter_value("trigger_phrase") or None
+        self.lora_weight_and_output_params.set_output_lora(
+            {"path": lora_path, "weight": lora_weight, "trigger_phrase": trigger_phrase}
+        )

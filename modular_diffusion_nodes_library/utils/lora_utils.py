@@ -7,6 +7,8 @@ import safetensors  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.core_types import ParameterList, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
 
+from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec, normalize_loras
+
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
@@ -23,7 +25,13 @@ class LorasParameter:
                 default_value=[],
                 type="loras",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
-                tooltip="List of LoRAs to apply to the pipeline. Connect Load LoRA nodes here.",
+                tooltip=(
+                    "LoRAs to fuse permanently into the pipeline weights. Fused LoRAs become part of "
+                    "the model's cached identity \u2014 changing them rebuilds the pipeline. Use this for "
+                    "production-stable style/character LoRAs. For dynamic adapters (IC-LoRA, "
+                    "distillation, slider, swap-per-generation), use the LoRA Pipeline node instead, "
+                    "which activates adapters without modifying the cache."
+                ),
             )
         )
 
@@ -35,14 +43,12 @@ class LorasParameter:
         resolved = str(Path(model_path).resolve())
         return hashlib.sha256(resolved.encode("utf-8")).hexdigest()
 
-    def get_loras(self) -> dict[str, float]:
+    def get_lora_specs(self) -> dict[str, LoraSpec]:
         loras_list = self._node.get_parameter_value(self._loras_parameter_name) or []
+        return normalize_loras(loras_list)
 
-        loras = {}
-        for lora in loras_list:
-            loras.update(lora)
-
-        return loras
+    def get_loras(self) -> dict[str, float]:
+        return {path: spec.weight for path, spec in self.get_lora_specs().items()}
 
     def configure_loras(self, pipe: Any) -> None:
         loras = self.get_loras()

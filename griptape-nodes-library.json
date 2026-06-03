@@ -98,7 +98,7 @@
       "file_path": "./modular_diffusion_nodes_library/nodes/latent_diffusion_pipeline_builder_node.py",
       "metadata": {
         "category": "ModularDiffusion/Pipeline",
-        "description": "Build and cache latent-compatible 🧨 Diffusers Pipelines for reuse across latent execution nodes.",
+        "description": "Build and cache latent-compatible 🧨 Diffusers Pipelines. Any LoRAs wired into this node are fused permanently into the cached weights — changing them rebuilds the pipeline. For dynamic adapters that swap per generation, use the LoRA Pipeline node instead.",
         "display_name": "Modular Diffusion Pipeline Builder",
         "group": "diffusion"
       }
@@ -244,6 +244,16 @@
       }
     },
     {
+      "class_name": "LoraActivationPipelineNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/lora_pipeline_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Pipeline",
+        "description": "Layers non-fused LoRA adapters on top of an existing pipeline. The base pipeline stays untouched, so the same model can power multiple branches (one with adapters, one without). Adapters are loaded and activated per generation, then released — ideal for in-context (IC) LoRAs, distillation/acceleration LoRAs, slider LoRAs, or any workflow that swaps adapters between runs.",
+        "display_name": "LoRA Pipeline",
+        "group": "diffusion"
+      }
+    },
+    {
       "class_name": "MediaGenConditioningNode",
       "file_path": "./modular_diffusion_nodes_library/nodes/media_gen_conditioning_node.py",
       "metadata": {
@@ -268,7 +278,7 @@
       "file_path": "./modular_diffusion_nodes_library/nodes/load_lora_node.py",
       "metadata": {
         "category": "ModularDiffusion/Pipeline",
-        "description": "Load a LoRA file from a local path and expose it as a `loras` output for use with the Modular Diffusion Pipeline Builder.",
+        "description": "Load a LoRA file from a local path and expose it as a `loras` output. Wire to the Modular Diffusion Pipeline Builder to fuse the LoRA into the cached weights, or to a LoRA Pipeline node to activate it dynamically per generation.",
         "display_name": "Load LoRA",
         "group": "diffusion"
       }

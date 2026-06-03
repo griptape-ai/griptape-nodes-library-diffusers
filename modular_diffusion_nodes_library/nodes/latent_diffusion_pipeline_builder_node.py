@@ -1,5 +1,3 @@
-import hashlib
-import json
 import logging
 from typing import Any, ClassVar
 
@@ -8,6 +6,7 @@ from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode, NodeRe
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
+    BasePipelineIdentity,
     DiffusionPipelineArtifact,
     normalize_diffusion_pipeline_value,
 )
@@ -95,24 +94,15 @@ class LatentDiffusionPipelineBuilderNode(ParameterConnectionPreservationMixin, C
     @property
     def _config_hash(self) -> str:
         """Generate a hash for the current configuration to use as cache key."""
-        config_data = {
-            **self.params.get_config_kwargs(),
-            **self.loras_params.get_loras(),
-            "torch_dtype": "bfloat16",  # Currently hardcoded
-        }
-
-        opt_kwargs = self.huggingface_pipeline_params.get_hf_pipeline_parameters()
-        for key, value in opt_kwargs.items():
-            config_data[f"opt_{key}"] = value
-
-        config_hash = (
-            self.params.pipeline_type_parameters.pipeline_type_pipeline_params.pipeline_name
-            + "-"
-            + hashlib.sha256(json.dumps(config_data, sort_keys=True).encode()).hexdigest()
+        identity = BasePipelineIdentity(
+            pipeline_name=self.params.pipeline_type_parameters.pipeline_type_pipeline_params.pipeline_name,
+            config_kwargs=self.params.get_config_kwargs(),
+            loras=self.loras_params.get_loras(),
+            optimization_kwargs=self.huggingface_pipeline_params.get_hf_pipeline_parameters(),
+            torch_dtype="bfloat16",  # Currently hardcoded
+            postfix_bits=self._get_config_hash_postfix(),
         )
-        # Convert to hex and append postfix bits
-        config_hash += f"-{self._get_config_hash_postfix():x}"
-        return config_hash
+        return identity.cache_key()
 
     def _build_pipeline_artifact_strict(self) -> DiffusionPipelineArtifact:
         pipeline_params = self.params.pipeline_type_parameters.pipeline_type_pipeline_params
