@@ -77,6 +77,13 @@ class LatentPipelineDriver(ABC):
     def __init__(self, pipe: DiffusionPipeline):
         self._pipe = pipe
         self._modular_pipe: ModularPipeline | None = None
+        # TODO: Temporary hack — Provenance for the Latent being processed (a copy of
+        # ``LatentArtifact.metadata`` or ``DiffusionPipelineArtifact.metadata``).
+        # Mutated by callers (e.g. vae_decoder, generate_latent_parameters) before invoking
+        # decode/denoise/preview methods. Drivers may consult it to detect generation-time
+        # pipeline state (e.g. HDR LoRA via ``runtime_adapter_steps``) when the corresponding
+        # adapters are not currently loaded on ``self.pipe``.
+        self.provenance_metadata: dict[str, Any] = {}
 
     @property
     def pipe(self) -> DiffusionPipeline:

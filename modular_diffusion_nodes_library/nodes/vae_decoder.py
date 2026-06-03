@@ -233,6 +233,13 @@ class VaeDecodeNode(ControlNode):
 
         source_shape = latent_artifact.source_shape
         latents_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
+        # TODO: Temporary hack — we mutate the driver instance with the latent's provenance
+        # metadata so model-specific decode paths can detect generation-time state (e.g. LTX-2
+        # HDR LoRA via ``runtime_adapter_steps``) without re-activating the pipeline. A more robust
+        # solution would pass state in and out of driver stages explicitly (e.g. a per-call
+        # context object threaded through encode/denoise/decode) instead of mutating shared
+        # driver state.
+        latents_pipeline_driver.provenance_metadata = dict(latent_artifact.metadata)
         output = latents_pipeline_driver.decode_latent(latents, source_shape)
 
         if latents_pipeline_driver.produces_video:

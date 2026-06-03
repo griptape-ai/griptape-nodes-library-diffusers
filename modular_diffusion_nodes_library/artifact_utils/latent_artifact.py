@@ -49,6 +49,13 @@ class LatentArtifact(BaseArtifact):
         raw = self.meta.get("source_shape", [])
         return tuple(int(dim) for dim in raw)
 
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Read-only view of the artifact's metadata.
+        Carries arbitrary provenance from upstream producers.
+        """
+        return dict(self.meta)
+
     @classmethod
     def from_torch(
         cls,

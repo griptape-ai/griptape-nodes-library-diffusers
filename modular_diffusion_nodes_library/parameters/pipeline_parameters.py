@@ -16,6 +16,9 @@ from modular_diffusion_nodes_library.runtime_parameters.flux_fill_runtime_parame
 from modular_diffusion_nodes_library.runtime_parameters.flux_runtime_parameters import (
     FluxPipelineRuntimeParameters,
 )
+from modular_diffusion_nodes_library.runtime_parameters.ltx2_runtime_parameters import (
+    LTX2PipelineRuntimeParameters,
+)
 from modular_diffusion_nodes_library.runtime_parameters.ltx_runtime_parameters import (
     LTXPipelineRuntimeParameters,
 )
@@ -48,7 +51,7 @@ class ModularDiffusionPipelineParameters:
     def __init__(self, node: BaseNode):
         self._node: BaseNode = node
         self._runtime_parameters: DiffusionPipelineRuntimeParameters
-        self.set_runtime_parameters("FluxPipeline")
+        self.set_runtime_parameters(DiffusionPipelineArtifact(pipeline_name="FluxPipeline"))
 
     def add_input_parameters(self) -> None:
         self._node.add_parameter(
@@ -60,7 +63,8 @@ class ModularDiffusionPipelineParameters:
             )
         )
 
-    def set_runtime_parameters(self, pipeline_class: str) -> None:  # noqa: C901 PLR0912 PLR0915
+    def set_runtime_parameters(self, pipeline_artifact: DiffusionPipelineArtifact) -> None:  # noqa: C901 PLR0912 PLR0915
+        pipeline_class = pipeline_artifact.pipeline_name
         match pipeline_class:
             case "FluxPipeline":
                 self._runtime_parameters = FluxPipelineRuntimeParameters(self._node)
@@ -72,6 +76,8 @@ class ModularDiffusionPipelineParameters:
                 self._runtime_parameters = Flux2PipelineRuntimeParameters(self._node)
             case "LTXPipeline":
                 self._runtime_parameters = LTXPipelineRuntimeParameters(self._node)
+            case "LTX2Pipeline":
+                self._runtime_parameters = LTX2PipelineRuntimeParameters(self._node, pipeline_artifact.metadata)
             case "QwenImagePipeline":
                 self._runtime_parameters = QwenPipelineRuntimeParameters(self._node)
             case "QwenImageEditPipeline":
@@ -100,7 +106,7 @@ class ModularDiffusionPipelineParameters:
 
         pipeline_class = self._get_pipeline_class_from_value(value)
         if pipeline_class is not None:
-            self.set_runtime_parameters(pipeline_class)
+            self.set_runtime_parameters(value)
 
             self.runtime_parameters.add_input_parameters()
             self.runtime_parameters.add_output_parameters()
@@ -133,6 +139,16 @@ class ModularDiffusionPipelineParameters:
         if pipeline is None:
             raise RuntimeError(f"{node_name}: Pipeline build returned None.")
         return cast(DiffusionPipeline, pipeline)
+
+    def get_pipeline_artifact(self) -> DiffusionPipelineArtifact:
+        node_name = self._node.name
+        pipeline_value = self._node.get_parameter_value("pipeline")
+        if not isinstance(pipeline_value, DiffusionPipelineArtifact):
+            raise ValueError(
+                f"{node_name}: Pipeline value must be DiffusionPipelineArtifact. "
+                f"Got type '{type(pipeline_value).__name__}'."
+            )
+        return pipeline_value
 
     def validate_before_node_run(self) -> list[Exception] | None:
         node_name = self._node.name
