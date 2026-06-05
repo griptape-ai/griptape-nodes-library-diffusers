@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "griptape-nodes-library-modular-diffusion"
 version = "0.66.8"
 description = "Advanced media generation and manipulation nodes for Griptape Nodes."
@@ -51,7 +51,7 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = [
-    "diffusers_nodes_library",
+    "modular_diffusion_nodes_library",
     "workflows",
 ]
 

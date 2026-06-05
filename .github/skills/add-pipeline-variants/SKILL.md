@@ -1,6 +1,6 @@
-﻿---
+---
 name: add-pipeline-variants
-description: 'Add a runtime variant (ControlNet, inpaint, or input-conditional pipe swap) to an EXISTING driver in diffusers_nodes_library. DEFAULT TO THIS SKILL FIRST when adding any new capability to an existing model. The criterion is: can `<NewPipelineClass>.from_pipe(base_pipe)` produce a working pipeline from the components already loaded on the base pipe (UNet/transformer, VAE, text encoders, scheduler)? If yes — use this skill. Examples: ControlNet (any model), inpaint (any model), LTX media_gen_conditioning → LTXConditionPipeline. DO NOT use when from_pipe cannot produce a working pipeline (variant class needs a component the base does not have, or differently-shaped/-trained weights for an existing component) — that is a new pipeline type and belongs in add-modular-pipeline.'
+description: 'Add a runtime variant (ControlNet, inpaint, or input-conditional pipe swap) to an EXISTING driver in modular_diffusion_nodes_library. DEFAULT TO THIS SKILL FIRST when adding any new capability to an existing model. The criterion is: can `<NewPipelineClass>.from_pipe(base_pipe)` produce a working pipeline from the components already loaded on the base pipe (UNet/transformer, VAE, text encoders, scheduler)? If yes — use this skill. Examples: ControlNet (any model), inpaint (any model), LTX media_gen_conditioning → LTXConditionPipeline. DO NOT use when from_pipe cannot produce a working pipeline (variant class needs a component the base does not have, or differently-shaped/-trained weights for an existing component) — that is a new pipeline type and belongs in add-modular-pipeline.'
 ---
 
 # Add Pipeline Variants to an Existing Driver
@@ -60,7 +60,7 @@ Any new runtime input added by a variant (e.g. `controlnet_conditioning_scale`, 
 
 ### Rule 3 — Adhere to the LatentPipelineDriver contract
 
-Variants must preserve the public latent contract in [`base_driver.py`](../../../diffusers_nodes_library/latent_pipeline_drivers/base_driver.py) docstring:
+Variants must preserve the public latent contract in [`base_driver.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py) docstring:
 - Latents passed across the public surface remain **unpacked + normalised**
 - Any packing required by the variant pipeline happens inside `prepare_input_latent`/`prepare_output_latent` (or transiently inside the overridden `denoise_latent`), never on the public surface
 - Never bypass `super().denoise_latent()` for callback / partial-denoise / cancellation concerns
@@ -82,7 +82,7 @@ Override:
 - `can_make_control_pipe_from_standard(cls, control_net_model_lists) -> bool` — return True if you support ControlNet for this list
 - `control_pipe_from_standard(cls, pipe, control_net_model_lists)` — load `ControlNetModel`(s) and return `<Model>ControlNetPipeline.from_pipe(pipe, controlnet=...)`
 
-Reference: [stable_diffusion_xl.py](../../../diffusers_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) lines 68-96 — canonical implementation.
+Reference: [stable_diffusion_xl.py](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) lines 68-96 — canonical implementation.
 
 ### Pattern B — Inpaint (denoise-time variant, zero code)
 
@@ -94,18 +94,18 @@ class MyDriver(LatentPipelineDriver):
     _inpaint_pipeline_class = <Model>InpaintPipeline
 ```
 
-That's it. The base class `denoise_latent` in [base_driver.py](../../../diffusers_nodes_library/latent_pipeline_drivers/base_driver.py) checks for `inpaint_mask_artifact` in kwargs, calls `_get_inpaint_pipe()` (which uses `create_pipe_variant` under the hood), and passes the right kwargs via `_get_inpaint_kwargs()`.
+That's it. The base class `denoise_latent` in [base_driver.py](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py) checks for `inpaint_mask_artifact` in kwargs, calls `_get_inpaint_pipe()` (which uses `create_pipe_variant` under the hood), and passes the right kwargs via `_get_inpaint_kwargs()`.
 
 Override `_get_inpaint_kwargs()` only if your inpaint pipeline needs non-standard kwargs beyond `image`, `mask_image`, and `masked_image_latents`.
 
-Reference: [stable_diffusion_xl.py](../../../diffusers_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) line 63 — `_inpaint_pipeline_class = StableDiffusionXLInpaintPipeline`.
+Reference: [stable_diffusion_xl.py](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) line 63 — `_inpaint_pipeline_class = StableDiffusionXLInpaintPipeline`.
 
 ### Pattern C — Runtime pipe-swap (denoise-time variant)
 
 **Trigger**: A custom input kwarg at denoise time (e.g., `media_gen_conditioning` for LTX).
 **Mechanism**: Override `denoise_latent`, detect kwarg, swap `self._pipe`, restore in `finally`, then delegate to `super()`.
 
-Reference: [ltx.py](../../../diffusers_nodes_library/latent_pipeline_drivers/ltx.py) lines 260-294.
+Reference: [ltx.py](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/ltx.py) lines 260-294.
 
 Skeleton:
 ```python
@@ -150,7 +150,7 @@ The `finally` block is non-negotiable — failing to restore `self._pipe` leaves
 - Pattern: A (ControlNet) | B (Inpaint) | C (Runtime pipe-swap)
 
 ## Files to modify
-- diffusers_nodes_library/latent_pipeline_drivers/<driver>.py
+- modular_diffusion_nodes_library/latent_pipeline_drivers/<driver>.py
 
 ## Implementation
 - <Concrete code changes, citing the reference pattern>
