@@ -1,4 +1,4 @@
-﻿# Driver Implementation Details
+# Driver Implementation Details
 
 Progressive-load reference for the `LatentPipelineDriver` subclass. Load this when designing or implementing the driver in step 4 of the add-model procedure.
 
@@ -42,7 +42,7 @@ def _create_modular_pipe(self) -> ModularPipeline:
 
 The base class then injects `pipe.components` into the modular pipe automatically.
 
-For concrete imports, scan existing drivers in [`diffusers_nodes_library/latent_pipeline_drivers/`](../../../../diffusers_nodes_library/latent_pipeline_drivers/).
+For concrete imports, scan existing drivers in [`modular_diffusion_nodes_library/latent_pipeline_drivers/`](../../../../modular_diffusion_nodes_library/latent_pipeline_drivers/).
 
 If `<Model>AutoBlocks` doesn't exist, check the model's `modular_pipeline.py` for an `init_pipeline`-ready blocks class. If no modular pipeline exists yet for this model in diffusers, that is a blocker — surface it to the user.
 

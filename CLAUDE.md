@@ -1,4 +1,4 @@
-﻿# CLAUDE.md
+# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -141,7 +141,7 @@ Prefer verifiable goals ("write a failing test for X, then make it pass") over i
 
 ## Architecture Overview
 
-**Top-level layout** (under `diffusers_nodes_library/`):
+**Top-level layout** (under `modular_diffusion_nodes_library/`):
 
 - `nodes/` — the user-facing Griptape nodes (Pipeline Builder, Generate Latent, VAE Encode/Decode, Noise/Empty/Add Latent, LoRA, ControlNet, Latent Math, Conditioning, Save Latent Tensor, etc.). Each node is registered in `griptape_nodes_library.json`.
 - `latent_pipeline_drivers/` — per-model drivers (`flux`, `flux2`, `qwen`, `z_image`, `ltx`, `wan`, `wan_i2v`, `stable_diffusion_xl`, `stable_diffusion_3`, `flux_fill`, …) all extending `LatentPipelineDriver` in `base_driver.py`. `driver_factory.py` maps a diffusers pipeline class name → driver class.
@@ -190,7 +190,7 @@ The Pipeline Builder caches the loaded pipeline in memory and reuses it across r
 
 **Creating a node:**
 
-1. Add the implementation under `diffusers_nodes_library/nodes/<your_node>.py`, extending `BaseNode` from the engine.
+1. Add the implementation under `modular_diffusion_nodes_library/nodes/<your_node>.py`, extending `BaseNode` from the engine.
 2. Register it in `griptape_nodes_library.json` (category, metadata, file path).
 3. Restart the engine — the node appears under the **ModularDiffusion** categories in the node picker.
 4. **Document the node.** Add a page under `docs/nodes/<your_node>.md` following [docs/node-doc-format.md](docs/node-doc-format.md) and link it from `docs/index.md`. Use the [.github/skills/document-node/SKILL.md](.github/skills/document-node/SKILL.md) skill.

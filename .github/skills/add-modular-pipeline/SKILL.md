@@ -1,11 +1,11 @@
-﻿---
+---
 name: add-modular-pipeline
-description: 'Add a new diffusion model / pipeline TYPE to the diffusers_nodes_library. Use ONLY when `<NewPipelineClass>.from_pipe(base_pipe)` cannot produce a working pipeline from the components already loaded on an existing base pipe — i.e. the new pipeline needs a component the base does not have, or needs differently-shaped/-trained weights for an existing component. Examples that qualify: Wan 2.2 T2V vs I2V (different UNet + image encoder), Qwen Edit (different transformer + image conditioning), Flux Fill (different transformer weights). Walks through the 5-step process: Provider enum, Standard Parameters, Runtime Parameters, Driver, Registration. DO NOT use when from_pipe(base) can build the new pipeline against the loaded components (ControlNet, inpaint, LTX media_gen_conditioning) — those are runtime variants and belong in add-pipeline-variants. Default to add-pipeline-variants first; only fall back to this skill when the from_pipe test fails.'
+description: 'Add a new diffusion model / pipeline TYPE to the modular_diffusion_nodes_library. Use ONLY when `<NewPipelineClass>.from_pipe(base_pipe)` cannot produce a working pipeline from the components already loaded on an existing base pipe — i.e. the new pipeline needs a component the base does not have, or needs differently-shaped/-trained weights for an existing component. Examples that qualify: Wan 2.2 T2V vs I2V (different UNet + image encoder), Qwen Edit (different transformer + image conditioning), Flux Fill (different transformer weights). Walks through the 5-step process: Provider enum, Standard Parameters, Runtime Parameters, Driver, Registration. DO NOT use when from_pipe(base) can build the new pipeline against the loaded components (ControlNet, inpaint, LTX media_gen_conditioning) — those are runtime variants and belong in add-pipeline-variants. Default to add-pipeline-variants first; only fall back to this skill when the from_pipe test fails.'
 ---
 
 # Add a Model to the Modular Diffusion Library
 
-This skill guides the agent through adding a new diffusion model (image or video) to `diffusers_nodes_library/` in this repo.
+This skill guides the agent through adding a new diffusion model (image or video) to `modular_diffusion_nodes_library/` in this repo.
 
 ## Working Principles
 
@@ -38,7 +38,7 @@ Before writing anything, classify the request along TWO axes and present the cla
 
 **Axis B — new Provider vs new sibling under existing Provider**:
 
-Inspect [`parameters/providers.py`](../../../diffusers_nodes_library/parameters/providers.py) and [`parameters/pipelinetype_parameters.py`](../../../diffusers_nodes_library/parameters/pipelinetype_parameters.py) and decide which shape applies:
+Inspect [`parameters/providers.py`](../../../modular_diffusion_nodes_library/parameters/providers.py) and [`parameters/pipelinetype_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipelinetype_parameters.py) and decide which shape applies:
 
 - **New `Provider`** — the model is a new architecture / generation. Add a `Provider` enum entry, a new `LatentPipelineTypeParameters` subclass, and a `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` entry. (Shape used by `Provider.FLUX` → `Provider.FLUX2`.)
 - **Extend an existing Provider's type dict** — the model is a sibling checkpoint of an existing generation (different weights, same architecture). Add ONE entry to that subclass's `get_pipeline_type_dict()`. Do NOT add a `Provider` enum entry. Do NOT add a `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` entry. (Shape used by `FluxPipeline` + `FluxFillPipeline` under `Provider.FLUX`.)
@@ -90,7 +90,7 @@ If a parameter is **absent from `__call__` entirely** — for example because th
 
 ### Rule 5 — Adhere to the LatentPipelineDriver contract
 
-The latent shape & space contract is documented in the `LatentPipelineDriver` docstring in [`diffusers_nodes_library/latent_pipeline_drivers/base_driver.py`](../../../diffusers_nodes_library/latent_pipeline_drivers/base_driver.py). **Read it before designing the driver — it is the source of truth.** Summary of the invariants the agent MUST honour:
+The latent shape & space contract is documented in the `LatentPipelineDriver` docstring in [`modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py). **Read it before designing the driver — it is the source of truth.** Summary of the invariants the agent MUST honour:
 
 - **Public latents are unpacked**: 4-D `[B, C, H/vae, W/vae]` for image, 5-D `[B, C, T_lat, H/vae, W/vae]` for video. No model-specific sequence packing on the public surface.
 - **Public latents are normalised** (~N(0, 1)). If the VAE config publishes per-channel `latents_mean` / `latents_std`, apply whitening `(z - mean) / std` inside `encode_image`/`encode_video` and the inverse inside `decode_latent`. If it publishes only scalar `scaling_factor` (and optional `shift_factor`), the standard `(z - shift) * scaling` transform is sufficient — no whitening. Verify on the actual VAE config of the model you are adding; do not assume from family name. Mirror the closest existing driver.
@@ -139,7 +139,7 @@ The long-term goal is to use diffusers `ModularPipeline` blocks for ALL operatio
 
 Three open blockers force every driver to delegate the **denoise loop** to `DiffusionPipeline.__call__()` today:
 
-1. **Partial denoise** — `PartialDenoisePipelineRunner` in [`diffusers_nodes_library/misc/partial_denoise.py`](../../../diffusers_nodes_library/misc/partial_denoise.py) intercepts `pipe.scheduler.set_timesteps()`; no equivalent injection point exists on a `ModularPipeline` denoise block.
+1. **Partial denoise** — `PartialDenoisePipelineRunner` in [`modular_diffusion_nodes_library/misc/partial_denoise.py`](../../../modular_diffusion_nodes_library/misc/partial_denoise.py) intercepts `pipe.scheduler.set_timesteps()`; no equivalent injection point exists on a `ModularPipeline` denoise block.
 2. **Callback / preview** — `callback_on_step_end(pipe, i, _t, callback_kwargs)` is passed via `pipe_kwargs` to `DiffusionPipeline.__call__()` (see `denoise_latent()` in `base_driver.py`). Modular denoise blocks don't expose this hook.
 3. **Cancellation** — Implemented by `pipe._interrupt = True` inside the callback; no equivalent on `ModularPipeline`.
 
@@ -176,8 +176,8 @@ Modular block input contracts are NOT consistent across pipelines, and they are 
 ### Phase A — Investigation (no code written, version bump possible)
 
 0. List `/memories/repo/` and read any entries whose filenames suggest relevance to the new model family or to the shared subsystems being touched (latent contract, hashing, offload, denoise, the closest precedent driver). Repo memory captures previously-learned gotchas — treat it as advisory (entries may be outdated), but always check before re-deriving.
-1. Read [`base_driver.py`](../../../diffusers_nodes_library/latent_pipeline_drivers/base_driver.py) end-to-end. Internalise the latent shape/space contract.
-2. Read [`driver_factory.py`](../../../diffusers_nodes_library/latent_pipeline_drivers/driver_factory.py), [`parameters/pipelinetype_parameters.py`](../../../diffusers_nodes_library/parameters/pipelinetype_parameters.py), and [`parameters/pipeline_parameters.py`](../../../diffusers_nodes_library/parameters/pipeline_parameters.py) to understand the three registries.
+1. Read [`base_driver.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py) end-to-end. Internalise the latent shape/space contract.
+2. Read [`driver_factory.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py), [`parameters/pipelinetype_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipelinetype_parameters.py), and [`parameters/pipeline_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipeline_parameters.py) to understand the three registries.
 3. Identify the closest existing model/driver to the one being added:
    - Image, no packing, no extra encoders → SDXL
    - Image, packed latents, dual text encoders → Flux
@@ -232,24 +232,24 @@ Produce a plan in this format:
 - If extending: target subclass = `<ExistingClassName>`; one new dict entry only.
 
 ## Runtime parameters class reuse
-State whether this pipeline class gets a NEW runtime-parameters class or reuses an existing one. Siblings within a generation commonly share a runtime-params class (see existing reuse precedents in [`parameters/pipeline_parameters.py`](../../../diffusers_nodes_library/parameters/pipeline_parameters.py) — e.g. `Flux2Pipeline` + `Flux2KleinPipeline`). If reusing, justify by showing the upstream `__call__` signatures are runtime-compatible.
+State whether this pipeline class gets a NEW runtime-parameters class or reuses an existing one. Siblings within a generation commonly share a runtime-params class (see existing reuse precedents in [`parameters/pipeline_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipeline_parameters.py) — e.g. `Flux2Pipeline` + `Flux2KleinPipeline`). If reusing, justify by showing the upstream `__call__` signatures are runtime-compatible.
 
 ## Files to create
-- diffusers_nodes_library/standard_parameters/<file>.py
-- diffusers_nodes_library/runtime_parameters/<file>.py  (omit if reusing an existing one)
-- diffusers_nodes_library/latent_pipeline_drivers/<file>.py
+- modular_diffusion_nodes_library/standard_parameters/<file>.py
+- modular_diffusion_nodes_library/runtime_parameters/<file>.py  (omit if reusing an existing one)
+- modular_diffusion_nodes_library/latent_pipeline_drivers/<file>.py
 
 ## Files to modify (only the lines required — see Surgical Changes principle)
-- diffusers_nodes_library/latent_pipeline_drivers/driver_factory.py
+- modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py
     → one entry in `_DRIVER_REGISTRY`
-- diffusers_nodes_library/parameters/pipeline_parameters.py
+- modular_diffusion_nodes_library/parameters/pipeline_parameters.py
     → one or more `case "<PipelineClassName>":` in `set_runtime_parameters`
-- diffusers_nodes_library/parameters/pipelinetype_parameters.py
+- modular_diffusion_nodes_library/parameters/pipelinetype_parameters.py
     → EITHER a new subclass + `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` entry (new-Provider shape),
       OR one new entry in an existing subclass's `get_pipeline_type_dict()` (extend-existing shape).
       NEVER both. NEVER name img2img/inpaint/controlnet sibling classes here — those are runtime
       variants and belong to `/add-pipeline-variants`.
-- diffusers_nodes_library/parameters/providers.py
+- modular_diffusion_nodes_library/parameters/providers.py
     → only when adding a new `Provider` enum entry.
 
 ## Latent contract compliance
@@ -283,18 +283,18 @@ State the verification check **before** making each change. A step is not comple
 
 All `uv run ...` commands below must be executed from the repo root. This repo is uv-backed and Windows-friendly; there is no `make` target.
 
-1. **Provider enum entry** (only for the new-Provider shape) added to [`parameters/providers.py`](../../../diffusers_nodes_library/parameters/providers.py) → verify: `uv run python -c "from diffusers_nodes_library.parameters.providers import Provider; Provider.<NEW_NAME>"` exits 0.
+1. **Provider enum entry** (only for the new-Provider shape) added to [`parameters/providers.py`](../../../modular_diffusion_nodes_library/parameters/providers.py) → verify: `uv run python -c "from modular_diffusion_nodes_library.parameters.providers import Provider; Provider.<NEW_NAME>"` exits 0.
 2. **Standard parameters** file created → verify: `uv run ruff format --check` + `uv run ruff check .` pass for the new file.
 3. **Runtime parameters** file created (or reuse declared) → verify: every parameter default and tooltip cites an upstream source per Rule 4; `uv run ruff format --check` + `uv run ruff check .` pass.
 4. **Driver** file created → verify: file imports cleanly; every `_call_block(...)` site passes every `required=True` input enumerated in Phase B's table; latent contract (Rule 5) is honoured (unpacked, normalised, `latents_source_shape` is pixel-space); `uv run ruff format --check` + `uv run ruff check .` pass.
 5. **Registration edits**:
-   - Always: one entry in [`driver_factory.py`](../../../diffusers_nodes_library/latent_pipeline_drivers/driver_factory.py) `_DRIVER_REGISTRY`; one or more `case` clauses in [`pipeline_parameters.py`](../../../diffusers_nodes_library/parameters/pipeline_parameters.py) `set_runtime_parameters`.
-   - **New-Provider shape**: a new `Provider` enum entry in [`providers.py`](../../../diffusers_nodes_library/parameters/providers.py), a new `LatentPipelineTypeParameters` subclass AND a `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` entry in [`pipelinetype_parameters.py`](../../../diffusers_nodes_library/parameters/pipelinetype_parameters.py).
-   - **Extend-existing shape**: ONE new entry inside an existing subclass's `get_pipeline_type_dict()` in [`pipelinetype_parameters.py`](../../../diffusers_nodes_library/parameters/pipelinetype_parameters.py). No `providers.py` change. No `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` change.
+   - Always: one entry in [`driver_factory.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py) `_DRIVER_REGISTRY`; one or more `case` clauses in [`pipeline_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipeline_parameters.py) `set_runtime_parameters`.
+   - **New-Provider shape**: a new `Provider` enum entry in [`providers.py`](../../../modular_diffusion_nodes_library/parameters/providers.py), a new `LatentPipelineTypeParameters` subclass AND a `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` entry in [`pipelinetype_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipelinetype_parameters.py).
+   - **Extend-existing shape**: ONE new entry inside an existing subclass's `get_pipeline_type_dict()` in [`pipelinetype_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipelinetype_parameters.py). No `providers.py` change. No `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` change.
 
    Verify:
-   - `uv run python -c "from diffusers_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class; assert get_driver_class('<PipelineClassName>') is not None"`
-   - For the new-Provider shape only: `uv run python -c "from diffusers_nodes_library.parameters.pipelinetype_parameters import MODULAR_PIPELINE_TYPE_PROVIDER_MAP; from diffusers_nodes_library.parameters.providers import Provider; assert MODULAR_PIPELINE_TYPE_PROVIDER_MAP[Provider.<NEW_NAME>] is not None"`
+   - `uv run python -c "from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class; assert get_driver_class('<PipelineClassName>') is not None"`
+   - For the new-Provider shape only: `uv run python -c "from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import MODULAR_PIPELINE_TYPE_PROVIDER_MAP; from modular_diffusion_nodes_library.parameters.providers import Provider; assert MODULAR_PIPELINE_TYPE_PROVIDER_MAP[Provider.<NEW_NAME>] is not None"`
    - `uv run ruff format --check` and `uv run ruff check .` pass.
 
    **Surgical-edits check**: diff each shared file and confirm only added lines / one inserted block are present — no reformatted neighbours, no reordered entries, no touched sibling cases.

@@ -1,6 +1,6 @@
-﻿# Adding a New Model to the Modular Diffusion Library
+# Adding a New Model to the Modular Diffusion Library
 
-This guide walks through adding support for a new diffusion model (e.g., Stable Diffusion 3.5, HunyuanVideo 1.5) to `diffusers_nodes_library/`.
+This guide walks through adding support for a new diffusion model (e.g., Stable Diffusion 3.5, HunyuanVideo 1.5) to `modular_diffusion_nodes_library/`.
 
 ---
 
@@ -12,8 +12,8 @@ This guide walks through adding support for a new diffusion model (e.g., Stable 
 
 Three concerns currently force every driver to delegate the **denoise loop** to `DiffusionPipeline.__call__()` rather than to a modular block sequence. These are the open problems blocking the full migration:
 
-1. **Partial denoise** — `PartialDenoisePipelineRunner` / `PartialDenoiseSchedulerProxy` in [`misc/partial_denoise.py`](../diffusers_nodes_library/misc/partial_denoise.py) intercept `pipe.scheduler.set_timesteps()` to slice the schedule for partial denoising. There is no equivalent injection point on a `ModularPipeline` denoise block.
-2. **Callback / preview** — Step-end previews and progress are driven by `callback_on_step_end(pipe, i, _t, callback_kwargs)`, passed via `pipe_kwargs` to `DiffusionPipeline.__call__()` (see `LatentPipelineDriver.denoise_latent()` in [`latent_pipeline_drivers/base_driver.py`](../diffusers_nodes_library/latent_pipeline_drivers/base_driver.py)). Modular denoise blocks do not expose this hook.
+1. **Partial denoise** — `PartialDenoisePipelineRunner` / `PartialDenoiseSchedulerProxy` in [`misc/partial_denoise.py`](../modular_diffusion_nodes_library/misc/partial_denoise.py) intercept `pipe.scheduler.set_timesteps()` to slice the schedule for partial denoising. There is no equivalent injection point on a `ModularPipeline` denoise block.
+2. **Callback / preview** — Step-end previews and progress are driven by `callback_on_step_end(pipe, i, _t, callback_kwargs)`, passed via `pipe_kwargs` to `DiffusionPipeline.__call__()` (see `LatentPipelineDriver.denoise_latent()` in [`latent_pipeline_drivers/base_driver.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py)). Modular denoise blocks do not expose this hook.
 3. **Cancellation** — Cancellation is implemented by setting `pipe._interrupt = True` inside the step callback (see `generate_latent_parameters.py`). `ModularPipeline` has no equivalent interrupt mechanism.
 
 ### What this means in practice
@@ -48,7 +48,7 @@ graph TD
 
 ### Step 1 — Add a Provider (if new)
 
-[`parameters/providers.py`](../diffusers_nodes_library/parameters/providers.py) is a `StrEnum`. Add an entry if your model family doesn't already exist:
+[`parameters/providers.py`](../modular_diffusion_nodes_library/parameters/providers.py) is a `StrEnum`. Add an entry if your model family doesn't already exist:
 
 ```python
 class Provider(StrEnum):
@@ -60,11 +60,11 @@ Skip only if the new model is a sibling checkpoint of an existing **architecture
 
 ### Step 2 — Standard Parameters (pipeline loading)
 
-Create `standard_parameters/<model>_parameters.py`. Subclass `ModularDiffusionPipelineTypePipelineParameters` from [`parameters/modular_pipeline_type_parameters.py`](../diffusers_nodes_library/parameters/modular_pipeline_type_parameters.py). Model after [`standard_parameters/stable_diffusion_sdxl_parameters.py`](../diffusers_nodes_library/standard_parameters/stable_diffusion_sdxl_parameters.py) for simple cases, or [`flux_parameters.py`](../diffusers_nodes_library/standard_parameters/flux_parameters.py) when multiple sub-component repos (text encoders, VAE) are exposed separately.
+Create `standard_parameters/<model>_parameters.py`. Subclass `ModularDiffusionPipelineTypePipelineParameters` from [`parameters/modular_pipeline_type_parameters.py`](../modular_diffusion_nodes_library/parameters/modular_pipeline_type_parameters.py). Model after [`standard_parameters/stable_diffusion_sdxl_parameters.py`](../modular_diffusion_nodes_library/standard_parameters/stable_diffusion_sdxl_parameters.py) for simple cases, or [`flux_parameters.py`](../modular_diffusion_nodes_library/standard_parameters/flux_parameters.py) when multiple sub-component repos (text encoders, VAE) are exposed separately.
 
 Required overrides:
 - `_pipeline_cls` — the diffusers pipeline class
-- `pipeline_name` — **must exactly match the key** in [`driver_factory.py`](../diffusers_nodes_library/latent_pipeline_drivers/driver_factory.py) `_DRIVER_REGISTRY`
+- `pipeline_name` — **must exactly match the key** in [`driver_factory.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py) `_DRIVER_REGISTRY`
 - `add_input_parameters()` / `remove_input_parameters()`
 - `get_config_kwargs()` — returned to the builder node for hashing
 - `get_build_data()` — picklable dict consumed by `build_pipeline_from_build_data()`
@@ -78,7 +78,7 @@ Optional overrides on the base class:
 
 ### Step 3 — Runtime Parameters (UI on the generate node)
 
-Create `runtime_parameters/<model>_runtime_parameters.py`. Subclass `DiffusionPipelineRuntimeParameters` from [`runtime_parameters/runtime_parameters.py`](../diffusers_nodes_library/runtime_parameters/runtime_parameters.py). Model after [`flux_runtime_parameters.py`](../diffusers_nodes_library/runtime_parameters/flux_runtime_parameters.py).
+Create `runtime_parameters/<model>_runtime_parameters.py`. Subclass `DiffusionPipelineRuntimeParameters` from [`runtime_parameters/runtime_parameters.py`](../modular_diffusion_nodes_library/runtime_parameters/runtime_parameters.py). Model after [`flux_runtime_parameters.py`](../modular_diffusion_nodes_library/runtime_parameters/flux_runtime_parameters.py).
 
 Required overrides:
 - `_add_input_parameters()` — register `Parameter` objects for prompt, negative_prompt, guidance_scale, true_cfg_scale, etc.
@@ -89,7 +89,7 @@ Do **not** add `num_inference_steps`, `generator`, or `seed` — the base class 
 
 ### Step 4 — Driver (the core abstraction)
 
-Create `latent_pipeline_drivers/<model>.py`. Subclass `LatentPipelineDriver` from [`base_driver.py`](../diffusers_nodes_library/latent_pipeline_drivers/base_driver.py).
+Create `latent_pipeline_drivers/<model>.py`. Subclass `LatentPipelineDriver` from [`base_driver.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py).
 
 **Read the `LatentPipelineDriver` docstring before writing a line.** It defines the binding contract for every public driver method:
 
@@ -101,7 +101,7 @@ Required overrides:
 |---|---|
 | `_create_modular_pipe()` | Call the diffusers `*AutoBlocks().init_pipeline()` for your model. Modular-first. |
 | `can_make_control_pipe_from_standard()` | Return False unless you implement ControlNet. |
-| `create_noise_latent()` | Prefer the diffusers modular `PrepareLatents` block via `self._call_block(...)`. See [`stable_diffusion_xl.py`](../diffusers_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) `_SDXLPrepareNoiseLatentStep`. |
+| `create_noise_latent()` | Prefer the diffusers modular `PrepareLatents` block via `self._call_block(...)`. See [`stable_diffusion_xl.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) `_SDXLPrepareNoiseLatentStep`. |
 | `encode_image()` | Use `self.modular_pipe.blocks.sub_blocks["vae_encoder"]` where available. Apply VAE whitening. |
 | `decode_latent()` | Use `self.modular_pipe.blocks.sub_blocks["decode"]` where available. Apply inverse whitening. |
 | `add_noise_to_latent()` | Prefer modular `Img2ImgSetTimesteps` + `Img2ImgPrepareLatents` block sequence. |
@@ -116,7 +116,7 @@ Optional overrides:
 
 ### Step 5 — Register in three places
 
-**a) [`latent_pipeline_drivers/driver_factory.py`](../diffusers_nodes_library/latent_pipeline_drivers/driver_factory.py)** — map pipeline class name → driver class:
+**a) [`latent_pipeline_drivers/driver_factory.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py)** — map pipeline class name → driver class:
 
 ```python
 _DRIVER_REGISTRY: dict[str, type[LatentPipelineDriver]] = {
@@ -125,14 +125,14 @@ _DRIVER_REGISTRY: dict[str, type[LatentPipelineDriver]] = {
 }
 ```
 
-**b) [`parameters/pipeline_parameters.py`](../diffusers_nodes_library/parameters/pipeline_parameters.py)** — add a `case` in `set_runtime_parameters()`:
+**b) [`parameters/pipeline_parameters.py`](../modular_diffusion_nodes_library/parameters/pipeline_parameters.py)** — add a `case` in `set_runtime_parameters()`:
 
 ```python
 case "StableDiffusion3Pipeline":
     self._runtime_parameters = StableDiffusion3PipelineRuntimeParameters(self._node)
 ```
 
-**c) [`parameters/pipelinetype_parameters.py`](../diffusers_nodes_library/parameters/pipelinetype_parameters.py)** — create a `LatentPipelineTypeParameters` subclass and register it in `MODULAR_PIPELINE_TYPE_PROVIDER_MAP`:
+**c) [`parameters/pipelinetype_parameters.py`](../modular_diffusion_nodes_library/parameters/pipelinetype_parameters.py)** — create a `LatentPipelineTypeParameters` subclass and register it in `MODULAR_PIPELINE_TYPE_PROVIDER_MAP`:
 
 ```python
 class LatentStableDiffusion3PipelineTypeParameters(LatentPipelineTypeParameters):

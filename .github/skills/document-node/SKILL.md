@@ -1,6 +1,6 @@
-﻿---
+---
 name: document-node
-description: 'Author or update the user-facing documentation page for a node in diffusers_nodes_library. Use whenever a new node is added, an existing node gains/loses/renames a parameter, its category or display name changes, its inputs/outputs change shape, or a provider/pipeline-type-specific behavior is added or removed. Also use when a docs page is missing a screenshot or has drifted from the node implementation. Produces or edits a page under docs/nodes/<name>.md following docs/node-doc-format.md, updates docs/index.md if the page is new, and flags missing screenshots. DO NOT use for code changes to the node itself — pair this with add-modular-pipeline or add-pipeline-variants when shipping a feature.'
+description: 'Author or update the user-facing documentation page for a node in modular_diffusion_nodes_library. Use whenever a new node is added, an existing node gains/loses/renames a parameter, its category or display name changes, its inputs/outputs change shape, or a provider/pipeline-type-specific behavior is added or removed. Also use when a docs page is missing a screenshot or has drifted from the node implementation. Produces or edits a page under docs/nodes/<name>.md following docs/node-doc-format.md, updates docs/index.md if the page is new, and flags missing screenshots. DO NOT use for code changes to the node itself — pair this with add-modular-pipeline or add-pipeline-variants when shipping a feature.'
 ---
 
 # Document a Modular Diffusion Node
@@ -13,7 +13,7 @@ The **canonical template and field conventions** live in [docs/node-doc-format.m
 
 | Trigger | Action |
 |---|---|
-| A new node was added to `diffusers_nodes_library/nodes/` and registered in `griptape_nodes_library.json`. | **Create** `docs/nodes/<name>.md` and add a link to `docs/index.md`. |
+| A new node was added to `modular_diffusion_nodes_library/nodes/` and registered in `griptape_nodes_library.json`. | **Create** `docs/nodes/<name>.md` and add a link to `docs/index.md`. |
 | An existing node's parameters, inputs, outputs, category, or display name changed. | **Update** the existing `docs/nodes/<name>.md` and `docs/index.md` if naming/grouping changed. |
 | A provider-specific or pipeline-type-specific behavior was added/removed. | **Update** the `Provider / model behavior` section. |
 | Default values, bounds, or required-ness of a parameter changed. | **Update** the affected row in the Parameters / Inputs / Outputs tables. |
@@ -41,7 +41,7 @@ Open [docs/node-doc-format.md](../../docs/node-doc-format.md) and skim every sec
 
 Before drafting or editing, you MUST have read, in this order:
 
-1. The node implementation under `diffusers_nodes_library/nodes/<file>.py`.
+1. The node implementation under `modular_diffusion_nodes_library/nodes/<file>.py`.
 2. The `griptape_nodes_library.json` entry (for `category`, display name, and metadata).
 3. The relevant runtime-parameters class under `runtime_parameters/` if the node hosts dynamic parameters.
 4. The relevant standard-parameters class under `standard_parameters/` if the node loads a model.

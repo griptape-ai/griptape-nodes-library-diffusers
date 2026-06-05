@@ -1,4 +1,4 @@
-﻿# Contributing to Griptape Nodes Modular Diffusion Library
+# Contributing to Griptape Nodes Modular Diffusion Library
 
 We welcome contributions to the Griptape Nodes Modular Diffusion Library! This library provides modular, latent-level diffusion nodes for [Griptape Nodes](https://github.com/griptape-ai/griptape-nodes), built on Hugging Face 🧨 Diffusers.
 
@@ -27,7 +27,7 @@ This is a standalone repository — all development happens here.
 
 Top-level layout of this repository:
 
-- `diffusers_nodes_library/` — the main node package, organized into submodules:
+- `modular_diffusion_nodes_library/` — the main node package, organized into submodules:
     - `nodes/` — node implementations (Pipeline, Create, Processing, Transform, Conditioning, Encode/Decode, IO, etc.)
     - `latent_pipeline_drivers/` — per-model latent pipeline drivers (Flux, Flux Fill, LTX, LTX2, Qwen, Z-Image, etc.)
     - `artifact_utils/` — shared artifact types (`LatentArtifact`, `InpaintMaskArtifact`, …)
