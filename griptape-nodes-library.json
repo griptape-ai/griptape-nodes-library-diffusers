@@ -1,17 +1,17 @@
 {
-  "name": "Griptape Modular Diffusion Nodes Library",
+  "name": "Griptape Diffusers Nodes Library",
   "library_schema_version": "0.4.0",
   "settings": [
     {
-      "description": "Configuration settings for the Modular Diffusion Library temporary file storage",
-      "category": "modular_diffusion_library",
+      "description": "Configuration settings for the Diffusers Library temporary file storage",
+      "category": "diffusers_library",
       "contents": {
         "temp_folder_name": "intermediates"
       }
     },
     {
-      "description": "Configuration settings for cleaning up the Modular Diffusion Library temporary file storage",
-      "category": "modular_diffusion_library",
+      "description": "Configuration settings for cleaning up the Diffusers Library temporary file storage",
+      "category": "diffusers_library",
       "contents": {
         "max_directory_size_gb": 5,
         "enable_directory_cleanup": false
@@ -19,7 +19,7 @@
     },
     {
       "description": "Configuration settings for image preview intermediates in diffusion pipeline runtime. Enables real-time image previews during generation but will slow down inference time.",
-      "category": "modular_diffusion_library",
+      "category": "diffusers_library",
       "contents": {
         "enable_image_preview_intermediates": false
       }
@@ -93,29 +93,29 @@
   "nodes": [
     {
       "class_name": "LatentDiffusionPipelineBuilderNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/latent_diffusion_pipeline_builder_node.py",
+      "file_path": "./diffusers_nodes_library/nodes/latent_diffusion_pipeline_builder_node.py",
       "metadata": {
-        "category": "ModularDiffusion/Pipeline",
+        "category": "Diffusers/Pipeline",
         "description": "Build and cache latent-compatible 🧨 Diffusers Pipelines for reuse across latent execution nodes.",
-        "display_name": "Modular Diffusion Pipeline Builder",
+        "display_name": "Diffusers Pipeline Builder",
         "group": "diffusion"
       }
     },
     {
       "class_name": "DiffusionPipelineGenerateLatentNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/diffusion_pipeline_generate_latent_node.py",
+      "file_path": "./diffusers_nodes_library/nodes/diffusion_pipeline_generate_latent_node.py",
       "metadata": {
-        "category": "ModularDiffusion/Processing",
+        "category": "Diffusers/Processing",
         "description": "Generate latents via 🧨 Diffusers Pipelines.",
-        "display_name": "Generate Media Latents (Modular Diffusion Pipeline)",
+        "display_name": "Generate Media Latents (Diffusers Pipeline)",
         "group": "diffusion"
       }
     },
     {
       "class_name": "NoiseLatentNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/noise_latent_node.py",
+      "file_path": "./diffusers_nodes_library/nodes/noise_latent_node.py",
       "metadata": {
-        "category": "ModularDiffusion/Create",
+        "category": "Diffusers/Create",
         "description": "Create an initial noise latent tensor for a selected 🧨 Diffusers pipeline.",
         "display_name": "Create Noise Latents",
         "group": "diffusion"
@@ -123,9 +123,9 @@
     },
     {
       "class_name": "EmptyLatentNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/empty_latent_node.py",
+      "file_path": "./diffusers_nodes_library/nodes/empty_latent_node.py",
       "metadata": {
-        "category": "ModularDiffusion/Create",
+        "category": "Diffusers/Create",
         "description": "Create a zero-filled (empty) latent tensor for a selected 🧨 Diffusers pipeline.",
         "display_name": "Create Empty Latents",
         "group": "diffusion"
@@ -133,9 +133,9 @@
     },
     {
       "class_name": "AddLatentsNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/add_latents.py",
+      "file_path": "./diffusers_nodes_library/nodes/add_latents.py",
       "metadata": {
-        "category": "ModularDiffusion/Transform",
+        "category": "Diffusers/Transform",
         "description": "Add two latent artifacts elementwise.",
         "display_name": "Add Latents",
         "group": "diffusion"
@@ -143,9 +143,9 @@
     },
     {
       "class_name": "SubtractLatentsNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/subtract_latents.py",
+      "file_path": "./diffusers_nodes_library/nodes/subtract_latents.py",
       "metadata": {
-        "category": "ModularDiffusion/Transform",
+        "category": "Diffusers/Transform",
         "description": "Subtract the right latent from the left latent elementwise.",
         "display_name": "Subtract Latents",
         "group": "diffusion"
@@ -153,9 +153,9 @@
     },
     {
       "class_name": "MultiplyLatentsNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/multiply_latents.py",
+      "file_path": "./diffusers_nodes_library/nodes/multiply_latents.py",
       "metadata": {
-        "category": "ModularDiffusion/Transform",
+        "category": "Diffusers/Transform",
         "description": "Multiply two latent artifacts elementwise.",
         "display_name": "Multiply Latents",
         "group": "diffusion"
@@ -163,9 +163,9 @@
     },
     {
       "class_name": "SaveLatentTensorNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/save_latent_tensor.py",
+      "file_path": "./diffusers_nodes_library/nodes/save_latent_tensor.py",
       "metadata": {
-        "category": "ModularDiffusion/IO",
+        "category": "Diffusers/IO",
         "description": "Save a latent artifact to a torch .pt file.",
         "display_name": "Save Latent Tensor",
         "group": "diffusion"
@@ -173,9 +173,9 @@
     },
     {
       "class_name": "VaeEncodeNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/vae_encoder.py",
+      "file_path": "./diffusers_nodes_library/nodes/vae_encoder.py",
       "metadata": {
-        "category": "ModularDiffusion/Encode\\Decode",
+        "category": "Diffusers/Encode\\Decode",
         "description": "Encode images or video into VAE latent space via 🧨 Diffusers Pipelines.",
         "display_name": "Encode Media",
         "group": "diffusion"
@@ -183,9 +183,9 @@
     },
     {
       "class_name": "VaeMaskEncodeNode",
-      "file_path": "modular_diffusion_nodes_library/nodes/vae_mask_encoder.py",
+      "file_path": "diffusers_nodes_library/nodes/vae_mask_encoder.py",
       "metadata": {
-        "category": "ModularDiffusion/Encode\\Decode",
+        "category": "Diffusers/Encode\\Decode",
         "description": "Encode a source image and mask into an inpaint artifact (mask + masked-image latent) for use with inpainting pipelines.",
         "display_name": "Encode Masked Media",
         "group": "diffusion"
@@ -193,9 +193,9 @@
     },
     {
       "class_name": "VaeDecodeNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/vae_decoder.py",
+      "file_path": "./diffusers_nodes_library/nodes/vae_decoder.py",
       "metadata": {
-        "category": "ModularDiffusion/Encode\\Decode",
+        "category": "Diffusers/Encode\\Decode",
         "description": "Decode VAE latent images or video via 🧨 Diffusers Pipelines.",
         "display_name": "Decode Media",
         "group": "diffusion"
@@ -203,9 +203,9 @@
     },
     {
       "class_name": "LatentCompositeMaskNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/latent_composite_mask_node.py",
+      "file_path": "./diffusers_nodes_library/nodes/latent_composite_mask_node.py",
       "metadata": {
-        "category": "ModularDiffusion/Transform",
+        "category": "Diffusers/Transform",
         "description": "Composite two latent tensors together by pasting masked latent into destination latent.",
         "display_name": "Latents Composite Mask",
         "group": "diffusion"
@@ -213,9 +213,9 @@
     },
     {
       "class_name": "ControlNetNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/controlnet_node.py",
+      "file_path": "./diffusers_nodes_library/nodes/controlnet_node.py",
       "metadata": {
-        "category": "ModularDiffusion/Conditioning",
+        "category": "Diffusers/Conditioning",
         "description": "ControlNet node for configuring different ControlNet models.",
         "display_name": "Configure ControlNet",
         "group": "diffusion"
@@ -223,9 +223,9 @@
     },
     {
       "class_name": "ControlNetDiffusionPipelineBuilderNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/controlnet_pipeline_node.py",
+      "file_path": "./diffusers_nodes_library/nodes/controlnet_pipeline_node.py",
       "metadata": {
-        "category": "ModularDiffusion/Pipeline",
+        "category": "Diffusers/Pipeline",
         "description": "Add ControlNet model to the pipeline.",
         "display_name": "ControlNet Pipeline",
         "group": "diffusion"
@@ -233,9 +233,9 @@
     },
     {
       "class_name": "MediaGenConditioningNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/media_gen_conditioning_node.py",
+      "file_path": "./diffusers_nodes_library/nodes/media_gen_conditioning_node.py",
       "metadata": {
-        "category": "ModularDiffusion/Conditioning",
+        "category": "Diffusers/Conditioning",
         "description": "Conditioning node for media generation pipelines. Supports image or video conditioning inputs with configurable strength.",
         "display_name": "Media Generation Conditioning",
         "group": "diffusion"
@@ -243,9 +243,9 @@
     },
     {
       "class_name": "LatentUpsamplerNode",
-      "file_path": "./modular_diffusion_nodes_library/nodes/latent_upsampler_node.py",
+      "file_path": "./diffusers_nodes_library/nodes/latent_upsampler_node.py",
       "metadata": {
-        "category": "ModularDiffusion/Processing",
+        "category": "Diffusers/Processing",
         "description": "Spatially upsample a latent tensor using a latent upsampler model.",
         "display_name": "Latent Upsampler",
         "group": "diffusion"
@@ -253,10 +253,10 @@
     },
     {
       "class_name": "LoadLora",
-      "file_path": "./modular_diffusion_nodes_library/nodes/load_lora_node.py",
+      "file_path": "./diffusers_nodes_library/nodes/load_lora_node.py",
       "metadata": {
-        "category": "ModularDiffusion/Pipeline",
-        "description": "Load a LoRA file from a local path and expose it as a `loras` output for use with the Modular Diffusion Pipeline Builder.",
+        "category": "Diffusers/Pipeline",
+        "description": "Load a LoRA file from a local path and expose it as a `loras` output for use with the Diffusers Pipeline Builder.",
         "display_name": "Load LoRA",
         "group": "diffusion"
       }
