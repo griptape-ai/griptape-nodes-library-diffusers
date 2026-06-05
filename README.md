@@ -1,7 +1,7 @@
-# Modular Diffusion Nodes Library
+# Diffusers Nodes Library
 Build flexible media generation workflows with modular 🧨 Diffusers pipelines in [Griptape Nodes](https://github.com/griptape-ai/griptape-nodes).
 
-The Modular Diffusion Nodes Library is a node library for creators who want more control over diffusion execution. Instead of running a fixed, monolithic "generate image" step, you break the diffusion process into individual, connectable stages — so you can inspect, reuse, and customize each part of the pipeline.
+The Diffusers Nodes Library is a node library for creators who want more control over diffusion execution. Instead of running a fixed, monolithic "generate image" step, you break the diffusion process into individual, connectable stages — so you can inspect, reuse, and customize each part of the pipeline.
 
 ### [How it works](#how-it-works) | [Quick start](#quick-start) | [Supported models](#supported-models) | [Workflows](#workflow-templates-included) | [Docs](docs/index.md) | [Support](#support)
 
@@ -10,14 +10,14 @@ The Modular Diffusion Nodes Library is a node library for creators who want more
 >
 
 > ## ⚠️ Using alongside the Advanced Media Library
-> The Modular Diffusion Library and the Advanced Media Library share several upstream dependencies (e.g. `diffusers`, `transformers`, `torch`) and may pin them to different versions. Installing both libraries from their default branches can cause dependency mismatches and runtime errors.
+> The Diffusers Library and the Advanced Media Library share several upstream dependencies (e.g. `diffusers`, `transformers`, `torch`) and may pin them to different versions. Installing both libraries from their default branches can cause dependency mismatches and runtime errors.
 >
 > If you need both libraries in the same environment, install the Advanced Media Library from its [`modular-diffusion-library-compatible-branch`](https://github.com/griptape-ai/griptape-nodes-library-advanced-media/compare/main...modular-diffusion-library-compatible-branch) instead of `main`:
 > ```text
 > https://github.com/griptape-ai/griptape-nodes-library-advanced-media@modular-diffusion-library-compatible-branch
 > ```
 
-![Modular Diffusion Nodes](docs/assets/hero.png)
+![Diffusers Nodes](docs/assets/hero.png)
 
 ## How it works
 
@@ -44,7 +44,7 @@ The easiest way to install this library is through the **Configuration Editor** 
 1. Click **Download Libraries** in the top right, then **Close Settings**.
 1. Restart the engine. The **ModularDiffusion** node categories will appear in the node picker.
 
-![Adding the Modular Diffusion library in the Configuration Editor](docs/assets/quicksetup.png)
+![Adding the Diffusers library in the Configuration Editor](docs/assets/quicksetup.png)
 
 ### Manual configuration
 
