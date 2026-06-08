@@ -35,7 +35,7 @@ class DiffusionPipelineRuntimeParameters(ABC):
         )
         self._seed_parameter.add_input_parameters()
 
-    def add_output_parameters(self) -> None:
+    def add_output_parameters(self) -> None:  # noqa: B027
         pass
 
     @abstractmethod
@@ -47,7 +47,7 @@ class DiffusionPipelineRuntimeParameters(ABC):
         self._seed_parameter.remove_input_parameters()
         self._remove_input_parameters()
 
-    def remove_output_parameters(self) -> None:
+    def remove_output_parameters(self) -> None:  # noqa: B027
         pass
 
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
