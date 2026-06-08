@@ -16,6 +16,7 @@ from PIL import Image
 
 from modular_diffusion_nodes_library.nodes.vae_decoder import VaeDecodeNode
 from modular_diffusion_nodes_library.utils.hdr_video_utils import ExrFrameWriteEvent, encode_linear_hdr_exr_sequence
+from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
 from modular_diffusion_nodes_library.utils.pillow_utils import pil_to_image_artifact
 
 logger = logging.getLogger(__name__)
@@ -126,7 +127,7 @@ class DecodeHdrNode(VaeDecodeNode):
         if not exr_path_value:
             return
 
-        target = self._resolve_exr_output_path(exr_path_value)
+        target = self._resolve_exr_output_path(expand_path_macros(exr_path_value))
         save_as_half_float = bool(self.get_parameter_value("save_exr_as_half_float"))
         total_frames = len(frames)
         self.progress_bar_component.initialize(total_frames)
@@ -188,10 +189,12 @@ class DecodeHdrNode(VaeDecodeNode):
         if tone_name == "cv2_mantiuk":
             tonemapper = cv2.createTonemapMantiuk(gamma=1.0, scale=0.7, saturation=1.0)
             return DecodeHdrNode._wrap_cv2_tonemapper(tonemapper)
+
         # Default: aces_filmic
         def aces_filmic(x: np.ndarray) -> np.ndarray:
             a, b, c, d, e = 2.51, 0.03, 2.43, 0.59, 0.14
             return np.clip((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0)
+
         return aces_filmic
 
     @staticmethod

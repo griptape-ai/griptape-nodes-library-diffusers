@@ -201,7 +201,7 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         }
         text_embeddings_path = self._node.get_parameter_value("text_embeddings_path")
         if text_embeddings_path and self._is_hdr_lora_active:
-            pipe_kwargs["text_embeddings_path"] = text_embeddings_path
+            pipe_kwargs["text_embeddings_path"] = str(self._text_embeddings_path_param.get_file_path())
         if self._is_distilled:
             pipe_kwargs["use_stage_2"] = bool(self._node.get_parameter_value("use_stage_2"))
         return pipe_kwargs
