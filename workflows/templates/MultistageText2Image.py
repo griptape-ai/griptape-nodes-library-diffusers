@@ -1,6 +1,6 @@
 # /// script
 # dependencies = []
-# 
+#
 # [tool.griptape-nodes]
 # name = "MultistageText2Image"
 # schema_version = "0.17.0"
@@ -8,12 +8,12 @@
 # node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.1.0"], ["Griptape Nodes Advanced Media Library", "0.72.1"], ["Griptape Nodes Library", "0.78.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "AddLatentsNode"], ["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentCompositeMaskNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "MultiplyLatentsNode"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "SubtractLatentsNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Library", "Group"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
 # description = "A Multistaged T2I workflow using the Modular Diffusion Library Nodes"
-# image = "MultistageText2Image.webp"
+# image = "https://raw.githubusercontent.com/griptape-ai/griptape-nodes-library-diffusers/main/workflows/templates/MultistageText2Image.webp"
 # is_griptape_provided = true
 # is_template = true
 # creation_date = 2026-06-01T11:04:48.620866Z
 # last_modified_date = 2026-06-01T11:35:55.701685Z
-# 
+#
 # ///
 
 import pickle
@@ -22,13 +22,24 @@ from griptape_nodes.retained_mode.events.connection_events import CreateConnecti
 from griptape_nodes.retained_mode.events.flow_events import CreateFlowRequest
 from griptape_nodes.retained_mode.events.library_events import RegisterLibraryFromFileRequest
 from griptape_nodes.retained_mode.events.node_events import CreateNodeRequest
-from griptape_nodes.retained_mode.events.parameter_events import AddParameterToNodeRequest, AlterParameterDetailsRequest, SetParameterValueRequest
+from griptape_nodes.retained_mode.events.parameter_events import (
+    AddParameterToNodeRequest,
+    AlterParameterDetailsRequest,
+    SetParameterValueRequest,
+)
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 
+
 async def build_workflow() -> None:
-    await GriptapeNodes.ahandle_request(RegisterLibraryFromFileRequest(library_name='Griptape Modular Diffusion Nodes Library', perform_discovery_if_not_found=True))
-    await GriptapeNodes.ahandle_request(RegisterLibraryFromFileRequest(library_name='Griptape Nodes Library', perform_discovery_if_not_found=True))
+    await GriptapeNodes.ahandle_request(
+        RegisterLibraryFromFileRequest(
+            library_name="Griptape Modular Diffusion Nodes Library", perform_discovery_if_not_found=True
+        )
+    )
+    await GriptapeNodes.ahandle_request(
+        RegisterLibraryFromFileRequest(library_name="Griptape Nodes Library", perform_discovery_if_not_found=True)
+    )
     context_manager = GriptapeNodes.ContextManager()
     if not context_manager.has_current_workflow():
         context_manager.push_workflow(file_path=__file__)
@@ -38,130 +49,1384 @@ async def build_workflow() -> None:
     # 3. The values are serialized using pickle, which is a binary format. This makes them harder to read, but makes
     #    them consistently save and load. It allows us to serialize complex objects like custom classes, which otherwise
     #    would be difficult to serialize.
-    top_level_unique_values_dict = {'a70dc5d4-17f9-4d16-a35e-49b1cd2bb273': pickle.loads(b'\x80\x04\x95\x1a\x03\x00\x00\x00\x00\x00\x00\x8c@modular_diffusion_nodes_library.artifact_utils.pipeline_artifact\x94\x8c\x19DiffusionPipelineArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\rpipeline_name\x94\x8c\x0eZImagePipeline\x94\x8c\x0bconfig_hash\x94\x8cQZImagePipeline-a250e83e223278501a757394e50a83c85ed3682b0adc9a23c67ab93f79fbacbe-0\x94\x8c\x0f_builder_module\x94\x8cFmodular_diffusion_nodes_library.standard_parameters.z_image_parameters\x94\x8c\x13_builder_class_name\x94\x8c\x18ZImagePipelineParameters\x94\x8c\x0b_build_data\x94}\x94(\x8c\x0cbase_repo_id\x94\x8c\x18Tongyi-MAI/Z-Image-Turbo\x94\x8c\rbase_revision\x94\x8c(f332072aa78be7aecdf3ee76d5c247082da564a6\x94u\x8c\x11_build_data_error\x94N\x8c\x06_loras\x94}\x94\x8c\x14_optimization_kwargs\x94}\x94(\x8c\x1cmemory_optimization_strategy\x94\x8c\tAutomatic\x94\x8c\x11attention_slicing\x94\x89\x8c\x0bvae_slicing\x94\x89\x8c\x1dtransformer_layerwise_casting\x94\x89\x8c\x14cpu_offload_strategy\x94\x8c\x04None\x94\x8c\x11quantization_mode\x94h\x1eu\x8c\x10_is_prequantized\x94\x89\x8c\x1b_supports_layerwise_casting\x94\x89\x8c\x14_requires_device_map\x94\x89ub.'), '498eece6-08ed-42cb-aeef-ce60901b84c3': pickle.loads(b'\x80\x04\x89.'), 'b3fce3ca-f8ed-49a1-8eca-8fdf902a45e0': pickle.loads(b'\x80\x04K*.'), '5bcc0d8c-ebf9-4e7d-9b01-8ee2054c849b': pickle.loads(b'\x80\x04\x95\x04\x00\x00\x00\x00\x00\x00\x00M\x00\x04.'), '7cb143f8-17e2-4e9b-9692-a596a1c71469': pickle.loads(b'\x80\x04K).'), '335bac8c-efe8-43e7-9de9-54e27eef52f5': pickle.loads(b'\x80\x04K\x14.'), '043569af-442e-4c9d-b8de-ac7f4efd6b98': pickle.loads(b'\x80\x04\x95\x0b\x00\x00\x00\x00\x00\x00\x00\x8c\x07Z-Image\x94.'), '33e66514-e4cc-43f6-8965-e9e034fa4d69': pickle.loads(b'\x80\x04\x95\x12\x00\x00\x00\x00\x00\x00\x00\x8c\x0eZImagePipeline\x94.'), '04ae4c4f-0efb-4464-ac4f-3bedd12bab8e': pickle.loads(b'\x80\x04\x95\x1c\x00\x00\x00\x00\x00\x00\x00\x8c\x18Tongyi-MAI/Z-Image-Turbo\x94.'), 'bb90c14b-0e02-4a92-b244-52bc626f3171': pickle.loads(b'\x80\x04\x95\r\x00\x00\x00\x00\x00\x00\x00\x8c\tAutomatic\x94.'), 'f37b042d-83c4-4d2c-988d-8434d643cf67': pickle.loads(b'\x80\x04\x95\x08\x00\x00\x00\x00\x00\x00\x00\x8c\x04None\x94.'), '22251a56-f57d-4dfe-ba96-581e06002ceb': pickle.loads(b'\x80\x04]\x94.'), '1e75de0b-4c8b-4e86-b189-032c375d04b4': pickle.loads(b'\x80\x04\x95\xec\x00\x00\x00\x00\x00\x00\x00\x8c\xe8Building pipeline...\nPipeline configuration hash: ZImagePipeline-a250e83e223278501a757394e50a83c85ed3682b0adc9a23c67ab93f79fbacbe-0\nUsing cached pipeline.\nPipeline building/caching took 0.00 milliseconds\nPipeline building complete.\n\x94.'), 'd484f76a-3afd-4e67-be8c-62be5f613534': pickle.loads(b'\x80\x04K\x00.'), '7327a20f-2998-4fa5-88cd-905c9b94e97b': pickle.loads(b'\x80\x04K\x07.'), 'b41fc50c-76b9-4895-90f6-197551e7f010': pickle.loads(b'\x80\x04\x952\x00\x00\x00\x00\x00\x00\x00\x8c.A calico cat on a cobble stone wall, minecraft\x94.'), 'b1e10ff2-9891-4e8f-9356-0a72246afa1f': pickle.loads(b'\x80\x04]\x94.'), '2e2977cb-95df-46c3-ad22-b3d9ebcb6411': pickle.loads(b'\x80\x04\x95\n\x00\x00\x00\x00\x00\x00\x00G?\xd6ffffff.'), '3444a5ec-ae10-45e1-8fbf-3c5b1b3b6c6d': pickle.loads(b'\x80\x04\x95\x15\x01\x00\x00\x00\x00\x00\x00X\x0e\x01\x00\x00Completed inference step 2 of 20. 1.14 s/it\nCompleted inference step 3 of 20. 1.14 s/it\nCompleted inference step 4 of 20. 1.14 s/it\nCompleted inference step 5 of 20. 1.14 s/it\nCompleted inference step 6 of 20. 1.14 s/it\nCompleted inference step 7 of 20. 1.14 s/it\nDone.\n\x94.'), '26df79d5-38d7-4e0a-ae3b-c371b02f733f': pickle.loads(b'\x80\x04\x95\xc9\x01\x00\x00\x00\x00\x00\x00X\xc2\x01\x00\x00### Modular Diffusion Pipeline Builder\nJust like the `Diffusion Pipline Builder` from the `Griptape-Nodes-Advanced-Media-Library`, the only difference is that the models listed here are setup differently to allow for more advanced workflows\n\nNote: Please make sure you do not mix and match between the standard and the modular diffusion nodes as workflows will not work.\n\nDo not also mix and match model pipelines as they will produce garbage results\x94.'), '2cbb166d-6ba6-4ea2-a4b2-7de80b062ffe': pickle.loads(b"\x80\x04\x95\xb3\x00\x00\x00\x00\x00\x00\x00\x8c\xaf### Create Noise Latents\nThis node creates an empty latent and fills it the pipelines' expected noise pattern based on the scheduling options supplied in the model repository.\x94."), 'f7c0d539-9e98-4ffa-bc25-26158352953f': pickle.loads(b'\x80\x04\x95\xe1\x01\x00\x00\x00\x00\x00\x00X\xda\x01\x00\x00### Generate Media Latents - Stage 1\nThis node is where diffusion will take place, it dynamically populates based on the pipeline supplied. \n\nIn this workflow, it is stopping the diffusion about 30-40% of the way in, this then allows the ability to change some parameters or make changes to the `latent_artefacts` using the transform nodes.\n\nNote: \nIf `add noise` is disabled, the seed will have no effect. You will have to change the seed on the `Create Noise Latents` node\x94.'), '50c7e500-9ba1-45a1-b0db-d02aebb5ef85': pickle.loads(b'\x80\x04\x95_\x00\x00\x00\x00\x00\x00\x00\x8c[### Decode Media\nThis node takes any output latent and converts it to an image or a video. \x94.'), 'af7c2f7f-64c4-4cce-9c77-875475386529': pickle.loads(b'\x80\x04\x95\x06\x00\x00\x00\x00\x00\x00\x00J\xff\xff\xff\xff.'), '97d00aae-5ea7-4b62-bb0e-3c329dcfee82': pickle.loads(b'\x80\x04\x953\x00\x00\x00\x00\x00\x00\x00\x8c/A calico cat on a cobble stone wall, watercolor\x94.'), 'a191de17-45f7-4ff5-a58a-15fe0ce3c91b': pickle.loads(b'\x80\x04]\x94.'), 'e6e03db3-408e-42a6-bf87-9011a7c7595b': pickle.loads(b'\x80\x04\x95\n\x00\x00\x00\x00\x00\x00\x00G?\xe4\xcc\xcc\xcc\xcc\xcc\xcd.'), '088c7a74-57db-4d7c-aedc-6d26a6f5f7b5': pickle.loads(b'\x80\x04\x95!\x02\x00\x00\x00\x00\x00\x00X\x1a\x02\x00\x00Completed inference step 2 of 20. 1.18 s/it\nCompleted inference step 3 of 20. 1.18 s/it\nCompleted inference step 4 of 20. 1.19 s/it\nCompleted inference step 5 of 20. 1.19 s/it\nCompleted inference step 6 of 20. 1.19 s/it\nCompleted inference step 7 of 20. 1.19 s/it\nCompleted inference step 8 of 20. 1.19 s/it\nCompleted inference step 9 of 20. 1.19 s/it\nCompleted inference step 10 of 20. 1.19 s/it\nCompleted inference step 11 of 20. 1.20 s/it\nCompleted inference step 12 of 20. 1.20 s/it\nCompleted inference step 13 of 20. 1.20 s/it\nDone.\n\x94.'), '6ba929ba-9731-4ee4-a33a-8ced8373d6fb': pickle.loads(b'\x80\x04\x95O\x01\x00\x00\x00\x00\x00\x00XH\x01\x00\x00### Generate Media Latents - Stage 2\nIn this stage, the text prompt has changed allowing us to resume diffusion from the previous node but with a different set of parameters. Allowing for more control over the image generated.\n\nBetween stage 1 and 2: the option of using different merging operations (check the group node below)\x94.'), '9fad59b7-10f4-4915-97f6-4271e85b4497': pickle.loads(b'\x80\x04\x95\t\x00\x00\x00\x00\x00\x00\x00\x8c\x05alpha\x94.')}
+    top_level_unique_values_dict = {
+        "a70dc5d4-17f9-4d16-a35e-49b1cd2bb273": pickle.loads(
+            b"\x80\x04\x95\x1a\x03\x00\x00\x00\x00\x00\x00\x8c@modular_diffusion_nodes_library.artifact_utils.pipeline_artifact\x94\x8c\x19DiffusionPipelineArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\rpipeline_name\x94\x8c\x0eZImagePipeline\x94\x8c\x0bconfig_hash\x94\x8cQZImagePipeline-a250e83e223278501a757394e50a83c85ed3682b0adc9a23c67ab93f79fbacbe-0\x94\x8c\x0f_builder_module\x94\x8cFmodular_diffusion_nodes_library.standard_parameters.z_image_parameters\x94\x8c\x13_builder_class_name\x94\x8c\x18ZImagePipelineParameters\x94\x8c\x0b_build_data\x94}\x94(\x8c\x0cbase_repo_id\x94\x8c\x18Tongyi-MAI/Z-Image-Turbo\x94\x8c\rbase_revision\x94\x8c(f332072aa78be7aecdf3ee76d5c247082da564a6\x94u\x8c\x11_build_data_error\x94N\x8c\x06_loras\x94}\x94\x8c\x14_optimization_kwargs\x94}\x94(\x8c\x1cmemory_optimization_strategy\x94\x8c\tAutomatic\x94\x8c\x11attention_slicing\x94\x89\x8c\x0bvae_slicing\x94\x89\x8c\x1dtransformer_layerwise_casting\x94\x89\x8c\x14cpu_offload_strategy\x94\x8c\x04None\x94\x8c\x11quantization_mode\x94h\x1eu\x8c\x10_is_prequantized\x94\x89\x8c\x1b_supports_layerwise_casting\x94\x89\x8c\x14_requires_device_map\x94\x89ub."
+        ),
+        "498eece6-08ed-42cb-aeef-ce60901b84c3": pickle.loads(b"\x80\x04\x89."),
+        "b3fce3ca-f8ed-49a1-8eca-8fdf902a45e0": pickle.loads(b"\x80\x04K*."),
+        "5bcc0d8c-ebf9-4e7d-9b01-8ee2054c849b": pickle.loads(b"\x80\x04\x95\x04\x00\x00\x00\x00\x00\x00\x00M\x00\x04."),
+        "7cb143f8-17e2-4e9b-9692-a596a1c71469": pickle.loads(b"\x80\x04K)."),
+        "335bac8c-efe8-43e7-9de9-54e27eef52f5": pickle.loads(b"\x80\x04K\x14."),
+        "043569af-442e-4c9d-b8de-ac7f4efd6b98": pickle.loads(
+            b"\x80\x04\x95\x0b\x00\x00\x00\x00\x00\x00\x00\x8c\x07Z-Image\x94."
+        ),
+        "33e66514-e4cc-43f6-8965-e9e034fa4d69": pickle.loads(
+            b"\x80\x04\x95\x12\x00\x00\x00\x00\x00\x00\x00\x8c\x0eZImagePipeline\x94."
+        ),
+        "04ae4c4f-0efb-4464-ac4f-3bedd12bab8e": pickle.loads(
+            b"\x80\x04\x95\x1c\x00\x00\x00\x00\x00\x00\x00\x8c\x18Tongyi-MAI/Z-Image-Turbo\x94."
+        ),
+        "bb90c14b-0e02-4a92-b244-52bc626f3171": pickle.loads(
+            b"\x80\x04\x95\r\x00\x00\x00\x00\x00\x00\x00\x8c\tAutomatic\x94."
+        ),
+        "f37b042d-83c4-4d2c-988d-8434d643cf67": pickle.loads(
+            b"\x80\x04\x95\x08\x00\x00\x00\x00\x00\x00\x00\x8c\x04None\x94."
+        ),
+        "22251a56-f57d-4dfe-ba96-581e06002ceb": pickle.loads(b"\x80\x04]\x94."),
+        "1e75de0b-4c8b-4e86-b189-032c375d04b4": pickle.loads(
+            b"\x80\x04\x95\xec\x00\x00\x00\x00\x00\x00\x00\x8c\xe8Building pipeline...\nPipeline configuration hash: ZImagePipeline-a250e83e223278501a757394e50a83c85ed3682b0adc9a23c67ab93f79fbacbe-0\nUsing cached pipeline.\nPipeline building/caching took 0.00 milliseconds\nPipeline building complete.\n\x94."
+        ),
+        "d484f76a-3afd-4e67-be8c-62be5f613534": pickle.loads(b"\x80\x04K\x00."),
+        "7327a20f-2998-4fa5-88cd-905c9b94e97b": pickle.loads(b"\x80\x04K\x07."),
+        "b41fc50c-76b9-4895-90f6-197551e7f010": pickle.loads(
+            b"\x80\x04\x952\x00\x00\x00\x00\x00\x00\x00\x8c.A calico cat on a cobble stone wall, minecraft\x94."
+        ),
+        "b1e10ff2-9891-4e8f-9356-0a72246afa1f": pickle.loads(b"\x80\x04]\x94."),
+        "2e2977cb-95df-46c3-ad22-b3d9ebcb6411": pickle.loads(
+            b"\x80\x04\x95\n\x00\x00\x00\x00\x00\x00\x00G?\xd6ffffff."
+        ),
+        "3444a5ec-ae10-45e1-8fbf-3c5b1b3b6c6d": pickle.loads(
+            b"\x80\x04\x95\x15\x01\x00\x00\x00\x00\x00\x00X\x0e\x01\x00\x00Completed inference step 2 of 20. 1.14 s/it\nCompleted inference step 3 of 20. 1.14 s/it\nCompleted inference step 4 of 20. 1.14 s/it\nCompleted inference step 5 of 20. 1.14 s/it\nCompleted inference step 6 of 20. 1.14 s/it\nCompleted inference step 7 of 20. 1.14 s/it\nDone.\n\x94."
+        ),
+        "26df79d5-38d7-4e0a-ae3b-c371b02f733f": pickle.loads(
+            b"\x80\x04\x95\xc9\x01\x00\x00\x00\x00\x00\x00X\xc2\x01\x00\x00### Modular Diffusion Pipeline Builder\nJust like the `Diffusion Pipline Builder` from the `Griptape-Nodes-Advanced-Media-Library`, the only difference is that the models listed here are setup differently to allow for more advanced workflows\n\nNote: Please make sure you do not mix and match between the standard and the modular diffusion nodes as workflows will not work.\n\nDo not also mix and match model pipelines as they will produce garbage results\x94."
+        ),
+        "2cbb166d-6ba6-4ea2-a4b2-7de80b062ffe": pickle.loads(
+            b"\x80\x04\x95\xb3\x00\x00\x00\x00\x00\x00\x00\x8c\xaf### Create Noise Latents\nThis node creates an empty latent and fills it the pipelines' expected noise pattern based on the scheduling options supplied in the model repository.\x94."
+        ),
+        "f7c0d539-9e98-4ffa-bc25-26158352953f": pickle.loads(
+            b"\x80\x04\x95\xe1\x01\x00\x00\x00\x00\x00\x00X\xda\x01\x00\x00### Generate Media Latents - Stage 1\nThis node is where diffusion will take place, it dynamically populates based on the pipeline supplied. \n\nIn this workflow, it is stopping the diffusion about 30-40% of the way in, this then allows the ability to change some parameters or make changes to the `latent_artefacts` using the transform nodes.\n\nNote: \nIf `add noise` is disabled, the seed will have no effect. You will have to change the seed on the `Create Noise Latents` node\x94."
+        ),
+        "50c7e500-9ba1-45a1-b0db-d02aebb5ef85": pickle.loads(
+            b"\x80\x04\x95_\x00\x00\x00\x00\x00\x00\x00\x8c[### Decode Media\nThis node takes any output latent and converts it to an image or a video. \x94."
+        ),
+        "af7c2f7f-64c4-4cce-9c77-875475386529": pickle.loads(
+            b"\x80\x04\x95\x06\x00\x00\x00\x00\x00\x00\x00J\xff\xff\xff\xff."
+        ),
+        "97d00aae-5ea7-4b62-bb0e-3c329dcfee82": pickle.loads(
+            b"\x80\x04\x953\x00\x00\x00\x00\x00\x00\x00\x8c/A calico cat on a cobble stone wall, watercolor\x94."
+        ),
+        "a191de17-45f7-4ff5-a58a-15fe0ce3c91b": pickle.loads(b"\x80\x04]\x94."),
+        "e6e03db3-408e-42a6-bf87-9011a7c7595b": pickle.loads(
+            b"\x80\x04\x95\n\x00\x00\x00\x00\x00\x00\x00G?\xe4\xcc\xcc\xcc\xcc\xcc\xcd."
+        ),
+        "088c7a74-57db-4d7c-aedc-6d26a6f5f7b5": pickle.loads(
+            b"\x80\x04\x95!\x02\x00\x00\x00\x00\x00\x00X\x1a\x02\x00\x00Completed inference step 2 of 20. 1.18 s/it\nCompleted inference step 3 of 20. 1.18 s/it\nCompleted inference step 4 of 20. 1.19 s/it\nCompleted inference step 5 of 20. 1.19 s/it\nCompleted inference step 6 of 20. 1.19 s/it\nCompleted inference step 7 of 20. 1.19 s/it\nCompleted inference step 8 of 20. 1.19 s/it\nCompleted inference step 9 of 20. 1.19 s/it\nCompleted inference step 10 of 20. 1.19 s/it\nCompleted inference step 11 of 20. 1.20 s/it\nCompleted inference step 12 of 20. 1.20 s/it\nCompleted inference step 13 of 20. 1.20 s/it\nDone.\n\x94."
+        ),
+        "6ba929ba-9731-4ee4-a33a-8ced8373d6fb": pickle.loads(
+            b"\x80\x04\x95O\x01\x00\x00\x00\x00\x00\x00XH\x01\x00\x00### Generate Media Latents - Stage 2\nIn this stage, the text prompt has changed allowing us to resume diffusion from the previous node but with a different set of parameters. Allowing for more control over the image generated.\n\nBetween stage 1 and 2: the option of using different merging operations (check the group node below)\x94."
+        ),
+        "9fad59b7-10f4-4915-97f6-4271e85b4497": pickle.loads(
+            b"\x80\x04\x95\t\x00\x00\x00\x00\x00\x00\x00\x8c\x05alpha\x94."
+        ),
+    }
     # Create the Flow, then do work within it as context.
-    flow0_name = (await GriptapeNodes.ahandle_request(CreateFlowRequest(parent_flow_name=None, flow_name='ControlFlow_1', set_as_new_context=False, metadata={}))).flow_name
+    flow0_name = (
+        await GriptapeNodes.ahandle_request(
+            CreateFlowRequest(parent_flow_name=None, flow_name="ControlFlow_1", set_as_new_context=False, metadata={})
+        )
+    ).flow_name
     with GriptapeNodes.ContextManager().flow(flow0_name):
-        node0_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='NoiseLatentNode', specific_library_name='Griptape Modular Diffusion Nodes Library', node_name='Create Noise Latents', metadata={'position': {'x': 1080, 'y': 585.6666666666667}, 'tempId': 'placing-1779964813546-enk7vp', 'library_node_metadata': NodeMetadata(category='ModularDiffusion/Create', description='Create an initial noise latent tensor for a selected 🧨 Diffusers pipeline.', display_name='Create Noise Latents', tags=None, icon=None, color=None, group='diffusion', deprecation=None, is_node_group=None), 'library': 'Griptape Modular Diffusion Nodes Library', 'node_type': 'NoiseLatentNode', 'showaddparameter': False, 'size': {'width': 600, 'height': 460}, 'category': 'ModularDiffusion/Create'}, initial_setup=True))).node_name
+        node0_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="NoiseLatentNode",
+                    specific_library_name="Griptape Modular Diffusion Nodes Library",
+                    node_name="Create Noise Latents",
+                    metadata={
+                        "position": {"x": 1080, "y": 585.6666666666667},
+                        "tempId": "placing-1779964813546-enk7vp",
+                        "library_node_metadata": NodeMetadata(
+                            category="ModularDiffusion/Create",
+                            description="Create an initial noise latent tensor for a selected 🧨 Diffusers pipeline.",
+                            display_name="Create Noise Latents",
+                            tags=None,
+                            icon=None,
+                            color=None,
+                            group="diffusion",
+                            deprecation=None,
+                            is_node_group=None,
+                        ),
+                        "library": "Griptape Modular Diffusion Nodes Library",
+                        "node_type": "NoiseLatentNode",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 460},
+                        "category": "ModularDiffusion/Create",
+                    },
+                    initial_setup=True,
+                )
+            )
+        ).node_name
         with GriptapeNodes.ContextManager().node(node0_name):
-            await GriptapeNodes.ahandle_request(AlterParameterDetailsRequest(parameter_name='num_frames', ui_options={'hide': True}, initial_setup=True))
-        node1_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='LatentDiffusionPipelineBuilderNode', specific_library_name='Griptape Modular Diffusion Nodes Library', node_name='Modular Diffusion Pipeline Builder', metadata={'position': {'x': 335.00000000000006, 'y': 585.6666666666667}, 'tempId': 'placing-1779964818220-alxx5', 'library_node_metadata': NodeMetadata(category='ModularDiffusion/Pipeline', description='Build and cache latent-compatible 🧨 Diffusers Pipelines for reuse across latent execution nodes.', display_name='Modular Diffusion Pipeline Builder', tags=None, icon=None, color=None, group='diffusion', deprecation=None, is_node_group=None), 'library': 'Griptape Modular Diffusion Nodes Library', 'node_type': 'LatentDiffusionPipelineBuilderNode', 'showaddparameter': False, 'size': {'width': 601, 'height': 552}, 'category': 'ModularDiffusion/Pipeline'}, resolution='resolved', initial_setup=True))).node_name
+            await GriptapeNodes.ahandle_request(
+                AlterParameterDetailsRequest(parameter_name="num_frames", ui_options={"hide": True}, initial_setup=True)
+            )
+        node1_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="LatentDiffusionPipelineBuilderNode",
+                    specific_library_name="Griptape Modular Diffusion Nodes Library",
+                    node_name="Modular Diffusion Pipeline Builder",
+                    metadata={
+                        "position": {"x": 335.00000000000006, "y": 585.6666666666667},
+                        "tempId": "placing-1779964818220-alxx5",
+                        "library_node_metadata": NodeMetadata(
+                            category="ModularDiffusion/Pipeline",
+                            description="Build and cache latent-compatible 🧨 Diffusers Pipelines for reuse across latent execution nodes.",
+                            display_name="Modular Diffusion Pipeline Builder",
+                            tags=None,
+                            icon=None,
+                            color=None,
+                            group="diffusion",
+                            deprecation=None,
+                            is_node_group=None,
+                        ),
+                        "library": "Griptape Modular Diffusion Nodes Library",
+                        "node_type": "LatentDiffusionPipelineBuilderNode",
+                        "showaddparameter": False,
+                        "size": {"width": 601, "height": 552},
+                        "category": "ModularDiffusion/Pipeline",
+                    },
+                    resolution="resolved",
+                    initial_setup=True,
+                )
+            )
+        ).node_name
         with GriptapeNodes.ContextManager().node(node1_name):
-            await GriptapeNodes.ahandle_request(AddParameterToNodeRequest(parameter_name='pipeline_type', tooltip='Type of diffusion pipeline to build', type='str', input_types=['str'], output_type='str', ui_options={'simple_dropdown': ['ZImagePipeline'], 'show_search': True, 'search_filter': ''}, mode_allowed_input=False, mode_allowed_output=False, initial_setup=True))
-            await GriptapeNodes.ahandle_request(AddParameterToNodeRequest(parameter_name='model', default_value='Tongyi-MAI/Z-Image-Turbo', tooltip='model', type='str', input_types=['str'], output_type='str', ui_options={'simple_dropdown': ['Tongyi-MAI/Z-Image-Turbo'], 'show_search': True, 'search_filter': '', 'display_name': 'model'}, mode_allowed_input=False, mode_allowed_output=False, initial_setup=True))
-            await GriptapeNodes.ahandle_request(AlterParameterDetailsRequest(parameter_name='attention_slicing', ui_options={'hide': True}, initial_setup=True))
-            await GriptapeNodes.ahandle_request(AlterParameterDetailsRequest(parameter_name='vae_slicing', ui_options={'hide': True}, initial_setup=True))
-            await GriptapeNodes.ahandle_request(AlterParameterDetailsRequest(parameter_name='transformer_layerwise_casting', ui_options={'hide': True}, initial_setup=True))
-            await GriptapeNodes.ahandle_request(AlterParameterDetailsRequest(parameter_name='cpu_offload_strategy', ui_options={'simple_dropdown': ['None', 'Model', 'Sequential'], 'show_search': True, 'search_filter': '', 'hide': True}, initial_setup=True))
-            await GriptapeNodes.ahandle_request(AlterParameterDetailsRequest(parameter_name='quantization_mode', ui_options={'simple_dropdown': ['None', 'fp8', 'int8', 'int4'], 'show_search': True, 'search_filter': '', 'hide': True}, initial_setup=True))
-        node2_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='DiffusionPipelineGenerateLatentNode', specific_library_name='Griptape Modular Diffusion Nodes Library', node_name='Generate Media Latents (Modular Diffusion Pipeline)', metadata={'position': {'x': 2010, 'y': 585.6666666666667}, 'tempId': 'placing-1779964858968-b27m', 'library_node_metadata': NodeMetadata(category='ModularDiffusion/Processing', description='Generate latents via 🧨 Diffusers Pipelines.', display_name='Generate Media Latents (Modular Diffusion Pipeline)', tags=None, icon=None, color=None, group='diffusion', deprecation=None, is_node_group=None), 'library': 'Griptape Modular Diffusion Nodes Library', 'node_type': 'DiffusionPipelineGenerateLatentNode', 'showaddparameter': False, 'size': {'width': 600, 'height': 824}, 'category': 'ModularDiffusion/Processing'}, initial_setup=True))).node_name
+            await GriptapeNodes.ahandle_request(
+                AddParameterToNodeRequest(
+                    parameter_name="pipeline_type",
+                    tooltip="Type of diffusion pipeline to build",
+                    type="str",
+                    input_types=["str"],
+                    output_type="str",
+                    ui_options={"simple_dropdown": ["ZImagePipeline"], "show_search": True, "search_filter": ""},
+                    mode_allowed_input=False,
+                    mode_allowed_output=False,
+                    initial_setup=True,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                AddParameterToNodeRequest(
+                    parameter_name="model",
+                    default_value="Tongyi-MAI/Z-Image-Turbo",
+                    tooltip="model",
+                    type="str",
+                    input_types=["str"],
+                    output_type="str",
+                    ui_options={
+                        "simple_dropdown": ["Tongyi-MAI/Z-Image-Turbo"],
+                        "show_search": True,
+                        "search_filter": "",
+                        "display_name": "model",
+                    },
+                    mode_allowed_input=False,
+                    mode_allowed_output=False,
+                    initial_setup=True,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                AlterParameterDetailsRequest(
+                    parameter_name="attention_slicing", ui_options={"hide": True}, initial_setup=True
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                AlterParameterDetailsRequest(
+                    parameter_name="vae_slicing", ui_options={"hide": True}, initial_setup=True
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                AlterParameterDetailsRequest(
+                    parameter_name="transformer_layerwise_casting", ui_options={"hide": True}, initial_setup=True
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                AlterParameterDetailsRequest(
+                    parameter_name="cpu_offload_strategy",
+                    ui_options={
+                        "simple_dropdown": ["None", "Model", "Sequential"],
+                        "show_search": True,
+                        "search_filter": "",
+                        "hide": True,
+                    },
+                    initial_setup=True,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                AlterParameterDetailsRequest(
+                    parameter_name="quantization_mode",
+                    ui_options={
+                        "simple_dropdown": ["None", "fp8", "int8", "int4"],
+                        "show_search": True,
+                        "search_filter": "",
+                        "hide": True,
+                    },
+                    initial_setup=True,
+                )
+            )
+        node2_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="DiffusionPipelineGenerateLatentNode",
+                    specific_library_name="Griptape Modular Diffusion Nodes Library",
+                    node_name="Generate Media Latents (Modular Diffusion Pipeline)",
+                    metadata={
+                        "position": {"x": 2010, "y": 585.6666666666667},
+                        "tempId": "placing-1779964858968-b27m",
+                        "library_node_metadata": NodeMetadata(
+                            category="ModularDiffusion/Processing",
+                            description="Generate latents via 🧨 Diffusers Pipelines.",
+                            display_name="Generate Media Latents (Modular Diffusion Pipeline)",
+                            tags=None,
+                            icon=None,
+                            color=None,
+                            group="diffusion",
+                            deprecation=None,
+                            is_node_group=None,
+                        ),
+                        "library": "Griptape Modular Diffusion Nodes Library",
+                        "node_type": "DiffusionPipelineGenerateLatentNode",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 824},
+                        "category": "ModularDiffusion/Processing",
+                    },
+                    initial_setup=True,
+                )
+            )
+        ).node_name
         with GriptapeNodes.ContextManager().node(node2_name):
-            await GriptapeNodes.ahandle_request(AddParameterToNodeRequest(parameter_name='prompt', default_value='', tooltip='The prompt or prompts to guide the image generation.', type='str', input_types=['str'], output_type='str', ui_options={}, initial_setup=True))
-            await GriptapeNodes.ahandle_request(AddParameterToNodeRequest(parameter_name='num_inference_steps', default_value=20, tooltip='The number of denoising steps. More denoising steps usually lead to a higher quality image at the expense of slower inference.', type='int', input_types=['int'], output_type='int', ui_options={}, initial_setup=True))
-            await GriptapeNodes.ahandle_request(AddParameterToNodeRequest(parameter_name='randomize_seed', default_value=False, tooltip='randomize the seed on each run', type='bool', input_types=['any'], output_type='bool', ui_options={'hide_label': False, 'hide_property': False}, initial_setup=True))
-            await GriptapeNodes.ahandle_request(AddParameterToNodeRequest(parameter_name='seed', default_value=42, tooltip='the seed to use for the generation', type='int', input_types=['any'], output_type='int', ui_options={'hide_label': False, 'hide_property': False}, initial_setup=True))
-        node3_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='TextInput', specific_library_name='Griptape Nodes Library', node_name='Text Input', metadata={'position': {'x': 1175.0000000000005, 'y': 1090.0000000000002}, 'tempId': 'placing-1779964889986-r9iy82', 'library_node_metadata': NodeMetadata(category='text', description='TextInput node', display_name='Text Input', tags=None, icon='text-cursor', color=None, group='create', deprecation=None, is_node_group=None), 'library': 'Griptape Nodes Library', 'node_type': 'TextInput', 'showaddparameter': False, 'size': {'width': 600, 'height': 236}, 'category': 'text'}, resolution='resolved', initial_setup=True))).node_name
-        node4_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='VaeDecodeNode', specific_library_name='Griptape Modular Diffusion Nodes Library', node_name='Decode Media', metadata={'position': {'x': 4312.631778658197, 'y': 585.6666666666667}, 'tempId': 'placing-1779964950485-15mbmf', 'library_node_metadata': NodeMetadata(category='ModularDiffusion/Encode\\Decode', description='Decode VAE latent images or video via 🧨 Diffusers Pipelines.', display_name='Decode Media', tags=None, icon=None, color=None, group='diffusion', deprecation=None, is_node_group=None), 'library': 'Griptape Modular Diffusion Nodes Library', 'node_type': 'VaeDecodeNode', 'showaddparameter': False, 'size': {'width': 600, 'height': 436}, 'category': 'ModularDiffusion/Encode\\Decode'}, initial_setup=True))).node_name
+            await GriptapeNodes.ahandle_request(
+                AddParameterToNodeRequest(
+                    parameter_name="prompt",
+                    default_value="",
+                    tooltip="The prompt or prompts to guide the image generation.",
+                    type="str",
+                    input_types=["str"],
+                    output_type="str",
+                    ui_options={},
+                    initial_setup=True,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                AddParameterToNodeRequest(
+                    parameter_name="num_inference_steps",
+                    default_value=20,
+                    tooltip="The number of denoising steps. More denoising steps usually lead to a higher quality image at the expense of slower inference.",
+                    type="int",
+                    input_types=["int"],
+                    output_type="int",
+                    ui_options={},
+                    initial_setup=True,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                AddParameterToNodeRequest(
+                    parameter_name="randomize_seed",
+                    default_value=False,
+                    tooltip="randomize the seed on each run",
+                    type="bool",
+                    input_types=["any"],
+                    output_type="bool",
+                    ui_options={"hide_label": False, "hide_property": False},
+                    initial_setup=True,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                AddParameterToNodeRequest(
+                    parameter_name="seed",
+                    default_value=42,
+                    tooltip="the seed to use for the generation",
+                    type="int",
+                    input_types=["any"],
+                    output_type="int",
+                    ui_options={"hide_label": False, "hide_property": False},
+                    initial_setup=True,
+                )
+            )
+        node3_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="TextInput",
+                    specific_library_name="Griptape Nodes Library",
+                    node_name="Text Input",
+                    metadata={
+                        "position": {"x": 1175.0000000000005, "y": 1090.0000000000002},
+                        "tempId": "placing-1779964889986-r9iy82",
+                        "library_node_metadata": NodeMetadata(
+                            category="text",
+                            description="TextInput node",
+                            display_name="Text Input",
+                            tags=None,
+                            icon="text-cursor",
+                            color=None,
+                            group="create",
+                            deprecation=None,
+                            is_node_group=None,
+                        ),
+                        "library": "Griptape Nodes Library",
+                        "node_type": "TextInput",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 236},
+                        "category": "text",
+                    },
+                    resolution="resolved",
+                    initial_setup=True,
+                )
+            )
+        ).node_name
+        node4_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="VaeDecodeNode",
+                    specific_library_name="Griptape Modular Diffusion Nodes Library",
+                    node_name="Decode Media",
+                    metadata={
+                        "position": {"x": 4312.631778658197, "y": 585.6666666666667},
+                        "tempId": "placing-1779964950485-15mbmf",
+                        "library_node_metadata": NodeMetadata(
+                            category="ModularDiffusion/Encode\\Decode",
+                            description="Decode VAE latent images or video via 🧨 Diffusers Pipelines.",
+                            display_name="Decode Media",
+                            tags=None,
+                            icon=None,
+                            color=None,
+                            group="diffusion",
+                            deprecation=None,
+                            is_node_group=None,
+                        ),
+                        "library": "Griptape Modular Diffusion Nodes Library",
+                        "node_type": "VaeDecodeNode",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 436},
+                        "category": "ModularDiffusion/Encode\\Decode",
+                    },
+                    initial_setup=True,
+                )
+            )
+        ).node_name
         with GriptapeNodes.ContextManager().node(node4_name):
-            await GriptapeNodes.ahandle_request(AddParameterToNodeRequest(parameter_name='latent_tensor', tooltip='Latent tensor to decode with the pipeline VAE.', type='LatentArtifact', input_types=['LatentArtifact'], output_type='LatentArtifact', ui_options={}, mode_allowed_property=False, mode_allowed_output=False, initial_setup=True))
-            await GriptapeNodes.ahandle_request(AddParameterToNodeRequest(parameter_name='output_image', tooltip='Decoded image from the latent tensor.', type='ImageArtifact', input_types=['ImageArtifact'], output_type='ImageArtifact', ui_options={}, mode_allowed_input=False, mode_allowed_property=False, initial_setup=True))
-        node5_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='Note', specific_library_name='Griptape Nodes Library', node_name='Note', metadata={'position': {'x': 335.00000000000006, 'y': 204.20578421631666}, 'tempId': 'placing-1779965174462-1ykfce', 'library_node_metadata': NodeMetadata(category='misc', description='Create a note node to provide helpful context in your workflow', display_name='Note', tags=None, icon='notepad-text', color=None, group='create', deprecation=None, is_node_group=None), 'library': 'Griptape Nodes Library', 'node_type': 'Note', 'showaddparameter': False, 'size': {'width': 600, 'height': 338}, 'category': 'misc'}, initial_setup=True))).node_name
-        node6_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='Note', specific_library_name='Griptape Nodes Library', node_name='Note_1', metadata={'position': {'x': 1080, 'y': 204.20578421631666}, 'tempId': 'placing-1779965174462-1ykfce', 'library_node_metadata': NodeMetadata(category='misc', description='Create a note node to provide helpful context in your workflow', display_name='Note', tags=None, icon='notepad-text', color=None, group='create', deprecation=None, is_node_group=None), 'library': 'Griptape Nodes Library', 'node_type': 'Note', 'showaddparameter': False, 'size': {'width': 600, 'height': 299}, 'category': 'misc'}, initial_setup=True))).node_name
-        node7_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='Note', specific_library_name='Griptape Nodes Library', node_name='Note_2', metadata={'position': {'x': 2010, 'y': 115.11660866785837}, 'tempId': 'placing-1779965174462-1ykfce', 'library_node_metadata': {'category': 'misc', 'description': 'Create a note node to provide helpful context in your workflow'}, 'library': 'Griptape Nodes Library', 'node_type': 'Note', 'showaddparameter': False, 'size': {'width': 600, 'height': 352}, 'category': 'misc'}, initial_setup=True))).node_name
-        node8_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='Note', specific_library_name='Griptape Nodes Library', node_name='Note_3', metadata={'position': {'x': 4312.631778658197, 'y': 204.20578421631666}, 'tempId': 'placing-1779965174462-1ykfce', 'library_node_metadata': NodeMetadata(category='misc', description='Create a note node to provide helpful context in your workflow', display_name='Note', tags=None, icon='notepad-text', color=None, group='create', deprecation=None, is_node_group=None), 'library': 'Griptape Nodes Library', 'node_type': 'Note', 'showaddparameter': False, 'size': {'width': 603, 'height': 291}, 'category': 'misc'}, initial_setup=True))).node_name
-        node9_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='DiffusionPipelineGenerateLatentNode', specific_library_name='Griptape Modular Diffusion Nodes Library', node_name='Generate Media Latents (Modular Diffusion Pipeline)_1', metadata={'position': {'x': 3097.83561120604, 'y': 585.6666666666667}, 'tempId': 'placing-1780312031135-zsiqfa', 'library_node_metadata': {'category': 'ModularDiffusion/Processing', 'description': 'Generate latents via 🧨 Diffusers Pipelines.'}, 'library': 'Griptape Modular Diffusion Nodes Library', 'node_type': 'DiffusionPipelineGenerateLatentNode', 'showaddparameter': False, 'size': {'width': 600, 'height': 824}, 'category': 'ModularDiffusion/Processing'}, initial_setup=True))).node_name
+            await GriptapeNodes.ahandle_request(
+                AddParameterToNodeRequest(
+                    parameter_name="latent_tensor",
+                    tooltip="Latent tensor to decode with the pipeline VAE.",
+                    type="LatentArtifact",
+                    input_types=["LatentArtifact"],
+                    output_type="LatentArtifact",
+                    ui_options={},
+                    mode_allowed_property=False,
+                    mode_allowed_output=False,
+                    initial_setup=True,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                AddParameterToNodeRequest(
+                    parameter_name="output_image",
+                    tooltip="Decoded image from the latent tensor.",
+                    type="ImageArtifact",
+                    input_types=["ImageArtifact"],
+                    output_type="ImageArtifact",
+                    ui_options={},
+                    mode_allowed_input=False,
+                    mode_allowed_property=False,
+                    initial_setup=True,
+                )
+            )
+        node5_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="Note",
+                    specific_library_name="Griptape Nodes Library",
+                    node_name="Note",
+                    metadata={
+                        "position": {"x": 335.00000000000006, "y": 204.20578421631666},
+                        "tempId": "placing-1779965174462-1ykfce",
+                        "library_node_metadata": NodeMetadata(
+                            category="misc",
+                            description="Create a note node to provide helpful context in your workflow",
+                            display_name="Note",
+                            tags=None,
+                            icon="notepad-text",
+                            color=None,
+                            group="create",
+                            deprecation=None,
+                            is_node_group=None,
+                        ),
+                        "library": "Griptape Nodes Library",
+                        "node_type": "Note",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 338},
+                        "category": "misc",
+                    },
+                    initial_setup=True,
+                )
+            )
+        ).node_name
+        node6_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="Note",
+                    specific_library_name="Griptape Nodes Library",
+                    node_name="Note_1",
+                    metadata={
+                        "position": {"x": 1080, "y": 204.20578421631666},
+                        "tempId": "placing-1779965174462-1ykfce",
+                        "library_node_metadata": NodeMetadata(
+                            category="misc",
+                            description="Create a note node to provide helpful context in your workflow",
+                            display_name="Note",
+                            tags=None,
+                            icon="notepad-text",
+                            color=None,
+                            group="create",
+                            deprecation=None,
+                            is_node_group=None,
+                        ),
+                        "library": "Griptape Nodes Library",
+                        "node_type": "Note",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 299},
+                        "category": "misc",
+                    },
+                    initial_setup=True,
+                )
+            )
+        ).node_name
+        node7_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="Note",
+                    specific_library_name="Griptape Nodes Library",
+                    node_name="Note_2",
+                    metadata={
+                        "position": {"x": 2010, "y": 115.11660866785837},
+                        "tempId": "placing-1779965174462-1ykfce",
+                        "library_node_metadata": {
+                            "category": "misc",
+                            "description": "Create a note node to provide helpful context in your workflow",
+                        },
+                        "library": "Griptape Nodes Library",
+                        "node_type": "Note",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 352},
+                        "category": "misc",
+                    },
+                    initial_setup=True,
+                )
+            )
+        ).node_name
+        node8_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="Note",
+                    specific_library_name="Griptape Nodes Library",
+                    node_name="Note_3",
+                    metadata={
+                        "position": {"x": 4312.631778658197, "y": 204.20578421631666},
+                        "tempId": "placing-1779965174462-1ykfce",
+                        "library_node_metadata": NodeMetadata(
+                            category="misc",
+                            description="Create a note node to provide helpful context in your workflow",
+                            display_name="Note",
+                            tags=None,
+                            icon="notepad-text",
+                            color=None,
+                            group="create",
+                            deprecation=None,
+                            is_node_group=None,
+                        ),
+                        "library": "Griptape Nodes Library",
+                        "node_type": "Note",
+                        "showaddparameter": False,
+                        "size": {"width": 603, "height": 291},
+                        "category": "misc",
+                    },
+                    initial_setup=True,
+                )
+            )
+        ).node_name
+        node9_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="DiffusionPipelineGenerateLatentNode",
+                    specific_library_name="Griptape Modular Diffusion Nodes Library",
+                    node_name="Generate Media Latents (Modular Diffusion Pipeline)_1",
+                    metadata={
+                        "position": {"x": 3097.83561120604, "y": 585.6666666666667},
+                        "tempId": "placing-1780312031135-zsiqfa",
+                        "library_node_metadata": {
+                            "category": "ModularDiffusion/Processing",
+                            "description": "Generate latents via 🧨 Diffusers Pipelines.",
+                        },
+                        "library": "Griptape Modular Diffusion Nodes Library",
+                        "node_type": "DiffusionPipelineGenerateLatentNode",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 824},
+                        "category": "ModularDiffusion/Processing",
+                    },
+                    initial_setup=True,
+                )
+            )
+        ).node_name
         with GriptapeNodes.ContextManager().node(node9_name):
-            await GriptapeNodes.ahandle_request(AddParameterToNodeRequest(parameter_name='prompt', default_value='', tooltip='The prompt or prompts to guide the image generation.', type='str', input_types=['str'], output_type='str', ui_options={}, initial_setup=True))
-            await GriptapeNodes.ahandle_request(AddParameterToNodeRequest(parameter_name='num_inference_steps', default_value=20, tooltip='The number of denoising steps. More denoising steps usually lead to a higher quality image at the expense of slower inference.', type='int', input_types=['int'], output_type='int', ui_options={}, initial_setup=True))
-            await GriptapeNodes.ahandle_request(AddParameterToNodeRequest(parameter_name='randomize_seed', default_value=False, tooltip='randomize the seed on each run', type='bool', input_types=['any'], output_type='bool', ui_options={'hide_label': False, 'hide_property': False}, initial_setup=True))
-            await GriptapeNodes.ahandle_request(AddParameterToNodeRequest(parameter_name='seed', default_value=42, tooltip='the seed to use for the generation', type='int', input_types=['any'], output_type='int', ui_options={'hide_label': False, 'hide_property': False}, initial_setup=True))
-        node10_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='TextInput', specific_library_name='Griptape Nodes Library', node_name='Text Input_1', metadata={'position': {'x': 2307.362360691187, 'y': 1494.320231679705}, 'tempId': 'placing-1780312122326-7p9avf', 'library_node_metadata': {'category': 'text', 'description': 'TextInput node'}, 'library': 'Griptape Nodes Library', 'node_type': 'TextInput', 'showaddparameter': False, 'size': {'width': 600, 'height': 236}, 'category': 'text'}, resolution='resolved', initial_setup=True))).node_name
-        node11_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='Note', specific_library_name='Griptape Nodes Library', node_name='Note_4', metadata={'position': {'x': 3097.83561120604, 'y': 115.11660866785837}, 'tempId': 'placing-1779965174462-1ykfce', 'library_node_metadata': {'category': 'misc', 'description': 'Create a note node to provide helpful context in your workflow'}, 'library': 'Griptape Nodes Library', 'node_type': 'Note', 'showaddparameter': False, 'size': {'width': 600, 'height': 295}, 'category': 'misc'}, initial_setup=True))).node_name
-        node12_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='AddLatentsNode', specific_library_name='Griptape Modular Diffusion Nodes Library', node_name='Add Latents', metadata={'position': {'x': 137.6978694840809, 'y': 149.11660866785837}, 'tempId': 'placing-1780313331757-qt4wmv', 'library_node_metadata': {'category': 'ModularDiffusion/Transform', 'description': 'Add two latent artifacts elementwise.'}, 'library': 'Griptape Modular Diffusion Nodes Library', 'node_type': 'AddLatentsNode', 'showaddparameter': False, 'size': {'width': 600, 'height': 284}, 'category': 'ModularDiffusion/Transform'}, initial_setup=True))).node_name
-        node13_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='LatentCompositeMaskNode', specific_library_name='Griptape Modular Diffusion Nodes Library', node_name='Latents Composite Mask', metadata={'position': {'x': 872.2928384970264, 'y': 149.11660866785837}, 'tempId': 'placing-1780313334073-gpm97a', 'library_node_metadata': {'category': 'ModularDiffusion/Transform', 'description': 'Composite two latent tensors together by pasting masked latent into destination latent.'}, 'library': 'Griptape Modular Diffusion Nodes Library', 'node_type': 'LatentCompositeMaskNode', 'showaddparameter': False, 'size': {'width': 600, 'height': 716}, 'category': 'ModularDiffusion/Transform'}, initial_setup=True))).node_name
-        node14_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='MultiplyLatentsNode', specific_library_name='Griptape Modular Diffusion Nodes Library', node_name='Multiply Latents', metadata={'position': {'x': 1616.4280019127364, 'y': 149.11660866785837}, 'tempId': 'placing-1780313339191-27bat6', 'library_node_metadata': {'category': 'ModularDiffusion/Transform', 'description': 'Multiply two latent artifacts elementwise.'}, 'library': 'Griptape Modular Diffusion Nodes Library', 'node_type': 'MultiplyLatentsNode', 'showaddparameter': False, 'size': {'width': 600, 'height': 284}, 'category': 'ModularDiffusion/Transform'}, initial_setup=True))).node_name
-        node15_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='SubtractLatentsNode', specific_library_name='Griptape Modular Diffusion Nodes Library', node_name='Subtract Latents', metadata={'position': {'x': 2367.377589901852, 'y': 120.61660866785837}, 'tempId': 'placing-1780313342684-jv5r89', 'library_node_metadata': {'category': 'ModularDiffusion/Transform', 'description': 'Subtract the right latent from the left latent elementwise.'}, 'library': 'Griptape Modular Diffusion Nodes Library', 'node_type': 'SubtractLatentsNode', 'showaddparameter': False, 'size': {'width': 600, 'height': 284}, 'category': 'ModularDiffusion/Transform'}, initial_setup=True))).node_name
-        node16_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='Group', specific_library_name='Griptape Nodes Library', node_name='Different  Merge Nodes', metadata={'position': {'x': 1416.0324018991773, 'y': 1853.6182222244634}, 'tempId': 'placing-1780313372568-1ou09r', 'library_node_metadata': NodeMetadata(category='misc', description='Create a group node to organize your workflow', display_name='Group', tags=None, icon='group', color=None, group='create', deprecation=None, is_node_group=True), 'library': 'Griptape Nodes Library', 'node_type': 'Group', 'is_node_group': True, 'executable': False, 'hideaddparameter': True, 'showConnectionsCollapsed': True, 'group_settings_params': ['description'], 'size': {'width': 3164, 'height': 979}, 'expanded_dimensions': {'width': 3164, 'height': 979}}, node_names_to_add=[node12_name, node13_name, node14_name, node15_name]))).node_name
-        await GriptapeNodes.ahandle_request(CreateConnectionRequest(source_node_name=node1_name, source_parameter_name='pipeline', target_node_name=node0_name, target_parameter_name='pipeline', initial_setup=True))
-        await GriptapeNodes.ahandle_request(CreateConnectionRequest(source_node_name=node0_name, source_parameter_name='pipeline', target_node_name=node2_name, target_parameter_name='pipeline', initial_setup=True))
-        await GriptapeNodes.ahandle_request(CreateConnectionRequest(source_node_name=node0_name, source_parameter_name='output_latent', target_node_name=node2_name, target_parameter_name='input_latent', initial_setup=True))
-        await GriptapeNodes.ahandle_request(CreateConnectionRequest(source_node_name=node3_name, source_parameter_name='text', target_node_name=node2_name, target_parameter_name='prompt', initial_setup=True))
-        await GriptapeNodes.ahandle_request(CreateConnectionRequest(source_node_name=node2_name, source_parameter_name='pipeline', target_node_name=node9_name, target_parameter_name='pipeline', initial_setup=True))
-        await GriptapeNodes.ahandle_request(CreateConnectionRequest(source_node_name=node9_name, source_parameter_name='pipeline', target_node_name=node4_name, target_parameter_name='pipeline', initial_setup=True))
-        await GriptapeNodes.ahandle_request(CreateConnectionRequest(source_node_name=node2_name, source_parameter_name='output_latent', target_node_name=node9_name, target_parameter_name='input_latent', initial_setup=True))
-        await GriptapeNodes.ahandle_request(CreateConnectionRequest(source_node_name=node9_name, source_parameter_name='output_latent', target_node_name=node4_name, target_parameter_name='latent_tensor', initial_setup=True))
-        await GriptapeNodes.ahandle_request(CreateConnectionRequest(source_node_name=node10_name, source_parameter_name='text', target_node_name=node9_name, target_parameter_name='prompt', initial_setup=True))
+            await GriptapeNodes.ahandle_request(
+                AddParameterToNodeRequest(
+                    parameter_name="prompt",
+                    default_value="",
+                    tooltip="The prompt or prompts to guide the image generation.",
+                    type="str",
+                    input_types=["str"],
+                    output_type="str",
+                    ui_options={},
+                    initial_setup=True,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                AddParameterToNodeRequest(
+                    parameter_name="num_inference_steps",
+                    default_value=20,
+                    tooltip="The number of denoising steps. More denoising steps usually lead to a higher quality image at the expense of slower inference.",
+                    type="int",
+                    input_types=["int"],
+                    output_type="int",
+                    ui_options={},
+                    initial_setup=True,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                AddParameterToNodeRequest(
+                    parameter_name="randomize_seed",
+                    default_value=False,
+                    tooltip="randomize the seed on each run",
+                    type="bool",
+                    input_types=["any"],
+                    output_type="bool",
+                    ui_options={"hide_label": False, "hide_property": False},
+                    initial_setup=True,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                AddParameterToNodeRequest(
+                    parameter_name="seed",
+                    default_value=42,
+                    tooltip="the seed to use for the generation",
+                    type="int",
+                    input_types=["any"],
+                    output_type="int",
+                    ui_options={"hide_label": False, "hide_property": False},
+                    initial_setup=True,
+                )
+            )
+        node10_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="TextInput",
+                    specific_library_name="Griptape Nodes Library",
+                    node_name="Text Input_1",
+                    metadata={
+                        "position": {"x": 2307.362360691187, "y": 1494.320231679705},
+                        "tempId": "placing-1780312122326-7p9avf",
+                        "library_node_metadata": {"category": "text", "description": "TextInput node"},
+                        "library": "Griptape Nodes Library",
+                        "node_type": "TextInput",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 236},
+                        "category": "text",
+                    },
+                    resolution="resolved",
+                    initial_setup=True,
+                )
+            )
+        ).node_name
+        node11_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="Note",
+                    specific_library_name="Griptape Nodes Library",
+                    node_name="Note_4",
+                    metadata={
+                        "position": {"x": 3097.83561120604, "y": 115.11660866785837},
+                        "tempId": "placing-1779965174462-1ykfce",
+                        "library_node_metadata": {
+                            "category": "misc",
+                            "description": "Create a note node to provide helpful context in your workflow",
+                        },
+                        "library": "Griptape Nodes Library",
+                        "node_type": "Note",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 295},
+                        "category": "misc",
+                    },
+                    initial_setup=True,
+                )
+            )
+        ).node_name
+        node12_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="AddLatentsNode",
+                    specific_library_name="Griptape Modular Diffusion Nodes Library",
+                    node_name="Add Latents",
+                    metadata={
+                        "position": {"x": 137.6978694840809, "y": 149.11660866785837},
+                        "tempId": "placing-1780313331757-qt4wmv",
+                        "library_node_metadata": {
+                            "category": "ModularDiffusion/Transform",
+                            "description": "Add two latent artifacts elementwise.",
+                        },
+                        "library": "Griptape Modular Diffusion Nodes Library",
+                        "node_type": "AddLatentsNode",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 284},
+                        "category": "ModularDiffusion/Transform",
+                    },
+                    initial_setup=True,
+                )
+            )
+        ).node_name
+        node13_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="LatentCompositeMaskNode",
+                    specific_library_name="Griptape Modular Diffusion Nodes Library",
+                    node_name="Latents Composite Mask",
+                    metadata={
+                        "position": {"x": 872.2928384970264, "y": 149.11660866785837},
+                        "tempId": "placing-1780313334073-gpm97a",
+                        "library_node_metadata": {
+                            "category": "ModularDiffusion/Transform",
+                            "description": "Composite two latent tensors together by pasting masked latent into destination latent.",
+                        },
+                        "library": "Griptape Modular Diffusion Nodes Library",
+                        "node_type": "LatentCompositeMaskNode",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 716},
+                        "category": "ModularDiffusion/Transform",
+                    },
+                    initial_setup=True,
+                )
+            )
+        ).node_name
+        node14_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="MultiplyLatentsNode",
+                    specific_library_name="Griptape Modular Diffusion Nodes Library",
+                    node_name="Multiply Latents",
+                    metadata={
+                        "position": {"x": 1616.4280019127364, "y": 149.11660866785837},
+                        "tempId": "placing-1780313339191-27bat6",
+                        "library_node_metadata": {
+                            "category": "ModularDiffusion/Transform",
+                            "description": "Multiply two latent artifacts elementwise.",
+                        },
+                        "library": "Griptape Modular Diffusion Nodes Library",
+                        "node_type": "MultiplyLatentsNode",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 284},
+                        "category": "ModularDiffusion/Transform",
+                    },
+                    initial_setup=True,
+                )
+            )
+        ).node_name
+        node15_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="SubtractLatentsNode",
+                    specific_library_name="Griptape Modular Diffusion Nodes Library",
+                    node_name="Subtract Latents",
+                    metadata={
+                        "position": {"x": 2367.377589901852, "y": 120.61660866785837},
+                        "tempId": "placing-1780313342684-jv5r89",
+                        "library_node_metadata": {
+                            "category": "ModularDiffusion/Transform",
+                            "description": "Subtract the right latent from the left latent elementwise.",
+                        },
+                        "library": "Griptape Modular Diffusion Nodes Library",
+                        "node_type": "SubtractLatentsNode",
+                        "showaddparameter": False,
+                        "size": {"width": 600, "height": 284},
+                        "category": "ModularDiffusion/Transform",
+                    },
+                    initial_setup=True,
+                )
+            )
+        ).node_name
+        node16_name = (
+            await GriptapeNodes.ahandle_request(
+                CreateNodeRequest(
+                    node_type="Group",
+                    specific_library_name="Griptape Nodes Library",
+                    node_name="Different  Merge Nodes",
+                    metadata={
+                        "position": {"x": 1416.0324018991773, "y": 1853.6182222244634},
+                        "tempId": "placing-1780313372568-1ou09r",
+                        "library_node_metadata": NodeMetadata(
+                            category="misc",
+                            description="Create a group node to organize your workflow",
+                            display_name="Group",
+                            tags=None,
+                            icon="group",
+                            color=None,
+                            group="create",
+                            deprecation=None,
+                            is_node_group=True,
+                        ),
+                        "library": "Griptape Nodes Library",
+                        "node_type": "Group",
+                        "is_node_group": True,
+                        "executable": False,
+                        "hideaddparameter": True,
+                        "showConnectionsCollapsed": True,
+                        "group_settings_params": ["description"],
+                        "size": {"width": 3164, "height": 979},
+                        "expanded_dimensions": {"width": 3164, "height": 979},
+                    },
+                    node_names_to_add=[node12_name, node13_name, node14_name, node15_name],
+                )
+            )
+        ).node_name
+        await GriptapeNodes.ahandle_request(
+            CreateConnectionRequest(
+                source_node_name=node1_name,
+                source_parameter_name="pipeline",
+                target_node_name=node0_name,
+                target_parameter_name="pipeline",
+                initial_setup=True,
+            )
+        )
+        await GriptapeNodes.ahandle_request(
+            CreateConnectionRequest(
+                source_node_name=node0_name,
+                source_parameter_name="pipeline",
+                target_node_name=node2_name,
+                target_parameter_name="pipeline",
+                initial_setup=True,
+            )
+        )
+        await GriptapeNodes.ahandle_request(
+            CreateConnectionRequest(
+                source_node_name=node0_name,
+                source_parameter_name="output_latent",
+                target_node_name=node2_name,
+                target_parameter_name="input_latent",
+                initial_setup=True,
+            )
+        )
+        await GriptapeNodes.ahandle_request(
+            CreateConnectionRequest(
+                source_node_name=node3_name,
+                source_parameter_name="text",
+                target_node_name=node2_name,
+                target_parameter_name="prompt",
+                initial_setup=True,
+            )
+        )
+        await GriptapeNodes.ahandle_request(
+            CreateConnectionRequest(
+                source_node_name=node2_name,
+                source_parameter_name="pipeline",
+                target_node_name=node9_name,
+                target_parameter_name="pipeline",
+                initial_setup=True,
+            )
+        )
+        await GriptapeNodes.ahandle_request(
+            CreateConnectionRequest(
+                source_node_name=node9_name,
+                source_parameter_name="pipeline",
+                target_node_name=node4_name,
+                target_parameter_name="pipeline",
+                initial_setup=True,
+            )
+        )
+        await GriptapeNodes.ahandle_request(
+            CreateConnectionRequest(
+                source_node_name=node2_name,
+                source_parameter_name="output_latent",
+                target_node_name=node9_name,
+                target_parameter_name="input_latent",
+                initial_setup=True,
+            )
+        )
+        await GriptapeNodes.ahandle_request(
+            CreateConnectionRequest(
+                source_node_name=node9_name,
+                source_parameter_name="output_latent",
+                target_node_name=node4_name,
+                target_parameter_name="latent_tensor",
+                initial_setup=True,
+            )
+        )
+        await GriptapeNodes.ahandle_request(
+            CreateConnectionRequest(
+                source_node_name=node10_name,
+                source_parameter_name="text",
+                target_node_name=node9_name,
+                target_parameter_name="prompt",
+                initial_setup=True,
+            )
+        )
         with GriptapeNodes.ContextManager().node(node0_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline', node_name=node0_name, value=top_level_unique_values_dict['a70dc5d4-17f9-4d16-a35e-49b1cd2bb273'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='randomize_seed', node_name=node0_name, value=top_level_unique_values_dict['498eece6-08ed-42cb-aeef-ce60901b84c3'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='seed', node_name=node0_name, value=top_level_unique_values_dict['b3fce3ca-f8ed-49a1-8eca-8fdf902a45e0'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='width', node_name=node0_name, value=top_level_unique_values_dict['5bcc0d8c-ebf9-4e7d-9b01-8ee2054c849b'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='height', node_name=node0_name, value=top_level_unique_values_dict['5bcc0d8c-ebf9-4e7d-9b01-8ee2054c849b'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='num_frames', node_name=node0_name, value=top_level_unique_values_dict['7cb143f8-17e2-4e9b-9692-a596a1c71469'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='num_inference_steps', node_name=node0_name, value=top_level_unique_values_dict['335bac8c-efe8-43e7-9de9-54e27eef52f5'], initial_setup=True, is_output=False))
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="pipeline",
+                    node_name=node0_name,
+                    value=top_level_unique_values_dict["a70dc5d4-17f9-4d16-a35e-49b1cd2bb273"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="randomize_seed",
+                    node_name=node0_name,
+                    value=top_level_unique_values_dict["498eece6-08ed-42cb-aeef-ce60901b84c3"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="seed",
+                    node_name=node0_name,
+                    value=top_level_unique_values_dict["b3fce3ca-f8ed-49a1-8eca-8fdf902a45e0"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="width",
+                    node_name=node0_name,
+                    value=top_level_unique_values_dict["5bcc0d8c-ebf9-4e7d-9b01-8ee2054c849b"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="height",
+                    node_name=node0_name,
+                    value=top_level_unique_values_dict["5bcc0d8c-ebf9-4e7d-9b01-8ee2054c849b"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="num_frames",
+                    node_name=node0_name,
+                    value=top_level_unique_values_dict["7cb143f8-17e2-4e9b-9692-a596a1c71469"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="num_inference_steps",
+                    node_name=node0_name,
+                    value=top_level_unique_values_dict["335bac8c-efe8-43e7-9de9-54e27eef52f5"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
         with GriptapeNodes.ContextManager().node(node1_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline', node_name=node1_name, value=top_level_unique_values_dict['a70dc5d4-17f9-4d16-a35e-49b1cd2bb273'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline', node_name=node1_name, value=top_level_unique_values_dict['a70dc5d4-17f9-4d16-a35e-49b1cd2bb273'], initial_setup=True, is_output=True))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='provider', node_name=node1_name, value=top_level_unique_values_dict['043569af-442e-4c9d-b8de-ac7f4efd6b98'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline_type', node_name=node1_name, value=top_level_unique_values_dict['33e66514-e4cc-43f6-8965-e9e034fa4d69'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='model', node_name=node1_name, value=top_level_unique_values_dict['04ae4c4f-0efb-4464-ac4f-3bedd12bab8e'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='memory_optimization_strategy', node_name=node1_name, value=top_level_unique_values_dict['bb90c14b-0e02-4a92-b244-52bc626f3171'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='attention_slicing', node_name=node1_name, value=top_level_unique_values_dict['498eece6-08ed-42cb-aeef-ce60901b84c3'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='vae_slicing', node_name=node1_name, value=top_level_unique_values_dict['498eece6-08ed-42cb-aeef-ce60901b84c3'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='transformer_layerwise_casting', node_name=node1_name, value=top_level_unique_values_dict['498eece6-08ed-42cb-aeef-ce60901b84c3'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='cpu_offload_strategy', node_name=node1_name, value=top_level_unique_values_dict['f37b042d-83c4-4d2c-988d-8434d643cf67'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='quantization_mode', node_name=node1_name, value=top_level_unique_values_dict['f37b042d-83c4-4d2c-988d-8434d643cf67'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='loras', node_name=node1_name, value=top_level_unique_values_dict['22251a56-f57d-4dfe-ba96-581e06002ceb'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='logs', node_name=node1_name, value=top_level_unique_values_dict['1e75de0b-4c8b-4e86-b189-032c375d04b4'], initial_setup=True, is_output=True))
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="pipeline",
+                    node_name=node1_name,
+                    value=top_level_unique_values_dict["a70dc5d4-17f9-4d16-a35e-49b1cd2bb273"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="pipeline",
+                    node_name=node1_name,
+                    value=top_level_unique_values_dict["a70dc5d4-17f9-4d16-a35e-49b1cd2bb273"],
+                    initial_setup=True,
+                    is_output=True,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="provider",
+                    node_name=node1_name,
+                    value=top_level_unique_values_dict["043569af-442e-4c9d-b8de-ac7f4efd6b98"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="pipeline_type",
+                    node_name=node1_name,
+                    value=top_level_unique_values_dict["33e66514-e4cc-43f6-8965-e9e034fa4d69"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="model",
+                    node_name=node1_name,
+                    value=top_level_unique_values_dict["04ae4c4f-0efb-4464-ac4f-3bedd12bab8e"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="memory_optimization_strategy",
+                    node_name=node1_name,
+                    value=top_level_unique_values_dict["bb90c14b-0e02-4a92-b244-52bc626f3171"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="attention_slicing",
+                    node_name=node1_name,
+                    value=top_level_unique_values_dict["498eece6-08ed-42cb-aeef-ce60901b84c3"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="vae_slicing",
+                    node_name=node1_name,
+                    value=top_level_unique_values_dict["498eece6-08ed-42cb-aeef-ce60901b84c3"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="transformer_layerwise_casting",
+                    node_name=node1_name,
+                    value=top_level_unique_values_dict["498eece6-08ed-42cb-aeef-ce60901b84c3"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="cpu_offload_strategy",
+                    node_name=node1_name,
+                    value=top_level_unique_values_dict["f37b042d-83c4-4d2c-988d-8434d643cf67"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="quantization_mode",
+                    node_name=node1_name,
+                    value=top_level_unique_values_dict["f37b042d-83c4-4d2c-988d-8434d643cf67"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="loras",
+                    node_name=node1_name,
+                    value=top_level_unique_values_dict["22251a56-f57d-4dfe-ba96-581e06002ceb"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="logs",
+                    node_name=node1_name,
+                    value=top_level_unique_values_dict["1e75de0b-4c8b-4e86-b189-032c375d04b4"],
+                    initial_setup=True,
+                    is_output=True,
+                )
+            )
         with GriptapeNodes.ContextManager().node(node2_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline', node_name=node2_name, value=top_level_unique_values_dict['a70dc5d4-17f9-4d16-a35e-49b1cd2bb273'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='add_noise', node_name=node2_name, value=top_level_unique_values_dict['498eece6-08ed-42cb-aeef-ce60901b84c3'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='start_step', node_name=node2_name, value=top_level_unique_values_dict['d484f76a-3afd-4e67-be8c-62be5f613534'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='end_step', node_name=node2_name, value=top_level_unique_values_dict['7327a20f-2998-4fa5-88cd-905c9b94e97b'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='return_fully_denoised', node_name=node2_name, value=top_level_unique_values_dict['498eece6-08ed-42cb-aeef-ce60901b84c3'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='prompt', node_name=node2_name, value=top_level_unique_values_dict['b41fc50c-76b9-4895-90f6-197551e7f010'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='num_inference_steps', node_name=node2_name, value=top_level_unique_values_dict['335bac8c-efe8-43e7-9de9-54e27eef52f5'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='randomize_seed', node_name=node2_name, value=top_level_unique_values_dict['498eece6-08ed-42cb-aeef-ce60901b84c3'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='seed', node_name=node2_name, value=top_level_unique_values_dict['b3fce3ca-f8ed-49a1-8eca-8fdf902a45e0'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='additional_parameters', node_name=node2_name, value=top_level_unique_values_dict['b1e10ff2-9891-4e8f-9356-0a72246afa1f'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='progress', node_name=node2_name, value=top_level_unique_values_dict['2e2977cb-95df-46c3-ad22-b3d9ebcb6411'], initial_setup=True, is_output=True))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='logs', node_name=node2_name, value=top_level_unique_values_dict['3444a5ec-ae10-45e1-8fbf-3c5b1b3b6c6d'], initial_setup=True, is_output=True))
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="pipeline",
+                    node_name=node2_name,
+                    value=top_level_unique_values_dict["a70dc5d4-17f9-4d16-a35e-49b1cd2bb273"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="add_noise",
+                    node_name=node2_name,
+                    value=top_level_unique_values_dict["498eece6-08ed-42cb-aeef-ce60901b84c3"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="start_step",
+                    node_name=node2_name,
+                    value=top_level_unique_values_dict["d484f76a-3afd-4e67-be8c-62be5f613534"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="end_step",
+                    node_name=node2_name,
+                    value=top_level_unique_values_dict["7327a20f-2998-4fa5-88cd-905c9b94e97b"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="return_fully_denoised",
+                    node_name=node2_name,
+                    value=top_level_unique_values_dict["498eece6-08ed-42cb-aeef-ce60901b84c3"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="prompt",
+                    node_name=node2_name,
+                    value=top_level_unique_values_dict["b41fc50c-76b9-4895-90f6-197551e7f010"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="num_inference_steps",
+                    node_name=node2_name,
+                    value=top_level_unique_values_dict["335bac8c-efe8-43e7-9de9-54e27eef52f5"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="randomize_seed",
+                    node_name=node2_name,
+                    value=top_level_unique_values_dict["498eece6-08ed-42cb-aeef-ce60901b84c3"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="seed",
+                    node_name=node2_name,
+                    value=top_level_unique_values_dict["b3fce3ca-f8ed-49a1-8eca-8fdf902a45e0"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="additional_parameters",
+                    node_name=node2_name,
+                    value=top_level_unique_values_dict["b1e10ff2-9891-4e8f-9356-0a72246afa1f"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="progress",
+                    node_name=node2_name,
+                    value=top_level_unique_values_dict["2e2977cb-95df-46c3-ad22-b3d9ebcb6411"],
+                    initial_setup=True,
+                    is_output=True,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="logs",
+                    node_name=node2_name,
+                    value=top_level_unique_values_dict["3444a5ec-ae10-45e1-8fbf-3c5b1b3b6c6d"],
+                    initial_setup=True,
+                    is_output=True,
+                )
+            )
         with GriptapeNodes.ContextManager().node(node3_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='text', node_name=node3_name, value=top_level_unique_values_dict['b41fc50c-76b9-4895-90f6-197551e7f010'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='text', node_name=node3_name, value=top_level_unique_values_dict['b41fc50c-76b9-4895-90f6-197551e7f010'], initial_setup=True, is_output=True))
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="text",
+                    node_name=node3_name,
+                    value=top_level_unique_values_dict["b41fc50c-76b9-4895-90f6-197551e7f010"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="text",
+                    node_name=node3_name,
+                    value=top_level_unique_values_dict["b41fc50c-76b9-4895-90f6-197551e7f010"],
+                    initial_setup=True,
+                    is_output=True,
+                )
+            )
         with GriptapeNodes.ContextManager().node(node4_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline', node_name=node4_name, value=top_level_unique_values_dict['a70dc5d4-17f9-4d16-a35e-49b1cd2bb273'], initial_setup=True, is_output=False))
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="pipeline",
+                    node_name=node4_name,
+                    value=top_level_unique_values_dict["a70dc5d4-17f9-4d16-a35e-49b1cd2bb273"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
         with GriptapeNodes.ContextManager().node(node5_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='note', node_name=node5_name, value=top_level_unique_values_dict['26df79d5-38d7-4e0a-ae3b-c371b02f733f'], initial_setup=True, is_output=False))
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="note",
+                    node_name=node5_name,
+                    value=top_level_unique_values_dict["26df79d5-38d7-4e0a-ae3b-c371b02f733f"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
         with GriptapeNodes.ContextManager().node(node6_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='note', node_name=node6_name, value=top_level_unique_values_dict['2cbb166d-6ba6-4ea2-a4b2-7de80b062ffe'], initial_setup=True, is_output=False))
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="note",
+                    node_name=node6_name,
+                    value=top_level_unique_values_dict["2cbb166d-6ba6-4ea2-a4b2-7de80b062ffe"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
         with GriptapeNodes.ContextManager().node(node7_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='note', node_name=node7_name, value=top_level_unique_values_dict['f7c0d539-9e98-4ffa-bc25-26158352953f'], initial_setup=True, is_output=False))
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="note",
+                    node_name=node7_name,
+                    value=top_level_unique_values_dict["f7c0d539-9e98-4ffa-bc25-26158352953f"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
         with GriptapeNodes.ContextManager().node(node8_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='note', node_name=node8_name, value=top_level_unique_values_dict['50c7e500-9ba1-45a1-b0db-d02aebb5ef85'], initial_setup=True, is_output=False))
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="note",
+                    node_name=node8_name,
+                    value=top_level_unique_values_dict["50c7e500-9ba1-45a1-b0db-d02aebb5ef85"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
         with GriptapeNodes.ContextManager().node(node9_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline', node_name=node9_name, value=top_level_unique_values_dict['a70dc5d4-17f9-4d16-a35e-49b1cd2bb273'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='add_noise', node_name=node9_name, value=top_level_unique_values_dict['498eece6-08ed-42cb-aeef-ce60901b84c3'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='start_step', node_name=node9_name, value=top_level_unique_values_dict['7327a20f-2998-4fa5-88cd-905c9b94e97b'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='end_step', node_name=node9_name, value=top_level_unique_values_dict['af7c2f7f-64c4-4cce-9c77-875475386529'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='return_fully_denoised', node_name=node9_name, value=top_level_unique_values_dict['498eece6-08ed-42cb-aeef-ce60901b84c3'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='prompt', node_name=node9_name, value=top_level_unique_values_dict['97d00aae-5ea7-4b62-bb0e-3c329dcfee82'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='num_inference_steps', node_name=node9_name, value=top_level_unique_values_dict['335bac8c-efe8-43e7-9de9-54e27eef52f5'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='randomize_seed', node_name=node9_name, value=top_level_unique_values_dict['498eece6-08ed-42cb-aeef-ce60901b84c3'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='seed', node_name=node9_name, value=top_level_unique_values_dict['b3fce3ca-f8ed-49a1-8eca-8fdf902a45e0'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='additional_parameters', node_name=node9_name, value=top_level_unique_values_dict['a191de17-45f7-4ff5-a58a-15fe0ce3c91b'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='progress', node_name=node9_name, value=top_level_unique_values_dict['e6e03db3-408e-42a6-bf87-9011a7c7595b'], initial_setup=True, is_output=True))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='logs', node_name=node9_name, value=top_level_unique_values_dict['088c7a74-57db-4d7c-aedc-6d26a6f5f7b5'], initial_setup=True, is_output=True))
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="pipeline",
+                    node_name=node9_name,
+                    value=top_level_unique_values_dict["a70dc5d4-17f9-4d16-a35e-49b1cd2bb273"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="add_noise",
+                    node_name=node9_name,
+                    value=top_level_unique_values_dict["498eece6-08ed-42cb-aeef-ce60901b84c3"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="start_step",
+                    node_name=node9_name,
+                    value=top_level_unique_values_dict["7327a20f-2998-4fa5-88cd-905c9b94e97b"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="end_step",
+                    node_name=node9_name,
+                    value=top_level_unique_values_dict["af7c2f7f-64c4-4cce-9c77-875475386529"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="return_fully_denoised",
+                    node_name=node9_name,
+                    value=top_level_unique_values_dict["498eece6-08ed-42cb-aeef-ce60901b84c3"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="prompt",
+                    node_name=node9_name,
+                    value=top_level_unique_values_dict["97d00aae-5ea7-4b62-bb0e-3c329dcfee82"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="num_inference_steps",
+                    node_name=node9_name,
+                    value=top_level_unique_values_dict["335bac8c-efe8-43e7-9de9-54e27eef52f5"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="randomize_seed",
+                    node_name=node9_name,
+                    value=top_level_unique_values_dict["498eece6-08ed-42cb-aeef-ce60901b84c3"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="seed",
+                    node_name=node9_name,
+                    value=top_level_unique_values_dict["b3fce3ca-f8ed-49a1-8eca-8fdf902a45e0"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="additional_parameters",
+                    node_name=node9_name,
+                    value=top_level_unique_values_dict["a191de17-45f7-4ff5-a58a-15fe0ce3c91b"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="progress",
+                    node_name=node9_name,
+                    value=top_level_unique_values_dict["e6e03db3-408e-42a6-bf87-9011a7c7595b"],
+                    initial_setup=True,
+                    is_output=True,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="logs",
+                    node_name=node9_name,
+                    value=top_level_unique_values_dict["088c7a74-57db-4d7c-aedc-6d26a6f5f7b5"],
+                    initial_setup=True,
+                    is_output=True,
+                )
+            )
         with GriptapeNodes.ContextManager().node(node10_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='text', node_name=node10_name, value=top_level_unique_values_dict['97d00aae-5ea7-4b62-bb0e-3c329dcfee82'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='text', node_name=node10_name, value=top_level_unique_values_dict['97d00aae-5ea7-4b62-bb0e-3c329dcfee82'], initial_setup=True, is_output=True))
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="text",
+                    node_name=node10_name,
+                    value=top_level_unique_values_dict["97d00aae-5ea7-4b62-bb0e-3c329dcfee82"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="text",
+                    node_name=node10_name,
+                    value=top_level_unique_values_dict["97d00aae-5ea7-4b62-bb0e-3c329dcfee82"],
+                    initial_setup=True,
+                    is_output=True,
+                )
+            )
         with GriptapeNodes.ContextManager().node(node11_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='note', node_name=node11_name, value=top_level_unique_values_dict['6ba929ba-9731-4ee4-a33a-8ced8373d6fb'], initial_setup=True, is_output=False))
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="note",
+                    node_name=node11_name,
+                    value=top_level_unique_values_dict["6ba929ba-9731-4ee4-a33a-8ced8373d6fb"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
         with GriptapeNodes.ContextManager().node(node13_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='x_offset', node_name=node13_name, value=top_level_unique_values_dict['d484f76a-3afd-4e67-be8c-62be5f613534'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='y_offset', node_name=node13_name, value=top_level_unique_values_dict['d484f76a-3afd-4e67-be8c-62be5f613534'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='resize_source', node_name=node13_name, value=top_level_unique_values_dict['498eece6-08ed-42cb-aeef-ce60901b84c3'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='channel', node_name=node13_name, value=top_level_unique_values_dict['9fad59b7-10f4-4915-97f6-4271e85b4497'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='invert_mask', node_name=node13_name, value=top_level_unique_values_dict['498eece6-08ed-42cb-aeef-ce60901b84c3'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='grow_shrink', node_name=node13_name, value=top_level_unique_values_dict['d484f76a-3afd-4e67-be8c-62be5f613534'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='blur_mask', node_name=node13_name, value=top_level_unique_values_dict['d484f76a-3afd-4e67-be8c-62be5f613534'], initial_setup=True, is_output=False))
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="x_offset",
+                    node_name=node13_name,
+                    value=top_level_unique_values_dict["d484f76a-3afd-4e67-be8c-62be5f613534"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="y_offset",
+                    node_name=node13_name,
+                    value=top_level_unique_values_dict["d484f76a-3afd-4e67-be8c-62be5f613534"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="resize_source",
+                    node_name=node13_name,
+                    value=top_level_unique_values_dict["498eece6-08ed-42cb-aeef-ce60901b84c3"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="channel",
+                    node_name=node13_name,
+                    value=top_level_unique_values_dict["9fad59b7-10f4-4915-97f6-4271e85b4497"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="invert_mask",
+                    node_name=node13_name,
+                    value=top_level_unique_values_dict["498eece6-08ed-42cb-aeef-ce60901b84c3"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="grow_shrink",
+                    node_name=node13_name,
+                    value=top_level_unique_values_dict["d484f76a-3afd-4e67-be8c-62be5f613534"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
+            await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name="blur_mask",
+                    node_name=node13_name,
+                    value=top_level_unique_values_dict["d484f76a-3afd-4e67-be8c-62be5f613534"],
+                    initial_setup=True,
+                    is_output=False,
+                )
+            )
