@@ -7,5 +7,6 @@ class Provider(StrEnum):
     LTX = "LTX"
     QWEN = "Qwen"
     STABLE_DIFFUSION = "Stable Diffusion"
+    STABLE_DIFFUSION_3 = "Stable Diffusion 3"
     WAN = "WAN"
     Z_IMAGE = "Z-Image"
