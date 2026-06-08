@@ -5,8 +5,8 @@
 # name = "LoRAText2Image"
 # schema_version = "0.17.0"
 # engine_version_created_with = "0.83.0"
-# node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.1.0"], ["Griptape Nodes Advanced Media Library", "0.72.1"], ["Griptape Nodes Library", "0.78.0"]]
-# node_types_used = [["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Advanced Media Library", "LoadLora"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
+# node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.1.0"], ["Griptape Nodes Library", "0.78.0"]]
+# node_types_used = [["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "LoadLora"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
 # description = "LoRA assisted T2I workflow using the Modular Diffusion Library Nodes"
 # image = "https://raw.githubusercontent.com/griptape-ai/griptape-nodes-library-diffusers/main/workflows/templates/LoRAText2Image.webp"
 # is_griptape_provided = true
@@ -35,11 +35,6 @@ async def build_workflow() -> None:
     await GriptapeNodes.ahandle_request(
         RegisterLibraryFromFileRequest(
             library_name="Griptape Modular Diffusion Nodes Library", perform_discovery_if_not_found=True
-        )
-    )
-    await GriptapeNodes.ahandle_request(
-        RegisterLibraryFromFileRequest(
-            library_name="Griptape Nodes Advanced Media Library", perform_discovery_if_not_found=True
         )
     )
     await GriptapeNodes.ahandle_request(
@@ -589,14 +584,14 @@ async def build_workflow() -> None:
             await GriptapeNodes.ahandle_request(
                 CreateNodeRequest(
                     node_type="LoadLora",
-                    specific_library_name="Griptape Nodes Advanced Media Library",
+                    specific_library_name="Griptape Modular Diffusion Nodes Library",
                     node_name="Load LoRA",
                     metadata={
                         "position": {"x": -653.9980879541114, "y": 585.6666666666667},
                         "tempId": "placing-1780310228732-oghtdw",
                         "library_node_metadata": NodeMetadata(
-                            category="lora",
-                            description="Load LoRA from file ('.safetensors', '.pt', '.bin', '.json', '.lora') for use with 🤗 Diffusers based Nodes. Path must be on the engine's filesystem.",
+                            category="ModularDiffusion/Pipeline",
+                            description="Load a LoRA file from a local path and expose it as a `loras` output for use with the Modular Diffusion Pipeline Builder.",
                             display_name="Load LoRA",
                             tags=None,
                             icon=None,
@@ -605,11 +600,11 @@ async def build_workflow() -> None:
                             deprecation=None,
                             is_node_group=None,
                         ),
-                        "library": "Griptape Nodes Advanced Media Library",
+                        "library": "Griptape Modular Diffusion Nodes Library",
                         "node_type": "LoadLora",
                         "showaddparameter": False,
                         "size": {"width": 600, "height": 284},
-                        "category": "lora",
+                        "category": "ModularDiffusion/Pipeline",
                     },
                     initial_setup=True,
                 )
@@ -619,14 +614,14 @@ async def build_workflow() -> None:
             await GriptapeNodes.ahandle_request(
                 CreateNodeRequest(
                     node_type="LoadLora",
-                    specific_library_name="Griptape Nodes Advanced Media Library",
+                    specific_library_name="Griptape Modular Diffusion Nodes Library",
                     node_name="Load LoRA_1",
                     metadata={
                         "position": {"x": -653.9980879541114, "y": 869.6666666666667},
                         "tempId": "placing-1780310239619-4pp7n9",
                         "library_node_metadata": NodeMetadata(
-                            category="lora",
-                            description="Load LoRA from file ('.safetensors', '.pt', '.bin', '.json', '.lora') for use with 🤗 Diffusers based Nodes. Path must be on the engine's filesystem.",
+                            category="ModularDiffusion/Pipeline",
+                            description="Load a LoRA file from a local path and expose it as a `loras` output for use with the Modular Diffusion Pipeline Builder.",
                             display_name="Load LoRA",
                             tags=None,
                             icon=None,
@@ -635,11 +630,11 @@ async def build_workflow() -> None:
                             deprecation=None,
                             is_node_group=None,
                         ),
-                        "library": "Griptape Nodes Advanced Media Library",
+                        "library": "Griptape Modular Diffusion Nodes Library",
                         "node_type": "LoadLora",
                         "showaddparameter": False,
                         "size": {"width": 600, "height": 284},
-                        "category": "lora",
+                        "category": "ModularDiffusion/Pipeline",
                     },
                     initial_setup=True,
                 )
