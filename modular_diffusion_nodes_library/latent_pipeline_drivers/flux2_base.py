@@ -62,7 +62,7 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
 
         unpack_latents = Flux2UnpackLatentsStep()
         latents_state = self._call_block(unpack_latents, latents=packed_latents, latent_ids=latent_ids)
-        latents = latents_state.get("latents")
+        latents = self._get_required(latents_state, "latents", torch.Tensor)
         latents = latents.to(device)
         return self._make_latent_artifact(
             latents,
@@ -78,7 +78,7 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         decode_block = self.modular_pipe.blocks.sub_blocks["decode"]
         output_state = self._call_block(decode_block, latents=latents, output_type="pil")
 
-        return output_state.get("images")[0]
+        return self._get_required(output_state, "images", list)[0]
 
     def _unpack_latents(self, latents: torch.Tensor, height: int, width: int) -> torch.Tensor:
         """Convert packed Flux2 latents ``[B, seq_len, C]`` to ``[B, C, H/vae/2, W/vae/2]``."""
@@ -97,7 +97,7 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         latent_ids = id_state.get("latent_ids")
 
         unpack_state = self._call_block(Flux2UnpackLatentsStep(), latents=latents, latent_ids=latent_ids)
-        return unpack_state.get("latents")
+        return self._get_required(unpack_state, "latents", torch.Tensor)
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
@@ -113,7 +113,9 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         output_state = self._call_block(
             encode_block, image=image, height=image.height, width=image.width, generator=generator
         )
-        return self._make_latent_artifact(output_state.get("image_latents")[0], source_shape=media.source_shape)
+        return self._make_latent_artifact(
+            self._get_required(output_state, "image_latents", list)[0], source_shape=media.source_shape
+        )
 
     @override
     def encode_masked_image(
@@ -126,17 +128,19 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
 
         # PIL -> aligned, normalized tensor (multiple-of-32 alignment + <=1024^2 cap).
         pre = self._call_block(Flux2ProcessImagesInputStep(), image=pil_image)
-        source_t = pre.get("condition_images")[0]
+        source_t = self._get_required(pre, "condition_images", list)[0]
 
         # Resize mask to match the (possibly aligned/cropped) tensor dims.
         aligned_h, aligned_w = source_t.shape[-2:]
-        mask_resized = mask.mask.convert("L").resize((aligned_w, aligned_h), PIL.Image.NEAREST)
+        mask_resized = mask.mask.convert("L").resize((aligned_w, aligned_h), PIL.Image.Resampling.NEAREST)
         mask_t = TF.to_tensor(mask_resized)[None]  # (1, 1, H, W), float32 in [0, 1]
 
         masked_t = source_t * (mask_t < 0.5)
 
         out = self._call_block(Flux2VaeEncoderStep(), condition_images=[masked_t])
-        return self._make_latent_artifact(out.get("image_latents")[0], source_shape=image.source_shape)
+        return self._make_latent_artifact(
+            self._get_required(out, "image_latents", list)[0], source_shape=image.source_shape
+        )
 
     @override
     def add_noise_to_latent(

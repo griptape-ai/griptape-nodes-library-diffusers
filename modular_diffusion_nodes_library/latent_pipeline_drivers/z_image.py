@@ -1,12 +1,8 @@
 import logging
 from typing import Any, ClassVar, override
 
-from diffusers import (  # type: ignore[reportMissingImports]
-    ZImageControlNetInpaintPipeline,
-    ZImageControlNetModel,
-    ZImageControlNetPipeline,
-    ZImageInpaintPipeline,
-)
+import torch  # type: ignore[reportMissingImports]
+from diffusers.models.controlnets.controlnet_z_image import ZImageControlNetModel  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     SequentialPipelineBlocks,
@@ -21,6 +17,15 @@ from diffusers.modular_pipelines.z_image.modular_blocks_z_image import (
     ZImageAutoBlocks,  # type: ignore[reportMissingImports]
 )
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+from diffusers.pipelines.z_image.pipeline_z_image_controlnet import (  # type: ignore[reportMissingImports]
+    ZImageControlNetPipeline,
+)
+from diffusers.pipelines.z_image.pipeline_z_image_controlnet_inpaint import (  # type: ignore[reportMissingImports]
+    ZImageControlNetInpaintPipeline,
+)
+from diffusers.pipelines.z_image.pipeline_z_image_inpaint import (  # type: ignore[reportMissingImports]
+    ZImageInpaintPipeline,
+)
 from huggingface_hub import hf_hub_download  # type: ignore[reportMissingImports]
 from PIL.Image import Image
 
@@ -50,7 +55,7 @@ class _ZImageAddNoiseStep(SequentialPipelineBlocks):
     calls scheduler.scale_noise internally.
     """
 
-    model_name = "z-image"
+    model_name = "z-image"  # type: ignore[reportIncompatibleMethodOverride]
     block_classes = [
         ZImageSetTimestepsStep,
         ZImageSetTimestepsWithStrengthStep,
@@ -94,8 +99,7 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
     ):
         if not control_net_model_lists:
             return pipe
-
-        offload_method = detect_offload_method(pipe)
+        offload_method = detect_offload_method(pipe)  # type: ignore[reportArgumentType]
         if offload_method is not None:
             raise RuntimeError(
                 f"Failed to build Z-Image ControlNet pipeline. "
@@ -153,7 +157,7 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
             num_images_per_prompt=1,
             generator=generator,
         )
-        latents = output_state.get("latents")
+        latents = self._get_required(output_state, "latents", torch.Tensor)
         return self._make_latent_artifact(
             latents,
             source_shape=source_shape,
@@ -183,7 +187,7 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
             num_inference_steps=num_inference_steps,
             strength=strength,
         )
-        result = output_state.get("latents")
+        result = self._get_required(output_state, "latents", torch.Tensor)
         return self._make_latent_artifact(
             result,
             source_shape=source_shape,
@@ -197,8 +201,7 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
         latents = latent.to_torch(device=device, dtype=dtype)
         decode_block = self.modular_pipe.blocks.sub_blocks["decode"]
         output_state = self._call_block(decode_block, latents=latents, output_type="pil")
-        images = output_state.get("images")
-        return images[0]
+        return self._get_required(output_state, "images", list)[0]
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
@@ -207,7 +210,7 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
         generator = generator_state.to_generator()
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
         output_state = self._call_block(encode_block, image=media.image, generator=generator)
-        result = output_state.get("image_latents")
+        result = self._get_required(output_state, "image_latents", torch.Tensor)
         return self._make_latent_artifact(result, source_shape=media.source_shape)
 
     @override

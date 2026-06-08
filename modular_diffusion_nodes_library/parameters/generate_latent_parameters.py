@@ -296,7 +296,7 @@ class DiffusionPipelineGenerateLatentParameters:
                 generator_state=self._resolve_generator_state(input_latent_for_denoise),
                 **pipe_kwargs,
             )
-        self.publish_output_latent(output_latent_artifact)
+        self.publish_output_latent(output_latent_artifact)  # type: ignore[reportArgumentType]
         self._node.log_params.append_to_logs("Done.\n")  # type: ignore[reportAttributeAccessIssue]
 
     def prepare_input_latent(

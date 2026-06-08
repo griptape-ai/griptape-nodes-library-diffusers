@@ -84,7 +84,7 @@ def _derive_mask_from_source_media(
     num_frames: int,
     height: int,
     width: int,
-) -> list[PIL.Image.Image]:
+) -> list[PIL.Image.Image] | None:
     """Auto-derive a binary mask from the source video payload.
 
     VIDEO payload: black (preserve) for the covered frame range, white (generate) elsewhere.

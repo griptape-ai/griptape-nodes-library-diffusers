@@ -1,11 +1,7 @@
 import logging
 from typing import Any, ClassVar, override
 
-from diffusers import (  # type: ignore[reportMissingImports]
-    StableDiffusion3ControlNetInpaintingPipeline,
-    StableDiffusion3ControlNetPipeline,
-    StableDiffusion3InpaintPipeline,
-)
+import torch  # type: ignore[reportMissingImports]
 from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
@@ -20,7 +16,16 @@ from diffusers.modular_pipelines.stable_diffusion_3.before_denoise import (  # t
 from diffusers.modular_pipelines.stable_diffusion_3.modular_blocks_stable_diffusion_3 import (  # type: ignore[reportMissingImports]
     StableDiffusion3AutoBlocks,
 )
+from diffusers.pipelines.controlnet_sd3.pipeline_stable_diffusion_3_controlnet import (  # type: ignore[reportMissingImports]
+    StableDiffusion3ControlNetPipeline,
+)
+from diffusers.pipelines.controlnet_sd3.pipeline_stable_diffusion_3_controlnet_inpainting import (  # type: ignore[reportMissingImports]
+    StableDiffusion3ControlNetInpaintingPipeline,
+)
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3_inpaint import (  # type: ignore[reportMissingImports]
+    StableDiffusion3InpaintPipeline,
+)
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -43,7 +48,7 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 class _SD3PrepareNoiseLatentStep(SequentialPipelineBlocks):
     """``set_timesteps`` → ``prepare_latents`` so ``init_noise_sigma`` is valid."""
 
-    model_name = "stable-diffusion-3"
+    model_name = "stable-diffusion-3"  # type: ignore[reportIncompatibleMethodOverride]
     block_classes = [StableDiffusion3SetTimestepsStep, StableDiffusion3PrepareLatentsStep]
     block_names = ["set_timesteps", "prepare_latents"]
 
@@ -51,7 +56,7 @@ class _SD3PrepareNoiseLatentStep(SequentialPipelineBlocks):
 class _SD3AddNoiseStep(SequentialPipelineBlocks):
     """``Img2ImgSetTimesteps`` → ``Img2ImgPrepareLatents`` for img2img noise."""
 
-    model_name = "stable-diffusion-3"
+    model_name = "stable-diffusion-3"  # type: ignore[reportIncompatibleMethodOverride]
     block_classes = [
         StableDiffusion3Img2ImgSetTimestepsStep,
         StableDiffusion3Img2ImgPrepareLatentsStep,
@@ -126,7 +131,7 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
             num_inference_steps=self._DEFAULT_NUM_INFERENCE_STEPS,
             generator=generator,
         )
-        latents = output_state.get("latents")
+        latents = self._get_required(output_state, "latents", torch.Tensor)
         meta = GeneratorState.from_generator(generator).as_meta()
         return self._make_latent_artifact(latents, source_shape=source_shape, meta=meta)
 
@@ -159,7 +164,7 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
             height=latent.source_shape[-2],
             width=latent.source_shape[-1],
         )
-        noised = output_state.get("latents")
+        noised = self._get_required(output_state, "latents", torch.Tensor)
 
         noise_state = GeneratorState.from_artifact(noise_artifact) or generator_state
         return self._make_latent_artifact(
@@ -209,8 +214,7 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         latents = latent.to_torch(device=device, dtype=dtype)
         decode_block = self.modular_pipe.blocks.sub_blocks["decode"]
         output_state = self._call_block(decode_block, latents=latents, output_type="pil")
-        images = output_state.get("images")
-        return images[0]
+        return self._get_required(output_state, "images", list)[0]
 
     @override
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
@@ -240,5 +244,5 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
         output_state = self._call_block(encode_block, image=media.image, generator=generator_state.to_generator())
-        result = output_state.get("image_latents")
+        result = self._get_required(output_state, "image_latents", torch.Tensor)
         return self._make_latent_artifact(result, source_shape=media.source_shape)

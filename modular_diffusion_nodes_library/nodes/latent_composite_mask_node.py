@@ -144,7 +144,7 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self._initializing = False
         self._create_status_parameters()
 
-    def add_parameter(self, parameter: Parameter) -> None:
+    def add_parameter(self, parameter: Parameter) -> None:  # type: ignore[reportIncompatibleMethodOverride]
         if not self._initializing:
             return
         super().add_parameter(parameter)

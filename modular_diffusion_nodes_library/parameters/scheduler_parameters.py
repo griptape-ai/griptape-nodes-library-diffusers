@@ -10,7 +10,7 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class SchedulerParameters:
-    def __init__(self, node: BaseNode, scheduler_types: list[type[diffusers.SchedulerMixin]]):
+    def __init__(self, node: BaseNode, scheduler_types: list[type[diffusers.SchedulerMixin]]):  # type: ignore[reportPrivateImportUsage]
         self._node = node
         self._scheduler_type_parameter_name = "scheduler_type"
         self._scheduler_config_parameter_name = "scheduler_config"
@@ -71,7 +71,7 @@ class SchedulerParameters:
             ),
         }
 
-    def get_scheduler_class(self) -> type[diffusers.SchedulerMixin]:
+    def get_scheduler_class(self) -> type[diffusers.SchedulerMixin]:  # type: ignore[reportPrivateImportUsage]
         scheduler_type_name = self._node.get_parameter_value(self._scheduler_type_parameter_name)
         return self._scheduler_types_by_name[scheduler_type_name]
 
@@ -91,7 +91,7 @@ class SchedulerParameters:
             msg = f"Invalid {self._scheduler_config_parameter_name} provided. Must be json, str, or dict"
             raise TypeError(msg)
 
-    def get_scheduler(self) -> diffusers.SchedulerMixin:
+    def get_scheduler(self) -> diffusers.SchedulerMixin:  # type: ignore[reportPrivateImportUsage]
         scheduler_class = self.get_scheduler_class()
         scheduler_config = self.get_scheduler_config()
-        return scheduler_class.from_config(scheduler_config)
+        return scheduler_class.from_config(scheduler_config)  # type: ignore[reportAttributeAccessIssue]
