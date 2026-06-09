@@ -14,7 +14,7 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class StableDiffusion3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-    _pipeline_cls = diffusers.StableDiffusion3Pipeline  # type: ignore[reportAttributeAccessIssue]
+    _pipeline_cls = diffusers.StableDiffusion3Img2ImgPipeline  # type: ignore[reportAttributeAccessIssue]
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)

@@ -132,8 +132,19 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         return_fully_denoised: bool = False,
         **kwargs: Any,
     ) -> torch.Tensor:
+        device, dtype = self._get_device_and_type()
+        latents_on_device = latents.to(device=device, dtype=dtype)
+
+        # Img2Img requires ``image`` and ``strength``.  Pass the latent
+        # as ``image`` — prepare_latents detects 16-channel input and
+        # uses it directly; strength=1.0 gives full t2i behavior.
+        # Skip if inpainting — the inpaint path provides its own ``image``.
+        if "inpaint_mask_artifact" not in kwargs:
+            kwargs.setdefault("image", latents_on_device)
+            kwargs.setdefault("strength", 1.0)
+
         return super().denoise_latent(
-            latents,
+            latents_on_device,
             latents_source_shape,
             num_inference_steps,
             seed=seed,
