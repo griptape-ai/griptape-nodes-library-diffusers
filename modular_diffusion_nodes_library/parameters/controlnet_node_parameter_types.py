@@ -208,10 +208,19 @@ class StableDiffusionControlNetNodesParameterType(ControlNetNodesParameterType):
 
 
 class ZImageControlNetNodesParameterType(ControlNetNodesParameterType):
+    REPO_FILES: ClassVar = [
+        ("alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union", "Z-Image-Turbo-Fun-Controlnet-Union.safetensors"),
+        ("alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1", "Z-Image-Turbo-Fun-Controlnet-Union-2.1.safetensors"),
+    ]
+
     @property
     def model_repo_ids(self) -> list[str]:
-        repo_ids = [
-            "alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union",
-            "alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.0",
-        ]
-        return repo_ids
+        return [repo for repo, _ in self.REPO_FILES]
+
+    def __init__(self, node: BaseNode):
+        self._node = node
+        self._model_repo_parameter = HuggingFaceRepoFileParameter(
+            node,
+            repo_files=self.REPO_FILES,
+            parameter_name=CONTROLNET_MODEL_PARAMETER_NAME,
+        )

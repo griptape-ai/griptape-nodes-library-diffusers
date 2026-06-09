@@ -1,10 +1,11 @@
 import logging
-from typing import Any, override
+from typing import Any, ClassVar, override
 
 import torch  # type: ignore[reportMissingImports]
 from diffusers import (  # type: ignore[reportMissingImports]
     ControlNetModel,
     StableDiffusionXLControlNetImg2ImgPipeline,
+    StableDiffusionXLControlNetInpaintPipeline,
     StableDiffusionXLInpaintPipeline,
 )
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
@@ -23,6 +24,7 @@ from diffusers.modular_pipelines.stable_diffusion_xl.modular_blocks_stable_diffu
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from PIL.Image import Image
 
+from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -61,6 +63,9 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
     """
 
     _inpaint_pipeline_class = StableDiffusionXLInpaintPipeline
+    _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = (
+        StableDiffusionXLControlNetInpaintPipeline
+    )
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
@@ -190,6 +195,20 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
         output_state = self._call_block(decode_block, latents=latents, output_type="pil")
         images = output_state.get("images")
         return images[0]
+
+    @override
+    def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
+        """SDXL ControlNet Inpaint Pipeline always VAE-encodes image (no latent passthrough)."""
+        if self._is_controlnet_pipe():
+            source_pil = artifact.source_image_pil()
+            if source_pil is None:
+                raise ValueError(f"{type(self).__name__} ControlNet+Inpaint requires source_image in the InpaintMaskArtifact.")
+            return {
+                "image": source_pil,
+                "mask_image": artifact.mask_image,
+                "strength": artifact.strength,
+            }
+        return super()._get_inpaint_kwargs(artifact)
 
     @override
     def encode_image(self, image: Image | torch.Tensor) -> torch.Tensor:

@@ -3,6 +3,7 @@ from typing import Any, ClassVar, override
 
 import torch  # type: ignore[reportMissingImports]
 from diffusers import (  # type: ignore[reportMissingImports]
+    ZImageControlNetInpaintPipeline,
     ZImageControlNetModel,
     ZImageControlNetPipeline,
     ZImageInpaintPipeline,
@@ -32,7 +33,7 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 Z_IMAGE_CONTROLNET_REPO_TO_FILENAME = {
     "alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union": "Z-Image-Turbo-Fun-Controlnet-Union.safetensors",
-    "alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.0": "Z-Image-Turbo-Fun-Controlnet-Union-2.1.safetensors",
+    "alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1": "Z-Image-Turbo-Fun-Controlnet-Union-2.1.safetensors",
 }
 
 
@@ -59,6 +60,7 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
     """
 
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = ZImageInpaintPipeline
+    _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = ZImageControlNetInpaintPipeline
 
     def __init__(self, pipe: DiffusionPipeline):
         super().__init__(pipe)
@@ -193,4 +195,5 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
         return {
             "image": source_pil,
             "mask_image": artifact.mask_image,
+            "strength": artifact.strength,
         }

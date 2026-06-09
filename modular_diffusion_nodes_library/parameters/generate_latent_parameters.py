@@ -245,7 +245,6 @@ class DiffusionPipelineGenerateLatentParameters:
         else:
             if isinstance(input_latent_artifact, InpaintMaskArtifact):
                 pipe_kwargs["inpaint_mask_artifact"] = input_latent_artifact
-                pipe_kwargs["inpaint_strength"] = float(input_latent_artifact.strength)
 
             output_latent = latent_pipeline_driver.denoise_latent(
                 latents=input_latent,

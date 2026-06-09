@@ -1,8 +1,9 @@
 import logging
-from typing import ClassVar, override
+from typing import Any, ClassVar, override
 
 import torch  # type: ignore[reportMissingImports]
 from diffusers import (  # type: ignore[reportMissingImports]
+    FluxControlNetInpaintPipeline,
     FluxControlNetModel,
     FluxControlNetPipeline,
     FluxInpaintPipeline,
@@ -27,6 +28,7 @@ from diffusers.pipelines.flux.pipeline_flux import FluxPipeline  # type: ignore[
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from PIL.Image import Image
 
+from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -60,6 +62,7 @@ class _RegisterTransformerStep(ModularPipelineBlocks):
 
 class FluxLatentPipelineDriver(LatentPipelineDriver):
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = FluxInpaintPipeline
+    _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = FluxControlNetInpaintPipeline
 
     def __init__(self, pipe: DiffusionPipeline):
         super().__init__(pipe)
@@ -226,3 +229,17 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         output_state = self._call_block(encode_pipeline, image=image, height=height, width=width)
         latents = output_state.get("image_latents")
         return latents
+
+    @override
+    def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
+        """FluxControlNetInpaintPipeline always VAE-encodes image (no latent passthrough)."""
+        if not self._is_controlnet_pipe():
+            return super()._get_inpaint_kwargs(artifact)
+        source_pil = artifact.source_image_pil()
+        if source_pil is None:
+            raise ValueError("Flux ControlNet inpainting requires the source PIL image in the InpaintMaskArtifact.")
+        return {
+            "image": source_pil,
+            "mask_image": artifact.mask_image,
+            "strength": artifact.strength,
+        }

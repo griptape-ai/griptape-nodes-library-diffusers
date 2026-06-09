@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import inspect
 from typing import Any, ClassVar, TypeVar
 
 import numpy as np
@@ -73,6 +74,7 @@ class LatentPipelineDriver(ABC):
     video_fps: ClassVar[int] = 16
     _partial_denoise_proxy_class: ClassVar[type[PartialDenoiseSchedulerProxy]] = PartialDenoiseSchedulerProxy
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = None
+    _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = None
 
     def __init__(self, pipe: DiffusionPipeline):
         self._pipe = pipe
@@ -251,9 +253,6 @@ class LatentPipelineDriver(ABC):
 
             inpaint_kwargs = self._get_inpaint_kwargs(inpaint_mask_artifact)
             kwargs.update(inpaint_kwargs)
-
-            inpaint_strength: float = kwargs.pop("inpaint_strength", 1.0)
-            kwargs["strength"] = inpaint_strength
         else:
             latents = self.prepare_input_latent(latents, latents_source_shape)
 
@@ -273,6 +272,9 @@ class LatentPipelineDriver(ABC):
         # handle their own latent preparation from image + mask.
         if inpaint_mask_artifact is None:
             pipe_kwargs["latents"] = latents
+
+        # Filter out kwargs that the target pipeline doesn't accept.
+        pipe_kwargs = self._filter_pipe_kwargs(pipe, pipe_kwargs)
 
         is_partial_denoise = start_step > 0 or end_step >= 0
         if is_partial_denoise:
@@ -296,12 +298,36 @@ class LatentPipelineDriver(ABC):
         return self.prepare_output_latent(self._extract_latents_from_output(pipe_output), latents_source_shape)
 
     # ------------------------------------------------------------------
+    # Pipeline call helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _filter_pipe_kwargs(pipe: DiffusionPipeline, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Remove kwargs that the pipeline's __call__ does not accept."""
+        sig = inspect.signature(pipe.__call__)
+        params = sig.parameters
+        # If the signature has a **kwargs catch-all, pass everything through.
+        if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
+            return kwargs
+        accepted = set(params.keys())
+        return {k: v for k, v in kwargs.items() if k in accepted}
+
+    # ------------------------------------------------------------------
     # Inpainting hooks
     # ------------------------------------------------------------------
 
+    def _is_controlnet_pipe(self) -> bool:
+        """True if the current pipe is a ControlNet variant (heuristic by class name)."""
+        return "ControlNet" in type(self.pipe).__name__
+
     def _get_inpaint_pipe(self) -> DiffusionPipeline | None:
-        """Return an inpaint pipeline for this driver."""
-        cls = self._inpaint_pipeline_class
+        """Return an inpaint pipeline for this driver.
+
+        If the current pipe is a ControlNet variant, swap to the combined
+        ControlNet+Inpaint class so the ControlNet conditioning is preserved.
+        """
+        is_control_net = self._is_controlnet_pipe()
+        cls = self._inpaint_controlnet_pipeline_class if is_control_net else self._inpaint_pipeline_class
         if cls is None:
             return None
         if isinstance(self.pipe, cls):
@@ -316,6 +342,7 @@ class LatentPipelineDriver(ABC):
         result: dict[str, Any] = {
             "image": artifact.source_latent.to(device=device, dtype=dtype),
             "mask_image": artifact.mask_image,
+            "strength": artifact.strength,
         }
         if artifact.masked_latent is not None:
             result["masked_image_latents"] = artifact.masked_latent.to(device=device, dtype=dtype)
