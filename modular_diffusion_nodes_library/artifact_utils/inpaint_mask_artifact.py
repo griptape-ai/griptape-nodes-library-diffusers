@@ -22,6 +22,7 @@ import torch  # type: ignore[reportMissingImports]
 from griptape.artifacts import ImageArtifact, ImageUrlArtifact
 from griptape.artifacts.blob_artifact import BlobArtifact
 from PIL.Image import Image
+
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
 

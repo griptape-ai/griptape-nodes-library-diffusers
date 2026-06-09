@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, TypeVar
 
-_T = TypeVar("_T")
-
 import numpy as np
 import torch  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
@@ -19,6 +17,8 @@ from modular_diffusion_nodes_library.misc.partial_denoise import (
     PartialDenoiseSchedulerProxy,
 )
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
+
+_T = TypeVar("_T")
 
 TextEncodings = dict[str, Any]
 DecodeResult = Image | list[Image]

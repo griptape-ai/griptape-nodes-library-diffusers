@@ -37,7 +37,7 @@ class DiffusionPipelineArtifact:
         config_hash: str | None = None,
         builder_module: str | None = None,
         builder_class_name: str | None = None,
-        build_data: dict[str, Any] = {},
+        build_data: dict[str, Any] = None,
         build_data_error: str | None = None,
         loras: dict[str, float] | None = None,
         optimization_kwargs: dict[str, Any] | None = None,
@@ -45,6 +45,8 @@ class DiffusionPipelineArtifact:
         supports_layerwise_casting: bool = True,
         requires_device_map: bool = False,
     ) -> None:
+        if build_data is None:
+            build_data = {}
         self.pipeline_name = pipeline_name
         self.config_hash = config_hash
         self._builder_module = builder_module
