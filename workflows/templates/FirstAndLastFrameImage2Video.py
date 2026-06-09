@@ -114,13 +114,13 @@ async def build_workflow() -> None:
             b"\x80\x04\x95\x06\x00\x00\x00\x00\x00\x00\x00J\xff\xff\xff\xff."
         ),
         "8624ee43-f3a5-4a44-a991-542e5ea8d444": pickle.loads(
-            b"\x80\x04\x95\x81\x01\x00\x00\x00\x00\x00\x00\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94\x8c\x10ImageUrlArtifact\x94\x8c\x0bmodule_name\x94\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x02id\x94\x8c 90e2ed4dc276465695ef1578b1da996d\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\n\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8cd{project_dir}/libraries/griptape-nodes-library-modular-diffusion/workflows/assets/green_tea.0001.png\x94ub."
+            b"\x80\x04\x95\x81\x01\x00\x00\x00\x00\x00\x00\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94\x8c\x10ImageUrlArtifact\x94\x8c\x0bmodule_name\x94\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x02id\x94\x8c 90e2ed4dc276465695ef1578b1da996d\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\n\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8cd{project_dir}/libraries/griptape-nodes-library-diffusers/workflows/assets/green_tea.0001.png\x94ub."
         ),
         "abe01153-519c-41a9-8e29-521795a1efcb": pickle.loads(
-            b"\x80\x04\x95\x81\x01\x00\x00\x00\x00\x00\x00\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94\x8c\x10ImageUrlArtifact\x94\x8c\x0bmodule_name\x94\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x02id\x94\x8c 449736dce98c465e9fbbbd1326cffa54\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\n\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8cd{project_dir}/libraries/griptape-nodes-library-modular-diffusion/workflows/assets/green_tea.0001.png\x94ub."
+            b"\x80\x04\x95\x81\x01\x00\x00\x00\x00\x00\x00\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94\x8c\x10ImageUrlArtifact\x94\x8c\x0bmodule_name\x94\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x02id\x94\x8c 449736dce98c465e9fbbbd1326cffa54\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\n\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8cd{project_dir}/libraries/griptape-nodes-library-diffusers/workflows/assets/green_tea.0001.png\x94ub."
         ),
         "7605646b-831f-4677-8135-d19a036c2d3a": pickle.loads(
-            b"\x80\x04\x95h\x00\x00\x00\x00\x00\x00\x00\x8cd{project_dir}/libraries/griptape-nodes-library-modular-diffusion/workflows/assets/green_tea.0001.png\x94."
+            b"\x80\x04\x95h\x00\x00\x00\x00\x00\x00\x00\x8cd{project_dir}/libraries/griptape-nodes-library-diffusers/workflows/assets/green_tea.0001.png\x94."
         ),
         "29eff951-17cc-415d-aded-9db01c00049e": pickle.loads(
             b"\x80\x04\x95\x08\x00\x00\x00\x00\x00\x00\x00\x8c\x04none\x94."
@@ -158,17 +158,17 @@ async def build_workflow() -> None:
             b"\x80\x04\x95\xf4\x00\x00\x00\x00\x00\x00\x00\x8c\xf0Detected image format: PNG\nProcessing image: 3840x2160, mode: RGB, format: PNG\n[Processing image rescaling..]\n[Started image processing..]\nimage rescaling\nSuccessfully processed image with suffix: _rescaled.png\n[Finished image processing.]\n\x94."
         ),
         "1d41add8-79fa-47e8-bf66-c2ff75172cb1": pickle.loads(
-            b"\x80\x04\x95\x81\x01\x00\x00\x00\x00\x00\x00\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94\x8c\x10ImageUrlArtifact\x94\x8c\x0bmodule_name\x94\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x02id\x94\x8c eed3767596e54f598aa15796c01f70b5\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\n\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8cd{project_dir}/libraries/griptape-nodes-library-modular-diffusion/workflows/assets/green_tea.0136.png\x94ub."
+            b"\x80\x04\x95\x81\x01\x00\x00\x00\x00\x00\x00\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94\x8c\x10ImageUrlArtifact\x94\x8c\x0bmodule_name\x94\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x02id\x94\x8c eed3767596e54f598aa15796c01f70b5\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\n\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8cd{project_dir}/libraries/griptape-nodes-library-diffusers/workflows/assets/green_tea.0136.png\x94ub."
         ),
         "8072c7b4-cd79-4bbe-991e-0f875863bd35": pickle.loads(
-            b"\x80\x04\x95J\x01\x00\x00\x00\x00\x00\x00\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94h\x01\x8c\x0bmodule_name\x94h\x00\x8c\x02id\x94\x8c a9ef1123e92641b1968e438afb4d41fe\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\x08\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8cd{project_dir}/libraries/griptape-nodes-library-modular-diffusion/workflows/assets/green_tea.0136.png\x94ub."
+            b"\x80\x04\x95J\x01\x00\x00\x00\x00\x00\x00\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94h\x01\x8c\x0bmodule_name\x94h\x00\x8c\x02id\x94\x8c a9ef1123e92641b1968e438afb4d41fe\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\x08\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8cd{project_dir}/libraries/griptape-nodes-library-diffusers/workflows/assets/green_tea.0136.png\x94ub."
         ),
         "1441eaf2-deda-4a3f-9a7d-bb7f4151bdc7": pickle.loads(
-            b"\x80\x04\x95h\x00\x00\x00\x00\x00\x00\x00\x8cd{project_dir}/libraries/griptape-nodes-library-modular-diffusion/workflows/assets/green_tea.0136.png\x94."
+            b"\x80\x04\x95h\x00\x00\x00\x00\x00\x00\x00\x8cd{project_dir}/libraries/griptape-nodes-library-diffusers/workflows/assets/green_tea.0136.png\x94."
         ),
         "53aac130-e307-4afc-a82c-fcab34289844": pickle.loads(b"\x80\x04\x88."),
         "13d2c731-a03f-4f4c-ac6d-f6347dd6c5fc": pickle.loads(
-            b"\x80\x04\x95\xa2\x00\x00\x00\x00\x00\x00\x00\x8c\x9eSUCCESS: Image loaded successfully from image parameter ({project_dir}/libraries/griptape-nodes-library-modular-diffusion/workflows/assets/green_tea.0136.png)\x94."
+            b"\x80\x04\x95\xa2\x00\x00\x00\x00\x00\x00\x00\x8c\x9eSUCCESS: Image loaded successfully from image parameter ({project_dir}/libraries/griptape-nodes-library-diffusers/workflows/assets/green_tea.0136.png)\x94."
         ),
         "4c92305b-3ba1-4e39-b1bd-cc847b677a71": pickle.loads(
             b"\x80\x04\x95F\x00\x00\x00\x00\x00\x00\x00\x8cBSUCCESS: Successfully processed image: image rescaling (3840x2160)\x94."

@@ -104,13 +104,13 @@ async def build_workflow() -> None:
             b"\x80\x04\x95_\x00\x00\x00\x00\x00\x00\x00\x8c[### Decode Media\nThis node takes any output latent and converts it to an image or a video. \x94."
         ),
         "8f265ace-153b-4d6c-9684-115bb1fda3e4": pickle.loads(
-            b"\x80\x04\x95F\x01\x00\x00\x00\x00\x00\x00\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94h\x01\x8c\x0bmodule_name\x94h\x00\x8c\x02id\x94\x8c f50675a96ba948e1b5c2e32c2fb41ac5\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\x08\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8c`{project_dir}/libraries/griptape-nodes-library-modular-diffusion/workflows/assets/orange_car.jpg\x94ub."
+            b"\x80\x04\x95F\x01\x00\x00\x00\x00\x00\x00\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94h\x01\x8c\x0bmodule_name\x94h\x00\x8c\x02id\x94\x8c f50675a96ba948e1b5c2e32c2fb41ac5\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\x08\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8c`{project_dir}/libraries/griptape-nodes-library-diffusers/workflows/assets/orange_car.jpg\x94ub."
         ),
         "3740dcbc-a9dd-44f7-82b1-9f4d7bf8003b": pickle.loads(
-            b"\x80\x04\x95F\x01\x00\x00\x00\x00\x00\x00\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94h\x01\x8c\x0bmodule_name\x94h\x00\x8c\x02id\x94\x8c 62f627d322bb499aa517d680465bd002\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\x08\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8c`{project_dir}/libraries/griptape-nodes-library-modular-diffusion/workflows/assets/orange_car.jpg\x94ub."
+            b"\x80\x04\x95F\x01\x00\x00\x00\x00\x00\x00\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94h\x01\x8c\x0bmodule_name\x94h\x00\x8c\x02id\x94\x8c 62f627d322bb499aa517d680465bd002\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\x08\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8c`{project_dir}/libraries/griptape-nodes-library-diffusers/workflows/assets/orange_car.jpg\x94ub."
         ),
         "9327bbc7-a049-4148-9231-c207a3f88999": pickle.loads(
-            b"\x80\x04\x95d\x00\x00\x00\x00\x00\x00\x00\x8c`{project_dir}/libraries/griptape-nodes-library-modular-diffusion/workflows/assets/orange_car.jpg\x94."
+            b"\x80\x04\x95d\x00\x00\x00\x00\x00\x00\x00\x8c`{project_dir}/libraries/griptape-nodes-library-diffusers/workflows/assets/orange_car.jpg\x94."
         ),
         "da237655-ad3e-4378-8624-92713301e9f4": pickle.loads(
             b"\x80\x04\x95\x08\x00\x00\x00\x00\x00\x00\x00\x8c\x04none\x94."
@@ -122,7 +122,7 @@ async def build_workflow() -> None:
             b"\x80\x04\x95\x0c\x00\x00\x00\x00\x00\x00\x00\x8c\x08mask.png\x94."
         ),
         "19dd5ea0-aa38-4098-bdcf-2f5544446aa4": pickle.loads(
-            b"\x80\x04\x95\xce\x01\x00\x00\x00\x00\x00\x00}\x94(\x8c\rinput_image_1\x94\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94h\x03\x8c\x0bmodule_name\x94h\x02\x8c\x02id\x94\x8c 48d82f1bfb5340aeaaac4c09ea98f6a9\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\n\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8c\x15{outputs}/image_5.png\x94ub\x8c\rinput_image_2\x94h\x04)\x81\x94}\x94(h\x07h\x03h\x08h\x02h\t\x8c 62f627d322bb499aa517d680465bd002\x94h\x0bNh\x0c}\x94h\x0eh\x18h\x0fh\x10h\x11h\x12h\x13\x8c`{project_dir}/libraries/griptape-nodes-library-modular-diffusion/workflows/assets/orange_car.jpg\x94ubu."
+            b"\x80\x04\x95\xce\x01\x00\x00\x00\x00\x00\x00}\x94(\x8c\rinput_image_1\x94\x8c%griptape.artifacts.image_url_artifact\x94\x8c\x10ImageUrlArtifact\x94\x93\x94)\x81\x94}\x94(\x8c\x04type\x94h\x03\x8c\x0bmodule_name\x94h\x02\x8c\x02id\x94\x8c 48d82f1bfb5340aeaaac4c09ea98f6a9\x94\x8c\treference\x94N\x8c\x04meta\x94}\x94\x8c\x04name\x94h\n\x8c\x16encoding_error_handler\x94\x8c\x06strict\x94\x8c\x08encoding\x94\x8c\x05utf-8\x94\x8c\x05value\x94\x8c\x15{outputs}/image_5.png\x94ub\x8c\rinput_image_2\x94h\x04)\x81\x94}\x94(h\x07h\x03h\x08h\x02h\t\x8c 62f627d322bb499aa517d680465bd002\x94h\x0bNh\x0c}\x94h\x0eh\x18h\x0fh\x10h\x11h\x12h\x13\x8c`{project_dir}/libraries/griptape-nodes-library-diffusers/workflows/assets/orange_car.jpg\x94ubu."
         ),
     }
     # Create the Flow, then do work within it as context.
