@@ -1,6 +1,6 @@
 # Media Generation Conditioning
 
-**Bundles one or more conditioning images (or a conditioning video) with per-frame placement and strength — consumed by video pipelines that support media-driven conditioning (notably WAN first/last-frame Image-to-Video and LTX media-gen).**
+**Bundles one or more conditioning images (or a conditioning video) with per-frame placement and strength — consumed by video pipelines that support media-driven conditioning (notably WAN first/last-frame Image-to-Video, LTX media-gen, and LTX2 image/video conditioning + IC-LoRA / HDR IC-LoRA reference video).**
 
 Category: `ModularDiffusion/Conditioning`
 
@@ -58,7 +58,8 @@ Pipeline Builder ─────────────────────
 - **`frame_index` is into the *output* timeline**, not the conditioning media. `0` = start of output, `num_frames - 1` = end.
 - **First/last-frame Image-to-Video** = drop two image slots, set `image_0_frame_index = 0` and `image_1_frame_index = num_frames - 1`.
 - **Image slot count is destructive.** Lowering `num_images` removes the trailing slots and any connections to them.
-- **Not every video pipeline reads this conditioning.** It's used by WAN Image-to-Video and LTX media-gen variants; other pipelines ignore the input.
+- **Not every video pipeline reads this conditioning.** It's used by WAN Image-to-Video, LTX media-gen, and LTX2 (which auto-swaps to a conditioning, IC-LoRA, or HDR IC-LoRA variant depending on what's connected); other pipelines ignore the input.
+- **LTX2 + HDR IC-LoRA requires a reference video.** When an HDR IC-LoRA is loaded, set `mode = video` and connect a reference clip. The HDR pipeline will not run from images alone.
 
 ## See also
 

@@ -5,6 +5,8 @@ from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
 
+from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
+
 
 class FilePathParameter:
     def __init__(
@@ -42,7 +44,9 @@ class FilePathParameter:
 
     def get_file_path(self) -> Path:
         # Use absolute() rather than resolve() to preserve symlinks.
-        return Path(self._node.get_parameter_value(self._parameter_name)).absolute()
+        raw_value = self._node.get_parameter_value(self._parameter_name)
+        expanded_value = expand_path_macros(raw_value) if isinstance(raw_value, str) else raw_value
+        return Path(expanded_value).absolute()
 
     def validate_parameter_values(self) -> None:
         file_path = self.get_file_path()

@@ -5,7 +5,7 @@
 Category: `ModularDiffusion/Encode\Decode`
 
 ## TL;DR
-- The input parameter is **dynamic**: `image` for image pipelines, `input_video` for video pipelines (LTX, WAN). It swaps automatically when you connect a `pipeline`.
+- The input parameter is **dynamic**: `image` for image pipelines, `input_video` for video pipelines (LTX, LTX2, WAN). It swaps automatically when you connect a `pipeline`.
 - Latents are normalized and unpacked — they're shape-compatible with [Create Noise Latents](create-noise-latents.md), so the latent math / composite nodes work on them directly.
 - Pair with `add_noise=True` on a downstream Generate Media Latents for classic Image-to-Image. The amount of noise added is controlled by `start_step` on that node: `strength = 1 − (start_step / num_inference_steps)`. Examples with `num_inference_steps=20`:
   - `start_step=0` → full noise (strength 1.0) — original image is ignored, behaves like Text-to-Image.
@@ -37,7 +37,7 @@ Load Image → [Encode Media Latent] → Generate Media Latents → Decode Media
 
 ## Tips & pitfalls
 
-- **The input slot changes depending on the connected pipeline.** Image pipelines (Flux, SD3, etc.) show an `image` input; video pipelines (LTX, WAN) show `input_video` instead. If you switch pipeline types after wiring something up, the old connection is dropped and you need to reconnect.
+- **The input slot changes depending on the connected pipeline.** Image pipelines (Flux, SD3, etc.) show an `image` input; video pipelines (LTX, LTX2, WAN) show `input_video` instead. If you switch pipeline types after wiring something up, the old connection is dropped and you need to reconnect.
 - **Input resolution drives latent shape.** The latent's spatial dimensions are `input / vae_scale_factor`. If a downstream node insists on a specific shape, resize the input first.
 - **Don't use this for fresh text-to-image / text-to-video.** Use [Create Noise Latents](create-noise-latents.md) — encoding an image gives you an Image-to-Image starting point, not noise.
 

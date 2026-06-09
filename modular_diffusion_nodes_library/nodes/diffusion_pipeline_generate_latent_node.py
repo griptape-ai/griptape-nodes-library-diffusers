@@ -222,13 +222,15 @@ class DiffusionPipelineGenerateLatentNode(ParameterConnectionPreservationMixin, 
 
     def process(self) -> AsyncResult:
         self.preprocess()
+        pipeline_artifact = self.pipe_params.get_pipeline_artifact()
         pipe = self.pipe_params.get_pipeline()
 
         def work() -> Any:
             try:
                 pipeline_class = self.pipe_params.get_pipeline_class()
                 pipe_kwargs = self.pipe_params.runtime_parameters._get_pipe_kwargs()
-                return self.latent_parameter.process_pipeline(pipe, pipeline_class, pipe_kwargs)
+                with pipeline_artifact.activate(pipe, node_name=self.name) as active_pipe:
+                    return self.latent_parameter.process_pipeline(active_pipe, pipeline_class, pipe_kwargs)
             except Exception:
                 logger.exception("%s: Diffusion Pipeline execution failed", self.name)
                 # Aggressive cleanup on failure

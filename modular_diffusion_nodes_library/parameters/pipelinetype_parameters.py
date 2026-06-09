@@ -24,6 +24,7 @@ from modular_diffusion_nodes_library.standard_parameters.flux_fill_parameters im
 from modular_diffusion_nodes_library.standard_parameters.flux_parameters import (
     FluxPipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.ltx2_parameters import LTX2PipelineParameters
 from modular_diffusion_nodes_library.standard_parameters.ltx_parameters import (
     LTXPipelineParameters,
 )
@@ -168,6 +169,14 @@ class LatentFlux2PipelineTypeParameters(LatentPipelineTypeParameters):
         }
 
 
+class LatentLTX2PipelineTypeParameters(LatentPipelineTypeParameters):
+    @classmethod
+    def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
+        return {
+            "LTX2Pipeline": LTX2PipelineParameters,
+        }
+
+
 class LatentQwenPipelineTypeParameters(LatentPipelineTypeParameters):
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
@@ -214,6 +223,7 @@ MODULAR_PIPELINE_TYPE_PROVIDER_MAP: dict[Provider, type[LatentPipelineTypeParame
     Provider.FLUX: LatentFluxPipelineTypeParameters,
     Provider.FLUX2: LatentFlux2PipelineTypeParameters,
     Provider.LTX: LatentLTXPipelineTypeParameters,
+    Provider.LTX2: LatentLTX2PipelineTypeParameters,
     Provider.QWEN: LatentQwenPipelineTypeParameters,
     Provider.STABLE_DIFFUSION: LatentStableDiffusionPipelineTypeParameters,
     Provider.WAN: LatentWanPipelineTypeParameters,

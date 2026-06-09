@@ -37,10 +37,11 @@
     "dependencies": {
       "pip_dependencies": [
         "accelerate>=1.6.0",
+        "av>=14.0.0",
         "beautifulsoup4>=4.13.4",
         "controlnet-aux>=0.0.9",
         "static-ffmpeg>=2.8",
-        "diffusers==0.38.0",
+        "diffusers @ git+https://github.com/huggingface/diffusers.git@037efdae1d53ef893e7412e91fba4f31fc3fd537",
         "imageio[ffmpeg]>=2.37.2",
         "ninja>=1.13.0",
         "numpy>=2.2.4",
@@ -67,7 +68,8 @@
         "scipy>=1.10.0",
         "matplotlib>=3.10.3",
         "supervision>=0.27.0",
-        "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.8.12"
+        "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.8.12",
+        "openexr>=3.3.0"
       ],
       "pip_install_flags": [
         "--preview",
@@ -96,7 +98,7 @@
       "file_path": "./modular_diffusion_nodes_library/nodes/latent_diffusion_pipeline_builder_node.py",
       "metadata": {
         "category": "ModularDiffusion/Pipeline",
-        "description": "Build and cache latent-compatible 🧨 Diffusers Pipelines for reuse across latent execution nodes.",
+        "description": "Build and cache latent-compatible 🧨 Diffusers Pipelines. Any LoRAs wired into this node are fused permanently into the cached weights — changing them rebuilds the pipeline. For dynamic adapters that swap per generation, use the LoRA Pipeline node instead.",
         "display_name": "Modular Diffusion Pipeline Builder",
         "group": "diffusion"
       }
@@ -202,6 +204,16 @@
       }
     },
     {
+      "class_name": "DecodeHdrNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/decode_hdr_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Encode\\Decode",
+        "description": "Decode HDR VAE latent, apply tone mapping, and optionally save a raw EXR sequence.",
+        "display_name": "Decode HDR Latents",
+        "group": "diffusion"
+      }
+    },
+    {
       "class_name": "LatentCompositeMaskNode",
       "file_path": "./modular_diffusion_nodes_library/nodes/latent_composite_mask_node.py",
       "metadata": {
@@ -232,6 +244,16 @@
       }
     },
     {
+      "class_name": "LoraActivationPipelineNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/lora_pipeline_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Pipeline",
+        "description": "Layers non-fused LoRA adapters on top of an existing pipeline. The base pipeline stays untouched, so the same model can power multiple branches (one with adapters, one without). Adapters are loaded and activated per generation, then released — ideal for in-context (IC) LoRAs, distillation/acceleration LoRAs, slider LoRAs, or any workflow that swaps adapters between runs.",
+        "display_name": "LoRA Pipeline",
+        "group": "diffusion"
+      }
+    },
+    {
       "class_name": "MediaGenConditioningNode",
       "file_path": "./modular_diffusion_nodes_library/nodes/media_gen_conditioning_node.py",
       "metadata": {
@@ -256,7 +278,7 @@
       "file_path": "./modular_diffusion_nodes_library/nodes/load_lora_node.py",
       "metadata": {
         "category": "ModularDiffusion/Pipeline",
-        "description": "Load a LoRA file from a local path and expose it as a `loras` output for use with the Modular Diffusion Pipeline Builder.",
+        "description": "Load a LoRA file from a local path and expose it as a `loras` output. Wire to the Modular Diffusion Pipeline Builder to fuse the LoRA into the cached weights, or to a LoRA Pipeline node to activate it dynamically per generation.",
         "display_name": "Load LoRA",
         "group": "diffusion"
       }
@@ -268,6 +290,8 @@
     "workflows/templates/Text2Image.py",
     "workflows/templates/ControlnetText2Image.py",
     "workflows/templates/LoRAText2Image.py",
-    "workflows/templates/FirstAndLastFrameImage2Video.py"
+    "workflows/templates/FirstAndLastFrameImage2Video.py",
+    "workflows/templates/LTX23-HDR-Text2Video-Upsample-Two-Stage.py",
+    "workflows/templates/LTX23-IC-LoRA.py"
   ]
 }

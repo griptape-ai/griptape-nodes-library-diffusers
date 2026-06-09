@@ -17,7 +17,9 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
     LatentArtifact,  # type: ignore[reportMissingImports]
 )
-from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import ControlNetDiffusionPipelineArtifact
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
+    ControlNetDiffusionPipelineArtifact,
+)
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import DecodeResult, LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
 from modular_diffusion_nodes_library.utils.directory_utils import (
@@ -190,6 +192,12 @@ class DiffusionPipelineGenerateLatentParameters:
 
         first_iteration_time = None
         latent_pipeline_driver = create_driver(pipe, pipeline_class)
+        pipeline_artifact = self._node.pipe_params.get_pipeline_artifact()
+        # TODO: Temporary hack — we mutate the driver instance with the pipeline's provenance
+        # metadata so model-specific decode/denoise paths can detect generation-time state
+        # (e.g. LTX-2 HDR LoRA via ``runtime_adapter_steps``) without re-activating the pipeline.
+        # A more robust solution would pass state in and out of driver stages explicitly
+        latent_pipeline_driver.provenance_metadata = dict(pipeline_artifact.metadata)
         pipe_kwargs = self.update_kwargs(pipe_kwargs)
 
         input_latent_artifact = self._node.get_parameter_value("input_latent")
@@ -268,7 +276,8 @@ class DiffusionPipelineGenerateLatentParameters:
         return latent
 
     def publish_output_latent(self, output_latent: Any, source_shape: tuple[int, ...]) -> None:
-        latent_artifact = LatentArtifact.from_torch(output_latent, source_shape=source_shape)
+        pipeline_artifact = self._node.pipe_params.get_pipeline_artifact()
+        latent_artifact = LatentArtifact.from_torch(output_latent, source_shape=source_shape, meta=pipeline_artifact.metadata)
         self._node.publish_update_to_parameter("output_latent", latent_artifact)
         self._node.set_parameter_value("output_latent", latent_artifact)
         self._node.parameter_output_values["output_latent"] = latent_artifact

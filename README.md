@@ -71,6 +71,7 @@ Models are selected on the Pipeline Builder via a `provider` dropdown. Currently
 - **Qwen-Image** (and Qwen-Edit)
 - **Z-Image**
 - **LTX** (video)
+- **LTX-2.x** (text/image/video-to-video, with image and video conditioning, IC-LoRA, and HDR IC-LoRA for linear HDR output)
 - **WAN** (text-to-video and image-to-video)
 
 Models are loaded from Hugging Face repositories in Diffusers format (single-file `.safetensors` checkpoints are not loaded directly — use a Hugging Face repo ID). Multiple **LoRAs** can be attached to a pipeline via the builder.
@@ -119,6 +120,7 @@ Enable only what you need — each option trades some speed for memory. The Pipe
 - ControlnetText2Image
 - Image2Image
 - FirstAndLastFrameImage2Video
+- LTX23-HDR-Text2Video-Upsample-Two-Stage
 
 ## Requirements
 

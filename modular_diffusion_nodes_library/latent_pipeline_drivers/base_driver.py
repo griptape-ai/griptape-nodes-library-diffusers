@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, TypeVar
 
-_T = TypeVar("_T")
-
 import numpy as np
 import torch  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
@@ -20,9 +18,10 @@ from modular_diffusion_nodes_library.misc.partial_denoise import (
 )
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
 
-TextEncodings = dict[str, Any]
-DecodeResult = Image | list[Image]
+_T = TypeVar("_T")
 
+TextEncodings = dict[str, Any]
+DecodeResult = Image | list[Image] | np.ndarray
 
 class LatentPipelineDriver(ABC):
     """Abstract base class for latent pipeline drivers.
@@ -78,6 +77,13 @@ class LatentPipelineDriver(ABC):
     def __init__(self, pipe: DiffusionPipeline):
         self._pipe = pipe
         self._modular_pipe: ModularPipeline | None = None
+        # TODO: Temporary hack — Provenance for the Latent being processed (a copy of
+        # ``LatentArtifact.metadata`` or ``DiffusionPipelineArtifact.metadata``).
+        # Mutated by callers (e.g. vae_decoder, generate_latent_parameters) before invoking
+        # decode/denoise/preview methods. Drivers may consult it to detect generation-time
+        # pipeline state (e.g. HDR LoRA via ``runtime_adapter_steps``) when the corresponding
+        # adapters are not currently loaded on ``self.pipe``.
+        self.provenance_metadata: dict[str, Any] = {}
 
     @property
     def pipe(self) -> DiffusionPipeline:

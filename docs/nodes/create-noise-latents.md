@@ -7,7 +7,7 @@ Category: `ModularDiffusion/Create`
 ## TL;DR
 - Drop this between the **Pipeline Builder** and **Generate Media Latents** for any pure text-to-image / text-to-video flow.
 - `width` / `height` are pixel-space; the node handles VAE down-scaling internally.
-- `num_frames` appears only when the connected pipeline produces video (LTX, WAN). It's hidden otherwise.
+- `num_frames` appears only when the connected pipeline produces video (LTX, LTX2, WAN). It's hidden otherwise.
 - `seed` controls reproducibility — same seed + same pipeline + same dimensions → identical latent.
 
 ## Typical workflow position

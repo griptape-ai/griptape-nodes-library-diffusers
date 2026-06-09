@@ -5,7 +5,7 @@
 Category: `ModularDiffusion/Encode\Decode`
 
 ## TL;DR
-- Output is **dynamic**: `output_image` for image pipelines, `output_video` (+ `fps`) for video pipelines (LTX, WAN). It swaps automatically when you connect a `pipeline`.
+- Output is **dynamic**: `output_image` for image pipelines, `output_video` (+ `fps`) for video pipelines (LTX, LTX2, WAN). It swaps automatically when you connect a `pipeline`.
 - Almost always the last node in the flow. Connect to a Save Image / Save Video node downstream.
 
 ## Typical workflow position
