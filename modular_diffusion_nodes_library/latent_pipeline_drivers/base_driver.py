@@ -327,7 +327,10 @@ class LatentPipelineDriver(ABC):
         ControlNet+Inpaint class so the ControlNet conditioning is preserved.
         """
         is_control_net = self._is_controlnet_pipe()
-        cls = self._inpaint_controlnet_pipeline_class if is_control_net else self._inpaint_pipeline_class
+        if is_control_net:
+            cls = self._inpaint_controlnet_pipeline_class
+        else:
+            cls = self._inpaint_pipeline_class
         if cls is None:
             return None
         if isinstance(self.pipe, cls):
