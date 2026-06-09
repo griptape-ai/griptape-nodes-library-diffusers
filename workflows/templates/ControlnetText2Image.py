@@ -3,7 +3,7 @@
 #
 # [tool.griptape-nodes]
 # name = "ControlnetText2Image"
-# schema_version = "0.17.0"
+# schema_version = "0.18.0"
 # engine_version_created_with = "0.83.0"
 # node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.1.0"], ["Griptape Nodes Advanced Media Library", "0.72.1"], ["Griptape Nodes Library", "0.78.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "ControlNetDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "ControlNetNode"], ["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Advanced Media Library", "DepthAnythingForDepthEstimationImage"], ["Griptape Nodes Advanced Media Library", "OpenPoseImageDetection"], ["Griptape Nodes Library", "Group"], ["Griptape Nodes Library", "IntegerInput"], ["Griptape Nodes Library", "LoadImage"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "RescaleImage"], ["Griptape Nodes Library", "TextInput"]]

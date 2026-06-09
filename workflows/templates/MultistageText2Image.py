@@ -3,9 +3,9 @@
 #
 # [tool.griptape-nodes]
 # name = "MultistageText2Image"
-# schema_version = "0.17.0"
+# schema_version = "0.18.0"
 # engine_version_created_with = "0.83.0"
-# node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.1.0"], ["Griptape Nodes Advanced Media Library", "0.72.1"], ["Griptape Nodes Library", "0.78.0"]]
+# node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.1.0"], ["Griptape Nodes Library", "0.78.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "AddLatentsNode"], ["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentCompositeMaskNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "MultiplyLatentsNode"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "SubtractLatentsNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Library", "Group"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
 # description = "A Multistaged T2I workflow using the Modular Diffusion Library Nodes"
 # image = "https://raw.githubusercontent.com/griptape-ai/griptape-nodes-library-diffusers/main/workflows/templates/MultistageText2Image.webp"

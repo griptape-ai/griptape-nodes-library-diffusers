@@ -3,7 +3,7 @@
 #
 # [tool.griptape-nodes]
 # name = "LoRAText2Image"
-# schema_version = "0.17.0"
+# schema_version = "0.18.0"
 # engine_version_created_with = "0.83.0"
 # node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.1.0"], ["Griptape Nodes Library", "0.78.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "LoadLora"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
