@@ -11,6 +11,9 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.ltx import LTXLaten
 from modular_diffusion_nodes_library.latent_pipeline_drivers.ltx2 import LTX2PipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.qwen import QwenLatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.qwen_edit import QwenEditLatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.stable_diffusion_3 import (
+    StableDiffusion3LatentPipelineDriver,
+)
 from modular_diffusion_nodes_library.latent_pipeline_drivers.stable_diffusion_xl import (
     StableDiffusionXLLatentPipelineDriver,
 )
@@ -27,6 +30,7 @@ _DRIVER_REGISTRY: dict[str, type[LatentPipelineDriver]] = {
     "LTX2Pipeline": LTX2PipelineDriver,
     "QwenImagePipeline": QwenLatentPipelineDriver,
     "QwenImageEditPipeline": QwenEditLatentPipelineDriver,
+    "StableDiffusion3Pipeline": StableDiffusion3LatentPipelineDriver,
     "StableDiffusionXLPipeline": StableDiffusionXLLatentPipelineDriver,
     "ZImagePipeline": ZImageLatentPipelineDriver,
     "WanPipeline": WanTextToVideoLatentPipelineDriver,

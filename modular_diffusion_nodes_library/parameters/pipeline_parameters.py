@@ -31,6 +31,9 @@ from modular_diffusion_nodes_library.runtime_parameters.qwen_runtime_parameters 
 from modular_diffusion_nodes_library.runtime_parameters.runtime_parameters import (
     DiffusionPipelineRuntimeParameters,
 )
+from modular_diffusion_nodes_library.runtime_parameters.stable_diffusion_3_runtime_parameters import (
+    StableDiffusion3PipelineRuntimeParameters,
+)
 from modular_diffusion_nodes_library.runtime_parameters.stable_diffusion_xl_runtime_parameters import (
     StableDiffusionXLPipelineRuntimeParameters,
 )
@@ -82,6 +85,8 @@ class ModularDiffusionPipelineParameters:
                 self._runtime_parameters = QwenPipelineRuntimeParameters(self._node)
             case "QwenImageEditPipeline":
                 self._runtime_parameters = QwenEditPipelineRuntimeParameters(self._node)
+            case "StableDiffusion3Pipeline":
+                self._runtime_parameters = StableDiffusion3PipelineRuntimeParameters(self._node)
             case "StableDiffusionXLPipeline":
                 self._runtime_parameters = StableDiffusionXLPipelineRuntimeParameters(self._node)
             case "WanPipeline":

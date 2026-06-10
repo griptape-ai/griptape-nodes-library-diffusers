@@ -34,6 +34,9 @@ from modular_diffusion_nodes_library.standard_parameters.qwen_edit_parameters im
 from modular_diffusion_nodes_library.standard_parameters.qwen_parameters import (
     QwenPipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.stable_diffusion_3_parameters import (
+    StableDiffusion3PipelineParameters,
+)
 from modular_diffusion_nodes_library.standard_parameters.stable_diffusion_sdxl_parameters import (
     StableDiffusionXLPipelineParameters,
 )
@@ -194,6 +197,14 @@ class LatentStableDiffusionPipelineTypeParameters(LatentPipelineTypeParameters):
         }
 
 
+class LatentStableDiffusion3PipelineTypeParameters(LatentPipelineTypeParameters):
+    @classmethod
+    def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
+        return {
+            "StableDiffusion3Pipeline": StableDiffusion3PipelineParameters,
+        }
+
+
 class LatentLTXPipelineTypeParameters(LatentPipelineTypeParameters):
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
@@ -226,6 +237,7 @@ MODULAR_PIPELINE_TYPE_PROVIDER_MAP: dict[Provider, type[LatentPipelineTypeParame
     Provider.LTX2: LatentLTX2PipelineTypeParameters,
     Provider.QWEN: LatentQwenPipelineTypeParameters,
     Provider.STABLE_DIFFUSION: LatentStableDiffusionPipelineTypeParameters,
+    Provider.STABLE_DIFFUSION_3: LatentStableDiffusion3PipelineTypeParameters,
     Provider.WAN: LatentWanPipelineTypeParameters,
     Provider.Z_IMAGE: LatentZImagePipelineTypeParameters,
 }
