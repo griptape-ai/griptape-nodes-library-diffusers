@@ -18,16 +18,14 @@ from inspect import Parameter, signature
 from typing import Any
 
 FORWARDABLE_METHODS: tuple[str, ...] = (
-    "encode_image",
-    "encode_video",
+    "encode_media",
     "decode_latent",
     "create_noise_latent",
     "add_noise_to_latent",
 )
 
 FORWARDABLE_METHOD_POSITIONAL: dict[str, tuple[str, ...]] = {
-    "encode_image": ("image", "source_shape"),
-    "encode_video": ("frames", "source_shape"),
+    "encode_media": ("media",),
     "decode_latent": ("latent",),
     "create_noise_latent": ("source_shape", "seed"),
     "add_noise_to_latent": ("latent", "seed", "num_inference_steps", "strength"),

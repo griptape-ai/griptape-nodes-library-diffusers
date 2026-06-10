@@ -17,7 +17,11 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    ImageMedia,
+    LatentPipelineDriver,
+    VideoMedia,
+)
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -90,14 +94,17 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         return unpack_state.get("latents")
 
     @override
-    def encode_image(self, image: Image | torch.Tensor, source_shape: tuple[int, ...]) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+        if isinstance(media, VideoMedia):
+            raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
+        image = media.image
         if isinstance(image, torch.Tensor):
             # Flux2 modular VAE encoder only accepts PIL images
             img_np = image.squeeze(0).permute(1, 2, 0).clamp(0, 1).mul(255).byte().cpu().numpy()
             image = PIL.Image.fromarray(img_np)
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
         output_state = self._call_block(encode_block, image=image, height=image.height, width=image.width)
-        return self._make_latent_artifact(output_state.get("image_latents")[0], source_shape=source_shape)
+        return self._make_latent_artifact(output_state.get("image_latents")[0], source_shape=media.source_shape)
 
     @override
     def encode_masked_image(self, image: Image, mask: Image) -> torch.Tensor:

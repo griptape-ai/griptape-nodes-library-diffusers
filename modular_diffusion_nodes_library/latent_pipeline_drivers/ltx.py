@@ -29,7 +29,12 @@ from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import DecodeResult, LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    DecodeResult,
+    ImageMedia,
+    LatentPipelineDriver,
+    VideoMedia,
+)
 from modular_diffusion_nodes_library.utils.conditioning_utils import (
     resolve_conditioning_image,
     resolve_conditioning_video,
@@ -292,18 +297,17 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         return videos[0]
 
     @override
-    def encode_image(self, image: Image | torch.Tensor, source_shape: tuple[int, ...]) -> LatentArtifact:
-        """Encode an image into a 5D latent ``[B, C, 1, H, W]``."""
-        output_state = self._call_block(LTXAutoVaeEncoderStep(), image=image)
-        return self._make_latent_artifact(output_state.get("image_latents"), source_shape=source_shape)
+    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+        """Encode an image or video into a 5D latent ``[B, C, T, H, W]``."""
+        if isinstance(media, ImageMedia):
+            output_state = self._call_block(LTXAutoVaeEncoderStep(), image=media.image)
+            return self._make_latent_artifact(output_state.get("image_latents"), source_shape=media.source_shape)
 
-    @override
-    def encode_video(self, frames: list[Image], source_shape: tuple[int, ...]) -> LatentArtifact:
         device, dtype = self._get_device_and_type()
         vae = self.modular_pipe.vae
 
         video_processor = VideoProcessor(vae_scale_factor=self._vae_spatial_compression_ratio)
-        video_tensor = video_processor.preprocess_video(frames)  # [1, 3, T, H, W]
+        video_tensor = video_processor.preprocess_video(media.frames)  # [1, 3, T, H, W]
         video_tensor = video_tensor.to(device=device, dtype=dtype)
 
         with torch.no_grad():
@@ -313,7 +317,7 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         latents_mean = vae.latents_mean.view(1, -1, 1, 1, 1).to(device=device, dtype=dtype)
         latents_std = vae.latents_std.view(1, -1, 1, 1, 1).to(device=device, dtype=dtype)
         latents = (latents - latents_mean) * vae.config.scaling_factor / latents_std
-        return self._make_latent_artifact(latents, source_shape=source_shape)
+        return self._make_latent_artifact(latents, source_shape=media.source_shape)
 
     # ------------------------------------------------------------------
     # Denoise (standard pipeline)

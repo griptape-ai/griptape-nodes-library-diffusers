@@ -25,7 +25,12 @@ from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import DecodeResult, LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    DecodeResult,
+    ImageMedia,
+    LatentPipelineDriver,
+    VideoMedia,
+)
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -140,19 +145,17 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
         return video_frames
 
     @override
-    def encode_image(self, image: Image | torch.Tensor, source_shape: tuple[int, ...]) -> LatentArtifact:  # noqa: ARG002
-        # Currently VAE encoder switches input to video for WAN pipelines so this method is not implemented.
-        raise NotImplementedError(
-            f"Pipeline '{self.pipe.__class__.__name__}' does not support image encoding. Use a video input instead."
-        )
-
-    @override
-    def encode_video(self, frames: list[Image], source_shape: tuple[int, ...]) -> LatentArtifact:
-        """Encode a list of PIL images (video frames) as a normalised WAN video latent (5-D ``[B, C, T, H/vsf, W/vsf]``)."""
+    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+        """Encode WAN video frames as a normalised video latent (5-D ``[B, C, T, H/vsf, W/vsf]``).
+        """
+        if isinstance(media, ImageMedia):
+            raise NotImplementedError(
+                f"Pipeline '{self.pipe.__class__.__name__}' does not support image encoding. Use a video input instead."
+            )
         vae_encoder = _WanEncodeVideoStep()
-        output = self._call_block(vae_encoder, frames=frames, generator=None)
+        output = self._call_block(vae_encoder, frames=media.frames, generator=None)
         return self._make_latent_artifact(
-            self._get_required(output, "video_latents", torch.Tensor), source_shape=source_shape
+            self._get_required(output, "video_latents", torch.Tensor), source_shape=media.source_shape
         )
 
     @override

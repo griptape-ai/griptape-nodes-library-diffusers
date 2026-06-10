@@ -9,6 +9,7 @@ from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import ImageMedia, VideoMedia
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
@@ -177,7 +178,9 @@ class VaeEncodeNode(ControlNode):
         if isinstance(image_tensor, (list, tuple)):
             image_tensor = image_tensor[0]
         source_shape = tuple(image_tensor.shape)
-        latent_artifact = latents_pipeline_driver.encode_image(image, source_shape)
+        latent_artifact = latents_pipeline_driver.encode_media(
+            ImageMedia(image=image, source_shape=source_shape)
+        )
         self.set_parameter_value("latent_tensor", latent_artifact)
         self.parameter_output_values["latent_tensor"] = latent_artifact
 
@@ -206,7 +209,9 @@ class VaeEncodeNode(ControlNode):
         b, c, h, w = sample_tensor.shape
         source_shape = (b, c, num_frames, h, w)
 
-        latent_artifact = latents_pipeline_driver.encode_video(frames_rgb, source_shape)
+        latent_artifact = latents_pipeline_driver.encode_media(
+            VideoMedia(frames=frames_rgb, source_shape=source_shape)
+        )
         self.set_parameter_value("latent_tensor", latent_artifact)
         self.parameter_output_values["latent_tensor"] = latent_artifact
 

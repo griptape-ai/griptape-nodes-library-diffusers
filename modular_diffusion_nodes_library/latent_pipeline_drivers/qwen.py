@@ -33,7 +33,11 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
 )
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    ImageMedia,
+    LatentPipelineDriver,
+    VideoMedia,
+)
 from modular_diffusion_nodes_library.parameters.controlnet_node_parameter_types import (
     QwenImageControlNetNodesParameterType,
 )
@@ -183,7 +187,10 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         return self._make_latent_artifact(output_latents, source_shape=source_shape, upstream=latent)
 
     @override
-    def encode_image(self, image: Image | torch.Tensor, source_shape: tuple[int, ...]) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+        if isinstance(media, VideoMedia):
+            raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
+        image = media.image
         encode_pipeline = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
         if isinstance(image, torch.Tensor):
             height = image.shape[-2]

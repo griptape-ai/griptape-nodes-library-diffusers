@@ -13,7 +13,11 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 from PIL.Image import Image, Resampling
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import DecodeResult
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    DecodeResult,
+    ImageMedia,
+    VideoMedia,
+)
 from modular_diffusion_nodes_library.latent_pipeline_drivers.wan import WanTextToVideoLatentPipelineDriver
 from modular_diffusion_nodes_library.utils.conditioning_utils import resolve_conditioning_image
 
@@ -49,9 +53,14 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         return output_frames
 
     @override
-    def encode_video(self, frames: list[Image], source_shape: tuple[int, ...]) -> LatentArtifact:
-        input_frames = [self.preprocess_image(frame) for frame in frames]
-        return super().encode_video(input_frames, source_shape)
+    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+        if isinstance(media, ImageMedia):
+            return super().encode_media(media)
+        preprocessed = VideoMedia(
+            frames=[self.preprocess_image(frame) for frame in media.frames],
+            source_shape=media.source_shape,
+        )
+        return super().encode_media(preprocessed)
 
     @override
     def denoise_latent(

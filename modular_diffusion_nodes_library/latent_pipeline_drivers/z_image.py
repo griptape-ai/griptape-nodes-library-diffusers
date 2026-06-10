@@ -27,7 +27,11 @@ from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    ImageMedia,
+    LatentPipelineDriver,
+    VideoMedia,
+)
 from modular_diffusion_nodes_library.utils.pipeline_utils import detect_offload_method
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -184,11 +188,13 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
         return images[0]
 
     @override
-    def encode_image(self, image: Image | torch.Tensor, source_shape: tuple[int, ...]) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+        if isinstance(media, VideoMedia):
+            raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
-        output_state = self._call_block(encode_block, image=image)
+        output_state = self._call_block(encode_block, image=media.image)
         result = output_state.get("image_latents")
-        return self._make_latent_artifact(result, source_shape=source_shape)
+        return self._make_latent_artifact(result, source_shape=media.source_shape)
 
     @override
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:

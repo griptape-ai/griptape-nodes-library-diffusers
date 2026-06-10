@@ -30,7 +30,11 @@ from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    ImageMedia,
+    LatentPipelineDriver,
+    VideoMedia,
+)
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -221,7 +225,10 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         return output_state.get("images")[0]
 
     @override
-    def encode_image(self, image: Image | torch.Tensor, source_shape: tuple[int, ...]) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+        if isinstance(media, VideoMedia):
+            raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
+        image = media.image
         if isinstance(image, torch.Tensor):
             height = image.shape[-2]
             width = image.shape[-1]
@@ -231,7 +238,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         encode_pipeline = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
         output_state = self._call_block(encode_pipeline, image=image, height=height, width=width)
         latents = output_state.get("image_latents")
-        return self._make_latent_artifact(latents, source_shape=source_shape)
+        return self._make_latent_artifact(latents, source_shape=media.source_shape)
 
     @override
     def denoise_latent(

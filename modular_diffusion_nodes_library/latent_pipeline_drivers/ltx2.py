@@ -30,7 +30,11 @@ from safetensors import safe_open  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    ImageMedia,
+    LatentPipelineDriver,
+    VideoMedia,
+)
 from modular_diffusion_nodes_library.utils.conditioning_utils import (
     pixel_frame_index_to_latent_index,
     resize_frames_scale_to_fill,
@@ -318,12 +322,14 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         return frames
 
     @override
-    def encode_image(self, image: Image, source_shape: tuple[int, ...]) -> LatentArtifact:
-        return self.encode_video([image], source_shape)
-
-    @override
-    def encode_video(self, frames: list[Image], source_shape: tuple[int, ...]) -> LatentArtifact:
-        """Encode a list of PIL images (video frames) as a LTX2 video latent (5-D tensor [B, C, T, H, W])."""
+    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+        """Encode an image or video as an LTX2 video latent (5-D tensor [B, C, T, H, W])."""
+        if isinstance(media, ImageMedia):
+            if not isinstance(media.image, Image):
+                raise TypeError(f"{type(self).__name__}: Expected a PIL Image, got {type(media.image).__name__}.")
+            frames = [media.image]
+        else:
+            frames = media.frames
         device, dtype = self._get_device_and_type()
 
         video_tensor = self.pipe.video_processor.preprocess_video(frames)
@@ -350,7 +356,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             self.pipe.vae.latents_std,
             self.pipe.vae.config.scaling_factor,
         )
-        return self._make_latent_artifact(latents, source_shape=source_shape)
+        return self._make_latent_artifact(latents, source_shape=media.source_shape)
 
     @override
     def denoise_latent(self, latent: LatentArtifact | InpaintMaskArtifact, num_inference_steps: int, seed: int = 0, callback: Any = None, start_step: int = 0, end_step: int = -1, return_fully_denoised: bool = False, **kwargs: Any) -> LatentArtifact:

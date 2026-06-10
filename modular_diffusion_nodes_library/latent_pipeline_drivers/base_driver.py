@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any, ClassVar, TypeVar
 
 import numpy as np
@@ -39,17 +40,28 @@ DecodeResult = Image | list[Image] | np.ndarray
 META_DRIVER_KEY = "LatentPipelineDriver"
 
 
+@dataclass(frozen=True)
+class ImageMedia:
+    image: Image | torch.Tensor
+    source_shape: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class VideoMedia:
+    frames: list[Image]
+    source_shape: tuple[int, ...]
+
+
 class LatentPipelineDriver(ABC):
     """Abstract base class for latent pipeline drivers.
 
     Latent shape & space contract
     -----------------------------
     All latents flowing across the public driver surface
-    (``create_noise_latent``, ``encode_image``, ``encode_video``,
-    ``add_noise_to_latent``, the output of ``denoise_latent``, and the input
-    of ``decode_latent``) share a single canonical shape **and** statistical
-    space so they can be freely composited, masked, added, or otherwise
-    manipulated by downstream nodes.
+    (``create_noise_latent``, ``encode_media``, ``add_noise_to_latent``, the
+    output of ``denoise_latent``, and the input of ``decode_latent``) share a
+    single canonical shape **and** statistical space so they can be freely
+    composited, masked, added, or otherwise manipulated by downstream nodes.
 
     Public latents are exchanged as :class:`LatentArtifact` instances. The
     artifact carries:
@@ -83,8 +95,8 @@ class LatentPipelineDriver(ABC):
     Latent tensors are **normalised**: each channel is ~N(0, 1), matching the
     distribution of ``torch.randn``. For VAEs whose raw latents are not
     unit-variance (e.g. WAN, Flux2), drivers must apply the per-channel
-    whitening ``(z - latents_mean) / latents_std`` inside ``encode_image`` /
-    ``encode_video`` and the inverse inside ``decode_latent``.
+    whitening ``(z - latents_mean) / latents_std`` inside ``encode_media``
+    and the inverse inside ``decode_latent``.
 
     Any model-specific *packing* (e.g. Flux, Qwen) is applied transiently
     inside ``prepare_input_latent`` / ``prepare_output_latent`` and never
@@ -259,17 +271,22 @@ class LatentPipelineDriver(ABC):
         ...
 
     @abstractmethod
-    def encode_image(self, image: Image | torch.Tensor, source_shape: tuple[int, ...]) -> LatentArtifact:
-        """Return encoded latent. See class docstring for the output latent shape contract."""
+    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+        """Return encoded latent for an :class:`ImageMedia` or :class:`VideoMedia` input.
+
+        Image-only drivers should raise :class:`NotImplementedError` for
+        :class:`VideoMedia` and vice versa. See class docstring for the output
+        latent shape contract.
+        """
         ...
 
-    def encode_masked_image(self, image: Image, mask: Image, source_shape: tuple[int, ...]) -> LatentArtifact:
+    def encode_masked_image(self, image: ImageMedia, mask: ImageMedia) -> LatentArtifact:
         """Encode the source image with the masked region zeroed out."""
         image_processor = self.modular_pipe.image_processor
-        source_t = image_processor.preprocess(image, height=image.height, width=image.width)
-        mask_t = torch.from_numpy(np.array(mask, dtype="float32") / 255.0)[None, None]
+        source_t = image_processor.preprocess(image.image, height=image.image.height, width=image.image.width)
+        mask_t = torch.from_numpy(np.array(mask.image, dtype="float32") / 255.0)[None, None]
         masked_t = source_t * (mask_t < 0.5)
-        return self.encode_image(masked_t, source_shape)
+        return self.encode_media(ImageMedia(image=masked_t, source_shape=image.source_shape))
 
     @abstractmethod
     def add_noise_to_latent(
@@ -281,10 +298,6 @@ class LatentPipelineDriver(ABC):
     ) -> LatentArtifact:
         """Return noised latent. See class docstring for the latent shape contract."""
         ...
-
-    def encode_video(self, frames: list[Image], source_shape: tuple[int, ...]) -> LatentArtifact:
-        """Encode a video file into a latent tensor. Override for pipelines that support video."""
-        raise NotImplementedError(f"Pipeline '{self.pipe.__class__.__name__}' does not support video encoding.")
 
     def encode_prompt(self, prompt: str, negative_prompt: str, **kwargs: Any) -> TextEncodings:  # noqa: ARG002
         """Encode prompt text into embeddings via the modular pipeline's ``text_encoder`` sub-block.

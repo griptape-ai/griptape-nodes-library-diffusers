@@ -10,7 +10,7 @@ from PIL import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import TextEncodings
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import ImageMedia, TextEncodings, VideoMedia
 from modular_diffusion_nodes_library.latent_pipeline_drivers.qwen import QwenLatentPipelineDriver
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -87,7 +87,10 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
         return decoded
 
     @override
-    def encode_image(self, image: Image.Image | torch.Tensor, source_shape: tuple[int, ...]) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+        if isinstance(media, VideoMedia):
+            raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
+        image = media.image
         if isinstance(image, torch.Tensor):
             img_h, img_w = image.shape[-2], image.shape[-1]
         else:
@@ -103,7 +106,7 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
         if not isinstance(latents, torch.Tensor):
             raise ValueError(f"Expected Tensor for image_latents, got {type(latents).__name__}.")
         latents = latents.squeeze(2)
-        return self._make_latent_artifact(latents, source_shape=source_shape)
+        return self._make_latent_artifact(latents, source_shape=media.source_shape)
 
     @override
     def add_noise_to_latent(
