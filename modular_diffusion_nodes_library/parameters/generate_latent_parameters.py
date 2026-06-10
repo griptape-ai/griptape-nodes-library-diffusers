@@ -245,21 +245,17 @@ class DiffusionPipelineGenerateLatentParameters:
             return {}
 
         self._node.progress_bar_component.initialize(num_inference_steps)  # type: ignore[reportAttributeAccessIssue]
-        input_latent = self.prepare_input_latent(input_latent_artifact, latent_pipeline_driver)
-        if input_latent is None:
+        input_latent_for_denoise = self.prepare_input_latent(input_latent_artifact, latent_pipeline_driver)
+        if input_latent_for_denoise is None:
             raise ValueError("Failed to prepare input latent for the pipeline.")
 
         if self.end_step == 0 and self.add_noise():
             # Noise-only shortcut — skip denoising entirely
-            output_latent = input_latent
+            output_latent_artifact = input_latent_for_denoise
         else:
-            if isinstance(input_latent_artifact, InpaintMaskArtifact):
-                pipe_kwargs["inpaint_mask_artifact"] = input_latent_artifact
-
-            output_latent = latent_pipeline_driver.denoise_latent(
-                latents=input_latent,
-                latents_source_shape=source_shape,
-                num_inference_steps=num_inference_steps,
+            output_latent_artifact = latent_pipeline_driver.denoise_latent(
+                input_latent_for_denoise,
+                num_inference_steps,
                 callback=callback_on_step_end,
                 start_step=self.start_step,
                 end_step=self.end_step,
@@ -267,40 +263,50 @@ class DiffusionPipelineGenerateLatentParameters:
                 seed=self.get_seed(),
                 **pipe_kwargs,
             )
-        self.publish_output_latent(output_latent, source_shape)
+        self.publish_output_latent(output_latent_artifact)
         self._node.log_params.append_to_logs("Done.\n")  # type: ignore[reportAttributeAccessIssue]
 
     def prepare_input_latent(
-        self, input_latent_artifact: LatentArtifact, latent_pipeline_driver: LatentPipelineDriver
-    ) -> torch.Tensor | None:
+        self, input_latent_artifact: LatentArtifact | InpaintMaskArtifact, latent_pipeline_driver: LatentPipelineDriver
+    ) -> LatentArtifact | InpaintMaskArtifact | None:
         if input_latent_artifact is None:
             raise ValueError("Input latent is missing")
-        device, dtype = latent_pipeline_driver._get_device_and_type()
-        latent = input_latent_artifact.to_torch(device=device, dtype=dtype)
-        source_shape = input_latent_artifact.source_shape
-        if self.add_noise():
-            latent = latent_pipeline_driver.add_noise_to_latent(
-                latent, source_shape, self.get_seed(), self.get_num_inference_steps(), self.get_strength()
-            )
-        return latent
+        if not self.add_noise():
+            return input_latent_artifact
+        if isinstance(input_latent_artifact, InpaintMaskArtifact):
+            # Inpaint flows manage their own noising inside denoise_latent.
+            return input_latent_artifact
+        return latent_pipeline_driver.add_noise_to_latent(
+            input_latent_artifact,
+            self.get_seed(),
+            self.get_num_inference_steps(),
+            self.get_strength(),
+        )
 
-    def publish_output_latent(self, output_latent: Any, source_shape: tuple[int, ...]) -> None:
+    def publish_output_latent(self, output_latent_artifact: LatentArtifact) -> None:
         pipeline_artifact = self._node.pipe_params.get_pipeline_artifact()
+        merged_meta = dict(output_latent_artifact.meta or {})
+        # Carry pipeline-level provenance forward without clobbering driver-namespaced values.
+        for key, value in pipeline_artifact.metadata.items():
+            merged_meta.setdefault(key, value)
         latent_artifact = LatentArtifact.from_torch(
-            output_latent, source_shape=source_shape, meta=pipeline_artifact.metadata
+            output_latent_artifact.to_torch(),
+            source_shape=output_latent_artifact.source_shape,
+            meta=merged_meta,
         )
         self._node.publish_update_to_parameter("output_latent", latent_artifact)
         self._node.set_parameter_value("output_latent", latent_artifact)
         self._node.parameter_output_values["output_latent"] = latent_artifact
 
     def latents_to_image_pil(
-        self, latents: Any, source_shape: tuple[int, ...], latent_pipeline_driver: LatentPipelineDriver
+        self, latents: torch.Tensor, source_shape: tuple[int, ...], latent_pipeline_driver: LatentPipelineDriver
     ) -> DecodeResult:
-        output_latent = latent_pipeline_driver.prepare_output_latent(latents, source_shape)
-        return latent_pipeline_driver.decode_latent(output_latent, source_shape)
+        unpacked = latent_pipeline_driver.prepare_output_latent(latents, source_shape)
+        preview_artifact = latent_pipeline_driver._make_latent_artifact(unpacked, source_shape=source_shape)
+        return latent_pipeline_driver.decode_latent(preview_artifact)
 
     def publish_output_image_preview_latents(
-        self, latents: Any, source_shape: tuple[int, ...], latent_pipeline_driver: LatentPipelineDriver
+        self, latents: torch.Tensor, source_shape: tuple[int, ...], latent_pipeline_driver: LatentPipelineDriver
     ) -> None:
         # Check to ensure there's enough space in the intermediates directory
         # if that setting is enabled.

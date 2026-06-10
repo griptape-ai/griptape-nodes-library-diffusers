@@ -26,6 +26,7 @@ from huggingface_hub import hf_hub_download  # type: ignore[reportMissingImports
 from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.utils.pipeline_utils import detect_offload_method
 
@@ -136,55 +137,58 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
     # ------------------------------------------------------------------
 
     @override
-    def create_noise_latent(self, latents_source_shape: tuple[int, ...], seed: int) -> torch.Tensor:  # noqa: ARG002
+    def create_noise_latent(self, source_shape: tuple[int, ...], seed: int) -> LatentArtifact:
         """Create a raw noise latent via modular pipeline block."""
         prepare_latents = ZImagePrepareLatentsStep()
         output_state = self._call_block(
             prepare_latents,
-            height=latents_source_shape[-2],
-            width=latents_source_shape[-1],
+            height=source_shape[-2],
+            width=source_shape[-1],
             batch_size=1,
             num_images_per_prompt=1,
             generator=torch.Generator().manual_seed(seed),
         )
         latents = output_state.get("latents")
-        return latents
+        return self._make_latent_artifact(latents, source_shape=source_shape)
 
     @override
     def add_noise_to_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
+        latent: LatentArtifact,
         seed: int,
         num_inference_steps: int,
         strength: float,
-    ) -> torch.Tensor:
+    ) -> LatentArtifact:
         """Add noise to image latents via modular pipeline blocks."""
         device, dtype = self._get_device_and_type()
-        noise = self.create_noise_latent(latents_source_shape, seed)
+        source_shape = latent.source_shape
+        latents = latent.to_torch(device=device, dtype=dtype)
+        noise = self.create_noise_latent(source_shape, seed).to_torch(device=device, dtype=dtype)
         output_state = self._call_block(
             _ZImageAddNoiseStep(),
-            latents=noise.to(device=device, dtype=dtype),
-            image_latents=latents.to(device=device, dtype=dtype),
+            latents=noise,
+            image_latents=latents,
             num_inference_steps=num_inference_steps,
             strength=strength,
         )
         result = output_state.get("latents")
-        return result
+        return self._make_latent_artifact(result, source_shape=source_shape, upstream=latent)
 
     @override
-    def decode_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> Image:
+    def decode_latent(self, latent: LatentArtifact) -> Image:
+        device, dtype = self._get_device_and_type()
+        latents = latent.to_torch(device=device, dtype=dtype)
         decode_block = self.modular_pipe.blocks.sub_blocks["decode"]
         output_state = self._call_block(decode_block, latents=latents, output_type="pil")
         images = output_state.get("images")
         return images[0]
 
     @override
-    def encode_image(self, image: Image | torch.Tensor) -> torch.Tensor:
+    def encode_image(self, image: Image | torch.Tensor, source_shape: tuple[int, ...]) -> LatentArtifact:
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
         output_state = self._call_block(encode_block, image=image)
         result = output_state.get("image_latents")
-        return result
+        return self._make_latent_artifact(result, source_shape=source_shape)
 
     @override
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:

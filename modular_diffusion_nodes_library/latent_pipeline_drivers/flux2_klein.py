@@ -7,6 +7,7 @@ from diffusers.modular_pipelines.flux2.encoders import Flux2VaeEncoderStep
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.flux2_base import Flux2BaseLatentPipelineDriver
 from modular_diffusion_nodes_library.utils.conditioning_utils import resolve_conditioning_image
 
@@ -66,8 +67,7 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
     @override
     def denoise_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
+        latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
         seed: int = 0,
         callback: Any = None,
@@ -75,7 +75,7 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
         end_step: int = -1,
         return_fully_denoised: bool = False,
         **kwargs: Any,
-    ) -> torch.Tensor:
+    ) -> LatentArtifact:
         media_gen_conditioning = kwargs.pop("media_gen_conditioning", None)
         if media_gen_conditioning is not None:
             image_reference = self._build_image_reference(media_gen_conditioning)
@@ -83,8 +83,7 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
                 kwargs["image_reference"] = image_reference
 
         return super().denoise_latent(
-            latents,
-            latents_source_shape,
+            latent,
             num_inference_steps,
             seed,
             callback,

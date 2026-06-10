@@ -28,6 +28,7 @@ from diffusers.pipelines.flux.pipeline_flux import FluxPipeline  # type: ignore[
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from PIL.Image import Image
 
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 
@@ -144,9 +145,9 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         return _unpack_latents(latents, height, width, self.pipe.vae_scale_factor)
 
     @override
-    def create_noise_latent(self, latents_source_shape: tuple[int, ...], seed: int) -> torch.Tensor:  # noqa: ARG002
+    def create_noise_latent(self, source_shape: tuple[int, ...], seed: int) -> LatentArtifact:
         """Return pure noise latent with shape [B, C, H, W]."""
-        height, width = latents_source_shape[-2], latents_source_shape[-1]
+        height, width = source_shape[-2], source_shape[-1]
         device, dtype = self._get_device_and_type()
         generator = torch.Generator().manual_seed(seed)
         prepare_latents = FluxPrepareLatentsStep()
@@ -162,22 +163,23 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         latents = output_state.get("latents")
         latents = latents.to(device)
         latents = self.unpack_latents(latents, height, width)
-        return latents
+        return self._make_latent_artifact(latents, source_shape=source_shape)
 
     @override
     def add_noise_to_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
+        latent: LatentArtifact,
         seed: int,
         num_inference_steps: int,
         strength: float,
-    ) -> torch.Tensor:
+    ) -> LatentArtifact:
         """Return noised latent with shape [B, C, H, W]."""
         device, dtype = self._get_device_and_type()
+        source_shape = latent.source_shape
+        latents = latent.to_torch(device=device, dtype=dtype)
         packed_image_latents = self.pack_latents(latents, latents.shape[-2], latents.shape[-1])
         packed_image_latents = packed_image_latents.to(device=device, dtype=dtype)
-        height, width = latents_source_shape[-2], latents_source_shape[-1]
+        height, width = source_shape[-2], source_shape[-1]
 
         noise_with_strength_pipeline = SequentialPipelineBlocks.from_blocks_dict(
             {
@@ -202,13 +204,15 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         )
 
         noisy_latents = output_state.get("latents")
-        return self.unpack_latents(noisy_latents, height, width)
+        unpacked = self.unpack_latents(noisy_latents, height, width)
+        return self._make_latent_artifact(unpacked, source_shape=source_shape, upstream=latent)
 
     @override
-    def decode_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> Image:
+    def decode_latent(self, latent: LatentArtifact) -> Image:
         device, dtype = self._get_device_and_type()
-        height, width = latents_source_shape[-2], latents_source_shape[-1]
-        latents = latents.to(device=device, dtype=dtype)
+        source_shape = latent.source_shape
+        height, width = source_shape[-2], source_shape[-1]
+        latents = latent.to_torch(device=device, dtype=dtype)
 
         packed = self.pack_latents(latents, latents.shape[-2], latents.shape[-1])
 
@@ -217,7 +221,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         return output_state.get("images")[0]
 
     @override
-    def encode_image(self, image: Image | torch.Tensor) -> torch.Tensor:
+    def encode_image(self, image: Image | torch.Tensor, source_shape: tuple[int, ...]) -> LatentArtifact:
         if isinstance(image, torch.Tensor):
             height = image.shape[-2]
             width = image.shape[-1]
@@ -227,13 +231,12 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         encode_pipeline = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
         output_state = self._call_block(encode_pipeline, image=image, height=height, width=width)
         latents = output_state.get("image_latents")
-        return latents
+        return self._make_latent_artifact(latents, source_shape=source_shape)
 
     @override
     def denoise_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
+        latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
         seed: int = 0,
         callback: Any = None,
@@ -241,15 +244,14 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         end_step: int = -1,
         return_fully_denoised: bool = False,
         **kwargs: Any,
-    ) -> torch.Tensor:
+    ) -> LatentArtifact:
         # FluxControlNetInpaintPipeline does not accept negative_prompt.
-        inpaint_mask_artifact = kwargs.get("inpaint_mask_artifact")
-        if inpaint_mask_artifact is not None and self._is_controlnet_pipe():
+        if isinstance(latent, InpaintMaskArtifact) and self._is_controlnet_pipe():
             kwargs.pop("negative_prompt", None)
             kwargs.pop("true_cfg_scale", None)
+
         return super().denoise_latent(
-            latents,
-            latents_source_shape,
+            latent,
             num_inference_steps,
             seed=seed,
             callback=callback,

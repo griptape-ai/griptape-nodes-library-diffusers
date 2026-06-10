@@ -157,8 +157,7 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
 
         def work() -> Any:
             try:
-                latents, source_shape = self._process()
-                latent_artifact = LatentArtifact.from_torch(latents, source_shape=source_shape)
+                latent_artifact = self._process()
                 self.publish_update_to_parameter("output_latent", latent_artifact)
                 self.set_parameter_value("output_latent", latent_artifact)
                 self.parameter_output_values["output_latent"] = latent_artifact
@@ -171,7 +170,7 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
 
         yield work
 
-    def _process(self) -> Any:
+    def _process(self) -> LatentArtifact:
         pipe = self.pipe_params.get_pipeline()
         latent_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
         height = self.get_parameter_value("height")
@@ -182,13 +181,13 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
             latents_source_shape = (1, 3, num_frames, height, width)
         else:
             latents_source_shape = (1, 3, height, width)
+        # ``num_inference_steps`` is SDXL-specific (drives ``init_noise_sigma`` via
+        # ``set_timesteps``); only forward it when the driver actually accepts it.
         if isinstance(latent_pipeline_driver, StableDiffusionXLLatentPipelineDriver):
-            num_inference_steps = int(self.get_parameter_value("num_inference_steps") or 50)
-            latents = latent_pipeline_driver.create_noise_latent(
-                latents_source_shape,
-                seed,
-                num_inference_steps=num_inference_steps,
+            num_inference_steps = int(
+                self.get_parameter_value("num_inference_steps") or DEFAULT_NUM_INFERENCE_STEPS
             )
-        else:
-            latents = latent_pipeline_driver.create_noise_latent(latents_source_shape, seed)
-        return latents, latents_source_shape
+            return latent_pipeline_driver.create_noise_latent(
+                latents_source_shape, seed, num_inference_steps=num_inference_steps
+            )
+        return latent_pipeline_driver.create_noise_latent(latents_source_shape, seed)

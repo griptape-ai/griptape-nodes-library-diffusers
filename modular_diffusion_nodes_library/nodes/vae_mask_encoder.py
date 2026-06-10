@@ -140,18 +140,19 @@ class VaeMaskEncodeNode(ControlNode):
         if mask_pil.size != image_pil.size:
             mask_pil = mask_pil.resize(image_pil.size, PILImage.NEAREST)
 
-        source_latent = driver.encode_image(image_pil)
-        masked_latent = driver.encode_masked_image(image_pil, mask_pil)
-        strength = float(self.get_parameter_value("strength") or 1.0)
         source_shape = (1, 3, image_pil.height, image_pil.width)
+        source_encode = driver.encode_image(image_pil, source_shape)
+        masked_encode = driver.encode_masked_image(image_pil, mask_pil, source_shape)
+        strength = float(self.get_parameter_value("strength") or 1.0)
 
         artifact = InpaintMaskArtifact(
             mask_image=mask_pil,
             source_image=self.get_parameter_value("image"),
-            source_latent=source_latent,
-            masked_latent=masked_latent,
+            source_latent=source_encode.to_torch(),
+            masked_latent=masked_encode.to_torch(),
             source_shape=source_shape,
             strength=strength,
+            meta=dict(source_encode.meta or {}),
         )
         self.set_parameter_value("latents", artifact)
         self.parameter_output_values["latents"] = artifact

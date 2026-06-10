@@ -1,10 +1,10 @@
 from typing import Any, ClassVar, override
 
-import torch  # type: ignore[reportMissingImports]
 from diffusers import FluxFillPipeline  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.flux import FluxLatentPipelineDriver
 
 
@@ -33,19 +33,21 @@ class FluxFillLatentPipelineDriver(FluxLatentPipelineDriver):
 
     @override
     def denoise_latent(
-        self, latents: torch.Tensor, latents_source_shape: tuple[int, ...], **kwargs: Any
-    ) -> torch.Tensor:
-        if kwargs.get("inpaint_mask_artifact") is None:
+        self,
+        latent: LatentArtifact | InpaintMaskArtifact,
+        **kwargs: Any,
+    ) -> LatentArtifact:
+        if not isinstance(latent, InpaintMaskArtifact):
             raise NotImplementedError(
                 "FluxFillPipeline only supports inpainting. "
                 "Connect a 'Encode Inpaint Latent' node to the input_latent input."
             )
-        # Derive source shape from the actual source image so that
-        # height/width passed to the pipeline and used for unpack match
-        # the image being inpainted.
-        artifact = kwargs["inpaint_mask_artifact"]
-        source_pil = artifact.source_image_pil()
+        # Override height/width using the actual source image dims so that
+        # the pipeline and unpack/decode use the inpainted image size rather than
+        # whatever source_shape the artifact carries (which may not match).
+        source_pil = latent.source_image_pil()
         if source_pil is not None:
             w, h = source_pil.size
-            latents_source_shape = (1, 3, h, w)
-        return super().denoise_latent(latents, latents_source_shape, **kwargs)
+            kwargs.setdefault("height", h)
+            kwargs.setdefault("width", w)
+        return super().denoise_latent(latent, **kwargs)

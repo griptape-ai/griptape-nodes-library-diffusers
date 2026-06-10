@@ -260,6 +260,13 @@ class LatentCompositeMaskNode(ControlNode):
 
         destination[..., top_a:bottom_a, left_a:right_a] = dest_region * (1.0 - mask_region) + src_region * mask_region
 
-        output_artifact = LatentArtifact.from_torch(destination, source_shape=dest_artifact.source_shape)
+        # Destination is the first input: it wins meta on conflicts.
+        combined_meta = dict(src_artifact.meta)
+        combined_meta.update(dest_artifact.meta)
+        output_artifact = LatentArtifact.from_torch(
+            destination,
+            source_shape=dest_artifact.source_shape,
+            meta=combined_meta,
+        )
         self.set_parameter_value("output_latent", output_artifact)
         self.parameter_output_values["output_latent"] = output_artifact

@@ -95,6 +95,13 @@ class InpaintMaskArtifact(BlobArtifact):
         """Inpaint denoising strength (0.0-1.0)."""
         return self._strength
 
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Read-only view of the artifact's metadata.
+        Carries arbitrary provenance from upstream producers.
+        """
+        return dict(self.meta)
+
     # ------------------------------------------------------------------
     # LatentArtifact duck-typing — lets this artifact stand in as input_latent.
     # ------------------------------------------------------------------

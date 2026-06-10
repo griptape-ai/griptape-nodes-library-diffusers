@@ -27,6 +27,8 @@ from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
@@ -119,10 +121,10 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         return image_latents
 
     @override
-    def create_noise_latent(self, latents_source_shape: tuple[int, ...], seed: int) -> torch.Tensor:  # noqa: ARG002
+    def create_noise_latent(self, source_shape: tuple[int, ...], seed: int) -> LatentArtifact:
         _, dtype = self._get_device_and_type()
         prepare_latents_pipeline = QwenImagePrepareLatentsStep()
-        height, width = latents_source_shape[-2], latents_source_shape[-1]
+        height, width = source_shape[-2], source_shape[-1]
 
         output_state = self._call_block(
             prepare_latents_pipeline,
@@ -135,12 +137,12 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         )
 
         output_latents = self._get_unpacked_image_latents(output_state, height, width)
-        return output_latents
+        return self._make_latent_artifact(output_latents, source_shape=source_shape)
 
     @override
-    def decode_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> Image:  # noqa: ARG002
+    def decode_latent(self, latent: LatentArtifact) -> Image:
         device, dtype = self._get_device_and_type()
-        latents = latents.to(device=device, dtype=dtype)
+        latents = latent.to_torch(device=device, dtype=dtype)
         latents = latents.unsqueeze(2)
 
         decode_pipeline = self.modular_pipe.blocks.sub_blocks["decode"]
@@ -152,15 +154,16 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
     @override
     def add_noise_to_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
+        latent: LatentArtifact,
         seed: int,
         num_inference_steps: int,
         strength: float,
-    ) -> torch.Tensor:
+    ) -> LatentArtifact:
         noise_with_strength_pipeline = _QwenImageNoiseWithStrengthSequence()
-        _, dtype = self._get_device_and_type()
-        height, width = latents_source_shape[-2], latents_source_shape[-1]
+        device, dtype = self._get_device_and_type()
+        source_shape = latent.source_shape
+        latents = latent.to_torch(device=device, dtype=dtype)
+        height, width = source_shape[-2], source_shape[-1]
 
         noisy_state = self._call_block(
             noise_with_strength_pipeline,
@@ -177,10 +180,10 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         )
 
         output_latents = self._get_unpacked_image_latents(noisy_state, height, width)
-        return output_latents
+        return self._make_latent_artifact(output_latents, source_shape=source_shape, upstream=latent)
 
     @override
-    def encode_image(self, image: Image | torch.Tensor) -> torch.Tensor:  # noqa: ARG002
+    def encode_image(self, image: Image | torch.Tensor, source_shape: tuple[int, ...]) -> LatentArtifact:
         encode_pipeline = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
         if isinstance(image, torch.Tensor):
             height = image.shape[-2]
@@ -190,9 +193,8 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
             width = image.width
         output_state = self._call_block(encode_pipeline, image=image, height=height, width=width)
         latents = self._get_required(output_state, "image_latents", torch.Tensor)
-        return latents.squeeze(
-            2
-        )  # [B,z,1,H',W'] → [B,z,H',W'] - remove temporal dimension (the same VAE is shared between video and image pipelines)
+        # [B,z,1,H',W'] → [B,z,H',W'] - remove temporal dimension (the same VAE is shared between video and image pipelines)
+        return self._make_latent_artifact(latents.squeeze(2), source_shape=source_shape)
 
     @override
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:

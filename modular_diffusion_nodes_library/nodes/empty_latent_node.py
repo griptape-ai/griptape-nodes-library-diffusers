@@ -1,7 +1,10 @@
-from typing import Any, override
+from typing import override
 
 import torch  # type: ignore[reportMissingImports]
 
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
+    LatentArtifact,  # type: ignore[reportMissingImports]
+)
 from modular_diffusion_nodes_library.nodes.noise_latent_node import NoiseLatentNode
 
 
@@ -11,6 +14,11 @@ class EmptyLatentNode(NoiseLatentNode):
         pass
 
     @override
-    def _process(self) -> Any:
-        latents, latents_source_shape = super()._process()
-        return torch.zeros_like(latents), latents_source_shape
+    def _process(self) -> LatentArtifact:
+        noise_artifact = super()._process()
+        zero_tensor = torch.zeros_like(noise_artifact.to_torch())
+        return LatentArtifact.from_torch(
+            zero_tensor,
+            source_shape=noise_artifact.source_shape,
+            meta={},
+        )

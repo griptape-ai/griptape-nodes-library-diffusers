@@ -25,6 +25,7 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -108,56 +109,62 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
     @override
     def create_noise_latent(
         self,
-        latents_source_shape: tuple[int, ...],
+        source_shape: tuple[int, ...],
         seed: int,
+        *,
         num_inference_steps: int = 20,
-    ) -> torch.Tensor:
+    ) -> LatentArtifact:
         output_state = self._call_block(
             _SD3PrepareNoiseLatentStep(),
-            height=latents_source_shape[-2],
-            width=latents_source_shape[-1],
+            height=source_shape[-2],
+            width=source_shape[-1],
             batch_size=1,
             num_images_per_prompt=1,
             num_inference_steps=num_inference_steps,
             generator=torch.Generator().manual_seed(seed),
         )
-        return output_state.get("latents")
+        latents = output_state.get("latents")
+        return self._make_latent_artifact(latents, source_shape=source_shape)
 
     @override
     def add_noise_to_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
+        latent: LatentArtifact,
         seed: int,
         num_inference_steps: int,
         strength: float,
-    ) -> torch.Tensor:
+    ) -> LatentArtifact:
         """Add noise to image latents via modular pipeline blocks.
 
         Returns the noised latent at the scheduler's sigma scale for the
         requested strength.
         """
         device, dtype = self._get_device_and_type()
+        latents = latent.to_torch(device=device, dtype=dtype)
 
         # Generate noise via the modular path
-        noise_latent = self.create_noise_latent(latents_source_shape, seed, num_inference_steps)
+        noise_latent_artifact = self.create_noise_latent(
+            latent.source_shape, seed, num_inference_steps=num_inference_steps
+        )
+        noise_latent = noise_latent_artifact.to_torch(device=device, dtype=dtype)
 
         output_state = self._call_block(
             _SD3AddNoiseStep(),
-            latents=noise_latent.to(device=device, dtype=dtype),
-            image_latents=latents.to(device=device, dtype=dtype),
+            latents=noise_latent,
+            image_latents=latents,
             num_inference_steps=num_inference_steps,
             strength=strength,
-            height=latents_source_shape[-2],
-            width=latents_source_shape[-1],
+            height=latent.source_shape[-2],
+            width=latent.source_shape[-1],
         )
-        return output_state.get("latents")
+        return self._make_latent_artifact(
+            output_state.get("latents"), source_shape=latent.source_shape, upstream=latent
+        )
 
     @override
     def denoise_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
+        latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
         seed: int = 0,
         callback: Any = None,
@@ -165,22 +172,21 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         end_step: int = -1,
         return_fully_denoised: bool = False,
         **kwargs: Any,
-    ) -> torch.Tensor:
+    ) -> LatentArtifact:
         device, dtype = self._get_device_and_type()
-        latents_on_device = latents.to(device=device, dtype=dtype)
 
         # Img2Img requires ``image`` and ``strength``.  Pass the latent
         # as ``image`` — prepare_latents detects 16-channel input and
         # uses it directly; strength=1.0 gives full t2i behavior.
         # Skip if inpainting or ControlNet — those paths provide their own
         # ``image`` / do not accept ``image``+``strength`` kwargs.
-        if "inpaint_mask_artifact" not in kwargs and not self._is_controlnet_pipe():
+        if not isinstance(latent, InpaintMaskArtifact) and not self._is_controlnet_pipe():
+            latents_on_device = latent.to_torch(device=device, dtype=dtype)
             kwargs.setdefault("image", latents_on_device)
             kwargs.setdefault("strength", 1.0)
 
         return super().denoise_latent(
-            latents_on_device,
-            latents_source_shape,
+            latent,
             num_inference_steps,
             seed=seed,
             callback=callback,
@@ -191,7 +197,9 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def decode_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> Image:
+    def decode_latent(self, latent: LatentArtifact) -> Image:
+        device, dtype = self._get_device_and_type()
+        latents = latent.to_torch(device=device, dtype=dtype)
         decode_block = self.modular_pipe.blocks.sub_blocks["decode"]
         output_state = self._call_block(decode_block, latents=latents, output_type="pil")
         images = output_state.get("images")
@@ -220,13 +228,8 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         }
 
     @override
-    def encode_image(self, image: Image | torch.Tensor) -> torch.Tensor:
-        if isinstance(image, Image):
-            height = image.height
-            width = image.width
-        else:
-            height = image.shape[-2]
-            width = image.shape[-1]
+    def encode_image(self, image: Image | torch.Tensor, source_shape: tuple[int, ...]) -> LatentArtifact:
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
-        output_state = self._call_block(encode_block, image=image, height=height, width=width)
-        return output_state.get("image_latents")
+        output_state = self._call_block(encode_block, image=image)
+        result = output_state.get("image_latents")
+        return self._make_latent_artifact(result, source_shape=source_shape)
