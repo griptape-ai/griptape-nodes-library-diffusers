@@ -37,7 +37,6 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     resolve_conditioning_image,
     resolve_conditioning_video,
 )
-from modular_diffusion_nodes_library.utils.lora_apply_utils import LoraPipelineRuntimeAdapterStep
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -48,25 +47,35 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
     _HDR_LORA_ADAPTER_TOKEN: ClassVar[str] = "ic-lora-hdr"
     _GENERIC_LORA_ADAPTER_TOKEN: ClassVar[str] = "lora"
+    #: Record concrete ``DiffusionPipeline`` class that produced the latent.
+    _PIPELINE_CLASS_META_KEY: ClassVar[str] = "pipeline_class"
 
     def __init__(self, pipe: DiffusionPipeline):
         super().__init__(pipe)
 
     @property
     def is_hdr_lora_active(self) -> bool:
-        """Whether an LTX-2 HDR IC-LoRA adapter is active for this generation.
+        """Whether an LTX-2 HDR IC-LoRA adapter is currently loaded on ``self.pipe``.
 
-        Checks two sources, in order. Matches any adapter whose name contains
-        ``ic-lora-hdr`` (e.g. ``ltx-2.3-22b-ic-lora-hdr-0.9``).
+        Matches any adapter whose name contains ``ic-lora-hdr`` (e.g.
+        ``ltx-2.3-22b-ic-lora-hdr-0.9``).
         """
         token = self._HDR_LORA_ADAPTER_TOKEN
-        for step in self.provenance_metadata.get("runtime_adapter_steps", []):
-            if step.get("kind") != LoraPipelineRuntimeAdapterStep.KIND:
-                continue
-            step_loras = step.get("loras", {})
-            if any(token in str(entry.get("path", "")).lower() for entry in step_loras.values()):
-                return True
         return any(token in name.lower() for name in self._get_loaded_adapter_names())
+
+    def _latent_was_produced_for_hdr(self, latent: LatentArtifact) -> bool:
+        """Whether ``latent`` was produced by the HDR LoRA pipeline.
+
+        Prefers the ``pipeline_class`` stamp written by ``denoise_latent``; falls
+        back to ``is_hdr_lora_active`` for previews (which decode mid-generation
+        before any artifact has been stamped).
+        """
+        driver_meta = latent.meta.get(type(self).__name__) if isinstance(latent.meta, dict) else None
+        if isinstance(driver_meta, dict):
+            stamped = driver_meta.get(self._PIPELINE_CLASS_META_KEY)
+            if stamped is not None:
+                return stamped == LTX2HDRPipeline.__name__
+        return self.is_hdr_lora_active
 
     @property
     def is_ic_lora_active(self) -> bool:
@@ -301,7 +310,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         with torch.no_grad():
             video = self.pipe.vae.decode(latents, timestep, return_dict=False)[0]
 
-        if self.is_hdr_lora_active:
+        if self._latent_was_produced_for_hdr(latent):
             # HDR IC-LoRA path: return raw linear HDR for encode_hdr_tensor_to_mp4 in vae_decoder.
             return self._decode_hdr_to_linear_np(video)
 
@@ -362,7 +371,17 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         if "media_gen_conditioning" in kwargs:
             return self._denoise_with_video_gen_conditioning(latent, num_inference_steps, seed=seed, callback=callback, start_step=start_step, end_step=end_step, return_fully_denoised=return_fully_denoised, **kwargs)
 
-        return super().denoise_latent(latent, num_inference_steps, seed=seed, callback=callback, start_step=start_step, end_step=end_step, return_fully_denoised=return_fully_denoised, **kwargs)
+        result = super().denoise_latent(latent, num_inference_steps, seed=seed, callback=callback, start_step=start_step, end_step=end_step, return_fully_denoised=return_fully_denoised, **kwargs)
+        return self._stamp_pipeline_class(result, self.pipe.__class__.__name__)
+
+    def _stamp_pipeline_class(self, artifact: LatentArtifact, pipeline_class_name: str) -> LatentArtifact:
+        """Return a copy of ``artifact`` whose driver-namespaced meta records ``pipeline_class_name``."""
+        return self._make_latent_artifact(
+            artifact.to_torch(),
+            source_shape=artifact.source_shape,
+            upstream=artifact,
+            meta={self._PIPELINE_CLASS_META_KEY: pipeline_class_name},
+        )
 
     # ------------------------------------------------------------------
     # Helpers for various denoise paths (base, HDR-LoRA, IC-LoRA, video-gen-conditioning)
@@ -424,7 +443,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         original_pipe = self._pipe
         try:
             self._pipe = variant_pipe
-            return super().denoise_latent(
+            result = super().denoise_latent(
                 latent,
                 num_inference_steps,
                 seed=seed,
@@ -436,6 +455,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             )
         finally:
             self._pipe = original_pipe
+        return self._stamp_pipeline_class(result, target_class.__name__)
 
     # ------------------------------------------------------------------
     # Generic video gen conditioning support (for pipelines without LoRA adapters, or with fused LoRAs)

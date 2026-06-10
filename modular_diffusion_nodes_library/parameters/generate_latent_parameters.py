@@ -202,12 +202,6 @@ class DiffusionPipelineGenerateLatentParameters:
 
         first_iteration_time = None
         latent_pipeline_driver = create_driver(pipe, pipeline_class)
-        pipeline_artifact = self._node.pipe_params.get_pipeline_artifact()
-        # TODO: Temporary hack — we mutate the driver instance with the pipeline's provenance
-        # metadata so model-specific decode/denoise paths can detect generation-time state
-        # (e.g. LTX-2 HDR LoRA via ``runtime_adapter_steps``) without re-activating the pipeline.
-        # A more robust solution would pass state in and out of driver stages explicitly
-        latent_pipeline_driver.provenance_metadata = dict(pipeline_artifact.metadata)
         pipe_kwargs = self.update_kwargs(pipe_kwargs)
 
         input_latent_artifact = self._node.get_parameter_value("input_latent")
@@ -284,19 +278,9 @@ class DiffusionPipelineGenerateLatentParameters:
         )
 
     def publish_output_latent(self, output_latent_artifact: LatentArtifact) -> None:
-        pipeline_artifact = self._node.pipe_params.get_pipeline_artifact()
-        merged_meta = dict(output_latent_artifact.meta or {})
-        # Carry pipeline-level provenance forward without clobbering driver-namespaced values.
-        for key, value in pipeline_artifact.metadata.items():
-            merged_meta.setdefault(key, value)
-        latent_artifact = LatentArtifact.from_torch(
-            output_latent_artifact.to_torch(),
-            source_shape=output_latent_artifact.source_shape,
-            meta=merged_meta,
-        )
-        self._node.publish_update_to_parameter("output_latent", latent_artifact)
-        self._node.set_parameter_value("output_latent", latent_artifact)
-        self._node.parameter_output_values["output_latent"] = latent_artifact
+        self._node.publish_update_to_parameter("output_latent", output_latent_artifact)
+        self._node.set_parameter_value("output_latent", output_latent_artifact)
+        self._node.parameter_output_values["output_latent"] = output_latent_artifact
 
     def latents_to_image_pil(
         self, latents: torch.Tensor, source_shape: tuple[int, ...], latent_pipeline_driver: LatentPipelineDriver
