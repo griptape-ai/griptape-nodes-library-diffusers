@@ -13,6 +13,11 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
+    ControlNetDiffusionPipelineArtifact,
+    DiffusionPipelineArtifact,
+)
 from modular_diffusion_nodes_library.misc.partial_denoise import (
     PartialDenoisePipelineRunner,
     PartialDenoiseSchedulerProxy,
@@ -315,6 +320,40 @@ class LatentPipelineDriver(ABC):
     # ------------------------------------------------------------------
     # Inpainting hooks
     # ------------------------------------------------------------------
+
+    @classmethod
+    def validate_run_configuration(
+        cls,
+        pipeline_artifact: DiffusionPipelineArtifact,
+        input_latent: LatentArtifact | None,
+    ) -> list[Exception] | None:
+        """Validate that the requested run configuration is supported by this driver.
+
+        Called from the Generate Latent node before execution.
+
+        Default implementation surfaces driver-agnostic compatibility problems:
+        when ``input_latent`` is an :class:`InpaintMaskArtifact`, the
+        driver must declare an inpaint pipeline class for the current variant.
+        """
+        if not isinstance(input_latent, InpaintMaskArtifact):
+            return None
+
+        is_controlnet = isinstance(pipeline_artifact, ControlNetDiffusionPipelineArtifact)
+        if is_controlnet:
+            required_class = cls._inpaint_controlnet_pipeline_class
+            mode = "ControlNet+Inpaint"
+        else:
+            required_class = cls._inpaint_pipeline_class
+            mode = "Inpaint"
+
+        if required_class is None:
+            return [
+                ValueError(
+                    f"Pipeline '{pipeline_artifact.pipeline_name}' does not support {mode} mode "
+                    f"(driver {cls.__name__} declares no inpaint pipeline class for this variant)."
+                )
+            ]
+        return None
 
     def _is_controlnet_pipe(self) -> bool:
         """True if the current pipe is a ControlNet variant (heuristic by class name)."""

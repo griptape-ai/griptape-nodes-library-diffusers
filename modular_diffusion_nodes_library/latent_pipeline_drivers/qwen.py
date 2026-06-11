@@ -3,6 +3,7 @@ from typing import Any, ClassVar, override
 
 import torch  # type: ignore[reportMissingImports]
 from diffusers import (
+    QwenImageControlNetInpaintPipeline,  # type: ignore[reportMissingImports]
     QwenImageControlNetModel,  # type: ignore[reportMissingImports]
     QwenImageControlNetPipeline,  # type: ignore[reportMissingImports]
     QwenImageInpaintPipeline,  # type: ignore[reportMissingImports]
@@ -21,10 +22,19 @@ from diffusers.modular_pipelines.qwenimage.modular_blocks_qwenimage import (
     QwenImageAutoBlocks,  # type: ignore[reportMissingImports]
 )
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-from diffusers.utils.torch_utils import randn_tensor  # type: ignore[reportMissingImports]
+from griptape_nodes.exe_types.param_components.huggingface.huggingface_model_parameter import HuggingFaceModelParameter
 from PIL.Image import Image
 
+from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
+    ControlNetDiffusionPipelineArtifact,
+    DiffusionPipelineArtifact,
+)
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.parameters.controlnet_node_parameter_types import (
+    QwenImageControlNetNodesParameterType,
+)
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -42,6 +52,7 @@ class _QwenImageNoiseWithStrengthSequence(SequentialPipelineBlocks):
 
 class QwenLatentPipelineDriver(LatentPipelineDriver):
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = QwenImageInpaintPipeline
+    _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = QwenImageControlNetInpaintPipeline
 
     def __init__(self, pipe: DiffusionPipeline) -> None:
         super().__init__(pipe)
@@ -183,37 +194,55 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
             2
         )  # [B,z,1,H',W'] → [B,z,H',W'] - remove temporal dimension (the same VAE is shared between video and image pipelines)
 
-    def _advance_generator(self, gen: torch.Generator, latents: torch.Tensor) -> None:
-        """Consume one randn draw from ``gen`` to mimic the skipped ``_encode_vae_image`` sample."""
-        _, dtype = self._get_device_and_type()
-        randn_tensor(latents.shape, generator=gen, device=gen.device, dtype=dtype)
-
     @override
-    def denoise_latent(
-        self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
-        num_inference_steps: int,
-        seed: int = 0,
-        callback: Any = None,
-        start_step: int = 0,
-        end_step: int = -1,
-        return_fully_denoised: bool = False,
-        **kwargs: Any,
-    ) -> torch.Tensor:
-        """Align init-noise RNG with the standalone (PIL-image) inpaint path."""
-        if kwargs.get("inpaint_mask_artifact") is not None:
-            gen = torch.Generator().manual_seed(seed)
-            self._advance_generator(gen, latents)
-            kwargs["generator"] = gen
-        return super().denoise_latent(
-            latents,
-            latents_source_shape,
-            num_inference_steps,
-            seed=seed,
-            callback=callback,
-            start_step=start_step,
-            end_step=end_step,
-            return_fully_denoised=return_fully_denoised,
-            **kwargs,
-        )
+    def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
+        """Map an InpaintMaskArtifact to pipeline call kwargs.
+
+        For ``QwenImageControlNetInpaintPipeline`` the call signature is different:
+        the source image enters via the ControlNet's ``control_image`` input, the
+        mask is passed as ``control_mask``, and the pipeline does not accept
+        ``image`` / ``mask_image`` / ``masked_image_latents`` / ``strength``.
+        """
+        if self._is_controlnet_pipe():
+            source_pil = artifact.source_image_pil()
+            if source_pil is None:
+                raise ValueError(
+                    f"{type(self).__name__} ControlNet+Inpaint requires source_image in the InpaintMaskArtifact."
+                )
+            return {
+                "control_image": source_pil,
+                "control_mask": artifact.mask_image
+            }
+        return super()._get_inpaint_kwargs(artifact)
+
+    @classmethod
+    @override
+    def validate_run_configuration(
+        cls,
+        pipeline_artifact: DiffusionPipelineArtifact,
+        input_latent: LatentArtifact | None,
+    ) -> list[Exception] | None:
+        errors = super().validate_run_configuration(pipeline_artifact, input_latent)
+        if errors is not None:
+            return errors
+
+        is_inpaint = isinstance(input_latent, InpaintMaskArtifact)
+        is_controlnet = isinstance(pipeline_artifact, ControlNetDiffusionPipelineArtifact)
+        if not (is_inpaint and is_controlnet):
+            return None
+
+        # Qwen's combined ControlNet+Inpaint pipeline only works with the dedicated inpainting ControlNet checkpoint.
+        expected_repo_id = QwenImageControlNetNodesParameterType.INPAINTING_REPO_ID
+        incompatible_repo_ids: list[str] = []
+        for model in pipeline_artifact.metadata["controlnet_models"]:
+            repo_id, _ = HuggingFaceModelParameter._key_to_repo_revision(model)  # noqa: SLF001
+            if repo_id != expected_repo_id:
+                incompatible_repo_ids.append(repo_id)
+        if incompatible_repo_ids:
+            return [
+                ValueError(
+                    f"Qwen ControlNet + Inpaint requires '{expected_repo_id}', "
+                    f"but got incompatible model(s): {incompatible_repo_ids}."
+                )
+            ]
+        return None

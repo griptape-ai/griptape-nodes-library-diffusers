@@ -19,6 +19,7 @@ from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
 )
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
+    DiffusionPipelineArtifact,
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import DecodeResult, LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
@@ -398,6 +399,18 @@ class DiffusionPipelineGenerateLatentParameters:
                         "Ensure the latent was created from an image or has image dimensions set."
                     )
                 ]
+        else:
+            input_latent_artifact = None
+
+        pipeline_value = self._node.get_parameter_value("pipeline")
+        if isinstance(pipeline_value, DiffusionPipelineArtifact):
+            pipeline_class_name = self._get_pipeline_class_name(pipeline_value)
+            if pipeline_class_name is not None:
+                driver_cls = get_driver_class(pipeline_class_name)
+                if driver_cls is not None:
+                    errors = driver_cls.validate_run_configuration(pipeline_value, input_latent_artifact)
+                    if errors:
+                        return errors
 
         return None
 
