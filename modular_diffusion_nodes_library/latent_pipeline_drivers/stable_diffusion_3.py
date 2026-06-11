@@ -1,13 +1,7 @@
 import logging
 from typing import Any, ClassVar, override
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers import (  # type: ignore[reportMissingImports]
-    StableDiffusion3ControlNetInpaintingPipeline,
-    StableDiffusion3ControlNetPipeline,
-    StableDiffusion3InpaintPipeline,
-)
-from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
+from diffusers import StableDiffusion3InpaintPipeline  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     SequentialPipelineBlocks,
@@ -21,14 +15,15 @@ from diffusers.modular_pipelines.stable_diffusion_3.before_denoise import (  # t
 from diffusers.modular_pipelines.stable_diffusion_3.modular_blocks_stable_diffusion_3 import (  # type: ignore[reportMissingImports]
     StableDiffusion3AutoBlocks,
 )
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    DecodeResult,
     GeneratorState,
+    ImageMedia,
     LatentPipelineDriver,
+    VideoMedia,
 )
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -114,8 +109,6 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         self,
         source_shape: tuple[int, ...],
         generator_state: GeneratorState,
-        *,
-        num_inference_steps: int = 20,
     ) -> LatentArtifact:
         generator = generator_state.to_generator()
         output_state = self._call_block(
@@ -124,13 +117,12 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
             width=source_shape[-1],
             batch_size=1,
             num_images_per_prompt=1,
-            num_inference_steps=num_inference_steps,
+            num_inference_steps=self._DEFAULT_NUM_INFERENCE_STEPS,
             generator=generator,
         )
         latents = output_state.get("latents")
-        return self._make_latent_artifact(
-            latents, source_shape=source_shape, meta=GeneratorState.from_generator(generator).as_meta()
-        )
+        meta = GeneratorState.from_generator(generator).as_meta()
+        return self._make_latent_artifact(latents, source_shape=source_shape, meta=meta)
 
     @override
     def add_noise_to_latent(
@@ -150,23 +142,25 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         generator = generator_state.to_generator()
 
         # Generate noise via the modular path
-        noise_latent_artifact = self.create_noise_latent(
-            latent.source_shape, generator_state, num_inference_steps=num_inference_steps
-        )
-        noise_latent = noise_latent_artifact.to_torch(device=device, dtype=dtype)
+        noise_artifact = self.create_noise_latent(latent.source_shape, generator_state)
+        noise_latent = noise_artifact.to_torch(device=device, dtype=dtype)
+        image_latents = latent.to_torch(device=device, dtype=dtype)
 
         output_state = self._call_block(
             _SD3AddNoiseStep(),
             latents=noise_latent,
-            image_latents=latents,
+            image_latents=image_latents,
             num_inference_steps=num_inference_steps,
             strength=strength,
             height=latent.source_shape[-2],
             width=latent.source_shape[-1],
         )
+        noised = output_state.get("latents")
+
+        noise_state = GeneratorState.from_artifact(noise_artifact)
+        meta: dict[str, Any] = noise_state.as_meta() if noise_state is not None else {}
         return self._make_latent_artifact(
-            output_state.get("latents"), source_shape=latent.source_shape, upstream=latent,
-            meta=GeneratorState.from_artifact(noise_latent_artifact).as_meta(),
+            noised, source_shape=latent.source_shape, upstream=latent, meta=meta,
         )
 
     @override
@@ -181,15 +175,14 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         return_fully_denoised: bool = False,
         **kwargs: Any,
     ) -> LatentArtifact:
-        device, dtype = self._get_device_and_type()
-
-        # Img2Img requires ``image`` and ``strength``.  Pass the latent
-        # as ``image`` — prepare_latents detects 16-channel input and
-        # uses it directly; strength=1.0 gives full t2i behavior.
-        # Skip if inpainting or ControlNet — those paths provide their own
-        # ``image`` / do not accept ``image``+``strength`` kwargs.
         if not isinstance(latent, InpaintMaskArtifact) and not self._is_controlnet_pipe():
+            device, dtype = self._get_device_and_type()
             latents_on_device = latent.to_torch(device=device, dtype=dtype)
+
+            # Img2Img requires ``image`` and ``strength``.  Pass the latent
+            # as ``image`` — prepare_latents detects 16-channel input and
+            # uses it directly; strength=1.0 gives full t2i behavior.
+            # Skip if inpainting — the inpaint path provides its own ``image``.
             kwargs.setdefault("image", latents_on_device)
             kwargs.setdefault("strength", 1.0)
 
@@ -205,7 +198,7 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> Image:
+    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
         decode_block = self.modular_pipe.blocks.sub_blocks["decode"]
@@ -234,10 +227,11 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
             "masked_image_latents": source_latent,
             "strength": artifact.strength,
         }
-
     @override
-    def encode_image(self, image: Image | torch.Tensor, source_shape: tuple[int, ...]) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        if isinstance(media, VideoMedia):
+            raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
-        output_state = self._call_block(encode_block, image=image)
+        output_state = self._call_block(encode_block, image=media.image, generator=generator_state.to_generator())
         result = output_state.get("image_latents")
-        return self._make_latent_artifact(result, source_shape=source_shape)
+        return self._make_latent_artifact(result, source_shape=media.source_shape)
