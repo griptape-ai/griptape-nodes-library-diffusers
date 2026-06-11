@@ -29,6 +29,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     TextEncodings,
     VideoMedia,
+    read_driver_meta,
 )
 from modular_diffusion_nodes_library.misc.partial_denoise import (
     PartialDenoisePipelineRunner,
@@ -48,6 +49,7 @@ __all__ = [
     "LatentPipelineDriver",
     "TextEncodings",
     "VideoMedia",
+    "read_driver_meta",
 ]
 
 

@@ -26,6 +26,20 @@ META_DRIVER_KEY = "LatentPipelineDriver"
 GENERATOR_STATE_META_KEY = "generator_state"
 
 
+def read_driver_meta(artifact: Any, key: str, default: Any = None) -> Any:
+    """Return ``artifact.meta[<driver_namespace>][key]`` or ``default``."""
+    if artifact is None:
+        return default
+    meta = getattr(artifact, "meta", None) or {}
+    driver_name = meta.get(META_DRIVER_KEY)
+    if not driver_name:
+        return default
+    sub = meta.get(driver_name)
+    if not isinstance(sub, dict):
+        return default
+    return sub.get(key, default)
+
+
 @dataclass(frozen=True)
 class ImageMedia:
     image: Image | torch.Tensor
