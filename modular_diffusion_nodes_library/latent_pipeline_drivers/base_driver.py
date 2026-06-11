@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-import inspect
 from typing import Any, ClassVar, TypeVar
 
 import numpy as np
@@ -278,9 +277,6 @@ class LatentPipelineDriver(ABC):
         if inpaint_mask_artifact is None:
             pipe_kwargs["latents"] = latents
 
-        # Filter out kwargs that the target pipeline doesn't accept.
-        pipe_kwargs = self._filter_pipe_kwargs(pipe, pipe_kwargs)
-
         is_partial_denoise = start_step > 0 or end_step >= 0
         if is_partial_denoise:
             if start_step < 0:
@@ -301,21 +297,6 @@ class LatentPipelineDriver(ABC):
             pipe_output = pipe(**pipe_kwargs)  # type: ignore[reportCallIssue]
 
         return self.prepare_output_latent(self._extract_latents_from_output(pipe_output), latents_source_shape)
-
-    # ------------------------------------------------------------------
-    # Pipeline call helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _filter_pipe_kwargs(pipe: DiffusionPipeline, kwargs: dict[str, Any]) -> dict[str, Any]:
-        """Remove kwargs that the pipeline's __call__ does not accept."""
-        sig = inspect.signature(pipe.__call__)
-        params = sig.parameters
-        # If the signature has a **kwargs catch-all, pass everything through.
-        if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
-            return kwargs
-        accepted = set(params.keys())
-        return {k: v for k, v in kwargs.items() if k in accepted}
 
     # ------------------------------------------------------------------
     # Inpainting hooks

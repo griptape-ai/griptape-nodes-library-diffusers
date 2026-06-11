@@ -126,12 +126,14 @@ class DiffusionPipelineGenerateLatentParameters:
             return pipeline_value.pipeline_name
         return None
 
+    def _resolve_driver_class(self, pipeline_value: Any) -> type[LatentPipelineDriver] | None:
+        return get_driver_class(self._get_pipeline_class_name(pipeline_value))
+
     def _supports_inpainting(self, pipeline_value: Any) -> bool:
-        pipeline_class_name = self._get_pipeline_class_name(pipeline_value)
-        if pipeline_class_name is None:
+        driver_cls = self._resolve_driver_class(pipeline_value)
+        if driver_cls is None:
             return False
-        driver_cls = get_driver_class(pipeline_class_name)
-        return driver_cls is not None and driver_cls._inpaint_pipeline_class is not None
+        return driver_cls._inpaint_pipeline_class is not None
 
     def _is_control_net_pipeline(self, pipeline_value: Any) -> bool:
         return isinstance(pipeline_value, ControlNetDiffusionPipelineArtifact)
@@ -402,15 +404,22 @@ class DiffusionPipelineGenerateLatentParameters:
         else:
             input_latent_artifact = None
 
+        return self._validate_driver_run_configuration(input_latent_artifact)
+
+    def _validate_driver_run_configuration(
+        self, input_latent_artifact: LatentArtifact | None
+    ) -> list[Exception] | None:
         pipeline_value = self._node.get_parameter_value("pipeline")
-        if isinstance(pipeline_value, DiffusionPipelineArtifact):
-            pipeline_class_name = self._get_pipeline_class_name(pipeline_value)
-            if pipeline_class_name is not None:
-                driver_cls = get_driver_class(pipeline_class_name)
-                if driver_cls is not None:
-                    errors = driver_cls.validate_run_configuration(pipeline_value, input_latent_artifact)
-                    if errors:
-                        return errors
+        if not isinstance(pipeline_value, DiffusionPipelineArtifact):
+            return None
+
+        driver_cls = self._resolve_driver_class(pipeline_value)
+        if driver_cls is None:
+            return None
+
+        errors = driver_cls.validate_run_configuration(pipeline_value, input_latent_artifact)
+        if errors:
+            return errors
 
         return None
 

@@ -231,6 +231,35 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         return latents
 
     @override
+    def denoise_latent(
+        self,
+        latents: torch.Tensor,
+        latents_source_shape: tuple[int, ...],
+        num_inference_steps: int,
+        seed: int = 0,
+        callback: Any = None,
+        start_step: int = 0,
+        end_step: int = -1,
+        return_fully_denoised: bool = False,
+        **kwargs: Any,
+    ) -> torch.Tensor:
+        # FluxControlNetInpaintPipeline does not accept negative_prompt.
+        inpaint_mask_artifact = kwargs.get("inpaint_mask_artifact")
+        if inpaint_mask_artifact is not None and self._is_controlnet_pipe():
+            kwargs.pop("negative_prompt", None)
+        return super().denoise_latent(
+            latents,
+            latents_source_shape,
+            num_inference_steps,
+            seed=seed,
+            callback=callback,
+            start_step=start_step,
+            end_step=end_step,
+            return_fully_denoised=return_fully_denoised,
+            **kwargs,
+        )
+
+    @override
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
         """FluxControlNetInpaintPipeline always VAE-encodes image (no latent passthrough)."""
         if not self._is_controlnet_pipe():
