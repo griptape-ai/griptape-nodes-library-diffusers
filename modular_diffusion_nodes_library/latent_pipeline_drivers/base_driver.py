@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Any, ClassVar, TypeVar
 
 import numpy as np
@@ -10,7 +9,6 @@ from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[repor
     PipelineState,
 )
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -23,6 +21,15 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers._base_driver_forwar
     FORWARDABLE_METHODS,
     validate_forwardable_signature,
 )
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    GENERATOR_STATE_META_KEY,
+    META_DRIVER_KEY,
+    DecodeResult,
+    GeneratorState,
+    ImageMedia,
+    TextEncodings,
+    VideoMedia,
+)
 from modular_diffusion_nodes_library.misc.partial_denoise import (
     PartialDenoisePipelineRunner,
     PartialDenoiseSchedulerProxy,
@@ -31,25 +38,17 @@ from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_var
 
 _T = TypeVar("_T")
 
-TextEncodings = dict[str, Any]
-DecodeResult = Image | list[Image] | np.ndarray
-
-#: Well-known key under which drivers store their namespaced sub-bag on
-#: ``LatentArtifact.meta``. The driver's class name is stored at this key, and
-#: the namespaced sub-bag of driver-specific values lives at ``meta[<class name>]``.
-META_DRIVER_KEY = "LatentPipelineDriver"
-
-
-@dataclass(frozen=True)
-class ImageMedia:
-    image: Image | torch.Tensor
-    source_shape: tuple[int, ...]
-
-
-@dataclass(frozen=True)
-class VideoMedia:
-    frames: list[Image]
-    source_shape: tuple[int, ...]
+# Re-exported from driver_types
+__all__ = [
+    "GENERATOR_STATE_META_KEY",
+    "META_DRIVER_KEY",
+    "DecodeResult",
+    "GeneratorState",
+    "ImageMedia",
+    "LatentPipelineDriver",
+    "TextEncodings",
+    "VideoMedia",
+]
 
 
 class LatentPipelineDriver(ABC):
@@ -150,6 +149,11 @@ class LatentPipelineDriver(ABC):
         return self._pipe
 
     @property
+    def driver_namespace(self) -> str:
+        """Stable per-driver identifier used as the key into ``LatentArtifact.meta``."""
+        return type(self).__name__
+
+    @property
     def modular_pipe(self) -> ModularPipeline:
         if self._modular_pipe is None:
             modular_pipe = self._create_modular_pipe()
@@ -225,7 +229,7 @@ class LatentPipelineDriver(ABC):
         Its non-namespace meta (e.g. user-set provenance) is preserved, and any
         same-driver namespaced meta is merged with ``meta`` (new values win).
         """
-        driver_namespace = type(self).__name__
+        driver_namespace = self.driver_namespace
 
         base: dict[str, Any] = {}
         if upstream is not None:
@@ -254,7 +258,7 @@ class LatentPipelineDriver(ABC):
         return latents_from_pipe
 
     @abstractmethod
-    def create_noise_latent(self, source_shape: tuple[int, ...], seed: int) -> LatentArtifact:
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         """Return pure noise latent. See class docstring for the latent shape contract."""
         ...
 
@@ -271,7 +275,7 @@ class LatentPipelineDriver(ABC):
         ...
 
     @abstractmethod
-    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         """Return encoded latent for an :class:`ImageMedia` or :class:`VideoMedia` input.
 
         Image-only drivers should raise :class:`NotImplementedError` for
@@ -280,19 +284,19 @@ class LatentPipelineDriver(ABC):
         """
         ...
 
-    def encode_masked_image(self, image: ImageMedia, mask: ImageMedia) -> LatentArtifact:
+    def encode_masked_image(self, image: ImageMedia, mask: ImageMedia, generator_state: GeneratorState) -> LatentArtifact:
         """Encode the source image with the masked region zeroed out."""
         image_processor = self.modular_pipe.image_processor
         source_t = image_processor.preprocess(image.image, height=image.image.height, width=image.image.width)
         mask_t = torch.from_numpy(np.array(mask.image, dtype="float32") / 255.0)[None, None]
         masked_t = source_t * (mask_t < 0.5)
-        return self.encode_media(ImageMedia(image=masked_t, source_shape=image.source_shape))
+        return self.encode_media(ImageMedia(image=masked_t, source_shape=image.source_shape), generator_state)
 
     @abstractmethod
     def add_noise_to_latent(
         self,
         latent: LatentArtifact,
-        seed: int,
+        generator_state: GeneratorState,
         num_inference_steps: int,
         strength: float,
     ) -> LatentArtifact:
@@ -316,7 +320,7 @@ class LatentPipelineDriver(ABC):
         self,
         latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
-        seed: int = 0,
+        generator_state: GeneratorState,
         callback: Any = None,
         start_step: int = 0,
         end_step: int = -1,
@@ -340,7 +344,7 @@ class LatentPipelineDriver(ABC):
         if isinstance(latent, InpaintMaskArtifact):
             pipe = self._get_inpaint_pipe()
             if pipe is None:
-                raise NotImplementedError(f"Inpainting is not supported by {type(self).__name__}. ")
+                raise NotImplementedError(f"Inpainting is not supported by {self.driver_namespace}. ")
 
             inpaint_kwargs = self._get_inpaint_kwargs(latent)
             kwargs.update(inpaint_kwargs)
@@ -351,6 +355,7 @@ class LatentPipelineDriver(ABC):
 
         height = kwargs.pop("height", source_shape[-2])
         width = kwargs.pop("width", source_shape[-1])
+        generator = kwargs.pop("generator", generator_state.to_generator())
 
         pipe_kwargs: dict[str, Any] = {
             **kwargs,
@@ -359,7 +364,7 @@ class LatentPipelineDriver(ABC):
             "output_type": "latent",
             "num_inference_steps": num_inference_steps,
             "callback_on_step_end": callback,
-            "generator": kwargs.pop("generator", None) or torch.Generator().manual_seed(seed),
+            "generator": generator,
         }
 
         is_partial_denoise = start_step > 0 or end_step >= 0
@@ -382,7 +387,9 @@ class LatentPipelineDriver(ABC):
             pipe_output = pipe(**pipe_kwargs)  # type: ignore[reportCallIssue]
 
         output_tensor = self.prepare_output_latent(self._extract_latents_from_output(pipe_output), source_shape)
-        return self._make_latent_artifact(output_tensor, source_shape=source_shape, upstream=latent)
+        return self._make_latent_artifact(output_tensor, source_shape=source_shape, upstream=latent,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
 
     # ------------------------------------------------------------------
     # Inpainting hooks

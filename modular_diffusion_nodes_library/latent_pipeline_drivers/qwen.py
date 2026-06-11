@@ -34,6 +34,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DiffusionPipelineArtifact,
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    GeneratorState,
     ImageMedia,
     LatentPipelineDriver,
     VideoMedia,
@@ -125,23 +126,26 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         return image_latents
 
     @override
-    def create_noise_latent(self, source_shape: tuple[int, ...], seed: int) -> LatentArtifact:
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         _, dtype = self._get_device_and_type()
         prepare_latents_pipeline = QwenImagePrepareLatentsStep()
         height, width = source_shape[-2], source_shape[-1]
 
+        generator = generator_state.to_generator()
         output_state = self._call_block(
             prepare_latents_pipeline,
             height=height,
             width=width,
             batch_size=1,
             num_images_per_prompt=1,
-            generator=torch.Generator().manual_seed(seed),
+            generator=generator,
             dtype=dtype,
         )
 
         output_latents = self._get_unpacked_image_latents(output_state, height, width)
-        return self._make_latent_artifact(output_latents, source_shape=source_shape)
+        return self._make_latent_artifact(output_latents, source_shape=source_shape,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
 
     @override
     def decode_latent(self, latent: LatentArtifact) -> Image:
@@ -159,7 +163,7 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
     def add_noise_to_latent(
         self,
         latent: LatentArtifact,
-        seed: int,
+        generator_state: GeneratorState,
         num_inference_steps: int,
         strength: float,
     ) -> LatentArtifact:
@@ -169,13 +173,14 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         latents = latent.to_torch(device=device, dtype=dtype)
         height, width = source_shape[-2], source_shape[-1]
 
+        generator = generator_state.to_generator()
         noisy_state = self._call_block(
             noise_with_strength_pipeline,
             height=height,
             width=width,
             batch_size=latents.shape[0],
             num_images_per_prompt=1,
-            generator=torch.Generator().manual_seed(seed),
+            generator=generator,
             dtype=dtype,
             latents=None,
             image_latents=self.modular_pipe.pachifier.pack_latents(latents),
@@ -184,10 +189,12 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         )
 
         output_latents = self._get_unpacked_image_latents(noisy_state, height, width)
-        return self._make_latent_artifact(output_latents, source_shape=source_shape, upstream=latent)
+        return self._make_latent_artifact(output_latents, source_shape=source_shape, upstream=latent,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
 
     @override
-    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         image = media.image
@@ -198,7 +205,8 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         else:
             height = image.height
             width = image.width
-        output_state = self._call_block(encode_pipeline, image=image, height=height, width=width)
+        generator = generator_state.to_generator()
+        output_state = self._call_block(encode_pipeline, image=image, height=height, width=width, generator=generator)
         latents = self._get_required(output_state, "image_latents", torch.Tensor)
         # [B,z,1,H',W'] → [B,z,H',W'] - remove temporal dimension (the same VAE is shared between video and image pipelines)
         return self._make_latent_artifact(latents.squeeze(2), source_shape=source_shape)

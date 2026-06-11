@@ -21,7 +21,11 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
 )
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import DecodeResult, LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    DecodeResult,
+    GeneratorState,
+    LatentPipelineDriver,
+)
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
 from modular_diffusion_nodes_library.utils.directory_utils import (
     check_cleanup_intermediates_directory,
@@ -198,11 +202,10 @@ class DiffusionPipelineGenerateLatentParameters:
             "advanced_media_library.enable_image_preview_intermediates", default=False
         )
 
-        strength_affected_steps = math.ceil(num_inference_steps * self.get_strength())
+        strength_affected_steps = math.ceil(num_inference_steps * (self.get_strength() or 1))
 
         first_iteration_time = None
         latent_pipeline_driver = create_driver(pipe, pipeline_class)
-        pipe_kwargs = self.update_kwargs(pipe_kwargs)
 
         input_latent_artifact = self._node.get_parameter_value("input_latent")
         if input_latent_artifact is None:
@@ -247,6 +250,7 @@ class DiffusionPipelineGenerateLatentParameters:
             # Noise-only shortcut — skip denoising entirely
             output_latent_artifact = input_latent_for_denoise
         else:
+            pipe_kwargs = self.update_kwargs(pipe_kwargs)
             output_latent_artifact = latent_pipeline_driver.denoise_latent(
                 input_latent_for_denoise,
                 num_inference_steps,
@@ -254,7 +258,7 @@ class DiffusionPipelineGenerateLatentParameters:
                 start_step=self.start_step,
                 end_step=self.end_step,
                 return_fully_denoised=self.return_fully_denoised,
-                seed=self.get_seed(),
+                generator_state=self._resolve_generator_state(input_latent_for_denoise),
                 **pipe_kwargs,
             )
         self.publish_output_latent(output_latent_artifact)
@@ -272,7 +276,7 @@ class DiffusionPipelineGenerateLatentParameters:
             return input_latent_artifact
         return latent_pipeline_driver.add_noise_to_latent(
             input_latent_artifact,
-            self.get_seed(),
+            self._resolve_generator_state(input_latent_artifact),
             self.get_num_inference_steps(),
             self.get_strength(),
         )
@@ -315,6 +319,10 @@ class DiffusionPipelineGenerateLatentParameters:
 
     def get_seed(self) -> int:
         return int(self._node.get_parameter_value("seed"))
+
+    def _resolve_generator_state(self, upstream: LatentArtifact | InpaintMaskArtifact) -> GeneratorState:
+        """Return GeneratorState from upstream meta, or build one from the UI seed."""
+        return GeneratorState.from_artifact(upstream) or GeneratorState.from_seed(self.get_seed())
 
     @property
     def start_step(self) -> int:

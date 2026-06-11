@@ -3,7 +3,6 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-import torch  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.seed_parameter import SeedParameter
@@ -67,7 +66,6 @@ class DiffusionPipelineRuntimeParameters(ABC):
         return {
             **self._get_pipe_kwargs(),
             "num_inference_steps": self.get_num_inference_steps(),
-            "generator": torch.Generator().manual_seed(self._seed_parameter.get_seed()),
         }
 
     def validate_before_node_run(self) -> list[Exception] | None:

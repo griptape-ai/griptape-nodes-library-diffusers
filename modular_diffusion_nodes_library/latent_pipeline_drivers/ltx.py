@@ -31,6 +31,7 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
     DecodeResult,
+    GeneratorState,
     ImageMedia,
     LatentPipelineDriver,
     VideoMedia,
@@ -212,13 +213,14 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
     # ------------------------------------------------------------------
 
     @override
-    def create_noise_latent(self, source_shape: tuple[int, ...], seed: int) -> LatentArtifact:
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         """Create a raw noise latent via modular pipeline block.
 
         Returns unpacked 5D latent ``[B, C, T, H, W]``.
         The block produces packed latents; we unpack before returning.
         """
         num_frames, height, width = source_shape[-3], source_shape[-2], source_shape[-1]
+        generator = generator_state.to_generator()
         output_state = self._call_block(
             LTXPrepareLatentsStep(),
             height=height,
@@ -226,17 +228,19 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
             num_frames=num_frames,
             batch_size=1,
             num_videos_per_prompt=1,
-            generator=torch.Generator().manual_seed(seed),
+            generator=generator,
         )
         packed_latents = output_state.get("latents")
         latents = self._unpack_latents(packed_latents, height, width, num_frames)
-        return self._make_latent_artifact(latents, source_shape=source_shape)
+        return self._make_latent_artifact(latents, source_shape=source_shape,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
 
     @override
     def add_noise_to_latent(
         self,
         latent: LatentArtifact,
-        seed: int,
+        generator_state: GeneratorState,
         num_inference_steps: int,
         strength: float,
     ) -> LatentArtifact:
@@ -251,7 +255,8 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         latents = latent.to_torch(device=device, dtype=dtype)
         num_frames, height, width = source_shape[-3], source_shape[-2], source_shape[-1]
 
-        noise = self.create_noise_latent(source_shape, seed).to_torch(device=device, dtype=dtype)
+        noise_artifact = self.create_noise_latent(source_shape, generator_state)
+        noise = noise_artifact.to_torch(device=device, dtype=dtype)
         output_state = self._call_block(
             LTXAddNoiseStep(),
             latents=noise,
@@ -263,7 +268,9 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
             num_frames=num_frames,
             frame_rate=self.video_fps,
         )
-        return self._make_latent_artifact(output_state.get("latents"), source_shape=source_shape, upstream=latent)
+        return self._make_latent_artifact(output_state.get("latents"), source_shape=source_shape,
+            upstream=latent, meta=GeneratorState.from_artifact(noise_artifact).as_meta(),
+        )
 
     # ------------------------------------------------------------------
     # VAE encode / decode (modular blocks)
@@ -297,10 +304,11 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         return videos[0]
 
     @override
-    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         """Encode an image or video into a 5D latent ``[B, C, T, H, W]``."""
+        generator = generator_state.to_generator()
         if isinstance(media, ImageMedia):
-            output_state = self._call_block(LTXAutoVaeEncoderStep(), image=media.image)
+            output_state = self._call_block(LTXAutoVaeEncoderStep(), image=media.image, generator=generator)
             return self._make_latent_artifact(output_state.get("image_latents"), source_shape=media.source_shape)
 
         device, dtype = self._get_device_and_type()
@@ -311,7 +319,7 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         video_tensor = video_tensor.to(device=device, dtype=dtype)
 
         with torch.no_grad():
-            latents = vae.encode(video_tensor).latent_dist.sample()  # [1, C, T_latent, H_latent, W_latent]
+            latents = vae.encode(video_tensor).latent_dist.sample(generator=generator)  # [1, C, T_latent, H_latent, W_latent]
 
         latents = latents.to(dtype=dtype)
         latents_mean = vae.latents_mean.view(1, -1, 1, 1, 1).to(device=device, dtype=dtype)
@@ -328,7 +336,7 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         self,
         latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
-        seed: int = 0,
+        generator_state: GeneratorState,
         callback: Any = None,
         start_step: int = 0,
         end_step: int = -1,
@@ -366,7 +374,7 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
             denoised_artifact = super().denoise_latent(
                 latent,
                 num_inference_steps=num_inference_steps,
-                seed=seed,
+                generator_state=generator_state,
                 callback=callback,
                 start_step=start_step,
                 end_step=end_step,

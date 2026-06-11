@@ -8,6 +8,7 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import GeneratorState
 from modular_diffusion_nodes_library.latent_pipeline_drivers.flux2_base import Flux2BaseLatentPipelineDriver
 from modular_diffusion_nodes_library.utils.conditioning_utils import resolve_conditioning_image
 
@@ -69,7 +70,7 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
         self,
         latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
-        seed: int = 0,
+        generator_state: GeneratorState,
         callback: Any = None,
         start_step: int = 0,
         end_step: int = -1,
@@ -85,7 +86,7 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
         return super().denoise_latent(
             latent,
             num_inference_steps,
-            seed,
+            generator_state,
             callback,
             start_step,
             end_step,

@@ -18,6 +18,7 @@ from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    GeneratorState,
     ImageMedia,
     LatentPipelineDriver,
     VideoMedia,
@@ -40,11 +41,11 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         return Flux2AutoBlocks().init_pipeline()
 
     @override
-    def create_noise_latent(self, source_shape: tuple[int, ...], seed: int) -> LatentArtifact:
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         device, dtype = self._get_device_and_type()
         height, width = source_shape[-2], source_shape[-1]
 
-        generator = torch.Generator().manual_seed(seed)
+        generator = generator_state.to_generator()
         prepare_latents = Flux2PrepareLatentsStep()
         output_state = self._call_block(
             prepare_latents,
@@ -62,7 +63,9 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         latents_state = self._call_block(unpack_latents, latents=packed_latents, latent_ids=latent_ids)
         latents = latents_state.get("latents")
         latents = latents.to(device)
-        return self._make_latent_artifact(latents, source_shape=source_shape)
+        return self._make_latent_artifact(latents, source_shape=source_shape,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
 
     @override
     def decode_latent(self, latent: LatentArtifact) -> Image:
@@ -94,7 +97,7 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         return unpack_state.get("latents")
 
     @override
-    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         image = media.image
@@ -102,8 +105,9 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
             # Flux2 modular VAE encoder only accepts PIL images
             img_np = image.squeeze(0).permute(1, 2, 0).clamp(0, 1).mul(255).byte().cpu().numpy()
             image = PIL.Image.fromarray(img_np)
+        generator = generator_state.to_generator()
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
-        output_state = self._call_block(encode_block, image=image, height=image.height, width=image.width)
+        output_state = self._call_block(encode_block, image=image, height=image.height, width=image.width, generator=generator)
         return self._make_latent_artifact(output_state.get("image_latents")[0], source_shape=media.source_shape)
 
     @override
@@ -126,7 +130,7 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
     def add_noise_to_latent(
         self,
         latent: LatentArtifact,
-        seed: int,
+        generator_state: GeneratorState,
         num_inference_steps: int,
         strength: float,
     ) -> LatentArtifact:
@@ -148,7 +152,8 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         if timesteps is None or len(timesteps) == 0:
             raise ValueError("Scheduler timesteps are not set. Cannot add noise to latent.")
 
-        noise = self.create_noise_latent(source_shape, seed).to_torch(device=device, dtype=dtype)
+        noise_artifact = self.create_noise_latent(source_shape, generator_state)
+        noise = noise_artifact.to_torch(device=device, dtype=dtype)
 
         # Compute the timestep at which to add noise based on strength
         init_timestep = min(num_inference_steps * strength, num_inference_steps)
@@ -156,4 +161,6 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         latent_timestep = timesteps[t_start * self.pipe.scheduler.order :][:1]
 
         noisy_latent = self.pipe.scheduler.scale_noise(latents, latent_timestep, noise)
-        return self._make_latent_artifact(noisy_latent, source_shape=source_shape, upstream=latent)
+        return self._make_latent_artifact(noisy_latent, source_shape=source_shape, upstream=latent,
+            meta=GeneratorState.from_artifact(noise_artifact).as_meta(),
+        )

@@ -31,6 +31,7 @@ from PIL.Image import Image
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    GeneratorState,
     ImageMedia,
     LatentPipelineDriver,
     VideoMedia,
@@ -149,11 +150,11 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         return _unpack_latents(latents, height, width, self.pipe.vae_scale_factor)
 
     @override
-    def create_noise_latent(self, source_shape: tuple[int, ...], seed: int) -> LatentArtifact:
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         """Return pure noise latent with shape [B, C, H, W]."""
         height, width = source_shape[-2], source_shape[-1]
         device, dtype = self._get_device_and_type()
-        generator = torch.Generator().manual_seed(seed)
+        generator = generator_state.to_generator()
         prepare_latents = FluxPrepareLatentsStep()
         output_state = self._call_block(
             prepare_latents,
@@ -167,13 +168,15 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         latents = output_state.get("latents")
         latents = latents.to(device)
         latents = self.unpack_latents(latents, height, width)
-        return self._make_latent_artifact(latents, source_shape=source_shape)
+        return self._make_latent_artifact(latents, source_shape=source_shape,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
 
     @override
     def add_noise_to_latent(
         self,
         latent: LatentArtifact,
-        seed: int,
+        generator_state: GeneratorState,
         num_inference_steps: int,
         strength: float,
     ) -> LatentArtifact:
@@ -194,6 +197,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
             }
         )
 
+        generator = generator_state.to_generator()
         output_state = self._call_block(
             noise_with_strength_pipeline,
             num_inference_steps=num_inference_steps,
@@ -202,14 +206,16 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
             width=width,
             batch_size=1,
             num_images_per_prompt=1,
-            generator=torch.Generator().manual_seed(seed),
+            generator=generator,
             dtype=dtype,
             image_latents=packed_image_latents,
         )
 
         noisy_latents = output_state.get("latents")
         unpacked = self.unpack_latents(noisy_latents, height, width)
-        return self._make_latent_artifact(unpacked, source_shape=source_shape, upstream=latent)
+        return self._make_latent_artifact(unpacked, source_shape=source_shape, upstream=latent,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
 
     @override
     def decode_latent(self, latent: LatentArtifact) -> Image:
@@ -225,7 +231,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         return output_state.get("images")[0]
 
     @override
-    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         image = media.image
@@ -235,8 +241,9 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         else:
             height = image.height
             width = image.width
+        generator = generator_state.to_generator()
         encode_pipeline = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
-        output_state = self._call_block(encode_pipeline, image=image, height=height, width=width)
+        output_state = self._call_block(encode_pipeline, image=image, height=height, width=width, generator=generator)
         latents = output_state.get("image_latents")
         return self._make_latent_artifact(latents, source_shape=media.source_shape)
 

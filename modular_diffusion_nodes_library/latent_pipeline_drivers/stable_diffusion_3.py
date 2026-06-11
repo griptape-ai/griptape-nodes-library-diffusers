@@ -26,7 +26,10 @@ from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    GeneratorState,
+    LatentPipelineDriver,
+)
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -110,10 +113,11 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
     def create_noise_latent(
         self,
         source_shape: tuple[int, ...],
-        seed: int,
+        generator_state: GeneratorState,
         *,
         num_inference_steps: int = 20,
     ) -> LatentArtifact:
+        generator = generator_state.to_generator()
         output_state = self._call_block(
             _SD3PrepareNoiseLatentStep(),
             height=source_shape[-2],
@@ -121,16 +125,18 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
             batch_size=1,
             num_images_per_prompt=1,
             num_inference_steps=num_inference_steps,
-            generator=torch.Generator().manual_seed(seed),
+            generator=generator,
         )
         latents = output_state.get("latents")
-        return self._make_latent_artifact(latents, source_shape=source_shape)
+        return self._make_latent_artifact(
+            latents, source_shape=source_shape, meta=GeneratorState.from_generator(generator).as_meta()
+        )
 
     @override
     def add_noise_to_latent(
         self,
         latent: LatentArtifact,
-        seed: int,
+        generator_state: GeneratorState,
         num_inference_steps: int,
         strength: float,
     ) -> LatentArtifact:
@@ -141,10 +147,11 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         """
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
+        generator = generator_state.to_generator()
 
         # Generate noise via the modular path
         noise_latent_artifact = self.create_noise_latent(
-            latent.source_shape, seed, num_inference_steps=num_inference_steps
+            latent.source_shape, generator_state, num_inference_steps=num_inference_steps
         )
         noise_latent = noise_latent_artifact.to_torch(device=device, dtype=dtype)
 
@@ -158,7 +165,8 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
             width=latent.source_shape[-1],
         )
         return self._make_latent_artifact(
-            output_state.get("latents"), source_shape=latent.source_shape, upstream=latent
+            output_state.get("latents"), source_shape=latent.source_shape, upstream=latent,
+            meta=GeneratorState.from_artifact(noise_latent_artifact).as_meta(),
         )
 
     @override
@@ -166,7 +174,7 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         self,
         latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
-        seed: int = 0,
+        generator_state: GeneratorState,
         callback: Any = None,
         start_step: int = 0,
         end_step: int = -1,
@@ -188,7 +196,7 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         return super().denoise_latent(
             latent,
             num_inference_steps,
-            seed=seed,
+            generator_state=generator_state,
             callback=callback,
             start_step=start_step,
             end_step=end_step,

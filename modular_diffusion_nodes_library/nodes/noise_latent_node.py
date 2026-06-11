@@ -9,6 +9,7 @@ from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
     LatentArtifact,  # type: ignore[reportMissingImports]
 )
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import GeneratorState
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
 from modular_diffusion_nodes_library.latent_pipeline_drivers.stable_diffusion_xl import (
     StableDiffusionXLLatentPipelineDriver,
@@ -176,6 +177,7 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         height = self.get_parameter_value("height")
         width = self.get_parameter_value("width")
         seed = self.get_parameter_value("seed") or 0
+        generator_state = GeneratorState.from_seed(seed)
         if latent_pipeline_driver.produces_video:
             num_frames = self.get_parameter_value("num_frames") or 1
             latents_source_shape = (1, 3, num_frames, height, width)
@@ -188,6 +190,6 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
                 self.get_parameter_value("num_inference_steps") or DEFAULT_NUM_INFERENCE_STEPS
             )
             return latent_pipeline_driver.create_noise_latent(
-                latents_source_shape, seed, num_inference_steps=num_inference_steps
+                latents_source_shape, generator_state, num_inference_steps=num_inference_steps
             )
-        return latent_pipeline_driver.create_noise_latent(latents_source_shape, seed)
+        return latent_pipeline_driver.create_noise_latent(latents_source_shape, generator_state)

@@ -27,6 +27,7 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
     DecodeResult,
+    GeneratorState,
     ImageMedia,
     LatentPipelineDriver,
     VideoMedia,
@@ -107,9 +108,9 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
         return WanBlocks().init_pipeline()
 
     @override
-    def create_noise_latent(self, source_shape: tuple[int, ...], seed: int) -> LatentArtifact:
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         _, dtype = self._get_device_and_type()
-        generator = torch.Generator().manual_seed(seed)
+        generator = generator_state.to_generator()
         prepare_latents = WanPrepareLatentsStep()
         num_frames, height, width = source_shape[-3], source_shape[-2], source_shape[-1]
         output_state = self._call_block(
@@ -123,7 +124,9 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
             dtype=dtype,
         )
         latents = output_state.get("latents")
-        return self._make_latent_artifact(latents, source_shape=source_shape)
+        return self._make_latent_artifact(latents, source_shape=source_shape,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
 
     @override
     def _extract_latents_from_output(self, pipe_output: Any) -> torch.Tensor:
@@ -145,24 +148,25 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
         return video_frames
 
     @override
-    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         """Encode WAN video frames as a normalised video latent (5-D ``[B, C, T, H/vsf, W/vsf]``).
         """
         if isinstance(media, ImageMedia):
             raise NotImplementedError(
                 f"Pipeline '{self.pipe.__class__.__name__}' does not support image encoding. Use a video input instead."
             )
+        generator = generator_state.to_generator()
         vae_encoder = _WanEncodeVideoStep()
-        output = self._call_block(vae_encoder, frames=media.frames, generator=None)
+        output = self._call_block(vae_encoder, frames=media.frames, generator=generator)
         return self._make_latent_artifact(
-            self._get_required(output, "video_latents", torch.Tensor), source_shape=media.source_shape
+            self._get_required(output, "video_latents", torch.Tensor), source_shape=media.source_shape,
         )
 
     @override
     def add_noise_to_latent(
         self,
         latent: LatentArtifact,
-        seed: int,
+        generator_state: GeneratorState,
         num_inference_steps: int,
         strength: float,
     ) -> LatentArtifact:
@@ -178,7 +182,8 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
             raise ValueError("WANSetTimestepsStep did not return valid timesteps.")
 
         # Generate noise matching the latent shape directly
-        noise = self.create_noise_latent(source_shape, seed).to_torch(device=device, dtype=dtype)
+        noise_artifact = self.create_noise_latent(source_shape, generator_state)
+        noise = noise_artifact.to_torch(device=device, dtype=dtype)
 
         # Compute timestep based on strength
         init_timestep = min(num_inference_steps * strength, num_inference_steps)
@@ -188,14 +193,16 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
         # Scale noise at the target timestep
         with torch.no_grad():
             result = self.pipe.scheduler.add_noise(latents, noise, latent_timestep)
-        return self._make_latent_artifact(result, source_shape=source_shape, upstream=latent)
+        return self._make_latent_artifact(result, source_shape=source_shape, upstream=latent,
+            meta=GeneratorState.from_artifact(noise_artifact).as_meta(),
+        )
 
     @override
     def denoise_latent(
         self,
         latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
-        seed: int = 0,
+        generator_state: GeneratorState,
         callback: Any = None,
         start_step: int = 0,
         end_step: int = -1,
@@ -212,7 +219,7 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
         return super().denoise_latent(
             latent,
             num_inference_steps,
-            seed=seed,
+            generator_state=generator_state,
             callback=callback,
             start_step=start_step,
             end_step=end_step,

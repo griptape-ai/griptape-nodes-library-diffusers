@@ -28,6 +28,7 @@ from PIL.Image import Image
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    GeneratorState,
     ImageMedia,
     LatentPipelineDriver,
     VideoMedia,
@@ -141,25 +142,28 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
     # ------------------------------------------------------------------
 
     @override
-    def create_noise_latent(self, source_shape: tuple[int, ...], seed: int) -> LatentArtifact:
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         """Create a raw noise latent via modular pipeline block."""
         prepare_latents = ZImagePrepareLatentsStep()
+        generator = generator_state.to_generator()
         output_state = self._call_block(
             prepare_latents,
             height=source_shape[-2],
             width=source_shape[-1],
             batch_size=1,
             num_images_per_prompt=1,
-            generator=torch.Generator().manual_seed(seed),
+            generator=generator,
         )
         latents = output_state.get("latents")
-        return self._make_latent_artifact(latents, source_shape=source_shape)
+        return self._make_latent_artifact(latents, source_shape=source_shape,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
 
     @override
     def add_noise_to_latent(
         self,
         latent: LatentArtifact,
-        seed: int,
+        generator_state: GeneratorState,
         num_inference_steps: int,
         strength: float,
     ) -> LatentArtifact:
@@ -167,7 +171,8 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
         device, dtype = self._get_device_and_type()
         source_shape = latent.source_shape
         latents = latent.to_torch(device=device, dtype=dtype)
-        noise = self.create_noise_latent(source_shape, seed).to_torch(device=device, dtype=dtype)
+        noise_artifact = self.create_noise_latent(source_shape, generator_state)
+        noise = noise_artifact.to_torch(device=device, dtype=dtype)
         output_state = self._call_block(
             _ZImageAddNoiseStep(),
             latents=noise,
@@ -176,7 +181,9 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
             strength=strength,
         )
         result = output_state.get("latents")
-        return self._make_latent_artifact(result, source_shape=source_shape, upstream=latent)
+        return self._make_latent_artifact(result, source_shape=source_shape, upstream=latent,
+            meta=GeneratorState.from_artifact(noise_artifact).as_meta(),
+        )
 
     @override
     def decode_latent(self, latent: LatentArtifact) -> Image:
@@ -188,11 +195,12 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
         return images[0]
 
     @override
-    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
+        generator = generator_state.to_generator()
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
-        output_state = self._call_block(encode_block, image=media.image)
+        output_state = self._call_block(encode_block, image=media.image, generator=generator)
         result = output_state.get("image_latents")
         return self._make_latent_artifact(result, source_shape=media.source_shape)
 
@@ -201,7 +209,7 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
         """Z-Image inpaint always VAE-encodes image internally."""
         source_pil = artifact.source_image_pil()
         if source_pil is None:
-            raise ValueError(f"{type(self).__name__} inpainting requires source_image in the InpaintMaskArtifact.")
+            raise ValueError(f"{self.driver_namespace} inpainting requires source_image in the InpaintMaskArtifact.")
 
         kwargs: dict[str, Any] = {
             "image": source_pil,

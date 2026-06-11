@@ -10,7 +10,12 @@ from PIL import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import ImageMedia, TextEncodings, VideoMedia
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+    GeneratorState,
+    ImageMedia,
+    TextEncodings,
+    VideoMedia,
+)
 from modular_diffusion_nodes_library.latent_pipeline_drivers.qwen import QwenLatentPipelineDriver
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -71,8 +76,8 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
         return super().prepare_output_latent(latents_from_pipe, self._snap_source_shape(latents_source_shape))
 
     @override
-    def create_noise_latent(self, source_shape: tuple[int, ...], seed: int) -> LatentArtifact:
-        snapped_output = super().create_noise_latent(self._snap_source_shape(source_shape), seed)
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
+        snapped_output = super().create_noise_latent(self._snap_source_shape(source_shape), generator_state)
         return self._with_original_source_shape(snapped_output, source_shape)
 
     @override
@@ -87,7 +92,7 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
         return decoded
 
     @override
-    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         image = media.image
@@ -98,7 +103,8 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
         height, width = self._calculate_edit_latent_dims(img_h, img_w)
         encode_pipeline = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
 
-        output_state = self._call_block(encode_pipeline, image=image, height=height, width=width)
+        generator = generator_state.to_generator()
+        output_state = self._call_block(encode_pipeline, image=image, height=height, width=width, generator=generator)
 
         latents = output_state.get("image_latents")
         if isinstance(latents, list):
@@ -112,12 +118,12 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
     def add_noise_to_latent(
         self,
         latent: LatentArtifact,
-        seed: int,
+        generator_state: GeneratorState,
         num_inference_steps: int,
         strength: float,
     ) -> LatentArtifact:
         snapped_output = super().add_noise_to_latent(
-            self._with_snapped_source_shape(latent), seed, num_inference_steps, strength
+            self._with_snapped_source_shape(latent), generator_state, num_inference_steps, strength
         )
         return self._with_original_source_shape(snapped_output, latent.source_shape)
 
@@ -137,7 +143,7 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
         self,
         latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
-        seed: int = 0,
+        generator_state: GeneratorState,
         callback: Any = None,
         start_step: int = 0,
         end_step: int = -1,
@@ -150,7 +156,7 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
         snapped_output = super().denoise_latent(
             latent,
             num_inference_steps,
-            seed=seed,
+            generator_state=generator_state,
             callback=callback,
             start_step=start_step,
             end_step=end_step,

@@ -6,6 +6,7 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import GeneratorState
 from modular_diffusion_nodes_library.latent_pipeline_drivers.flux2_base import Flux2BaseLatentPipelineDriver
 
 logger = logging.getLogger("modular_diffusers_nodes_library")

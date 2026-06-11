@@ -15,6 +15,7 @@ from PIL.Image import Image, Resampling
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
     DecodeResult,
+    GeneratorState,
     ImageMedia,
     VideoMedia,
 )
@@ -35,10 +36,10 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         return WanImage2VideoAutoBlocks().init_pipeline()
 
     @override
-    def create_noise_latent(self, source_shape: tuple[int, ...], seed: int) -> LatentArtifact:
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         width, height = self.get_resize_dimensions(source_shape[-1], source_shape[-2])
         resized_source_shape = (*source_shape[:-2], height, width)
-        resized_output = super().create_noise_latent(resized_source_shape, seed)
+        resized_output = super().create_noise_latent(resized_source_shape, generator_state)
         return self._make_latent_artifact(
             resized_output.to_torch(), source_shape=source_shape, upstream=resized_output,
         )
@@ -53,21 +54,21 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         return output_frames
 
     @override
-    def encode_media(self, media: ImageMedia | VideoMedia) -> LatentArtifact:
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         if isinstance(media, ImageMedia):
-            return super().encode_media(media)
+            return super().encode_media(media, generator_state)
         preprocessed = VideoMedia(
             frames=[self.preprocess_image(frame) for frame in media.frames],
             source_shape=media.source_shape,
         )
-        return super().encode_media(preprocessed)
+        return super().encode_media(preprocessed, generator_state)
 
     @override
     def denoise_latent(
         self,
         latent: LatentArtifact,
         num_inference_steps: int,
-        seed: int = 0,
+        generator_state: GeneratorState,
         callback: Any = None,
         start_step: int = 0,
         end_step: int = -1,
@@ -119,7 +120,7 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         denoised = super().denoise_latent(
             latent,
             num_inference_steps,
-            seed=seed,
+            generator_state=generator_state,
             callback=callback,
             start_step=start_step,
             end_step=end_step,
