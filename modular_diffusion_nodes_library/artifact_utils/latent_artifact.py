@@ -54,7 +54,7 @@ class LatentArtifact(BaseArtifact):
         """Read-only view of the artifact's metadata.
         Carries arbitrary provenance from upstream producers.
         """
-        return dict(self.meta)
+        return dict(self.meta or {})
 
     @classmethod
     def from_torch(

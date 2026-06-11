@@ -10,7 +10,7 @@ from PIL import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     GeneratorState,
     ImageMedia,
     TextEncodings,
@@ -59,8 +59,7 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
     def _with_original_source_shape(
         self, snapped_output: LatentArtifact, original_source_shape: tuple[int, ...]
     ) -> LatentArtifact:
-        """Return a copy of ``snapped_output`` whose ``source_shape`` is restored to the caller's original shape.
-        """
+        """Return a copy of ``snapped_output`` whose ``source_shape`` is restored to the caller's original shape."""
         if snapped_output.source_shape == original_source_shape:
             return snapped_output
         return self._make_latent_artifact(

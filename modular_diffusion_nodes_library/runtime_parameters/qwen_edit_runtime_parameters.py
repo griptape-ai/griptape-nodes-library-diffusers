@@ -71,6 +71,12 @@ class QwenEditPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         self._node.remove_parameter_element_by_name("guidance_scale")
         self._node.remove_parameter_element_by_name("image")
 
+    def validate_before_node_run(self) -> list[Exception] | None:
+        image = self._node.get_parameter_value("image")
+        if image is None:
+            return [ValueError("Image must be connected to use Qwen Edit")]
+        return None
+
     def get_image_pil(self) -> Image:
         input_image_artifact = self._node.get_parameter_value("image")
         if isinstance(input_image_artifact, ImageUrlArtifact):

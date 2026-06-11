@@ -28,12 +28,12 @@ from diffusers.pipelines.flux.pipeline_flux import FluxPipeline  # type: ignore[
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from PIL.Image import Image
 
-from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     GeneratorState,
     ImageMedia,
-    LatentPipelineDriver,
     VideoMedia,
 )
 
@@ -168,7 +168,9 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         latents = output_state.get("latents")
         latents = latents.to(device)
         latents = self.unpack_latents(latents, height, width)
-        return self._make_latent_artifact(latents, source_shape=source_shape,
+        return self._make_latent_artifact(
+            latents,
+            source_shape=source_shape,
             meta=GeneratorState.from_generator(generator).as_meta(),
         )
 
@@ -213,7 +215,10 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
 
         noisy_latents = output_state.get("latents")
         unpacked = self.unpack_latents(noisy_latents, height, width)
-        return self._make_latent_artifact(unpacked, source_shape=source_shape, upstream=latent,
+        return self._make_latent_artifact(
+            unpacked,
+            source_shape=source_shape,
+            upstream=latent,
             meta=GeneratorState.from_generator(generator).as_meta(),
         )
 
@@ -252,7 +257,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         self,
         latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
-        seed: int = 0,
+        generator_state: GeneratorState,
         callback: Any = None,
         start_step: int = 0,
         end_step: int = -1,
@@ -267,7 +272,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         return super().denoise_latent(
             latent,
             num_inference_steps,
-            seed=seed,
+            generator_state=generator_state,
             callback=callback,
             start_step=start_step,
             end_step=end_step,

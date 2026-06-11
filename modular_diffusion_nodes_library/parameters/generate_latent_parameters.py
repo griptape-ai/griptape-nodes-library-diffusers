@@ -21,12 +21,12 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
 )
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     DecodeResult,
     GeneratorState,
-    LatentPipelineDriver,
 )
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
 from modular_diffusion_nodes_library.utils.directory_utils import (
     check_cleanup_intermediates_directory,
     get_intermediates_directory_path,
@@ -196,6 +196,7 @@ class DiffusionPipelineGenerateLatentParameters:
         return end_parameters
 
     def process_pipeline(self, pipe: DiffusionPipeline, pipeline_class: str | None, pipe_kwargs: dict) -> None:
+        self._node.clear_cancellation()
         num_inference_steps = self.get_num_inference_steps()
         # Default to False for better performance - preview intermediates slow down inference
         enable_preview = GriptapeNodes.ConfigManager().get_config_value(

@@ -5,6 +5,7 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import GeneratorState
 from modular_diffusion_nodes_library.latent_pipeline_drivers.flux import FluxLatentPipelineDriver
 
 
@@ -26,8 +27,14 @@ class FluxFillLatentPipelineDriver(FluxLatentPipelineDriver):
     @override
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
         """FluxFillPipeline expects a PIL image — it handles its own VAE encoding."""
+        source_pil = artifact.source_image_pil()
+        if source_pil is None:
+            raise ValueError(
+                "Attempted to run FluxFill inpainting failed because no source image was provided. " \
+                "Connect an 'Encode Masked Media' node with a latent input."
+            )
         return {
-            "image": artifact.source_image_pil(),
+            "image": source_pil,
             "mask_image": artifact.mask_image,
         }
 
@@ -35,6 +42,12 @@ class FluxFillLatentPipelineDriver(FluxLatentPipelineDriver):
     def denoise_latent(
         self,
         latent: LatentArtifact | InpaintMaskArtifact,
+        num_inference_steps: int,
+        generator_state: GeneratorState,
+        callback: Any = None,
+        start_step: int = 0,
+        end_step: int = -1,
+        return_fully_denoised: bool = False,
         **kwargs: Any,
     ) -> LatentArtifact:
         if not isinstance(latent, InpaintMaskArtifact):
@@ -50,4 +63,13 @@ class FluxFillLatentPipelineDriver(FluxLatentPipelineDriver):
             w, h = source_pil.size
             kwargs.setdefault("height", h)
             kwargs.setdefault("width", w)
-        return super().denoise_latent(latent, **kwargs)
+        return super().denoise_latent(
+            latent,
+            num_inference_steps,
+            generator_state=generator_state,
+            callback=callback,
+            start_step=start_step,
+            end_step=end_step,
+            return_fully_denoised=return_fully_denoised,
+            **kwargs,
+        )

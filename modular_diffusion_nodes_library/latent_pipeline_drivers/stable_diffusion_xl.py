@@ -1,7 +1,6 @@
 import logging
 from typing import Any, ClassVar, override
 
-import torch  # type: ignore[reportMissingImports]
 from diffusers import (  # type: ignore[reportMissingImports]
     ControlNetModel,
     StableDiffusionXLControlNetImg2ImgPipeline,
@@ -26,12 +25,10 @@ from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
-    META_DRIVER_KEY,
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     GeneratorState,
     ImageMedia,
-    LatentPipelineDriver,
     VideoMedia,
     read_driver_meta,
 )
@@ -46,8 +43,6 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 #: Values: ``"noise"``, ``"image_latents"``, ``"noised_image_latents"``.
 #: Missing is treated as empty noise.
 _KIND_META_KEY = "kind"
-
-_DEFAULT_NUM_INFERENCE_STEPS = 20
 
 
 # ------------------------------------------------------------------
@@ -139,12 +134,11 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
             width=source_shape[-1],
             batch_size=1,
             num_images_per_prompt=1,
-            num_inference_steps=_DEFAULT_NUM_INFERENCE_STEPS,
+            num_inference_steps=self._DEFAULT_NUM_INFERENCE_STEPS,
             generator=generator,
         )
         latents = output_state.get("latents")
-        if self.pipe.scheduler.init_noise_sigma > 0:
-            latents = latents / self.pipe.scheduler.init_noise_sigma
+        latents = latents / self.pipe.scheduler.init_noise_sigma
 
         meta = {_KIND_META_KEY: "noise", **GeneratorState.from_generator(generator).as_meta()}
         return self._make_latent_artifact(latents, source_shape=source_shape, meta=meta)
@@ -168,12 +162,18 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
            shape; the output is consistent but not statistically meaningful.
         4. Input is image latents (``kind in {"image_latents",
            "noised_image_latents"}`` or any other tag) — run the block, tag
-           ``"noised_image_latents"``. 
+           ``"noised_image_latents"``.
         """
         if strength <= 0.0:
             return latent
         if strength >= 1.0:
-            return self.create_noise_latent(latent.source_shape, generator_state)
+            noise_artifact = self.create_noise_latent(latent.source_shape, generator_state)
+            return self._make_latent_artifact(
+                noise_artifact.to_torch(),
+                source_shape=latent.source_shape,
+                upstream=latent,
+                meta=noise_artifact.meta,
+            )
 
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
@@ -191,15 +191,23 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
         noised = output_state.get("latents")
         generator_meta = GeneratorState.from_generator(generator).as_meta()
 
-        kind = read_driver_meta(latent, _KIND_META_KEY, "")
+        kind = read_driver_meta(latent, _KIND_META_KEY, self.driver_namespace, "")
         if kind in ("", "noise"):
-            if self.pipe.scheduler.init_noise_sigma > 0:
-                noised = noised / self.pipe.scheduler.init_noise_sigma
-            meta = { _KIND_META_KEY: "noise", **generator_meta, }
+            noised = noised / self.pipe.scheduler.init_noise_sigma
+            meta = {
+                _KIND_META_KEY: "noise",
+                **generator_meta,
+            }
         else:
-            meta = { _KIND_META_KEY: "noised_image_latents", **generator_meta, }
+            meta = {
+                _KIND_META_KEY: "noised_image_latents",
+                **generator_meta,
+            }
         return self._make_latent_artifact(
-            noised, source_shape=latent.source_shape, upstream=latent, meta=meta,
+            noised,
+            source_shape=latent.source_shape,
+            upstream=latent,
+            meta=meta,
         )
 
     @override
@@ -222,19 +230,16 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
         - InpaintMaskArtifact → existing inpaint routing in the base class.
         """
         is_inpaint = isinstance(latent, InpaintMaskArtifact)
-        loaded_pipe_is_inpaint = self.pipe.__class__ == StableDiffusionXLInpaintPipeline
 
-        if not is_inpaint or loaded_pipe_is_inpaint:
+        if not is_inpaint:
             device, dtype = self._get_device_and_type()
-
-            if not is_inpaint:
-                latents_on_device = latent.to_torch(device=device, dtype=dtype)
-                kind = read_driver_meta(latent, _KIND_META_KEY, "")
-                if kind == "noise":
-                    self.pipe.scheduler.set_timesteps(num_inference_steps, device=device)
-                    latents_on_device = latents_on_device * self.pipe.scheduler.init_noise_sigma
-                    kwargs.setdefault("latents", latents_on_device)
-                kwargs.setdefault("image", latents_on_device)
+            latents_on_device = latent.to_torch(device=device, dtype=dtype)
+            kind = read_driver_meta(latent, _KIND_META_KEY, self.driver_namespace, "")
+            if kind == "noise":
+                self.pipe.scheduler.set_timesteps(num_inference_steps, device=device)
+                latents_on_device = latents_on_device * self.pipe.scheduler.init_noise_sigma
+                kwargs.setdefault("latents", latents_on_device)
+            kwargs.setdefault("image", latents_on_device)
             kwargs.setdefault("strength", 1.0)
 
         result_artifact = super().denoise_latent(
@@ -248,11 +253,12 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
             **kwargs,
         )
 
-        sub_bag = result_artifact.meta.setdefault(
-            result_artifact.meta.get(META_DRIVER_KEY, self.driver_namespace), {}
+        return self._make_latent_artifact(
+            result_artifact.to_torch(),
+            source_shape=result_artifact.source_shape,
+            upstream=result_artifact,
+            meta={_KIND_META_KEY: "image_latents"},
         )
-        sub_bag[_KIND_META_KEY] = "image_latents"
-        return result_artifact
 
     @override
     def decode_latent(self, latent: LatentArtifact) -> Image:

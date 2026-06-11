@@ -6,13 +6,6 @@ Those methods MUST match the cross-driver signature listed in
 no extra keyword-only parameters, no ``*args`` / ``**kwargs``. Driver-specific
 tunables are not permitted on the forwardable surface; route them through other
 methods or through artifact metadata.
-
-This module owns:
-
-- :data:`FORWARDABLE_METHODS` — the set of method names that participate
-- :data:`FORWARDABLE_METHOD_POSITIONAL` — the positional contract per method
-- :func:`validate_forwardable_signature` — the import-time check, invoked from
-  ``LatentPipelineDriver.__init_subclass__``
 """
 
 from inspect import Parameter, signature
@@ -23,6 +16,7 @@ FORWARDABLE_METHODS: tuple[str, ...] = (
     "decode_latent",
     "create_noise_latent",
     "add_noise_to_latent",
+    "encode_masked_image",
 )
 
 FORWARDABLE_METHOD_POSITIONAL: dict[str, tuple[str, ...]] = {
@@ -30,6 +24,7 @@ FORWARDABLE_METHOD_POSITIONAL: dict[str, tuple[str, ...]] = {
     "decode_latent": ("latent",),
     "create_noise_latent": ("source_shape", "generator_state"),
     "add_noise_to_latent": ("latent", "generator_state", "num_inference_steps", "strength"),
+    "encode_masked_image": ("image", "mask", "generator_state"),
 }
 
 

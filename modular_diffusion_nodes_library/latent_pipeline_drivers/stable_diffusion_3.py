@@ -1,7 +1,12 @@
 import logging
 from typing import Any, ClassVar, override
 
-from diffusers import StableDiffusion3InpaintPipeline  # type: ignore[reportMissingImports]
+from diffusers import (  # type: ignore[reportMissingImports]
+    StableDiffusion3ControlNetInpaintingPipeline,
+    StableDiffusion3ControlNetPipeline,
+    StableDiffusion3InpaintPipeline,
+)
+from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     SequentialPipelineBlocks,
@@ -15,14 +20,15 @@ from diffusers.modular_pipelines.stable_diffusion_3.before_denoise import (  # t
 from diffusers.modular_pipelines.stable_diffusion_3.modular_blocks_stable_diffusion_3 import (  # type: ignore[reportMissingImports]
     StableDiffusion3AutoBlocks,
 )
+from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     DecodeResult,
     GeneratorState,
     ImageMedia,
-    LatentPipelineDriver,
     VideoMedia,
 )
 
@@ -138,8 +144,6 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         requested strength.
         """
         device, dtype = self._get_device_and_type()
-        latents = latent.to_torch(device=device, dtype=dtype)
-        generator = generator_state.to_generator()
 
         # Generate noise via the modular path
         noise_artifact = self.create_noise_latent(latent.source_shape, generator_state)
@@ -157,10 +161,12 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         )
         noised = output_state.get("latents")
 
-        noise_state = GeneratorState.from_artifact(noise_artifact)
-        meta: dict[str, Any] = noise_state.as_meta() if noise_state is not None else {}
+        noise_state = GeneratorState.from_artifact(noise_artifact) or generator_state
         return self._make_latent_artifact(
-            noised, source_shape=latent.source_shape, upstream=latent, meta=meta,
+            noised,
+            source_shape=latent.source_shape,
+            upstream=latent,
+            meta=noise_state.as_meta(),
         )
 
     @override
@@ -227,6 +233,7 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
             "masked_image_latents": source_latent,
             "strength": artifact.strength,
         }
+
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         if isinstance(media, VideoMedia):

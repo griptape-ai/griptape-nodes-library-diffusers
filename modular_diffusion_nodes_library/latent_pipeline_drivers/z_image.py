@@ -1,7 +1,6 @@
 import logging
 from typing import Any, ClassVar, override
 
-import torch  # type: ignore[reportMissingImports]
 from diffusers import (  # type: ignore[reportMissingImports]
     ZImageControlNetInpaintPipeline,
     ZImageControlNetModel,
@@ -27,10 +26,10 @@ from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     GeneratorState,
     ImageMedia,
-    LatentPipelineDriver,
     VideoMedia,
 )
 from modular_diffusion_nodes_library.utils.pipeline_utils import detect_offload_method
@@ -155,7 +154,9 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
             generator=generator,
         )
         latents = output_state.get("latents")
-        return self._make_latent_artifact(latents, source_shape=source_shape,
+        return self._make_latent_artifact(
+            latents,
+            source_shape=source_shape,
             meta=GeneratorState.from_generator(generator).as_meta(),
         )
 
@@ -173,6 +174,8 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
         latents = latent.to_torch(device=device, dtype=dtype)
         noise_artifact = self.create_noise_latent(source_shape, generator_state)
         noise = noise_artifact.to_torch(device=device, dtype=dtype)
+        noise_generator_state = GeneratorState.from_artifact(noise_artifact) or generator_state
+
         output_state = self._call_block(
             _ZImageAddNoiseStep(),
             latents=noise,
@@ -181,8 +184,11 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
             strength=strength,
         )
         result = output_state.get("latents")
-        return self._make_latent_artifact(result, source_shape=source_shape, upstream=latent,
-            meta=GeneratorState.from_artifact(noise_artifact).as_meta(),
+        return self._make_latent_artifact(
+            result,
+            source_shape=source_shape,
+            upstream=latent,
+            meta=noise_generator_state.as_meta(),
         )
 
     @override

@@ -1,8 +1,7 @@
 """Shared types for the latent pipeline driver surface.
 
 Leaf module — must not import anything from ``base_driver`` or any concrete
-driver. ``base_driver`` re-exports these names so existing call sites that
-import from there continue to work.
+driver.
 """
 
 from dataclasses import dataclass
@@ -15,7 +14,7 @@ from PIL.Image import Image
 TextEncodings = dict[str, Any]
 DecodeResult = Image | list[Image] | np.ndarray
 
-#: Well-known key under which drivers store their namespaced sub-bag on
+#: Fixed key under which drivers store their namespaced sub-bag on
 #: ``LatentArtifact.meta``. The driver's class name is stored at this key, and
 #: the namespaced sub-bag of driver-specific values lives at ``meta[<class name>]``.
 META_DRIVER_KEY = "LatentPipelineDriver"
@@ -26,13 +25,13 @@ META_DRIVER_KEY = "LatentPipelineDriver"
 GENERATOR_STATE_META_KEY = "generator_state"
 
 
-def read_driver_meta(artifact: Any, key: str, default: Any = None) -> Any:
+def read_driver_meta(artifact: Any, key: str, required_driver_name: str, default: Any = None) -> Any:
     """Return ``artifact.meta[<driver_namespace>][key]`` or ``default``."""
     if artifact is None:
         return default
     meta = getattr(artifact, "meta", None) or {}
     driver_name = meta.get(META_DRIVER_KEY)
-    if not driver_name:
+    if not driver_name or driver_name != required_driver_name:
         return default
     sub = meta.get(driver_name)
     if not isinstance(sub, dict):
@@ -53,18 +52,25 @@ class VideoMedia:
 
 
 @dataclass(frozen=True)
-class GeneratorState:
-    """Frozen snapshot of a ``torch.Generator`` that round-trips through ``LatentArtifact.meta``.
-
-    Construction is always via the factories so the public surface only ever sees
-    ``GeneratorState`` instances (never raw seeds or generators).
+class MaskMedia:
+    """L-mode PIL mask paired with its ``source_shape``.
+    White (255) marks pixels to inpaint, black (0) marks pixels to keep.
     """
+
+    mask: Image
+    source_shape: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class GeneratorState:
+    """Frozen snapshot of a ``torch.Generator``"""
 
     state: torch.Tensor
     device: str
 
     @classmethod
     def from_seed(cls, seed: int, device: str = "cpu") -> "GeneratorState":
+        """Defaults to cpu because it is more portable across devices."""
         gen = torch.Generator(device=device).manual_seed(int(seed))
         return cls(state=gen.get_state(), device=device)
 

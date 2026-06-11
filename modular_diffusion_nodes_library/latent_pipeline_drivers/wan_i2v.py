@@ -13,7 +13,7 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 from PIL.Image import Image, Resampling
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     DecodeResult,
     GeneratorState,
     ImageMedia,
@@ -41,16 +41,16 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         resized_source_shape = (*source_shape[:-2], height, width)
         resized_output = super().create_noise_latent(resized_source_shape, generator_state)
         return self._make_latent_artifact(
-            resized_output.to_torch(), source_shape=source_shape, upstream=resized_output,
+            resized_output.to_torch(),
+            source_shape=source_shape,
+            upstream=resized_output,
         )
 
     @override
     def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
         frames = super().decode_latent(latent)
         source_shape = latent.source_shape
-        output_frames = [
-            frame.resize((source_shape[-1], source_shape[-2]), Resampling.LANCZOS) for frame in frames
-        ]
+        output_frames = [frame.resize((source_shape[-1], source_shape[-2]), Resampling.LANCZOS) for frame in frames]
         return output_frames
 
     @override
@@ -78,31 +78,24 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         """Denoise a WAN i2v video latent."""
 
         update_kwargs = kwargs.copy()
-        original_source_shape = latent.source_shape
-
         media_gen_conditioning = update_kwargs.pop("media_gen_conditioning", None)
         media_gen_conditioning_list = self._ensure_media_gen_conditioning_list(media_gen_conditioning)
 
-        # Extract image/last_image from media_gen_conditioning entries for the i2v pipeline.
-        # If first-frame conditioning is provided, the source_shape passed to super() needs
-        # to match the conditioning image dimensions so the underlying pipe runs at those
-        # dims. The returned artifact is restored to the caller's original source_shape so
-        # downstream nodes (decode) see the requested dimensions.
+        # Resize conditioning images to the latent's bin dims and pin height/width on
+        # the pipe so prepare_latents matches the latent tensor's shape.
+        width, height = self.get_resize_dimensions(latent.source_shape[-1], latent.source_shape[-2])
+
         if media_gen_conditioning_list is not None:
             num_frames = latent.source_shape[-3]
-            source_shape = latent.source_shape
-            rebuilt = False
             for media_gen_conditioning in media_gen_conditioning_list:
                 mode = media_gen_conditioning.get("mode")
                 if mode == "image":
                     for image_item in media_gen_conditioning.get("images", []):
                         image = resolve_conditioning_image(image_item.get("image"))
                         frame_index = image_item.get("frame_index", None)
-                        output_image = self.preprocess_image(image)
+                        output_image = image.resize((width, height))
                         if frame_index == 0:
                             update_kwargs["image"] = output_image
-                            source_shape = (*source_shape[:-2], output_image.height, output_image.width)
-                            rebuilt = True
                         elif frame_index == -1 or frame_index == num_frames - 1:
                             update_kwargs["last_image"] = output_image
                         else:
@@ -111,13 +104,17 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
                             )
                 elif mode == "video":
                     logger.warning("Unsupported media_gen_conditioning mode '%s' for WAN i2v; ignoring.", mode)
-            if rebuilt:
-                device, dtype = self._get_device_and_type()
-                latent = LatentArtifact.from_torch(
-                    latent.to_torch(device=device, dtype=dtype), source_shape=source_shape, meta=latent.meta
-                )
 
-        denoised = super().denoise_latent(
+        if "image" not in update_kwargs:
+            raise ValueError(
+                f"{self.driver_namespace}: WAN i2v requires a first-frame image (frame_index=0) "
+                "via media_gen_conditioning."
+            )
+
+        update_kwargs["height"] = height
+        update_kwargs["width"] = width
+
+        return super().denoise_latent(
             latent,
             num_inference_steps,
             generator_state=generator_state,
@@ -126,11 +123,6 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
             end_step=end_step,
             return_fully_denoised=return_fully_denoised,
             **update_kwargs,
-        )
-        return self._make_latent_artifact(
-            denoised.to_torch(),
-            source_shape=original_source_shape,
-            upstream=denoised,
         )
 
     def get_resize_dimensions(self, width: int, height: int) -> tuple[int, int]:

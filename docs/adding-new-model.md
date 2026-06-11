@@ -93,25 +93,29 @@ Create `latent_pipeline_drivers/<model>.py`. Subclass `LatentPipelineDriver` fro
 
 **Read the `LatentPipelineDriver` docstring before writing a line.** It defines the binding contract for every public driver method:
 
-> Public latents are **unpacked** (4-D image `[B, C, H/vae, W/vae]`, 5-D video `[B, C, T_lat, H/vae, W/vae]`) and **normalised** (~N(0,1)). Per-VAE whitening `(z - mean) / std` is applied inside `encode_image/encode_video`; the inverse runs inside `decode_latent`. Model-specific packing (Flux, Qwen) is applied transiently in `prepare_input_latent` / `prepare_output_latent` and never appears on the public surface.
+> Public latents are **unpacked** (4-D image `[B, C, H/vae, W/vae]`, 5-D video `[B, C, T_lat, H/vae, W/vae]`) and **normalised** (~N(0,1)). Per-VAE whitening `(z - mean) / std` is applied inside `encode_media`; the inverse runs inside `decode_latent`. Model-specific packing (Flux, Qwen) is applied transiently in `prepare_input_latent` / `prepare_output_latent` and never appears on the public surface. Public methods exchange `LatentArtifact` (with `source_shape` carried on the artifact / on the input `ImageMedia` / `VideoMedia` / `MaskMedia` dataclass), never raw tensors.
+
+**Forwardable-signature contract (enforced at subclass time).** Four methods — `encode_media`, `decode_latent`, `create_noise_latent`, `add_noise_to_latent` — must match [`FORWARDABLE_METHOD_POSITIONAL`](../modular_diffusion_nodes_library/latent_pipeline_drivers/_base_driver_forwardable_signature.py) **exactly**: same parameter names, same order, no extra positional or kw-only parameters, no `*args`/`**kwargs`. Driver-specific tunables are NOT permitted on these methods — route them through the driver-namespaced sub-bag on `LatentArtifact.meta` via `_make_latent_artifact(..., meta=...)` and read them back with `read_driver_meta(...)`. See [`driver_types.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_types.py) (`META_DRIVER_KEY`, `read_driver_meta`, `GeneratorState`) and the SDXL `_KIND_META_KEY` pattern in [`stable_diffusion_xl.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) for the canonical shape.
+
+**Reproducible RNG via `GeneratorState`.** Every forwardable method takes a `GeneratorState` instead of a raw `seed`. Build a real generator with `generator_state.to_generator()`, then stamp the post-call state onto the returned artifact via `_make_latent_artifact(..., meta=GeneratorState.from_generator(g).as_meta())` so downstream same-driver calls can resume the same RNG stream with `GeneratorState.from_artifact(latent)` rather than restarting from the UI seed. **Exception: `encode_media` does NOT stamp the generator state** — VAE encoding consumes the generator (for the sampling step) but does not advance an RNG chain that downstream nodes need to continue. Whether to carry any other driver-namespaced meta on the encoded output is up to the driver. The generator round-trip applies to `create_noise_latent`, `add_noise_to_latent`, and the denoise output.
 
 Required overrides:
 
-| Method | Implementation guidance |
-|---|---|
-| `_create_modular_pipe()` | Call the diffusers `*AutoBlocks().init_pipeline()` for your model. Modular-first. |
-| `can_make_control_pipe_from_standard()` | Return False unless you implement ControlNet. |
-| `create_noise_latent()` | Prefer the diffusers modular `PrepareLatents` block via `self._call_block(...)`. See [`stable_diffusion_xl.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) `_SDXLPrepareNoiseLatentStep`. |
-| `encode_image()` | Use `self.modular_pipe.blocks.sub_blocks["vae_encoder"]` where available. Apply VAE whitening. |
-| `decode_latent()` | Use `self.modular_pipe.blocks.sub_blocks["decode"]` where available. Apply inverse whitening. |
-| `add_noise_to_latent()` | Prefer modular `Img2ImgSetTimesteps` + `Img2ImgPrepareLatents` block sequence. |
+| Method | Signature | Implementation guidance |
+|---|---|---|
+| `_create_modular_pipe()` | `() -> ModularPipeline` | Call the diffusers `*AutoBlocks().init_pipeline()` for your model. Modular-first. |
+| `can_make_control_pipe_from_standard()` | classmethod | Return False unless you implement ControlNet. |
+| `create_noise_latent()` | `(source_shape, generator_state) -> LatentArtifact` | Prefer the diffusers modular `PrepareLatents` block via `self._call_block(...)`. See [`stable_diffusion_xl.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) `_SDXLPrepareNoiseLatentStep`. Return via `_make_latent_artifact`. |
+| `encode_media()` | `(media: ImageMedia \| VideoMedia, generator_state) -> LatentArtifact` | Single entry point for image and video. Image-only drivers raise `NotImplementedError` for `VideoMedia` and vice versa. Use `self.modular_pipe.blocks.sub_blocks["vae_encoder"]` where available. Apply VAE whitening. |
+| `decode_latent()` | `(latent: LatentArtifact) -> Image \| list[Image] \| np.ndarray` | Use `self.modular_pipe.blocks.sub_blocks["decode"]` where available. Apply inverse whitening. `source_shape` is on the input artifact. |
+| `add_noise_to_latent()` | `(latent, generator_state, num_inference_steps, strength) -> LatentArtifact` | Prefer modular e.g.`Img2ImgSetTimesteps` + `Img2ImgPrepareLatents` block sequence. |
 
 Optional overrides:
 - `prepare_input_latent` / `prepare_output_latent` — pack/unpack for transformers that use sequence-packed latents (Flux, Qwen)
-- `encode_video()` — for video models. Set `produces_video = True` and `video_fps`.
 - `_extract_latents_from_output()` — return `pipe_output.frames` for video, default `images` for image
+- Video models: set the `produces_video = True` and `video_fps` ClassVars
 - `encode_prompt()` — only if your text encoder block needs extra inputs beyond `prompt`/`negative_prompt`
-- `denoise_latent()` — **only for kwarg munging** (e.g., LTX building video conditions, WAN i2v extracting first/last frames). Always end by calling `super().denoise_latent(...)` so partial-denoise, callback, cancellation, and inpaint hooks keep working.
+- `denoise_latent()` — **only for kwarg munging** (e.g., LTX building video conditions, WAN i2v extracting first/last frames). Signature: `(latent, num_inference_steps, generator_state, callback=None, start_step=0, end_step=-1, return_fully_denoised=False, **kwargs)`. Always end by calling `super().denoise_latent(...)` so partial-denoise, callback, cancellation, and inpaint hooks keep working.
 - `_inpaint_pipeline_class` ClassVar — set to the inpaint pipeline class to enable inpainting
 
 ### Step 5 — Register in three places

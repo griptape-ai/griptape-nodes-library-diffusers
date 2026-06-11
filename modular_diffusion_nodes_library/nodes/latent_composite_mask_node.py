@@ -40,6 +40,8 @@ class LatentCompositeMaskNode(ControlNode):
       (white = source, black = destination).
     - With *resize_source* enabled the source is rescaled to the destination latent size
       before compositing.
+    - The output inherits the *destination_latent*'s ``source_shape``. Metadata is merged;
+      on key conflicts the **destination** wins.
     """
 
     def __init__(self, **kwargs) -> None:
@@ -54,7 +56,11 @@ class LatentCompositeMaskNode(ControlNode):
                 name="destination_latent",
                 input_types=["LatentArtifact"],
                 type="LatentArtifact",
-                tooltip="Base latent that the source will be composited onto.",
+                tooltip=(
+                    "Base latent that the source will be composited onto. "
+                    "The output inherits this latent's shape. "
+                    "Metadata is merged; on key conflicts this latent wins."
+                ),
                 allowed_modes={ParameterMode.INPUT},
             )
         )

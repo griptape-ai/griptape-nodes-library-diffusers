@@ -17,10 +17,11 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     GeneratorState,
     ImageMedia,
-    LatentPipelineDriver,
+    MaskMedia,
     VideoMedia,
 )
 
@@ -63,7 +64,9 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         latents_state = self._call_block(unpack_latents, latents=packed_latents, latent_ids=latent_ids)
         latents = latents_state.get("latents")
         latents = latents.to(device)
-        return self._make_latent_artifact(latents, source_shape=source_shape,
+        return self._make_latent_artifact(
+            latents,
+            source_shape=source_shape,
             meta=GeneratorState.from_generator(generator).as_meta(),
         )
 
@@ -107,24 +110,33 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
             image = PIL.Image.fromarray(img_np)
         generator = generator_state.to_generator()
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
-        output_state = self._call_block(encode_block, image=image, height=image.height, width=image.width, generator=generator)
+        output_state = self._call_block(
+            encode_block, image=image, height=image.height, width=image.width, generator=generator
+        )
         return self._make_latent_artifact(output_state.get("image_latents")[0], source_shape=media.source_shape)
 
     @override
-    def encode_masked_image(self, image: Image, mask: Image) -> torch.Tensor:
+    def encode_masked_image(
+        self, image: ImageMedia, mask: MaskMedia, generator_state: GeneratorState
+    ) -> LatentArtifact:
+        pil_image = image.image
+        if isinstance(pil_image, torch.Tensor):
+            img_np = pil_image.squeeze(0).permute(1, 2, 0).clamp(0, 1).mul(255).byte().cpu().numpy()
+            pil_image = PIL.Image.fromarray(img_np)
+
         # PIL -> aligned, normalized tensor (multiple-of-32 alignment + <=1024^2 cap).
-        pre = self._call_block(Flux2ProcessImagesInputStep(), image=image)
+        pre = self._call_block(Flux2ProcessImagesInputStep(), image=pil_image)
         source_t = pre.get("condition_images")[0]
 
         # Resize mask to match the (possibly aligned/cropped) tensor dims.
         aligned_h, aligned_w = source_t.shape[-2:]
-        mask_resized = mask.convert("L").resize((aligned_w, aligned_h), PIL.Image.NEAREST)
+        mask_resized = mask.mask.convert("L").resize((aligned_w, aligned_h), PIL.Image.NEAREST)
         mask_t = TF.to_tensor(mask_resized)[None]  # (1, 1, H, W), float32 in [0, 1]
 
         masked_t = source_t * (mask_t < 0.5)
 
         out = self._call_block(Flux2VaeEncoderStep(), condition_images=[masked_t])
-        return out.get("image_latents")[0]
+        return self._make_latent_artifact(out.get("image_latents")[0], source_shape=image.source_shape)
 
     @override
     def add_noise_to_latent(
@@ -154,6 +166,7 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
 
         noise_artifact = self.create_noise_latent(source_shape, generator_state)
         noise = noise_artifact.to_torch(device=device, dtype=dtype)
+        noise_generator_state = GeneratorState.from_artifact(noise_artifact) or generator_state
 
         # Compute the timestep at which to add noise based on strength
         init_timestep = min(num_inference_steps * strength, num_inference_steps)
@@ -161,6 +174,9 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         latent_timestep = timesteps[t_start * self.pipe.scheduler.order :][:1]
 
         noisy_latent = self.pipe.scheduler.scale_noise(latents, latent_timestep, noise)
-        return self._make_latent_artifact(noisy_latent, source_shape=source_shape, upstream=latent,
-            meta=GeneratorState.from_artifact(noise_artifact).as_meta(),
+        return self._make_latent_artifact(
+            noisy_latent,
+            source_shape=source_shape,
+            upstream=latent,
+            meta=noise_generator_state.as_meta(),
         )

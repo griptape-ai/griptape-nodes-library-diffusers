@@ -16,20 +16,18 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
 )
-from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers._base_driver_forwardable_signature import (
     FORWARDABLE_METHODS,
     validate_forwardable_signature,
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
-    GENERATOR_STATE_META_KEY,
     META_DRIVER_KEY,
     DecodeResult,
     GeneratorState,
     ImageMedia,
+    MaskMedia,
     TextEncodings,
     VideoMedia,
-    read_driver_meta,
 )
 from modular_diffusion_nodes_library.misc.partial_denoise import (
     PartialDenoisePipelineRunner,
@@ -38,19 +36,6 @@ from modular_diffusion_nodes_library.misc.partial_denoise import (
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
 
 _T = TypeVar("_T")
-
-# Re-exported from driver_types
-__all__ = [
-    "GENERATOR_STATE_META_KEY",
-    "META_DRIVER_KEY",
-    "DecodeResult",
-    "GeneratorState",
-    "ImageMedia",
-    "LatentPipelineDriver",
-    "TextEncodings",
-    "VideoMedia",
-    "read_driver_meta",
-]
 
 
 class LatentPipelineDriver(ABC):
@@ -71,8 +56,9 @@ class LatentPipelineDriver(ABC):
     - ``source_shape`` — the pixel-space shape of the original media before
       VAE encoding. Drivers translate between pixel-space dimensions and the
       divided latent-space tensor dimensions internally.
-    - ``meta`` — a driver-namespaced sub-bag of driver-internal invariants
-      that downstream same-driver calls may need.
+    - ``meta`` — free-form upstream entries (e.g. user-set provenance) plus a
+      driver-namespaced sub-bag at ``meta[<driver_namespace>]`` for
+      driver-internal invariants. See :meth:`_make_latent_artifact`.
 
     Shape
     ^^^^^
@@ -109,22 +95,7 @@ class LatentPipelineDriver(ABC):
     _partial_denoise_proxy_class: ClassVar[type[PartialDenoiseSchedulerProxy]] = PartialDenoiseSchedulerProxy
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = None
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = None
-
-    # ------------------------------------------------------------------
-    # Public driver surface — cross-driver signature contract
-    # ------------------------------------------------------------------
-    # The methods listed in ``FORWARDABLE_METHODS`` must share an identical
-    # positional signature across all drivers so callers can invoke them
-    # uniformly; any driver-specific tunable beyond the contract must be
-    # keyword-only. Enforced in ``__init_subclass__``.
-
-    def __init_subclass__(cls, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
-        for method_name in FORWARDABLE_METHODS:
-            method = cls.__dict__.get(method_name)
-            if method is None:
-                continue
-            validate_forwardable_signature(cls.__name__, method_name, method)
+    _DEFAULT_NUM_INFERENCE_STEPS: ClassVar[int] = 20
 
     # ------------------------------------------------------------------
     # Public driver surface — cross-driver signature contract
@@ -231,21 +202,20 @@ class LatentPipelineDriver(ABC):
         Its non-namespace meta (e.g. user-set provenance) is preserved, and any
         same-driver namespaced meta is merged with ``meta`` (new values win).
         """
-        driver_namespace = self.driver_namespace
 
         base: dict[str, Any] = {}
         if upstream is not None:
-            base = dict(upstream.meta or {})
+            base = upstream.metadata
 
         upstream_driver_meta: dict[str, Any] = {}
-        if base.get(META_DRIVER_KEY) == driver_namespace:
-            existing = base.get(driver_namespace)
+        if base.get(META_DRIVER_KEY) == self.driver_namespace:
+            existing = base.get(self.driver_namespace)
             if isinstance(existing, dict):
                 upstream_driver_meta = dict(existing)
 
         namespaced_meta = {**upstream_driver_meta, **(meta or {})}
-        base[META_DRIVER_KEY] = driver_namespace
-        base[driver_namespace] = namespaced_meta
+        base[META_DRIVER_KEY] = self.driver_namespace
+        base[self.driver_namespace] = namespaced_meta
 
         return LatentArtifact.from_torch(tensor, source_shape=source_shape, meta=base)
 
@@ -286,11 +256,13 @@ class LatentPipelineDriver(ABC):
         """
         ...
 
-    def encode_masked_image(self, image: ImageMedia, mask: ImageMedia, generator_state: GeneratorState) -> LatentArtifact:
+    def encode_masked_image(
+        self, image: ImageMedia, mask: MaskMedia, generator_state: GeneratorState
+    ) -> LatentArtifact:
         """Encode the source image with the masked region zeroed out."""
         image_processor = self.modular_pipe.image_processor
         source_t = image_processor.preprocess(image.image, height=image.image.height, width=image.image.width)
-        mask_t = torch.from_numpy(np.array(mask.image, dtype="float32") / 255.0)[None, None]
+        mask_t = torch.from_numpy(np.array(mask.mask, dtype="float32") / 255.0)[None, None]
         masked_t = source_t * (mask_t < 0.5)
         return self.encode_media(ImageMedia(image=masked_t, source_shape=image.source_shape), generator_state)
 
@@ -333,6 +305,11 @@ class LatentPipelineDriver(ABC):
 
         ``latent`` is either a :class:`LatentArtifact` (standard denoise) or an
         :class:`InpaintMaskArtifact` (inpaint denoise).
+
+        Subclasses can override behaviour by passing extra ``kwargs`` when
+        re-implementing this method. E.g. ``height`` / ``width`` default to
+        ``latent.source_shape`` but can be overridden by setting kwargs; useful when the
+        dimensions differ from the source (e.g. pipeline expects specific resolution).
         """
         if isinstance(self.pipe, ModularPipeline):
             raise NotImplementedError(
@@ -355,14 +332,12 @@ class LatentPipelineDriver(ABC):
             latents = self.prepare_input_latent(latents, source_shape)
             kwargs["latents"] = latents
 
-        height = kwargs.pop("height", source_shape[-2])
-        width = kwargs.pop("width", source_shape[-1])
+        kwargs.setdefault("height", source_shape[-2])
+        kwargs.setdefault("width", source_shape[-1])
         generator = kwargs.pop("generator", generator_state.to_generator())
 
         pipe_kwargs: dict[str, Any] = {
             **kwargs,
-            "width": width,
-            "height": height,
             "output_type": "latent",
             "num_inference_steps": num_inference_steps,
             "callback_on_step_end": callback,
@@ -389,7 +364,10 @@ class LatentPipelineDriver(ABC):
             pipe_output = pipe(**pipe_kwargs)  # type: ignore[reportCallIssue]
 
         output_tensor = self.prepare_output_latent(self._extract_latents_from_output(pipe_output), source_shape)
-        return self._make_latent_artifact(output_tensor, source_shape=source_shape, upstream=latent,
+        return self._make_latent_artifact(
+            output_tensor,
+            source_shape=source_shape,
+            upstream=latent,
             meta=GeneratorState.from_generator(generator).as_meta(),
         )
 

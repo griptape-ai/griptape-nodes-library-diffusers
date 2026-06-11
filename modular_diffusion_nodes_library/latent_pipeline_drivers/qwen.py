@@ -27,16 +27,14 @@ from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
-from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
 )
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import (
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     GeneratorState,
     ImageMedia,
-    LatentPipelineDriver,
     VideoMedia,
 )
 from modular_diffusion_nodes_library.parameters.controlnet_node_parameter_types import (
@@ -143,7 +141,9 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         )
 
         output_latents = self._get_unpacked_image_latents(output_state, height, width)
-        return self._make_latent_artifact(output_latents, source_shape=source_shape,
+        return self._make_latent_artifact(
+            output_latents,
+            source_shape=source_shape,
             meta=GeneratorState.from_generator(generator).as_meta(),
         )
 
@@ -189,7 +189,10 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         )
 
         output_latents = self._get_unpacked_image_latents(noisy_state, height, width)
-        return self._make_latent_artifact(output_latents, source_shape=source_shape, upstream=latent,
+        return self._make_latent_artifact(
+            output_latents,
+            source_shape=source_shape,
+            upstream=latent,
             meta=GeneratorState.from_generator(generator).as_meta(),
         )
 
@@ -209,7 +212,7 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         output_state = self._call_block(encode_pipeline, image=image, height=height, width=width, generator=generator)
         latents = self._get_required(output_state, "image_latents", torch.Tensor)
         # [B,z,1,H',W'] → [B,z,H',W'] - remove temporal dimension (the same VAE is shared between video and image pipelines)
-        return self._make_latent_artifact(latents.squeeze(2), source_shape=source_shape)
+        return self._make_latent_artifact(latents.squeeze(2), source_shape=media.source_shape)
 
     @override
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:

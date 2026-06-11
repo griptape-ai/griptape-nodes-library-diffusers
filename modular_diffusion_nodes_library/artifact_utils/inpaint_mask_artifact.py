@@ -100,7 +100,7 @@ class InpaintMaskArtifact(BlobArtifact):
         """Read-only view of the artifact's metadata.
         Carries arbitrary provenance from upstream producers.
         """
-        return dict(self.meta)
+        return dict(self.meta or {})
 
     # ------------------------------------------------------------------
     # LatentArtifact duck-typing — lets this artifact stand in as input_latent.
