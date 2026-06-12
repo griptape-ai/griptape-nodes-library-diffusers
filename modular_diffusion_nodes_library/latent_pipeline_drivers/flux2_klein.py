@@ -48,7 +48,7 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
         return {
             "image": source_latent,
             "mask_image": artifact.mask_image,
-            "inpaint_strength": artifact.strength,
+            "strength": artifact.strength,
         }
 
     @torch.inference_mode()

@@ -192,8 +192,11 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
         source_pil = artifact.source_image_pil()
         if source_pil is None:
             raise ValueError(f"{type(self).__name__} inpainting requires source_image in the InpaintMaskArtifact.")
-        return {
+
+        kwargs: dict[str, Any] = {
             "image": source_pil,
             "mask_image": artifact.mask_image,
-            "strength": artifact.strength,
         }
+        if not self._is_controlnet_pipe():
+            kwargs["strength"] = artifact.strength
+        return kwargs

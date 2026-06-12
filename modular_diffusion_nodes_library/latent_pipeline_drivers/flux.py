@@ -247,6 +247,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         inpaint_mask_artifact = kwargs.get("inpaint_mask_artifact")
         if inpaint_mask_artifact is not None and self._is_controlnet_pipe():
             kwargs.pop("negative_prompt", None)
+            kwargs.pop("true_cfg_scale", None)
         return super().denoise_latent(
             latents,
             latents_source_shape,
