@@ -40,23 +40,10 @@ class WanPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             )
         )
 
-    def add_output_parameters(self) -> None:
-        self._node.add_parameter(
-            Parameter(
-                name="output_video",
-                output_type="VideoUrlArtifact",
-                tooltip="Generated video output.",
-                allowed_modes={ParameterMode.OUTPUT},
-            )
-        )
-
     def _remove_input_parameters(self) -> None:
         self._node.remove_parameter_element_by_name("prompt")
         self._node.remove_parameter_element_by_name("negative_prompt")
         self._node.remove_parameter_element_by_name("guidance_scale")
-
-    def remove_output_parameters(self) -> None:
-        self._node.remove_parameter_element_by_name("output_video")
 
     def _get_pipe_kwargs(self) -> dict:
         return {

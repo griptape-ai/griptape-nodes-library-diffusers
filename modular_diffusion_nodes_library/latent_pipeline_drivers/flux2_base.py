@@ -69,6 +69,25 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
 
         return output_state.get("images")[0]
 
+    def _unpack_latents(self, latents: torch.Tensor, height: int, width: int) -> torch.Tensor:
+        """Convert packed Flux2 latents ``[B, seq_len, C]`` to ``[B, C, H/vae/2, W/vae/2]``."""
+        device, dtype = self._get_device_and_type()
+        latents = latents.to(device=device, dtype=dtype)
+
+        id_state = self._call_block(
+            Flux2PrepareLatentsStep(),
+            height=height,
+            width=width,
+            num_images_per_prompt=1,
+            generator=None,
+            batch_size=1,
+            dtype=dtype,
+        )
+        latent_ids = id_state.get("latent_ids")
+
+        unpack_state = self._call_block(Flux2UnpackLatentsStep(), latents=latents, latent_ids=latent_ids)
+        return unpack_state.get("latents")
+
     @override
     def encode_image(self, image: Image | torch.Tensor) -> torch.Tensor:
         if isinstance(image, torch.Tensor):

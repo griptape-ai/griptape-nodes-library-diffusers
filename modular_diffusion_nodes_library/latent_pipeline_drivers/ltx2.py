@@ -195,14 +195,54 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
     @override
     def prepare_output_latent(self, latents_from_pipe: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
-        """Pass through: the pipeline already unpacks (3-D→5-D) and denormalises before returning output latents."""
+        """Pass through: the pipeline already unpacks (3-D→5-D) and denormalises before returning output latents.
+        Also handles 3-D callbacks latents from mid-loop callbacks for preview.
+        """
         device, _ = self._get_device_and_type()
         latents_from_pipe = latents_from_pipe.to(device=device, dtype=torch.float32)
+
+        if latents_from_pipe.ndim == 3:
+            return self._unpack_callback_latents(latents_from_pipe, latents_source_shape)
+
         return self.pipe._normalize_latents(
             latents_from_pipe,
             self.pipe.vae.latents_mean,
             self.pipe.vae.latents_std,
             self.pipe.vae.config.scaling_factor,
+        )
+
+    def _unpack_callback_latents(self, packed_latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
+        """Unpack mid-loop callback latents from ``[B, S, D]`` to ``[B, C, F, H, W]``.
+
+        The LTX2 pipeline keeps latents packed and normalised throughout the denoise loo.
+        """
+        pixel_num_frames = latents_source_shape[-3]
+        pixel_height = latents_source_shape[-2]
+        pixel_width = latents_source_shape[-1]
+
+        vae_spatial_ratio = getattr(self.pipe.vae, "spatial_compression_ratio", 32)
+        vae_temporal_ratio = getattr(self.pipe.vae, "temporal_compression_ratio", 8)
+
+        latent_num_frames = (pixel_num_frames - 1) // vae_temporal_ratio + 1
+        latent_height = pixel_height // vae_spatial_ratio
+        latent_width = pixel_width // vae_spatial_ratio
+
+        patch_size = self.pipe.transformer_spatial_patch_size
+        patch_size_t = self.pipe.transformer_temporal_patch_size
+        base_token_count = (
+            (latent_num_frames // patch_size_t)
+            * (latent_height // patch_size)
+            * (latent_width // patch_size)
+        )
+        packed_latents = packed_latents[:, :base_token_count]
+
+        return self.pipe._unpack_latents(
+            packed_latents,
+            latent_num_frames,
+            latent_height,
+            latent_width,
+            patch_size,
+            patch_size_t,
         )
 
     @override

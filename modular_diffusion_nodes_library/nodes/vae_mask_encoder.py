@@ -57,7 +57,7 @@ class VaeMaskEncodeNode(ControlNode):
                 name="strength",
                 input_types=["float"],
                 type="float",
-                default_value=1.0,
+                default_value=0.95,
                 tooltip="Inpaint denoising strength (0.0–1.0). 1.0 fully replaces the masked region; lower values blend with the original.",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
                 user_defined=True,
@@ -73,6 +73,11 @@ class VaeMaskEncodeNode(ControlNode):
             )
         )
         self._initializing = False
+
+        # Seed a typed placeholder so downstream nodes can react to the InpaintMaskArtifact type.
+        placeholder = InpaintMaskArtifact(mask_image=PILImage.new("L", (1, 1), 0))
+        self.set_parameter_value("latents", placeholder, initial_setup=True)
+        self.parameter_output_values["latents"] = placeholder
 
     def add_parameter(self, param: Parameter) -> None:
         """Only allow parameters during init — block runtime parameters like prompt."""

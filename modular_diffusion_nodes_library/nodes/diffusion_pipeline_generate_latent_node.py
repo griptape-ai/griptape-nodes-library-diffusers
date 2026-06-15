@@ -133,6 +133,8 @@ class DiffusionPipelineGenerateLatentNode(ParameterConnectionPreservationMixin, 
         parameter: Parameter,
         value: Any,
     ) -> None:
+        if parameter.name == "input_latent":
+            self.latent_parameter.update_add_noise_visibility(value)
         if parameter.name == "input_latent" and value is not None:
             source_shape = value.source_shape
             if self.get_parameter_by_name("height") is not None:

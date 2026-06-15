@@ -138,6 +138,13 @@ class DiffusionPipelineGenerateLatentParameters:
     def _is_control_net_pipeline(self, pipeline_value: Any) -> bool:
         return isinstance(pipeline_value, ControlNetDiffusionPipelineArtifact)
 
+    def update_add_noise_visibility(self, input_latent_artifact: Any) -> None:
+        """Hide ``add_noise`` when the input is an InpaintMaskArtifact; Inpaint flows manage noise internally."""
+        if isinstance(input_latent_artifact, InpaintMaskArtifact):
+            self._node.hide_parameter_by_name("add_noise")
+        else:
+            self._node.show_parameter_by_name("add_noise")
+
     def add_or_remove_control_net_parameter(self, current_pipeline: Any, new_pipeline: Any) -> None:
         if self._is_control_net_pipeline(current_pipeline) and not self._is_control_net_pipeline(new_pipeline):
             self._node.remove_parameter_element_by_name(
@@ -191,7 +198,7 @@ class DiffusionPipelineGenerateLatentParameters:
             "advanced_media_library.enable_image_preview_intermediates", default=False
         )
 
-        strength_affected_steps = math.ceil(num_inference_steps * (self._node.get_parameter_value("strength") or 1))
+        strength_affected_steps = math.ceil(num_inference_steps * self.get_strength())
 
         first_iteration_time = None
         latent_pipeline_driver = create_driver(pipe, pipeline_class)
@@ -300,6 +307,9 @@ class DiffusionPipelineGenerateLatentParameters:
         preview_image_pil = self.latents_to_image_pil(latents, source_shape, latent_pipeline_driver)
         if isinstance(preview_image_pil, list):
             preview_image_pil = preview_image_pil[0]
+        if not isinstance(preview_image_pil, Image):
+            # Can't preview if the output isn't a PIL image
+            return
         preview_image_artifact = pil_to_image_artifact(
             preview_image_pil, directory_path=get_intermediates_directory_path()
         )

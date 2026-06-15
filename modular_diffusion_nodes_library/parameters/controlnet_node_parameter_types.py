@@ -47,7 +47,7 @@ class ControlNetNodesParameterType:
 
     def on_model_changed(self, model: str | None) -> None:
         """Hook called when the `controlnet_model` parameter value changes."""
-        ...
+        self._node.show_parameter_by_name("control_image")
 
     def get_control_image(self) -> Image | None:
         return self._node.get_parameter_value("control_image")

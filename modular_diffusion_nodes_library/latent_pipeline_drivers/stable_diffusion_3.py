@@ -221,6 +221,12 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def encode_image(self, image: Image | torch.Tensor) -> torch.Tensor:
+        if isinstance(image, Image):
+            height = image.height
+            width = image.width
+        else:
+            height = image.shape[-2]
+            width = image.shape[-1]
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
-        output_state = self._call_block(encode_block, image=image)
+        output_state = self._call_block(encode_block, image=image, height=height, width=width)
         return output_state.get("image_latents")

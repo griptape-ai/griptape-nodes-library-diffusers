@@ -51,6 +51,16 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
             "strength": artifact.strength,
         }
 
+    @override
+    def prepare_output_latent(
+        self, latents_from_pipe: torch.Tensor, latents_source_shape: tuple[int, ...]
+    ) -> torch.Tensor:
+        """Packed means prepare for preview, otherwise normalize."""
+        if latents_from_pipe.ndim == 3:
+            return self._unpack_latents(latents_from_pipe, latents_source_shape[-2], latents_source_shape[-1])
+        patchified = Flux2VaeEncoderStep._patchify_latents(latents_from_pipe)
+        return self._normalize_latent(patchified)
+
     @torch.inference_mode()
     @override
     def denoise_latent(
@@ -71,7 +81,7 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
             if image_reference:
                 kwargs["image_reference"] = image_reference
 
-        denoised = super().denoise_latent(
+        return super().denoise_latent(
             latents,
             latents_source_shape,
             num_inference_steps,
@@ -82,11 +92,6 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
             return_fully_denoised,
             **kwargs,
         )
-        # Klein denoise unpacks + BN-denormalises + unpatchifies before returning, so we must
-        # reverse that: patchify then BN-normalise to get back to [B, C, H/2, W/2].
-        output_latent = Flux2VaeEncoderStep._patchify_latents(denoised)
-        output_latent = self._normalize_latent(output_latent)
-        return output_latent
 
     @staticmethod
     def _build_image_reference(
