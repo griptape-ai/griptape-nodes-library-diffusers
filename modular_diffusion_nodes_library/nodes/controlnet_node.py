@@ -13,6 +13,7 @@ from modular_diffusion_nodes_library.parameters.controlnet_node_parameter_types 
     ControlNetNodesParameterType,
     FluxControlNetNodesParameterType,
     QwenImageControlNetNodesParameterType,
+    StableDiffusion3ControlNetNodesParameterType,
     StableDiffusionControlNetNodesParameterType,
     ZImageControlNetNodesParameterType,
 )
@@ -26,6 +27,7 @@ class ControlNetNode(ParameterConnectionPreservationMixin, ControlNode):
         Provider.FLUX: FluxControlNetNodesParameterType,
         Provider.QWEN: QwenImageControlNetNodesParameterType,
         Provider.STABLE_DIFFUSION: StableDiffusionControlNetNodesParameterType,
+        Provider.STABLE_DIFFUSION_3: StableDiffusion3ControlNetNodesParameterType,
         Provider.Z_IMAGE: ZImageControlNetNodesParameterType,
     }
     STATIC_PARAMS: ClassVar = ["provider"]

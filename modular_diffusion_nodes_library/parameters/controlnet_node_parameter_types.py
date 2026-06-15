@@ -239,6 +239,73 @@ class StableDiffusionControlNetNodesParameterType(ControlNetNodesParameterType):
         return kwargs
 
 
+class StableDiffusion3ControlNetNodesParameterType(ControlNetNodesParameterType):
+    INPAINTING_REPO_ID: ClassVar[str] = "alimama-creative/SD3-Controlnet-Inpainting"
+
+    @property
+    def model_repo_ids(self) -> list[str]:
+        return [
+            "InstantX/SD3-Controlnet-Canny",
+            "InstantX/SD3-Controlnet-Pose",
+            "InstantX/SD3-Controlnet-Tile",
+            "InstantX/SD3-Controlnet-Depth",
+            "tensorart/SD3.5M-Controlnet-Depth",
+            "tensorart/SD3.5M-Controlnet-Canny",
+            self.INPAINTING_REPO_ID,
+        ]
+
+    def add_input_parameters(self) -> None:
+        super().add_input_parameters()
+        self._node.add_parameter(
+            Parameter(
+                name="control_guidance_start",
+                default_value=0.0,
+                input_types=["float"],
+                type="float",
+                tooltip="Fraction of denoising steps (0.0–1.0) at which ControlNet conditioning begins to apply.",
+            )
+        )
+        self._node.add_parameter(
+            Parameter(
+                name="control_guidance_end",
+                default_value=1.0,
+                input_types=["float"],
+                type="float",
+                tooltip="Fraction of denoising steps (0.0–1.0) at which ControlNet conditioning stops applying.",
+            )
+        )
+        self.on_model_changed(self._node.get_parameter_value(CONTROLNET_MODEL_PARAMETER_NAME))
+
+    def remove_input_parameters(self) -> None:
+        super().remove_input_parameters()
+        self._node.remove_parameter_element_by_name("control_guidance_start")
+        self._node.remove_parameter_element_by_name("control_guidance_end")
+
+    def is_control_image_required(self) -> bool:
+        return not self._is_inpainting_model(self._node.get_parameter_value(CONTROLNET_MODEL_PARAMETER_NAME))
+
+    def on_model_changed(self, model: str | None) -> None:
+        if self._is_inpainting_model(model):
+            self._node.hide_parameter_by_name("control_image")
+        else:
+            self._node.show_parameter_by_name("control_image")
+
+    @classmethod
+    def _is_inpainting_model(cls, model: str | None) -> bool:
+        if not model:
+            return False
+        repo_id, _ = HuggingFaceModelParameter._key_to_repo_revision(model)  # noqa: SLF001
+        return repo_id == cls.INPAINTING_REPO_ID
+
+    def get_kwargs(self) -> dict[str, Any]:
+        kwargs = {}
+        kwargs["control_image"] = self.get_control_image()
+        kwargs["controlnet_conditioning_scale"] = float(self._node.get_parameter_value("controlnet_conditioning_scale"))
+        kwargs["control_guidance_start"] = float(self._node.get_parameter_value("control_guidance_start"))
+        kwargs["control_guidance_end"] = float(self._node.get_parameter_value("control_guidance_end"))
+        return kwargs
+
+
 class ZImageControlNetNodesParameterType(ControlNetNodesParameterType):
     REPO_FILES: ClassVar = [
         ("alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union", "Z-Image-Turbo-Fun-Controlnet-Union.safetensors"),
