@@ -18,7 +18,7 @@ from typing import Any
 
 from griptape.artifacts import ImageUrlArtifact
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
-from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
+from griptape_nodes.exe_types.core_types import Parameter, ParameterGroup, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
@@ -140,6 +140,10 @@ def _image_strength_param_name(index: int) -> str:
     return f"image_{index}_strength"
 
 
+def _image_group_name(index: int) -> str:
+    return f"image_{index}_group"
+
+
 class MediaGenConditioningParameter:
     """Owns the conditioning parameter surface on a host BaseNode.
 
@@ -171,12 +175,12 @@ class MediaGenConditioningParameter:
         self._node.add_parameter(
             Parameter(
                 name=_PARAM_CONDITIONING,
-                default_value={},
                 output_type="dict",
-                type="dict",
                 allowed_modes={ParameterMode.OUTPUT},
                 tooltip="Media generation conditioning output.",
                 serializable=False,
+                hide_property=True,
+                ui_options={"display_name": "Conditioning Output"},
             )
         )
 
@@ -283,6 +287,7 @@ class MediaGenConditioningParameter:
                 traits={Options(choices=[m.value for m in ConditioningMode])},
                 tooltip="Select conditioning input type: image or video.",
                 allowed_modes={ParameterMode.PROPERTY},
+                ui_options={"display_name": "Conditioning Mode"},
             )
         )
 
@@ -298,6 +303,7 @@ class MediaGenConditioningParameter:
                 tooltip="Number of conditioning images.",
                 allowed_modes={ParameterMode.PROPERTY},
                 ui_options={
+                    "display_name": "Number of Images",
                     "slider": {"min_val": image_cfg.min_count, "max_val": image_cfg.max_count},
                     "step": 1,
                 },
@@ -306,6 +312,14 @@ class MediaGenConditioningParameter:
 
     def _add_image_params_for_index(self, index: int) -> None:
         image_cfg = self._image_cfg
+        group_name = _image_group_name(index)
+        if self._node.get_group_by_name_or_element_id(group_name) is None:
+            self._node.add_node_element(
+                ParameterGroup(
+                    name=group_name,
+                    ui_options={"display_name": f"Image {index + 1}"},
+                )
+            )
         if self._node.get_parameter_by_name(_image_param_name(index)) is None:
             self._node.add_parameter(
                 Parameter(
@@ -313,8 +327,10 @@ class MediaGenConditioningParameter:
                     input_types=["ImageArtifact", "ImageUrlArtifact"],
                     type="ImageUrlArtifact",
                     tooltip=f"Conditioning image {index + 1}.",
-                    allowed_modes={ParameterMode.INPUT},
+                    allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
+                    ui_options={"display_name": "Image", "hide_property": True},
                     user_defined=True,
+                    parent_element_name=group_name,
                 )
             )
         if (
@@ -328,7 +344,9 @@ class MediaGenConditioningParameter:
                     input_types=["int"],
                     type="int",
                     tooltip=(f"Frame index in the output video where conditioning image {index + 1} is applied."),
+                    ui_options={"display_name": "Frame Index"},
                     user_defined=True,
+                    parent_element_name=group_name,
                 )
             )
         if image_cfg.expose_strength and self._node.get_parameter_by_name(_image_strength_param_name(index)) is None:
@@ -339,17 +357,24 @@ class MediaGenConditioningParameter:
                     input_types=["float"],
                     type="float",
                     tooltip=f"Strength for conditioning image {index + 1}.",
-                    ui_options={"slider": {"min_val": 0.0, "max_val": 1.0}, "step": 0.01},
+                    ui_options={
+                        "display_name": "Strength",
+                        "slider": {"min_val": 0.0, "max_val": 1.0},
+                        "step": 0.01,
+                    },
                     user_defined=True,
+                    parent_element_name=group_name,
                 )
             )
 
     def _remove_image_params_for_index(self, index: int) -> None:
         # These are user_defined params that may be wired to upstream nodes —
         # use the request path so the engine also tears down any connections.
+        # Remove leaf params first, then drop the now-empty group container.
         self._remove_dynamic_param(_image_param_name(index))
         self._remove_dynamic_param(_image_frame_index_param_name(index))
         self._remove_dynamic_param(_image_strength_param_name(index))
+        self._node.remove_parameter_element_by_name(_image_group_name(index))
 
     def _add_video_params(self) -> None:
         video_cfg = self._video_cfg
@@ -361,6 +386,7 @@ class MediaGenConditioningParameter:
                     type="VideoUrlArtifact",
                     tooltip="Conditioning video.",
                     allowed_modes={ParameterMode.INPUT},
+                    ui_options={"display_name": "Video", "hide_property": True},
                     user_defined=True,
                 )
             )
@@ -372,6 +398,7 @@ class MediaGenConditioningParameter:
                     input_types=["int"],
                     type="int",
                     tooltip="Frame index in the output video where conditioning video is applied.",
+                    ui_options={"display_name": "Video Frame Index"},
                     user_defined=True,
                 )
             )
@@ -383,7 +410,11 @@ class MediaGenConditioningParameter:
                     input_types=["float"],
                     type="float",
                     tooltip="Strength for the conditioning video.",
-                    ui_options={"slider": {"min_val": 0.0, "max_val": 1.0}, "step": 0.01},
+                    ui_options={
+                        "display_name": "Video Strength",
+                        "slider": {"min_val": 0.0, "max_val": 1.0},
+                        "step": 0.01,
+                    },
                     user_defined=True,
                 )
             )
