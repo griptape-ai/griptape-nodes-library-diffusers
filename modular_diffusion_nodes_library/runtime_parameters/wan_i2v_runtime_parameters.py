@@ -1,6 +1,6 @@
 import logging
 
-from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
+from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import BaseNode
 
 from modular_diffusion_nodes_library.runtime_parameters.runtime_parameters import (

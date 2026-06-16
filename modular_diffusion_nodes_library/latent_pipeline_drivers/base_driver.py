@@ -28,6 +28,7 @@ _T = TypeVar("_T")
 TextEncodings = dict[str, Any]
 DecodeResult = Image | list[Image] | np.ndarray
 
+
 class LatentPipelineDriver(ABC):
     """Abstract base class for latent pipeline drivers.
 

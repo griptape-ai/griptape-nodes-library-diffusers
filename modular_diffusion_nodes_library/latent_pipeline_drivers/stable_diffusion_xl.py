@@ -202,7 +202,9 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
         if self._is_controlnet_pipe():
             source_pil = artifact.source_image_pil()
             if source_pil is None:
-                raise ValueError(f"{type(self).__name__} ControlNet+Inpaint requires source_image in the InpaintMaskArtifact.")
+                raise ValueError(
+                    f"{type(self).__name__} ControlNet+Inpaint requires source_image in the InpaintMaskArtifact."
+                )
             return {
                 "image": source_pil,
                 "mask_image": artifact.mask_image,

@@ -78,6 +78,7 @@ explicit = true
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+extend-exclude = ["workflows/templates/*.py"]
 
 [tool.ruff.lint]
 select = [

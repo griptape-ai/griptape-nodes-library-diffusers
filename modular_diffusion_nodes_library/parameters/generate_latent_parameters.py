@@ -286,7 +286,9 @@ class DiffusionPipelineGenerateLatentParameters:
 
     def publish_output_latent(self, output_latent: Any, source_shape: tuple[int, ...]) -> None:
         pipeline_artifact = self._node.pipe_params.get_pipeline_artifact()
-        latent_artifact = LatentArtifact.from_torch(output_latent, source_shape=source_shape, meta=pipeline_artifact.metadata)
+        latent_artifact = LatentArtifact.from_torch(
+            output_latent, source_shape=source_shape, meta=pipeline_artifact.metadata
+        )
         self._node.publish_update_to_parameter("output_latent", latent_artifact)
         self._node.set_parameter_value("output_latent", latent_artifact)
         self._node.parameter_output_values["output_latent"] = latent_artifact

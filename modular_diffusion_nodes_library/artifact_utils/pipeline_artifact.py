@@ -85,7 +85,7 @@ class DiffusionPipelineArtifact:
         config_hash: str | None = None,
         builder_module: str | None = None,
         builder_class_name: str | None = None,
-        build_data: dict[str, Any] = {},
+        build_data: dict[str, Any] | None = None,
         build_data_error: str | None = None,
         loras: dict[str, float] | None = None,
         optimization_kwargs: dict[str, Any] | None = None,
@@ -97,7 +97,10 @@ class DiffusionPipelineArtifact:
         self.config_hash = config_hash
         self._builder_module = builder_module
         self._builder_class_name = builder_class_name
-        self._build_data = copy.deepcopy(build_data)
+        if build_data is not None:
+            self._build_data = copy.deepcopy(build_data)
+        else:
+            self._build_data = {}
         self._build_data_error = build_data_error
         self._loras = dict(loras) if loras else {}
         self._optimization_kwargs = copy.deepcopy(optimization_kwargs) if optimization_kwargs else {}
@@ -173,7 +176,9 @@ class DiffusionPipelineArtifact:
         """Per-generation context-managed transformations applied around each generation call."""
         return list(self._extra_runtime_adapter_steps) if hasattr(self, "_extra_runtime_adapter_steps") else []
 
-    def with_additional_runtime_adapter_steps(self, steps: list[PipelineRuntimeAdapterStep]) -> DiffusionPipelineArtifact:
+    def with_additional_runtime_adapter_steps(
+        self, steps: list[PipelineRuntimeAdapterStep]
+    ) -> DiffusionPipelineArtifact:
         """Return a shallow copy of this artifact with `steps` appended to its activation chain.
 
         The copy shares the same `config_hash` — no pipeline rebuild is triggered.

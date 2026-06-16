@@ -146,7 +146,6 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
     @override
     def create_noise_latent(self, latents_source_shape: tuple[int, ...], seed: int) -> torch.Tensor:  # noqa: ARG002
         """Return pure noise latent with shape [B, C, H, W]."""
-        num_channels_latents = self._get_num_channels_latents()
         height, width = latents_source_shape[-2], latents_source_shape[-1]
         device, dtype = self._get_device_and_type()
         generator = torch.Generator().manual_seed(seed)

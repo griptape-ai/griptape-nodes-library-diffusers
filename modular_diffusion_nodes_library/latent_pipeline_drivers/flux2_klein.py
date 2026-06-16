@@ -32,8 +32,9 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
     def _denormalize_latent(self, latents: torch.Tensor) -> torch.Tensor:
         """Reverse BN normalization on patchified latents."""
         latents_bn_mean = self.pipe.vae.bn.running_mean.view(1, -1, 1, 1).to(latents.device, latents.dtype)
-        latents_bn_std = torch.sqrt(self.pipe.vae.bn.running_var.view(1, -1, 1, 1) + self.pipe.vae.config.batch_norm_eps).to(
-            latents.device, latents.dtype)
+        latents_bn_std = torch.sqrt(
+            self.pipe.vae.bn.running_var.view(1, -1, 1, 1) + self.pipe.vae.config.batch_norm_eps
+        ).to(latents.device, latents.dtype)
         return latents * latents_bn_std + latents_bn_mean
 
     @override

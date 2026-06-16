@@ -209,10 +209,7 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
                 raise ValueError(
                     f"{type(self).__name__} ControlNet+Inpaint requires source_image in the InpaintMaskArtifact."
                 )
-            return {
-                "control_image": source_pil,
-                "control_mask": artifact.mask_image
-            }
+            return {"control_image": source_pil, "control_mask": artifact.mask_image}
         return super()._get_inpaint_kwargs(artifact)
 
     @classmethod
