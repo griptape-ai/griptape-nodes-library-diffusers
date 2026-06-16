@@ -38,6 +38,8 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     read_driver_meta,
 )
 from modular_diffusion_nodes_library.utils.conditioning_utils import (
+    ConditioningMode,
+    MediaGenConditioningKey,
     pixel_frame_index_to_latent_index,
     resize_frames_scale_to_fill,
     resolve_conditioning_image,
@@ -404,7 +406,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         kwargs.pop("text_embeddings_path", None)
         kwargs = self._set_default_kwargs(kwargs)
 
-        if "media_gen_conditioning" in kwargs:
+        if MediaGenConditioningKey.OUTPUT in kwargs:
             return self._denoise_with_video_gen_conditioning(latent, **kwargs)
 
         result = super().denoise_latent(latent, **kwargs)
@@ -479,7 +481,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     def _denoise_with_video_gen_conditioning(
         self, latent: LatentArtifact | InpaintMaskArtifact, **kwargs: Any
     ) -> LatentArtifact:
-        media_gen_conditioning_list = kwargs.pop("media_gen_conditioning")
+        media_gen_conditioning_list = kwargs.pop(MediaGenConditioningKey.OUTPUT)
         if media_gen_conditioning_list is not None and not isinstance(media_gen_conditioning_list, list):
             media_gen_conditioning_list = [media_gen_conditioning_list]
         conditions: list[LTX2VideoCondition] = []
@@ -488,25 +490,25 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             temporal_ratio = getattr(self.pipe.vae, "temporal_compression_ratio", 8)
             pixel_num_frames = latent.source_shape[-3]
             for media_gen_conditioning in media_gen_conditioning_list:
-                mode = media_gen_conditioning.get("mode", "image")
-                if mode == "video":
+                mode = media_gen_conditioning[MediaGenConditioningKey.MODE]
+                if mode == ConditioningMode.VIDEO.value:
                     frames = resolve_conditioning_video(media_gen_conditioning)
-                    strength = float(media_gen_conditioning.get("strength", 1.0))
-                    pixel_frame_index = int(media_gen_conditioning.get("frame_index", 0))
+                    strength = float(media_gen_conditioning[MediaGenConditioningKey.STRENGTH])
+                    pixel_frame_index = int(media_gen_conditioning[MediaGenConditioningKey.FRAME_INDEX])
                     index = pixel_frame_index_to_latent_index(pixel_frame_index, temporal_ratio, pixel_num_frames)
                     conditions.append(LTX2VideoCondition(frames=frames, index=index, strength=strength))
-                else:
-                    images = media_gen_conditioning.get("images", [])
+                elif mode == ConditioningMode.IMAGE.value:
+                    images = media_gen_conditioning[MediaGenConditioningKey.IMAGES]
                     if not images:
-                        msg = "Attempted to build video gen conditioning. Failed because 'images' list is empty."
+                        msg = "Failed to build LTX2 video conditioning because the images list is empty."
                         raise ValueError(msg)
-                    for i, image_cond in enumerate(images):
-                        pixel_frame_index = int(image_cond.get("frame_index", i))
+                    for image_cond in images:
+                        pixel_frame_index = int(image_cond[MediaGenConditioningKey.FRAME_INDEX])
                         latent_index = pixel_frame_index_to_latent_index(
                             pixel_frame_index, temporal_ratio, pixel_num_frames
                         )
-                        strength = float(image_cond["strength"])
-                        image = resolve_conditioning_image(image_cond.get("image"))
+                        strength = float(image_cond[MediaGenConditioningKey.STRENGTH])
+                        image = resolve_conditioning_image(image_cond[MediaGenConditioningKey.IMAGE])
                         conditions.append(
                             LTX2VideoCondition(
                                 frames=image,
@@ -514,9 +516,12 @@ class LTX2PipelineDriver(LatentPipelineDriver):
                                 strength=strength,
                             )
                         )
+                else:
+                    msg = f"Failed to build LTX2 video conditioning because mode '{mode}' is unsupported."
+                    raise ValueError(msg)
 
         if not conditions:
-            msg = "Attempted to denoise with media conditioning. Failed because no valid media_gen_conditioning entries were provided."
+            msg = "Failed to build LTX2 video conditioning because no valid conditioning entries were provided."
             raise ValueError(msg)
 
         kwargs["conditions"] = conditions
@@ -528,7 +533,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
     def _denoise_with_hdr_lora(self, latent: LatentArtifact | InpaintMaskArtifact, **kwargs: Any) -> LatentArtifact:
         logger.info("LTX2: HDR IC-LoRA path active — denoising with LTX2HDRPipeline.")
-        media_gen_conditioning_list = kwargs.pop("media_gen_conditioning", None)
+        media_gen_conditioning_list = kwargs.pop(MediaGenConditioningKey.OUTPUT, None)
         text_embeddings_path = kwargs.pop("text_embeddings_path", "")
         target_height = latent.source_shape[-2]
         target_width = latent.source_shape[-1]
@@ -596,25 +601,21 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         target_width: int,
     ) -> list[LTX2HDRReferenceCondition]:
         if not media_gen_conditioning_list:
-            raise ValueError(
-                "Attempted to denoise with HDR IC-LoRA. Failed because no media_gen_conditioning "
-                "was provided; HDR LoRA requires a reference video."
-            )
+            msg = "Failed to build LTX2 HDR conditioning because no conditioning was provided."
+            raise ValueError(msg)
         if media_gen_conditioning_list is not None and not isinstance(media_gen_conditioning_list, list):
             media_gen_conditioning_list = [media_gen_conditioning_list]
 
         reference_conditions: list[LTX2HDRReferenceCondition] = []
         for media_gen_conditioning in media_gen_conditioning_list:
-            mode = media_gen_conditioning.get("mode", "image")
-            if mode != "video":
-                raise ValueError(
-                    "Attempted to denoise with HDR IC-LoRA. Failed because media_gen_conditioning mode "
-                    f"is '{mode}'; HDR LoRA only supports a 'video' reference."
-                )
+            mode = media_gen_conditioning[MediaGenConditioningKey.MODE]
+            if mode != ConditioningMode.VIDEO.value:
+                msg = f"Failed to build LTX2 HDR conditioning because mode '{mode}' is unsupported."
+                raise ValueError(msg)
 
             frames = resolve_conditioning_video(media_gen_conditioning)
             frames = resize_frames_scale_to_fill(frames, target_height, target_width)
-            strength = float(media_gen_conditioning.get("strength", 1.0))
+            strength = float(media_gen_conditioning[MediaGenConditioningKey.STRENGTH])
             reference_conditions.append(LTX2HDRReferenceCondition(frames=frames, strength=strength))
 
         return reference_conditions
@@ -625,7 +626,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
     def _denoise_with_ic_lora(self, latent: LatentArtifact | InpaintMaskArtifact, **kwargs: Any) -> LatentArtifact:
         logger.info("LTX2: IC-LoRA path active - denoising with LTX2InContextPipeline.")
-        media_gen_conditioning_list = kwargs.pop("media_gen_conditioning", None)
+        media_gen_conditioning_list = kwargs.pop(MediaGenConditioningKey.OUTPUT, None)
         reference_conditions = self._build_ic_reference_conditions(media_gen_conditioning_list)
         kwargs = self._set_default_kwargs(kwargs)
 
@@ -655,15 +656,13 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
         reference_conditions: list[LTX2ReferenceCondition] = []
         for media_gen_conditioning in media_gen_conditioning_list:
-            mode = media_gen_conditioning.get("mode", "image")
-            if mode != "video":
-                raise ValueError(
-                    "Attempted to denoise with IC-LoRA. Failed because media_gen_conditioning mode "
-                    f"is '{mode}'; IC-LoRA only supports a 'video' reference."
-                )
+            mode = media_gen_conditioning[MediaGenConditioningKey.MODE]
+            if mode != ConditioningMode.VIDEO.value:
+                msg = f"Failed to build LTX2 IC-LoRA conditioning because mode '{mode}' is unsupported."
+                raise ValueError(msg)
 
             frames = resolve_conditioning_video(media_gen_conditioning)
-            strength = float(media_gen_conditioning.get("strength", 1.0))
+            strength = float(media_gen_conditioning[MediaGenConditioningKey.STRENGTH])
             reference_conditions.append(LTX2ReferenceCondition(frames=frames, strength=strength))
 
         return reference_conditions

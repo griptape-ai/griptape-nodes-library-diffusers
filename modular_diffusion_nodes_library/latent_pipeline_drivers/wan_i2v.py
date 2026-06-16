@@ -20,7 +20,11 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.wan import WanTextToVideoLatentPipelineDriver
-from modular_diffusion_nodes_library.utils.conditioning_utils import resolve_conditioning_image
+from modular_diffusion_nodes_library.utils.conditioning_utils import (
+    ConditioningMode,
+    MediaGenConditioningKey,
+    resolve_conditioning_image,
+)
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -78,7 +82,7 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         """Denoise a WAN i2v video latent."""
 
         update_kwargs = kwargs.copy()
-        media_gen_conditioning = update_kwargs.pop("media_gen_conditioning", None)
+        media_gen_conditioning = update_kwargs.pop(MediaGenConditioningKey.OUTPUT, None)
         media_gen_conditioning_list = self._ensure_media_gen_conditioning_list(media_gen_conditioning)
 
         # Resize conditioning images to the latent's bin dims and pin height/width on
@@ -88,21 +92,24 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         if media_gen_conditioning_list is not None:
             num_frames = latent.source_shape[-3]
             for media_gen_conditioning in media_gen_conditioning_list:
-                mode = media_gen_conditioning.get("mode")
-                if mode == "image":
-                    for image_item in media_gen_conditioning.get("images", []):
-                        image = resolve_conditioning_image(image_item.get("image"))
-                        frame_index = image_item.get("frame_index", None)
-                        output_image = image.resize((width, height))
+                mode = media_gen_conditioning[MediaGenConditioningKey.MODE]
+                if mode == ConditioningMode.IMAGE.value:
+                    for image_item in media_gen_conditioning[MediaGenConditioningKey.IMAGES]:
+                        image = resolve_conditioning_image(image_item[MediaGenConditioningKey.IMAGE])
+                        frame_index = int(image_item[MediaGenConditioningKey.FRAME_INDEX])
+                        output_image = self.preprocess_image(image)
                         if frame_index == 0:
                             update_kwargs["image"] = output_image
                         elif frame_index == -1 or frame_index == num_frames - 1:
                             update_kwargs["last_image"] = output_image
                         else:
-                            raise ValueError(
-                                f"Unsupported frame_index {frame_index} for WAN i2v conditioning. Only 0 and -1/{num_frames - 1} are supported."
+                            msg = (
+                                f"Attempted to build WAN i2v conditioning. "
+                                f"Failed with frame_index={frame_index} because only 0 and -1/{num_frames - 1} "
+                                f"are supported."
                             )
-                elif mode == "video":
+                            raise ValueError(msg)
+                elif mode == ConditioningMode.VIDEO.value:
                     logger.warning("Unsupported media_gen_conditioning mode '%s' for WAN i2v; ignoring.", mode)
 
         if "image" not in update_kwargs:

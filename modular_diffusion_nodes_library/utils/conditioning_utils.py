@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Any
 
 from griptape.artifacts import ImageArtifact, ImageUrlArtifact
@@ -9,10 +10,44 @@ from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to
 from modular_diffusion_nodes_library.utils.video_utils import load_video_frames_from_url_artifact
 
 
+class ConditioningMode(StrEnum):
+    IMAGE = "image"
+    VIDEO = "video"
+
+
+class MediaGenConditioningKey:
+    """Payload dict keys for the media-gen conditioning surface.
+
+    The conditioning node emits
+
+        {OUTPUT: {MODE: "image" | "video", ...mode-specific...}}
+
+    Video-mode entry shape:
+        {MODE: "video", VIDEO: <artifact>, FRAME_INDEX: int, STRENGTH: float}
+
+    Image-mode entry shape:
+        {MODE: "image", IMAGES: [{IMAGE: <artifact>, FRAME_INDEX: int, STRENGTH: float}, ...]}
+
+    Both the parameter component that produces the payload and the drivers
+    that consume it MUST reference these constants.
+    """
+
+    OUTPUT = "media_gen_conditioning"
+    MODE = "mode"
+    VIDEO = "video"
+    IMAGES = "images"
+    IMAGE = "image"
+    FRAME_INDEX = "frame_index"
+    STRENGTH = "strength"
+
+
 def resolve_conditioning_video(media_gen_conditioning: dict[str, Any]) -> list[Image]:
-    video_artifact = media_gen_conditioning.get("video")
+    video_artifact = media_gen_conditioning.get(MediaGenConditioningKey.VIDEO)
     if video_artifact is None:
-        msg = "Attempted to build video conditioning. Failed because 'video' was missing."
+        msg = (
+            f"Attempted to build video conditioning. "
+            f"Failed because '{MediaGenConditioningKey.VIDEO}' was missing."
+        )
         raise ValueError(msg)
 
     frames = load_video_frames_from_url_artifact(video_artifact)
