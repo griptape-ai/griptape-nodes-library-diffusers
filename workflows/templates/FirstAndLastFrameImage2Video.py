@@ -25,7 +25,6 @@ from griptape_nodes.retained_mode.events.library_events import RegisterLibraryFr
 from griptape_nodes.retained_mode.events.node_events import CreateNodeRequest
 from griptape_nodes.retained_mode.events.parameter_events import AddParameterGroupToNodeRequest, AddParameterToNodeRequest, AlterParameterDetailsRequest, AlterParameterGroupDetailsRequest, SetParameterValueRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
-from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 
 async def build_workflow() -> None:
     await GriptapeNodes.ahandle_request(RegisterLibraryFromFileRequest(library_name='Griptape Modular Diffusion Nodes Library', perform_discovery_if_not_found=True))

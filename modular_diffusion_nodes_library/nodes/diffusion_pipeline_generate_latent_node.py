@@ -2,7 +2,7 @@ import logging
 from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterList
-from griptape_nodes.exe_types.node_types import AsyncResult, BaseNode, ControlNode
+from griptape_nodes.exe_types.node_types import AsyncResult, BaseNode, SuccessFailureNode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 from griptape_nodes.exe_types.param_components.progress_bar_component import ProgressBarComponent
 from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
@@ -12,6 +12,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import nor
 from modular_diffusion_nodes_library.mixins.parameter_connection_preservation_mixin import (
     ParameterConnectionPreservationMixin,
 )
+from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.generate_latent_parameters import (
     DiffusionPipelineGenerateLatentParameters,
 )
@@ -24,10 +25,12 @@ from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
-class DiffusionPipelineGenerateLatentNode(ParameterConnectionPreservationMixin, ControlNode):
+class DiffusionPipelineGenerateLatentNode(
+    ParameterConnectionPreservationMixin, SuccessFailureExecutionMixin, SuccessFailureNode
+):
     STATIC_PARAMS: ClassVar = ["pipeline", "input_latent"]
     START_PARAMS: ClassVar = ["pipeline", "input_latent"]
-    END_PARAMS: ClassVar = ["output_latent", "preview_image", "progress", "logs"]
+    END_PARAMS: ClassVar = ["output_latent", "preview_image", "progress", "Status", "logs"]
 
     def __init__(self, **kwargs) -> None:
         self._initializing = True
@@ -49,6 +52,7 @@ class DiffusionPipelineGenerateLatentNode(ParameterConnectionPreservationMixin, 
         self.latent_parameter.add_property_parameters()
         self.latent_parameter.add_additional_parameters()
         self._initializing = False
+        self._create_status_parameters()
 
     def set_parameter_value(
         self,
@@ -230,19 +234,23 @@ class DiffusionPipelineGenerateLatentNode(ParameterConnectionPreservationMixin, 
 
     def process(self) -> AsyncResult:
         self.preprocess()
+        self._clear_execution_status()
         pipeline_artifact = self.pipe_params.get_pipeline_artifact()
         pipe = self.pipe_params.get_pipeline()
 
+        def generate() -> Any:
+            pipeline_class = self.pipe_params.get_pipeline_class()
+            pipe_kwargs = self.pipe_params.runtime_parameters._get_pipe_kwargs()
+            with pipeline_artifact.activate(pipe, node_name=self.name) as active_pipe:
+                return self.latent_parameter.process_pipeline(active_pipe, pipeline_class, pipe_kwargs)
+
         def work() -> Any:
-            try:
-                pipeline_class = self.pipe_params.get_pipeline_class()
-                pipe_kwargs = self.pipe_params.runtime_parameters._get_pipe_kwargs()
-                with pipeline_artifact.activate(pipe, node_name=self.name) as active_pipe:
-                    return self.latent_parameter.process_pipeline(active_pipe, pipeline_class, pipe_kwargs)
-            except Exception:
-                logger.exception("%s: Diffusion Pipeline execution failed", self.name)
-                # Aggressive cleanup on failure
-                cleanup_memory_caches()
-                raise
+            return self._run_with_status(
+                generate,
+                success_msg="Generation completed successfully.",
+                failure_log="Diffusion Pipeline execution failed",
+                logger=logger,
+                on_error=cleanup_memory_caches,
+            )
 
         yield work

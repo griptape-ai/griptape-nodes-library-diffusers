@@ -10,12 +10,13 @@ from typing import Any
 
 from griptape.artifacts import ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
-from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode
+from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from PIL import Image as PILImage
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import GeneratorState, ImageMedia, MaskMedia
+from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
@@ -23,7 +24,7 @@ from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
-class VaeMaskEncodeNode(ControlNode):
+class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     """Encode a masked image into an InpaintMaskArtifact (mask + masked_latent)."""
 
     def __init__(self, **kwargs) -> None:
@@ -74,6 +75,7 @@ class VaeMaskEncodeNode(ControlNode):
             )
         )
         self._initializing = False
+        self._create_status_parameters()
 
         # Seed a typed placeholder so downstream nodes can react to the InpaintMaskArtifact type.
         placeholder = InpaintMaskArtifact(mask_image=PILImage.new("L", (1, 1), 0))
@@ -127,7 +129,10 @@ class VaeMaskEncodeNode(ControlNode):
         self.pipe_params.runtime_parameters.after_value_set(parameter, value)
 
     def process(self) -> AsyncResult:
-        yield lambda: self._encode()
+        self._clear_execution_status()
+        yield lambda: self._run_with_status(
+            self._encode, success_msg="Mask encoded successfully.", failure_log="VAE mask encode failed", logger=logger
+        )
 
     def _encode(self) -> None:
         pipe = self.pipe_params.get_pipeline()

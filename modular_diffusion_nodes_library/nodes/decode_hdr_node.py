@@ -91,10 +91,10 @@ class DecodeHdrNode(VaeDecodeNode):
     def _tail_parameter_names(self) -> list[str]:
         return ["progress", "logs"]
 
-    def _process(self) -> None:
+    def _decode(self) -> None:
         self.log_params.clear_logs()
         self.progress_bar_component.reset()
-        super()._process()
+        super()._decode()
 
     def _encode_video_output(self, output: Any, dest_path: Path, fps: int) -> None:
         if not isinstance(output, np.ndarray):

@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from griptape.artifacts import ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterGroup, ParameterMode
-from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode
+from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.exe_types.param_types.parameter_bool import ParameterBool
 from griptape_nodes.exe_types.param_types.parameter_float import ParameterFloat
 from griptape_nodes.exe_types.param_types.parameter_int import ParameterInt
@@ -16,6 +16,7 @@ from griptape_nodes.traits.slider import Slider
 from PIL import Image
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.utils.image_utils import (
     apply_mask_transformations,
     extract_channel_from_image,
@@ -32,7 +33,7 @@ MAX_HEIGHT = MAX_IMAGE_DIMENSION
 LATENT_SCALE_FACTOR = 8  # Latent space is 1/8 of pixel space
 
 
-class LatentCompositeMaskNode(ControlNode):
+class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     """Composite a source latent onto a destination latent with an optional mask blend.
 
     - Place *source_latent* onto *destination_latent* at pixel offset (x_offset, y_offset).
@@ -141,6 +142,7 @@ class LatentCompositeMaskNode(ControlNode):
             )
         )
         self._initializing = False
+        self._create_status_parameters()
 
     def add_parameter(self, parameter: Parameter) -> None:
         if not self._initializing:
@@ -185,10 +187,15 @@ class LatentCompositeMaskNode(ControlNode):
         return errors or None
 
     def process(self) -> AsyncResult:
-        yield lambda: self._process()
+        self._clear_execution_status()
+        yield lambda: self._run_with_status(
+            self._composite,
+            success_msg="Composite completed successfully.",
+            failure_log="Latent composite failed",
+            logger=logger,
+        )
 
-    def _process(self) -> None:
-
+    def _composite(self) -> None:
         dest_artifact = self.get_parameter_value("destination_latent")
         src_artifact = self.get_parameter_value("source_latent")
         resize_source = self.get_parameter_value("resize_source")
@@ -248,7 +255,7 @@ class LatentCompositeMaskNode(ControlNode):
 
         # if Source is entirely outside the destination; return unchanged
         if right_a <= left_a or bottom_a <= top_a:
-            return destination
+            return
 
         # Corresponding crop within source / mask
         il = left_a - left

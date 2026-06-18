@@ -2,13 +2,14 @@ import logging
 from typing import Any
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterList, ParameterMode
-from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode
+from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DiffusionPipelineArtifact,
     normalize_diffusion_pipeline_value,
 )
+from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.lora_apply_utils import LoraPipelineRuntimeAdapterStep
 from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec, normalize_loras
@@ -17,7 +18,7 @@ from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
-class LoraActivationPipelineNode(ControlNode):
+class LoraActivationPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
@@ -78,6 +79,7 @@ class LoraActivationPipelineNode(ControlNode):
         self.add_parameter(loras_param)
 
         self.log_params = LogParameter(self)
+        self._create_status_parameters()
         self.log_params.add_output_parameters()
         self.set_lora_pipeline_artifact()
 
@@ -165,25 +167,38 @@ class LoraActivationPipelineNode(ControlNode):
 
     def process(self) -> AsyncResult:
         self.preprocess()
+        self._clear_execution_status()
         self.log_params.append_to_logs("Building pipeline...\n")
 
         def work() -> Any:
             return self._build_pipeline()
 
         yield work
-        self.log_params.append_to_logs("Pipeline building complete.\n")
+        if self._execution_succeeded:
+            self.log_params.append_to_logs("Pipeline building complete.\n")
 
     def _build_pipeline(self) -> Any:
         self.set_lora_pipeline_artifact()
         pipeline_artifact = self.get_parameter_value("lora_pipeline")
         if pipeline_artifact is None:
-            raise ValueError(f"{self.name}: Failed to build lora pipeline artifact.")
+            e = ValueError(f"{self.name}: Failed to build lora pipeline artifact.")
+            self._set_status_results(was_successful=False, result_details=str(e))
+            self._handle_failure_exception(e)
+            return
 
-        try:
+        def build() -> Any:
             with self.log_params.append_profile_to_logs("Pipeline building/caching"):
                 return pipeline_artifact.get_or_build_pipeline(log_params=self.log_params)
-        except Exception:
-            logger.exception("%s: Diffusion Pipeline build failed", self.name)
+
+        def cleanup() -> None:
+            self.log_params.append_to_logs("Pipeline building failed.\n")
             model_cache.remove_pipeline(pipeline_artifact.config_hash)
             cleanup_memory_caches()
-            raise
+
+        return self._run_with_status(
+            build,
+            success_msg="Pipeline built successfully.",
+            failure_log="Diffusion Pipeline build failed",
+            logger=logger,
+            on_error=cleanup,
+        )

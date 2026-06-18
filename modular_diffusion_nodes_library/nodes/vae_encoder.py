@@ -3,7 +3,7 @@ from typing import Any
 
 from griptape.artifacts import ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
-from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode
+from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from PIL.Image import Image
@@ -15,6 +15,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
@@ -23,7 +24,7 @@ from modular_diffusion_nodes_library.utils.video_utils import load_video_frames_
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
-class VaeEncodeNode(ControlNode):
+class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def __init__(self, **kwargs) -> None:
         self._initializing = True
         self._current_input_type = "image"
@@ -52,6 +53,7 @@ class VaeEncodeNode(ControlNode):
             )
         )
         self._initializing = False
+        self._create_status_parameters()
 
     def add_parameter(self, param: Parameter) -> None:
         """Add a parameter to the node.
@@ -168,10 +170,16 @@ class VaeEncodeNode(ControlNode):
         return errors or None
 
     def process(self) -> AsyncResult:
+        self._clear_execution_status()
+        yield lambda: self._run_with_status(
+            self._encode, success_msg="Encoded successfully.", failure_log="VAE encode failed", logger=logger
+        )
+
+    def _encode(self) -> None:
         if self._current_input_type == "video":
-            yield lambda: self.convert_video_to_latent()
+            self.convert_video_to_latent()
         else:
-            yield lambda: self.convert_image_to_latent()
+            self.convert_image_to_latent()
 
     def convert_image_to_latent(self) -> None:
         pipe = self.pipe_params.get_pipeline()

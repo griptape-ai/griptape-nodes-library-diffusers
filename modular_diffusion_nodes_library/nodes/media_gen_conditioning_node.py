@@ -1,16 +1,17 @@
 import logging
 from typing import Any
 
-from griptape_nodes.exe_types.node_types import ControlNode
+from griptape_nodes.exe_types.node_types import SuccessFailureNode
 
 from modular_diffusion_nodes_library.parameters.conditioning_parameters import (
     ModularDiffusionConditioningParameters,
 )
 
+from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
+
 logger = logging.getLogger("diffusers_nodes_library")
 
-
-class MediaGenConditioningNode(ControlNode):
+class MediaGenConditioningNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     """Conditioning node for media generation pipelines.
 
     Supports two modes:
@@ -31,6 +32,7 @@ class MediaGenConditioningNode(ControlNode):
 
         self._conditioning_parameter.add_output_parameters()
         self._conditioning_parameter.add_input_parameters()
+        self._create_status_parameters()
 
     def set_parameter_value(
         self,
@@ -59,4 +61,15 @@ class MediaGenConditioningNode(ControlNode):
         return self._conditioning_parameter.validate_before_node_run()
 
     def process(self) -> None:
-        self.parameter_output_values["conditioning"] = self._conditioning_parameter.build_conditioning_payload()
+        self._clear_execution_status()
+
+        def build() -> None:
+            self.parameter_output_values["conditioning"] = self._conditioning_parameter.build_conditioning_payload()
+
+        self._run_with_status(
+            build,
+            success_msg="Conditioning built successfully.",
+            failure_log="Conditioning build failed",
+            logger=logger,
+        )
+
