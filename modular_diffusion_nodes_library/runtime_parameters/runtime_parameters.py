@@ -1,11 +1,16 @@
 # Copied from diffusers_nodes_library.common.parameters.diffusion.runtime_parameters
 import logging
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.seed_parameter import SeedParameter
+
+if TYPE_CHECKING:
+    from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_layout import (
+        MediaGenConditioningConfig,
+    )
 
 logger = logging.getLogger("diffusers_nodes_library")
 
@@ -14,6 +19,11 @@ DEFAULT_NUM_INFERENCE_STEPS = 20
 
 
 class DiffusionPipelineRuntimeParameters(ABC):
+    # Optional per-pipeline media-gen conditioning surface. Subclasses set this
+    # ClassVar to opt into the conditioning node's tailored UI. None means the
+    # pipeline does not support media conditioning.
+    CONDITIONING_CONFIG: ClassVar["MediaGenConditioningConfig | None"] = None
+
     def __init__(self, node: BaseNode):
         self._node = node
         self._seed_parameter = SeedParameter(node)

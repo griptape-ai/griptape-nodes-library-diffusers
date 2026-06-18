@@ -3,13 +3,9 @@ from typing import Any
 
 from griptape_nodes.exe_types.node_types import ControlNode
 
-from modular_diffusion_nodes_library.parameters.media_gen_conditioning_parameter import (
-    ImageConditioningConfig,
-    ImageOrVideoConfig,
-    MediaGenConditioningParameter,
-    VideoConditioningConfig,
+from modular_diffusion_nodes_library.parameters.conditioning_parameters import (
+    ModularDiffusionConditioningParameters,
 )
-from modular_diffusion_nodes_library.utils.conditioning_utils import ConditioningMode
 
 logger = logging.getLogger("diffusers_nodes_library")
 
@@ -21,21 +17,17 @@ class MediaGenConditioningNode(ControlNode):
     - image: one or more conditioning images, each with a strength value.
     - video: a single conditioning video with a strength value.
 
-    The mode can be toggled via the 'mode' dropdown. In image mode the number of
-    image inputs is controlled by the 'num_images' property.
+    Optionally accepts a `pipeline` input. When a pipeline is connected, the
+    conditioning surface swaps to the configuration tailored to that pipeline
+    (e.g. first/last frame presets for Wan I2V, LTX, LTX2; multi-image with
+    no strength/frame_index for Flux2 Klein). With no pipeline connected the
+    default flexible image-or-video surface is shown.
     """
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-        self._conditioning_parameter = MediaGenConditioningParameter(
-            self,
-            ImageOrVideoConfig(
-                image=ImageConditioningConfig(),
-                video=VideoConditioningConfig(),
-                default_mode=ConditioningMode.IMAGE,
-            ),
-        )
+        self._conditioning_parameter = ModularDiffusionConditioningParameters(self)
 
         self._conditioning_parameter.add_output_parameters()
         self._conditioning_parameter.add_input_parameters()

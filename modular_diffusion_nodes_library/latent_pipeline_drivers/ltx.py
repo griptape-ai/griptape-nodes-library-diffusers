@@ -35,11 +35,16 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
+    MediaGenConditioningPayload,
+    normalize_to_payloads,
+)
 from modular_diffusion_nodes_library.utils.conditioning_utils import (
     ConditioningMode,
     MediaGenConditioningKey,
     resolve_conditioning_image,
     resolve_conditioning_video,
+    resolve_frame_index,
 )
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
 
@@ -358,13 +363,11 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         """
         source_shape = latent.source_shape
 
-        media_gen_conditioning_list = kwargs.pop(MediaGenConditioningKey.OUTPUT, None)
-        if media_gen_conditioning_list is not None and not isinstance(media_gen_conditioning_list, list):
-            media_gen_conditioning_list = [media_gen_conditioning_list]
+        media_gen_conditioning_payloads = normalize_to_payloads(kwargs.pop(MediaGenConditioningKey.OUTPUT, None))
         original_pipe = self._pipe
 
-        if media_gen_conditioning_list is not None:
-            video_condition_list = self._build_video_conditions(media_gen_conditioning_list, source_shape)
+        if media_gen_conditioning_payloads is not None:
+            video_condition_list = self._build_video_conditions(media_gen_conditioning_payloads, source_shape)
             kwargs["conditions"] = video_condition_list
             torch_dtype = self._get_torch_type(self._pipe)
             self._pipe = create_pipe_variant(original_pipe, LTXConditionPipeline, torch_dtype=torch_dtype)
@@ -418,42 +421,41 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
 
     def _build_video_conditions(
         self,
-        media_gen_conditioning_list: list[dict[str, Any]],
+        media_gen_conditioning_payloads: list[MediaGenConditioningPayload],
         latents_source_shape: tuple[int, ...],
     ) -> list[LTXVideoCondition]:
-        """Convert media_gen_conditioning dicts into LTXVideoCondition objects."""
+        """Convert typed conditioning payloads into LTXVideoCondition objects."""
         video_condition_list: list[LTXVideoCondition] = []
-        for media_gen_conditioning in media_gen_conditioning_list:
-            mode = media_gen_conditioning[MediaGenConditioningKey.MODE]
-            if mode == ConditioningMode.IMAGE.value:
-                for image_item in media_gen_conditioning[MediaGenConditioningKey.IMAGES]:
-                    image = resolve_conditioning_image(image_item[MediaGenConditioningKey.IMAGE])
-                    strength = image_item[MediaGenConditioningKey.STRENGTH]
-                    frame_index = self._resolve_frame_index(
-                        image_item[MediaGenConditioningKey.FRAME_INDEX], latents_source_shape[-3]
-                    )
+        num_frames = latents_source_shape[-3]
+        for payload in media_gen_conditioning_payloads:
+            if payload.mode is ConditioningMode.IMAGE:
+                for entry in payload.entries:
+                    image = resolve_conditioning_image(entry.artifact)
+                    frame_index = self._resolve_frame_index(entry.frame_index, num_frames)
                     video_condition_list.append(
-                        LTXVideoCondition(image=image, frame_index=frame_index, strength=strength)
+                        LTXVideoCondition(image=image, frame_index=frame_index, strength=entry.strength)
                     )
-            elif mode == ConditioningMode.VIDEO.value:
-                video = resolve_conditioning_video(media_gen_conditioning)
-                strength = media_gen_conditioning[MediaGenConditioningKey.STRENGTH]
-                frame_index = self._resolve_frame_index(
-                    media_gen_conditioning[MediaGenConditioningKey.FRAME_INDEX], latents_source_shape[-3]
+            elif payload.mode is ConditioningMode.VIDEO:
+                entry = payload.entries[0]
+                video = resolve_conditioning_video(entry.artifact)
+                frame_index = self._resolve_frame_index(entry.frame_index, num_frames)
+                video_condition_list.append(
+                    LTXVideoCondition(video=video, frame_index=frame_index, strength=entry.strength)
                 )
-                video_condition_list.append(LTXVideoCondition(video=video, frame_index=frame_index, strength=strength))
             else:
-                msg = f"Failed to build LTX video conditioning because mode '{mode}' is unsupported."
+                msg = f"Failed to build LTX video conditioning because mode '{payload.mode.value}' is unsupported."
                 raise ValueError(msg)
         return video_condition_list
 
     @staticmethod
-    def _resolve_frame_index(frame_index: int, num_of_frames: int) -> int:
+    def _resolve_frame_index(frame_index: int | str, num_of_frames: int) -> int:
+        # Resolve symbolic FramePosition values first; ints pass through unchanged.
+        resolved = resolve_frame_index(frame_index, num_of_frames)
         # No upper bound check: LTX conditioning supports frame_index >= num_frames
         # for future-frame positioning via positional encodings (tokens are concatenated,
         # not indexed into the latent tensor).
-        if frame_index < -1:
-            raise ValueError(f"Unsupported frame_index {frame_index} for LTX conditioning. Only >= -1 are supported.")
-        if frame_index == -1:
+        if resolved < -1:
+            raise ValueError(f"Unsupported frame_index {resolved} for LTX conditioning. Only >= -1 are supported.")
+        if resolved == -1:
             return num_of_frames - 1
-        return frame_index
+        return resolved

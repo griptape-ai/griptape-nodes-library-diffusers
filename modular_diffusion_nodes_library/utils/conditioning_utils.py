@@ -15,6 +15,19 @@ class ConditioningMode(StrEnum):
     VIDEO = "video"
 
 
+class FramePosition(StrEnum):
+    """Symbolic frame positions used by preset-based conditioning.
+
+    Serialized into the output dict's `frame_index` field as a plain string
+    (the StrEnum value). Drivers call `resolve_frame_index(value, num_frames)`
+    to turn it into a concrete int at runtime, when `num_frames` is known.
+    """
+
+    FIRST = "first"
+    MIDDLE = "middle"
+    LAST = "last"
+
+
 class MediaGenConditioningKey:
     """Payload dict keys for the media-gen conditioning surface.
 
@@ -41,13 +54,10 @@ class MediaGenConditioningKey:
     STRENGTH = "strength"
 
 
-def resolve_conditioning_video(media_gen_conditioning: dict[str, Any]) -> list[Image]:
-    video_artifact = media_gen_conditioning.get(MediaGenConditioningKey.VIDEO)
+def resolve_conditioning_video(video_artifact: Any) -> list[Image]:
+    """Decode a video artifact into RGB PIL frames."""
     if video_artifact is None:
-        msg = (
-            f"Attempted to build video conditioning. "
-            f"Failed because '{MediaGenConditioningKey.VIDEO}' was missing."
-        )
+        msg = "Attempted to build video conditioning. Failed because the video artifact was None."
         raise ValueError(msg)
 
     frames = load_video_frames_from_url_artifact(video_artifact)
@@ -70,6 +80,38 @@ def resolve_conditioning_image(image_value: Any) -> Image:
     raise ValueError(
         f"Attempted to build image conditioning. Failed with image value type '{type(image_value).__name__}'."
     )
+
+
+def resolve_frame_index(value: int | str, num_frames: int) -> int:
+    """Resolve a `frame_index` value from the conditioning payload to a concrete int.
+
+    Presets emit symbolic frame positions (`"first"`, `"middle"`, `"last"`); the
+    flexible image config emits plain ints. Drivers call this once per slot when
+    they know `num_frames`, so the producer never has to know runtime sizing.
+    """
+    if isinstance(value, int):
+        return value
+    if not isinstance(value, str):
+        msg = (
+            f"Attempted to resolve frame_index. "
+            f"Failed with value={value!r} (type {type(value).__name__}) because it is neither int nor str."
+        )
+        raise ValueError(msg)
+
+    match value:
+        case FramePosition.FIRST.value:
+            return 0
+        case FramePosition.MIDDLE.value:
+            return num_frames // 2
+        case FramePosition.LAST.value:
+            return num_frames - 1
+        case _:
+            msg = (
+                f"Attempted to resolve frame_index. "
+                f"Failed with value={value!r} because it is not a known FramePosition "
+                f"({[p.value for p in FramePosition]})."
+            )
+            raise ValueError(msg)
 
 
 def pixel_frame_index_to_latent_index(pixel_frame_index: int, temporal_ratio: int, pixel_num_frames: int) -> int:

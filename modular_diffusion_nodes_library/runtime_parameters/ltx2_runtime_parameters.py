@@ -1,13 +1,23 @@
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import BaseNode
 
 from modular_diffusion_nodes_library.parameters.file_path_parameter import FilePathParameter
+from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_layout import (
+    PRESET_FIRST,
+    PRESET_FIRST_LAST,
+    PRESET_FIRST_MIDDLE_LAST,
+    FlexibleImageConfig,
+    HybridImageConfig,
+    MediaGenConditioningConfig,
+    VideoConditioningConfig,
+)
 from modular_diffusion_nodes_library.runtime_parameters.runtime_parameters import (
     DiffusionPipelineRuntimeParameters,
 )
+from modular_diffusion_nodes_library.utils.conditioning_utils import ConditioningMode
 from modular_diffusion_nodes_library.utils.lora_apply_utils import LoraPipelineRuntimeAdapterStep
 
 logger = logging.getLogger("diffusers_nodes_library")
@@ -15,6 +25,16 @@ logger = logging.getLogger("diffusers_nodes_library")
 
 class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
     _HDR_LORA_ADAPTER_TOKEN = "ic-lora-hdr"
+
+    CONDITIONING_CONFIG: ClassVar[MediaGenConditioningConfig | None] = MediaGenConditioningConfig(
+        image=HybridImageConfig(
+            presets=(PRESET_FIRST_MIDDLE_LAST, PRESET_FIRST_LAST, PRESET_FIRST),
+            flexible=FlexibleImageConfig(),
+            default_choice=PRESET_FIRST_MIDDLE_LAST.display_name,
+        ),
+        video=VideoConditioningConfig(),
+        default_mode=ConditioningMode.IMAGE,
+    )
 
     def __init__(self, node: BaseNode, pipeline_metadata: dict[str, Any]):
         super().__init__(node)

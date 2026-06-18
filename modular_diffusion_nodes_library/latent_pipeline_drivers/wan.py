@@ -87,14 +87,6 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
     def __init__(self, pipe: DiffusionPipeline):
         super().__init__(pipe)
 
-    @staticmethod
-    def _ensure_media_gen_conditioning_list(media_gen_conditioning: Any) -> list[dict[str, Any]] | None:
-        if media_gen_conditioning is None:
-            return None
-        if not isinstance(media_gen_conditioning, list):
-            return [media_gen_conditioning]
-        return media_gen_conditioning
-
     @classmethod
     @override
     def can_make_control_pipe_from_standard(cls, control_net_model_lists: list[str] | str | None) -> bool:

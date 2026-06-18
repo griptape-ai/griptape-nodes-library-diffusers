@@ -1,8 +1,15 @@
 import logging
+from typing import ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import BaseNode
 
+from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_layout import (
+    PRESET_FIRST,
+    PRESET_FIRST_LAST,
+    MediaGenConditioningConfig,
+    PresetCatalogImageConfig,
+)
 from modular_diffusion_nodes_library.runtime_parameters.runtime_parameters import (
     DiffusionPipelineRuntimeParameters,
 )
@@ -11,6 +18,10 @@ logger = logging.getLogger("diffusers_nodes_library")
 
 
 class WanImageToVideoPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
+    CONDITIONING_CONFIG: ClassVar[MediaGenConditioningConfig | None] = MediaGenConditioningConfig(
+        image=PresetCatalogImageConfig(presets=(PRESET_FIRST_LAST, PRESET_FIRST)),
+    )
+
     def __init__(self, node: BaseNode):
         super().__init__(node)
 

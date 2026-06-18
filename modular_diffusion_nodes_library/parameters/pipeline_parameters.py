@@ -7,45 +7,13 @@ from griptape_nodes.exe_types.node_types import BaseNode
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class
-from modular_diffusion_nodes_library.runtime_parameters.flux2_runtime_parameters import (
-    Flux2PipelineRuntimeParameters,
-)
-from modular_diffusion_nodes_library.runtime_parameters.flux_fill_runtime_parameters import (
-    FluxFillPipelineRuntimeParameters,
-)
-from modular_diffusion_nodes_library.runtime_parameters.flux_runtime_parameters import (
-    FluxPipelineRuntimeParameters,
-)
 from modular_diffusion_nodes_library.runtime_parameters.ltx2_runtime_parameters import (
     LTX2PipelineRuntimeParameters,
-)
-from modular_diffusion_nodes_library.runtime_parameters.ltx_runtime_parameters import (
-    LTXPipelineRuntimeParameters,
-)
-from modular_diffusion_nodes_library.runtime_parameters.qwen_edit_runtime_parameters import (
-    QwenEditPipelineRuntimeParameters,
-)
-from modular_diffusion_nodes_library.runtime_parameters.qwen_runtime_parameters import (
-    QwenPipelineRuntimeParameters,
 )
 from modular_diffusion_nodes_library.runtime_parameters.runtime_parameters import (
     DiffusionPipelineRuntimeParameters,
 )
-from modular_diffusion_nodes_library.runtime_parameters.stable_diffusion_3_runtime_parameters import (
-    StableDiffusion3PipelineRuntimeParameters,
-)
-from modular_diffusion_nodes_library.runtime_parameters.stable_diffusion_xl_runtime_parameters import (
-    StableDiffusionXLPipelineRuntimeParameters,
-)
-from modular_diffusion_nodes_library.runtime_parameters.wan_i2v_runtime_parameters import (
-    WanImageToVideoPipelineRuntimeParameters,
-)
-from modular_diffusion_nodes_library.runtime_parameters.wan_runtime_parameters import (
-    WanPipelineRuntimeParameters,
-)
-from modular_diffusion_nodes_library.runtime_parameters.z_image_runtime_parameters import (
-    ZImagePipelineRuntimeParameters,
-)
+from modular_diffusion_nodes_library.runtime_parameters.runtime_params_registry import get_runtime_params_class
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -66,40 +34,19 @@ class ModularDiffusionPipelineParameters:
             )
         )
 
-    def set_runtime_parameters(self, pipeline_artifact: DiffusionPipelineArtifact) -> None:  # noqa: C901 PLR0912 PLR0915
+    def set_runtime_parameters(self, pipeline_artifact: DiffusionPipelineArtifact) -> None:
         pipeline_class = pipeline_artifact.pipeline_name
-        match pipeline_class:
-            case "FluxPipeline":
-                self._runtime_parameters = FluxPipelineRuntimeParameters(self._node)
-            case "FluxFillPipeline":
-                self._runtime_parameters = FluxFillPipelineRuntimeParameters(self._node)
-            case "Flux2Pipeline":
-                self._runtime_parameters = Flux2PipelineRuntimeParameters(self._node)
-            case "Flux2KleinPipeline":
-                self._runtime_parameters = Flux2PipelineRuntimeParameters(self._node)
-            case "LTXPipeline":
-                self._runtime_parameters = LTXPipelineRuntimeParameters(self._node)
-            case "LTX2Pipeline":
-                self._runtime_parameters = LTX2PipelineRuntimeParameters(self._node, pipeline_artifact.metadata)
-            case "QwenImagePipeline":
-                self._runtime_parameters = QwenPipelineRuntimeParameters(self._node)
-            case "QwenImageEditPipeline":
-                self._runtime_parameters = QwenEditPipelineRuntimeParameters(self._node)
-            case "StableDiffusion3Pipeline":
-                self._runtime_parameters = StableDiffusion3PipelineRuntimeParameters(self._node)
-            case "StableDiffusionXLPipeline":
-                self._runtime_parameters = StableDiffusionXLPipelineRuntimeParameters(self._node)
-            case "WanPipeline":
-                self._runtime_parameters = WanPipelineRuntimeParameters(self._node)
-            case "WanImageToVideoPipeline":
-                self._runtime_parameters = WanImageToVideoPipelineRuntimeParameters(self._node)
-            case "ZImagePipeline":
-                self._runtime_parameters = ZImagePipelineRuntimeParameters(self._node)
 
-            case _:
-                msg = f"Unsupported pipeline class: {pipeline_class}"
-                logger.error(msg)
-                raise ValueError(msg)
+        runtime_cls = get_runtime_params_class(pipeline_class)
+        if runtime_cls is None:
+            msg = f"Unsupported pipeline class: {pipeline_class}"
+            logger.error(msg)
+            raise ValueError(msg)
+        # Special case: LTX2 runtime-param class takes more than (node,) — it needs the artifact's metadata.
+        if runtime_cls is LTX2PipelineRuntimeParameters:
+            self._runtime_parameters = LTX2PipelineRuntimeParameters(self._node, pipeline_artifact.metadata)
+            return
+        self._runtime_parameters = runtime_cls(self._node)
 
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
         if parameter.name != "pipeline":
