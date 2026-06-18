@@ -379,7 +379,15 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         latent_num_frames = (num_frames - 1) // self._vae_temporal_compression_ratio + 1
         latent_height = height // self._vae_spatial_compression_ratio
         latent_width = width // self._vae_spatial_compression_ratio
-        return self.modular_pipe.pachifier.unpack_latents(latents, latent_num_frames, latent_height, latent_width)
+        pachifier = self.modular_pipe.pachifier
+        base_token_count = (
+            (latent_num_frames // pachifier.config.patch_size_t)
+            * (latent_height // pachifier.config.patch_size)
+            * (latent_width // pachifier.config.patch_size)
+        )
+        if latents.shape[1] > base_token_count:
+            latents = latents[:, -base_token_count:]
+        return pachifier.unpack_latents(latents, latent_num_frames, latent_height, latent_width)
 
     def _build_video_conditions(
         self,

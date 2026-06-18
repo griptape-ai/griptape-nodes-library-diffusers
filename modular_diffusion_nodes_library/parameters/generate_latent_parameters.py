@@ -19,6 +19,7 @@ from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
 )
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
+    DiffusionPipelineArtifact,
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import DecodeResult, LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
@@ -125,15 +126,24 @@ class DiffusionPipelineGenerateLatentParameters:
             return pipeline_value.pipeline_name
         return None
 
+    def _resolve_driver_class(self, pipeline_value: Any) -> type[LatentPipelineDriver] | None:
+        return get_driver_class(self._get_pipeline_class_name(pipeline_value))
+
     def _supports_inpainting(self, pipeline_value: Any) -> bool:
-        pipeline_class_name = self._get_pipeline_class_name(pipeline_value)
-        if pipeline_class_name is None:
+        driver_cls = self._resolve_driver_class(pipeline_value)
+        if driver_cls is None:
             return False
-        driver_cls = get_driver_class(pipeline_class_name)
-        return driver_cls is not None and driver_cls._inpaint_pipeline_class is not None
+        return driver_cls._inpaint_pipeline_class is not None
 
     def _is_control_net_pipeline(self, pipeline_value: Any) -> bool:
         return isinstance(pipeline_value, ControlNetDiffusionPipelineArtifact)
+
+    def update_add_noise_visibility(self, input_latent_artifact: Any) -> None:
+        """Hide ``add_noise`` when the input is an InpaintMaskArtifact; Inpaint flows manage noise internally."""
+        if isinstance(input_latent_artifact, InpaintMaskArtifact):
+            self._node.hide_parameter_by_name("add_noise")
+        else:
+            self._node.show_parameter_by_name("add_noise")
 
     def add_or_remove_control_net_parameter(self, current_pipeline: Any, new_pipeline: Any) -> None:
         if self._is_control_net_pipeline(current_pipeline) and not self._is_control_net_pipeline(new_pipeline):
@@ -188,7 +198,7 @@ class DiffusionPipelineGenerateLatentParameters:
             "advanced_media_library.enable_image_preview_intermediates", default=False
         )
 
-        strength_affected_steps = math.ceil(num_inference_steps * (self._node.get_parameter_value("strength") or 1))
+        strength_affected_steps = math.ceil(num_inference_steps * self.get_strength())
 
         first_iteration_time = None
         latent_pipeline_driver = create_driver(pipe, pipeline_class)
@@ -245,7 +255,6 @@ class DiffusionPipelineGenerateLatentParameters:
         else:
             if isinstance(input_latent_artifact, InpaintMaskArtifact):
                 pipe_kwargs["inpaint_mask_artifact"] = input_latent_artifact
-                pipe_kwargs["inpaint_strength"] = float(input_latent_artifact.strength)
 
             output_latent = latent_pipeline_driver.denoise_latent(
                 latents=input_latent,
@@ -277,7 +286,9 @@ class DiffusionPipelineGenerateLatentParameters:
 
     def publish_output_latent(self, output_latent: Any, source_shape: tuple[int, ...]) -> None:
         pipeline_artifact = self._node.pipe_params.get_pipeline_artifact()
-        latent_artifact = LatentArtifact.from_torch(output_latent, source_shape=source_shape, meta=pipeline_artifact.metadata)
+        latent_artifact = LatentArtifact.from_torch(
+            output_latent, source_shape=source_shape, meta=pipeline_artifact.metadata
+        )
         self._node.publish_update_to_parameter("output_latent", latent_artifact)
         self._node.set_parameter_value("output_latent", latent_artifact)
         self._node.parameter_output_values["output_latent"] = latent_artifact
@@ -298,6 +309,9 @@ class DiffusionPipelineGenerateLatentParameters:
         preview_image_pil = self.latents_to_image_pil(latents, source_shape, latent_pipeline_driver)
         if isinstance(preview_image_pil, list):
             preview_image_pil = preview_image_pil[0]
+        if not isinstance(preview_image_pil, Image):
+            # Can't preview if the output isn't a PIL image
+            return
         preview_image_artifact = pil_to_image_artifact(
             preview_image_pil, directory_path=get_intermediates_directory_path()
         )
@@ -399,6 +413,25 @@ class DiffusionPipelineGenerateLatentParameters:
                         "Ensure the latent was created from an image or has image dimensions set."
                     )
                 ]
+        else:
+            input_latent_artifact = None
+
+        return self._validate_driver_run_configuration(input_latent_artifact)
+
+    def _validate_driver_run_configuration(
+        self, input_latent_artifact: LatentArtifact | None
+    ) -> list[Exception] | None:
+        pipeline_value = self._node.get_parameter_value("pipeline")
+        if not isinstance(pipeline_value, DiffusionPipelineArtifact):
+            return None
+
+        driver_cls = self._resolve_driver_class(pipeline_value)
+        if driver_cls is None:
+            return None
+
+        errors = driver_cls.validate_run_configuration(pipeline_value, input_latent_artifact)
+        if errors:
+            return errors
 
         return None
 

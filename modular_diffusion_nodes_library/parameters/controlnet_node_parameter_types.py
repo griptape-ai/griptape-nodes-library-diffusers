@@ -3,6 +3,10 @@ from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import BaseNode
+from griptape_nodes.exe_types.param_components.huggingface.huggingface_model_parameter import HuggingFaceModelParameter
+from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_file_parameter import (
+    HuggingFaceRepoFileParameter,
+)
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 from griptape_nodes.traits.options import Options
 from PIL.Image import Image
@@ -36,6 +40,14 @@ class ControlNetNodesParameterType:
 
     def validate_before_node_run(self) -> list[Exception] | None:
         return self._model_repo_parameter.validate_before_node_run()
+
+    def is_control_image_required(self) -> bool:
+        """Whether `control_image` must be set for the current model selection. Subclasses override if certain models don't require a control image."""
+        return True
+
+    def on_model_changed(self, model: str | None) -> None:
+        """Hook called when the `controlnet_model` parameter value changes."""
+        self._node.show_parameter_by_name("control_image")
 
     def get_control_image(self) -> Image | None:
         return self._node.get_parameter_value("control_image")
@@ -119,10 +131,13 @@ class FluxControlNetNodesParameterType(ControlNetNodesParameterType):
 
 
 class QwenImageControlNetNodesParameterType(ControlNetNodesParameterType):
+    INPAINTING_REPO_ID: ClassVar[str] = "InstantX/Qwen-Image-ControlNet-Inpainting"
+
     @property
     def model_repo_ids(self) -> list[str]:
         repo_ids = [
             "InstantX/Qwen-Image-ControlNet-Union",
+            self.INPAINTING_REPO_ID,
         ]
         return repo_ids
 
@@ -146,11 +161,28 @@ class QwenImageControlNetNodesParameterType(ControlNetNodesParameterType):
                 tooltip="Fraction of denoising steps (0.0–1.0) at which ControlNet conditioning stops applying.",
             )
         )
+        self.on_model_changed(self._node.get_parameter_value(CONTROLNET_MODEL_PARAMETER_NAME))
 
     def remove_input_parameters(self) -> None:
         super().remove_input_parameters()
         self._node.remove_parameter_element_by_name("control_guidance_start")
         self._node.remove_parameter_element_by_name("control_guidance_end")
+
+    def is_control_image_required(self) -> bool:
+        return not self._is_inpainting_model(self._node.get_parameter_value(CONTROLNET_MODEL_PARAMETER_NAME))
+
+    def on_model_changed(self, model: str | None) -> None:
+        if self._is_inpainting_model(model):
+            self._node.hide_parameter_by_name("control_image")
+        else:
+            self._node.show_parameter_by_name("control_image")
+
+    @classmethod
+    def _is_inpainting_model(cls, model: str | None) -> bool:
+        if not model:
+            return False
+        repo_id, _ = HuggingFaceModelParameter._key_to_repo_revision(model)  # noqa: SLF001
+        return repo_id == cls.INPAINTING_REPO_ID
 
     def get_kwargs(self) -> dict[str, Any]:
         kwargs = super().get_kwargs()
@@ -207,11 +239,87 @@ class StableDiffusionControlNetNodesParameterType(ControlNetNodesParameterType):
         return kwargs
 
 
-class ZImageControlNetNodesParameterType(ControlNetNodesParameterType):
+class StableDiffusion3ControlNetNodesParameterType(ControlNetNodesParameterType):
+    INPAINTING_REPO_ID: ClassVar[str] = "alimama-creative/SD3-Controlnet-Inpainting"
+
     @property
     def model_repo_ids(self) -> list[str]:
-        repo_ids = [
-            "alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union",
-            "alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.0",
+        return [
+            "InstantX/SD3-Controlnet-Canny",
+            "InstantX/SD3-Controlnet-Pose",
+            "InstantX/SD3-Controlnet-Tile",
+            "InstantX/SD3-Controlnet-Depth",
+            "tensorart/SD3.5M-Controlnet-Depth",
+            "tensorart/SD3.5M-Controlnet-Canny",
+            self.INPAINTING_REPO_ID,
         ]
-        return repo_ids
+
+    def add_input_parameters(self) -> None:
+        super().add_input_parameters()
+        self._node.add_parameter(
+            Parameter(
+                name="control_guidance_start",
+                default_value=0.0,
+                input_types=["float"],
+                type="float",
+                tooltip="Fraction of denoising steps (0.0–1.0) at which ControlNet conditioning begins to apply.",
+            )
+        )
+        self._node.add_parameter(
+            Parameter(
+                name="control_guidance_end",
+                default_value=1.0,
+                input_types=["float"],
+                type="float",
+                tooltip="Fraction of denoising steps (0.0–1.0) at which ControlNet conditioning stops applying.",
+            )
+        )
+        self.on_model_changed(self._node.get_parameter_value(CONTROLNET_MODEL_PARAMETER_NAME))
+
+    def remove_input_parameters(self) -> None:
+        super().remove_input_parameters()
+        self._node.remove_parameter_element_by_name("control_guidance_start")
+        self._node.remove_parameter_element_by_name("control_guidance_end")
+
+    def is_control_image_required(self) -> bool:
+        return not self._is_inpainting_model(self._node.get_parameter_value(CONTROLNET_MODEL_PARAMETER_NAME))
+
+    def on_model_changed(self, model: str | None) -> None:
+        if self._is_inpainting_model(model):
+            self._node.hide_parameter_by_name("control_image")
+        else:
+            self._node.show_parameter_by_name("control_image")
+
+    @classmethod
+    def _is_inpainting_model(cls, model: str | None) -> bool:
+        if not model:
+            return False
+        repo_id, _ = HuggingFaceModelParameter._key_to_repo_revision(model)  # noqa: SLF001
+        return repo_id == cls.INPAINTING_REPO_ID
+
+    def get_kwargs(self) -> dict[str, Any]:
+        kwargs = {}
+        kwargs["control_image"] = self.get_control_image()
+        kwargs["controlnet_conditioning_scale"] = float(self._node.get_parameter_value("controlnet_conditioning_scale"))
+        kwargs["control_guidance_start"] = float(self._node.get_parameter_value("control_guidance_start"))
+        kwargs["control_guidance_end"] = float(self._node.get_parameter_value("control_guidance_end"))
+        return kwargs
+
+
+class ZImageControlNetNodesParameterType(ControlNetNodesParameterType):
+    REPO_FILES: ClassVar = [
+        ("alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union", "Z-Image-Turbo-Fun-Controlnet-Union.safetensors"),
+        ("alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1", "Z-Image-Turbo-Fun-Controlnet-Union-2.1.safetensors"),
+    ]
+
+    @property
+    def model_repo_ids(self) -> list[str]:
+        return [repo for repo, _ in self.REPO_FILES]
+
+    def __init__(self, node: BaseNode):
+        self._node = node
+        self._model_repo_parameter = HuggingFaceRepoFileParameter(
+            node,
+            repo_files=self.REPO_FILES,
+            parameter_name=CONTROLNET_MODEL_PARAMETER_NAME,
+        )

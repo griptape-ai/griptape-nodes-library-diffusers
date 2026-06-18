@@ -1,8 +1,13 @@
 import logging
-from typing import Any, override
+from typing import Any, ClassVar, override
 
 import torch  # type: ignore[reportMissingImports]
-from diffusers import StableDiffusion3InpaintPipeline  # type: ignore[reportMissingImports]
+from diffusers import (  # type: ignore[reportMissingImports]
+    StableDiffusion3ControlNetInpaintingPipeline,
+    StableDiffusion3ControlNetPipeline,
+    StableDiffusion3InpaintPipeline,
+)
+from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     SequentialPipelineBlocks,
@@ -19,6 +24,7 @@ from diffusers.modular_pipelines.stable_diffusion_3.modular_blocks_stable_diffus
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from PIL.Image import Image
 
+from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -57,6 +63,9 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
     """
 
     _inpaint_pipeline_class = StableDiffusion3InpaintPipeline
+    _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = (
+        StableDiffusion3ControlNetInpaintingPipeline
+    )
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
@@ -65,7 +74,32 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
     @classmethod
     @override
     def can_make_control_pipe_from_standard(cls, control_net_model_lists: list[str] | str | None) -> bool:
-        return False
+        return True
+
+    @classmethod
+    @override
+    def control_pipe_from_standard(
+        cls,
+        pipe: ModularPipeline | DiffusionPipeline,
+        control_net_model_lists: list[str] | str | None,
+    ) -> ModularPipeline | DiffusionPipeline:
+        if not control_net_model_lists:
+            return pipe
+
+        if not isinstance(control_net_model_lists, list):
+            control_net_model_lists = [control_net_model_lists]
+
+        controlnet_torch_dtype = cls._get_torch_type(pipe)
+        from_pretrained_kwargs: dict[str, Any] = {}
+        if controlnet_torch_dtype is not None:
+            from_pretrained_kwargs["torch_dtype"] = controlnet_torch_dtype
+
+        control_net_models = [
+            SD3ControlNetModel.from_pretrained(cn, **from_pretrained_kwargs) for cn in control_net_model_lists
+        ]
+        controlnet = control_net_models[0] if len(control_net_models) == 1 else control_net_models
+
+        return StableDiffusion3ControlNetPipeline(controlnet=controlnet, **pipe.components)
 
     # ------------------------------------------------------------------
     # Modular blocks for encode / decode / noise latent
@@ -138,8 +172,9 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         # Img2Img requires ``image`` and ``strength``.  Pass the latent
         # as ``image`` — prepare_latents detects 16-channel input and
         # uses it directly; strength=1.0 gives full t2i behavior.
-        # Skip if inpainting — the inpaint path provides its own ``image``.
-        if "inpaint_mask_artifact" not in kwargs:
+        # Skip if inpainting or ControlNet — those paths provide their own
+        # ``image`` / do not accept ``image``+``strength`` kwargs.
+        if "inpaint_mask_artifact" not in kwargs and not self._is_controlnet_pipe():
             kwargs.setdefault("image", latents_on_device)
             kwargs.setdefault("strength", 1.0)
 
@@ -163,7 +198,35 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         return images[0]
 
     @override
+    def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
+        if self._is_controlnet_pipe():
+            source_pil = artifact.source_image_pil()
+            if source_pil is None:
+                raise ValueError(
+                    f"{type(self).__name__} ControlNet+Inpaint requires source_image in the InpaintMaskArtifact."
+                )
+            return {
+                "control_image": source_pil,
+                "control_mask": artifact.mask_image,
+            }
+
+        device, dtype = self._get_device_and_type()
+        source_latent = artifact.to_torch(device=device, dtype=dtype)
+        return {
+            "image": source_latent,
+            "mask_image": artifact.mask_image,
+            "masked_image_latents": source_latent,
+            "strength": artifact.strength,
+        }
+
+    @override
     def encode_image(self, image: Image | torch.Tensor) -> torch.Tensor:
+        if isinstance(image, Image):
+            height = image.height
+            width = image.width
+        else:
+            height = image.shape[-2]
+            width = image.shape[-1]
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
-        output_state = self._call_block(encode_block, image=image)
+        output_state = self._call_block(encode_block, image=image, height=height, width=width)
         return output_state.get("image_latents")

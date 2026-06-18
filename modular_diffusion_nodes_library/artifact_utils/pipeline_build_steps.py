@@ -13,7 +13,6 @@ from typing import Any, Protocol, runtime_checkable
 from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class
 from modular_diffusion_nodes_library.utils.lora_apply_utils import configure_loras_on_pipeline
 from modular_diffusion_nodes_library.utils.pipeline_utils import optimize_diffusion_pipeline
 
@@ -106,6 +105,11 @@ class AttachControlNetStep:
         self._controlnet_models = list(controlnet_models)
 
     def apply(self, pipe: Pipe | None, *, log_params: Any | None = None) -> Pipe:
+        # Imported lazily to avoid a import cycle
+        from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import (
+            get_driver_class,
+        )
+
         if pipe is None:
             raise RuntimeError("AttachControlNetStep requires a pipe.")
         if not self._controlnet_models:

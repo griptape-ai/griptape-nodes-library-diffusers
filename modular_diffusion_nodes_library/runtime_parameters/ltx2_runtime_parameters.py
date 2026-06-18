@@ -152,9 +152,6 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
 
         return False
 
-    def add_output_parameters(self) -> None:
-        pass
-
     def _remove_input_parameters(self) -> None:
         if self._is_distilled:
             self._node.remove_parameter_element_by_name("use_stage_2")
@@ -169,9 +166,6 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         self._node.remove_parameter_element_by_name("audio_modality_scale")
         self._node.remove_parameter_element_by_name("audio_guidance_rescale")
         self._node.remove_parameter_element_by_name("text_embeddings_path")
-
-    def remove_output_parameters(self) -> None:
-        pass
 
     def publish_output_image_preview_placeholder(self) -> None:
         # Video pipelines don't use image placeholders

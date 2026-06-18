@@ -103,13 +103,15 @@ class LTX2PipelineDriver(LatentPipelineDriver):
                     except (TypeError, ValueError):
                         logger.warning(
                             "LTX2: ignoring non-numeric reference_downscale_factor=%r in %s",
-                            raw_value, entry.get("path"),
+                            raw_value,
+                            entry.get("path"),
                         )
                     else:
                         if factor < 1:
                             logger.warning(
                                 "LTX2: ignoring invalid reference_downscale_factor=%f in %s",
-                                factor, entry.get("path"),
+                                factor,
+                                entry.get("path"),
                             )
                         else:
                             return int(factor)
@@ -127,7 +129,9 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     def _get_num_channels_latents(self) -> int:
         transformer = getattr(self.pipe, "transformer", None) or getattr(self.pipe, "transformer_2", None)
         if transformer is None:
-            raise AttributeError(f"Pipeline '{self.pipe.__class__.__name__}' has no 'transformer' or 'transformer_2' attribute.")
+            raise AttributeError(
+                f"Pipeline '{self.pipe.__class__.__name__}' has no 'transformer' or 'transformer_2' attribute."
+            )
         return transformer.config.in_channels
 
     @override
@@ -147,12 +151,21 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         num_channels_latents = self._get_num_channels_latents()
 
         shape = (1, num_channels_latents, latent_frames, latent_height, latent_width)
-        latent = randn_tensor(shape, generator=torch.Generator(device=device).manual_seed(seed), device=device, dtype=dtype)
+        latent = randn_tensor(
+            shape, generator=torch.Generator(device=device).manual_seed(seed), device=device, dtype=dtype
+        )
         return latent
 
     @override
-    def add_noise_to_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...], seed: int, num_inference_steps: int, strength: float) -> torch.Tensor:
-        """ Return latent that has been noised, shape should match create_noise_latent. Latent should be unpacked so it may be processed further e.g. with mask. """
+    def add_noise_to_latent(
+        self,
+        latents: torch.Tensor,
+        latents_source_shape: tuple[int, ...],
+        seed: int,
+        num_inference_steps: int,
+        strength: float,
+    ) -> torch.Tensor:
+        """Return latent that has been noised, shape should match create_noise_latent. Latent should be unpacked so it may be processed further e.g. with mask."""
         scheduler = self.pipe.scheduler
         sigmas = np.linspace(1.0, 1 / num_inference_steps, num_inference_steps)
         set_timesteps_kwargs: dict[str, Any] = {"sigmas": sigmas, "device": latents.device}
@@ -194,15 +207,57 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def prepare_output_latent(self, latents_from_pipe: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
-        """Pass through: the pipeline already unpacks (3-D→5-D) and denormalises before returning output latents."""
+    def prepare_output_latent(
+        self, latents_from_pipe: torch.Tensor, latents_source_shape: tuple[int, ...]
+    ) -> torch.Tensor:
+        """Pass through: the pipeline already unpacks (3-D→5-D) and denormalises before returning output latents.
+        Also handles 3-D callbacks latents from mid-loop callbacks for preview.
+        """
         device, _ = self._get_device_and_type()
         latents_from_pipe = latents_from_pipe.to(device=device, dtype=torch.float32)
+
+        if latents_from_pipe.ndim == 3:
+            return self._unpack_callback_latents(latents_from_pipe, latents_source_shape)
+
         return self.pipe._normalize_latents(
             latents_from_pipe,
             self.pipe.vae.latents_mean,
             self.pipe.vae.latents_std,
             self.pipe.vae.config.scaling_factor,
+        )
+
+    def _unpack_callback_latents(
+        self, packed_latents: torch.Tensor, latents_source_shape: tuple[int, ...]
+    ) -> torch.Tensor:
+        """Unpack mid-loop callback latents from ``[B, S, D]`` to ``[B, C, F, H, W]``.
+
+        The LTX2 pipeline keeps latents packed and normalised throughout the denoise loo.
+        """
+        pixel_num_frames = latents_source_shape[-3]
+        pixel_height = latents_source_shape[-2]
+        pixel_width = latents_source_shape[-1]
+
+        vae_spatial_ratio = getattr(self.pipe.vae, "spatial_compression_ratio", 32)
+        vae_temporal_ratio = getattr(self.pipe.vae, "temporal_compression_ratio", 8)
+
+        latent_num_frames = (pixel_num_frames - 1) // vae_temporal_ratio + 1
+        latent_height = pixel_height // vae_spatial_ratio
+        latent_width = pixel_width // vae_spatial_ratio
+
+        patch_size = self.pipe.transformer_spatial_patch_size
+        patch_size_t = self.pipe.transformer_temporal_patch_size
+        base_token_count = (
+            (latent_num_frames // patch_size_t) * (latent_height // patch_size) * (latent_width // patch_size)
+        )
+        packed_latents = packed_latents[:, :base_token_count]
+
+        return self.pipe._unpack_latents(
+            packed_latents,
+            latent_num_frames,
+            latent_height,
+            latent_width,
+            patch_size,
+            patch_size_t,
         )
 
     @override
@@ -222,9 +277,13 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         logger.info(
             "LTX2PipelineDriver._decode_hdr_to_linear_np: linear HDR stats — "
             "min=%.4f max=%.4f mean=%.4f p50=%.4f p95=%.4f p99=%.4f gt1=%.2f%%",
-            float(hdr[0].min()), float(hdr[0].max()), float(hdr[0].mean()),
-            float(np.percentile(hdr[0], 50)), float(np.percentile(hdr[0], 95)),
-            float(np.percentile(hdr[0], 99)), float((hdr[0] > 1.0).mean() * 100.0),
+            float(hdr[0].min()),
+            float(hdr[0].max()),
+            float(hdr[0].mean()),
+            float(np.percentile(hdr[0], 50)),
+            float(np.percentile(hdr[0], 95)),
+            float(np.percentile(hdr[0], 99)),
+            float((hdr[0] > 1.0).mean() * 100.0),
         )
         return hdr
 
@@ -277,7 +336,9 @@ class LTX2PipelineDriver(LatentPipelineDriver):
                 elif hasattr(encoded, "latents"):
                     latent = encoded.latents
                 else:
-                    raise ValueError(f"VAE encode output for '{self.pipe.__class__.__name__}' has no latent_dist or latents attribute.")
+                    raise ValueError(
+                        f"VAE encode output for '{self.pipe.__class__.__name__}' has no latent_dist or latents attribute."
+                    )
                 frame_latents.append(latent)
 
         latents = torch.cat(frame_latents, dim=0).to(dtype)
@@ -290,25 +351,76 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         return latents
 
     @override
-    def denoise_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...], num_inference_steps: int, seed: int = 0, callback: Any = None, start_step: int = 0, end_step: int = -1, return_fully_denoised: bool = False, **kwargs: Any) -> torch.Tensor:
+    def denoise_latent(
+        self,
+        latents: torch.Tensor,
+        latents_source_shape: tuple[int, ...],
+        num_inference_steps: int,
+        seed: int = 0,
+        callback: Any = None,
+        start_step: int = 0,
+        end_step: int = -1,
+        return_fully_denoised: bool = False,
+        **kwargs: Any,
+    ) -> torch.Tensor:
         kwargs = self._update_args_for_distilled_pipeline(kwargs)
 
         num_inference_steps = kwargs.pop("num_inference_steps", num_inference_steps)
         kwargs["num_frames"] = latents_source_shape[-3]
 
         if self.is_hdr_lora_active:
-            return self._denoise_with_hdr_lora(latents, latents_source_shape, num_inference_steps, seed=seed, callback=callback, start_step=start_step, end_step=end_step, return_fully_denoised=return_fully_denoised, **kwargs)
+            return self._denoise_with_hdr_lora(
+                latents,
+                latents_source_shape,
+                num_inference_steps,
+                seed=seed,
+                callback=callback,
+                start_step=start_step,
+                end_step=end_step,
+                return_fully_denoised=return_fully_denoised,
+                **kwargs,
+            )
 
         if self.is_ic_lora_active:
-            return self._denoise_with_ic_lora(latents, latents_source_shape, num_inference_steps, seed=seed, callback=callback, start_step=start_step, end_step=end_step, return_fully_denoised=return_fully_denoised, **kwargs)
+            return self._denoise_with_ic_lora(
+                latents,
+                latents_source_shape,
+                num_inference_steps,
+                seed=seed,
+                callback=callback,
+                start_step=start_step,
+                end_step=end_step,
+                return_fully_denoised=return_fully_denoised,
+                **kwargs,
+            )
 
         kwargs.pop("text_embeddings_path", None)
         kwargs = self._set_default_kwargs(kwargs)
 
         if "media_gen_conditioning" in kwargs:
-            return self._denoise_with_video_gen_conditioning(latents, latents_source_shape, num_inference_steps, seed=seed, callback=callback, start_step=start_step, end_step=end_step, return_fully_denoised=return_fully_denoised, **kwargs)
+            return self._denoise_with_video_gen_conditioning(
+                latents,
+                latents_source_shape,
+                num_inference_steps,
+                seed=seed,
+                callback=callback,
+                start_step=start_step,
+                end_step=end_step,
+                return_fully_denoised=return_fully_denoised,
+                **kwargs,
+            )
 
-        output_latents = super().denoise_latent(latents, latents_source_shape, num_inference_steps, seed=seed, callback=callback, start_step=start_step, end_step=end_step, return_fully_denoised=return_fully_denoised, **kwargs)
+        output_latents = super().denoise_latent(
+            latents,
+            latents_source_shape,
+            num_inference_steps,
+            seed=seed,
+            callback=callback,
+            start_step=start_step,
+            end_step=end_step,
+            return_fully_denoised=return_fully_denoised,
+            **kwargs,
+        )
         return output_latents
 
     # ------------------------------------------------------------------
@@ -390,7 +502,18 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     # Generic video gen conditioning support (for pipelines without LoRA adapters, or with fused LoRAs)
     # ------------------------------------------------------------------
 
-    def _denoise_with_video_gen_conditioning(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...], num_inference_steps: int, seed: int = 0, callback: Any = None, start_step: int = 0, end_step: int = -1, return_fully_denoised: bool = False, **kwargs: Any) -> torch.Tensor:
+    def _denoise_with_video_gen_conditioning(
+        self,
+        latents: torch.Tensor,
+        latents_source_shape: tuple[int, ...],
+        num_inference_steps: int,
+        seed: int = 0,
+        callback: Any = None,
+        start_step: int = 0,
+        end_step: int = -1,
+        return_fully_denoised: bool = False,
+        **kwargs: Any,
+    ) -> torch.Tensor:
         media_gen_conditioning_list = kwargs.pop("media_gen_conditioning")
         if media_gen_conditioning_list is not None and not isinstance(media_gen_conditioning_list, list):
             media_gen_conditioning_list = [media_gen_conditioning_list]
@@ -414,7 +537,9 @@ class LTX2PipelineDriver(LatentPipelineDriver):
                         raise ValueError(msg)
                     for i, image_cond in enumerate(images):
                         pixel_frame_index = int(image_cond.get("frame_index", i))
-                        latent_index = pixel_frame_index_to_latent_index(pixel_frame_index, temporal_ratio, pixel_num_frames)
+                        latent_index = pixel_frame_index_to_latent_index(
+                            pixel_frame_index, temporal_ratio, pixel_num_frames
+                        )
                         strength = float(image_cond["strength"])
                         image = resolve_conditioning_image(image_cond.get("image"))
                         conditions.append(
@@ -447,13 +572,26 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     # HDR IC-LoRA support
     # ------------------------------------------------------------------
 
-    def _denoise_with_hdr_lora(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...], num_inference_steps: int, seed: int = 0, callback: Any = None, start_step: int = 0, end_step: int = -1, return_fully_denoised: bool = False, **kwargs: Any) -> torch.Tensor:
+    def _denoise_with_hdr_lora(
+        self,
+        latents: torch.Tensor,
+        latents_source_shape: tuple[int, ...],
+        num_inference_steps: int,
+        seed: int = 0,
+        callback: Any = None,
+        start_step: int = 0,
+        end_step: int = -1,
+        return_fully_denoised: bool = False,
+        **kwargs: Any,
+    ) -> torch.Tensor:
         logger.info("LTX2: HDR IC-LoRA path active — denoising with LTX2HDRPipeline.")
         media_gen_conditioning_list = kwargs.pop("media_gen_conditioning", None)
         text_embeddings_path = kwargs.pop("text_embeddings_path", "")
         target_height = latents_source_shape[-2]
         target_width = latents_source_shape[-1]
-        reference_conditions = self._build_hdr_reference_conditions(media_gen_conditioning_list, target_height, target_width)
+        reference_conditions = self._build_hdr_reference_conditions(
+            media_gen_conditioning_list, target_height, target_width
+        )
         kwargs = self._set_default_kwargs_hdr(kwargs)
 
         if text_embeddings_path:
@@ -526,8 +664,10 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         target_width: int,
     ) -> list[LTX2HDRReferenceCondition]:
         if not media_gen_conditioning_list:
-            raise ValueError("Attempted to denoise with HDR IC-LoRA. Failed because no media_gen_conditioning "
-                             "was provided; HDR LoRA requires a reference video.")
+            raise ValueError(
+                "Attempted to denoise with HDR IC-LoRA. Failed because no media_gen_conditioning "
+                "was provided; HDR LoRA requires a reference video."
+            )
         if media_gen_conditioning_list is not None and not isinstance(media_gen_conditioning_list, list):
             media_gen_conditioning_list = [media_gen_conditioning_list]
 
@@ -551,7 +691,18 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     # IC-LoRA support (non-HDR)
     # ------------------------------------------------------------------
 
-    def _denoise_with_ic_lora(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...], num_inference_steps: int, seed: int = 0, callback: Any = None, start_step: int = 0, end_step: int = -1, return_fully_denoised: bool = False, **kwargs: Any) -> torch.Tensor:
+    def _denoise_with_ic_lora(
+        self,
+        latents: torch.Tensor,
+        latents_source_shape: tuple[int, ...],
+        num_inference_steps: int,
+        seed: int = 0,
+        callback: Any = None,
+        start_step: int = 0,
+        end_step: int = -1,
+        return_fully_denoised: bool = False,
+        **kwargs: Any,
+    ) -> torch.Tensor:
         logger.info("LTX2: IC-LoRA path active - denoising with LTX2InContextPipeline.")
         media_gen_conditioning_list = kwargs.pop("media_gen_conditioning", None)
         reference_conditions = self._build_ic_reference_conditions(media_gen_conditioning_list)
@@ -565,8 +716,8 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             inferred = self._infer_reference_downscale_factor_from_loras()
             if inferred is not None:
                 logger.info(
-                    "LTX2: reference_downscale_factor not provided; "
-                    "using value %d from LoRA safetensors metadata.", inferred,
+                    "LTX2: reference_downscale_factor not provided; using value %d from LoRA safetensors metadata.",
+                    inferred,
                 )
                 extra_kwargs["reference_downscale_factor"] = inferred
 

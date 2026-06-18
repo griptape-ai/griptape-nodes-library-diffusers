@@ -1,6 +1,6 @@
 # /// script
 # dependencies = []
-#
+# 
 # [tool.griptape-nodes]
 # name = "FirstAndLastFrameImage2Video"
 # schema_version = "0.18.0"
@@ -13,7 +13,7 @@
 # is_template = true
 # creation_date = 2026-06-02T10:39:56.644559Z
 # last_modified_date = 2026-06-02T10:51:57.684579Z
-#
+# 
 # ///
 
 import pickle

@@ -28,6 +28,7 @@ class QwenEditPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 input_types=["ImageArtifact", "ImageUrlArtifact"],
                 type="ImageArtifact",
                 tooltip="Image to be edited.",
+                ui_options={"hide_property": True},
             )
         )
         self._node.add_parameter(

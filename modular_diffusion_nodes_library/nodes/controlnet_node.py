@@ -13,6 +13,7 @@ from modular_diffusion_nodes_library.parameters.controlnet_node_parameter_types 
     ControlNetNodesParameterType,
     FluxControlNetNodesParameterType,
     QwenImageControlNetNodesParameterType,
+    StableDiffusion3ControlNetNodesParameterType,
     StableDiffusionControlNetNodesParameterType,
     ZImageControlNetNodesParameterType,
 )
@@ -26,6 +27,7 @@ class ControlNetNode(ParameterConnectionPreservationMixin, ControlNode):
         Provider.FLUX: FluxControlNetNodesParameterType,
         Provider.QWEN: QwenImageControlNetNodesParameterType,
         Provider.STABLE_DIFFUSION: StableDiffusionControlNetNodesParameterType,
+        Provider.STABLE_DIFFUSION_3: StableDiffusion3ControlNetNodesParameterType,
         Provider.Z_IMAGE: ZImageControlNetNodesParameterType,
     }
     STATIC_PARAMS: ClassVar = ["provider"]
@@ -87,9 +89,10 @@ class ControlNetNode(ParameterConnectionPreservationMixin, ControlNode):
         if error_list is not None:
             return error_list
 
-        control_image = self.get_parameter_value("control_image")
-        if control_image is None:
-            return [ValueError("Control image parameter cannot be None")]
+        if self._controlnet_parameter_type.is_control_image_required():
+            control_image = self.get_parameter_value("control_image")
+            if control_image is None:
+                return [ValueError("Control image parameter cannot be None")]
 
         return None
 
@@ -122,7 +125,9 @@ class ControlNetNode(ParameterConnectionPreservationMixin, ControlNode):
 
         # During initial_setup, before/after_value_set hooks are not called by the base class.
         # Handle provider change here to ensure proper restore when opening an existing script.
-        if initial_setup and parameter.name == "provider":
+        # Also fire for controlnet_model so its UI hooks (e.g. hide/show control_image) apply on load.
+        fire_hooks_on_initial_setup = parameter.name in ("provider", CONTROLNET_MODEL_PARAMETER_NAME)
+        if initial_setup and fire_hooks_on_initial_setup:
             self.before_value_set(parameter, value)
 
         super().set_parameter_value(
@@ -133,7 +138,7 @@ class ControlNetNode(ParameterConnectionPreservationMixin, ControlNode):
             skip_before_value_set=skip_before_value_set,
         )
 
-        if initial_setup and parameter.name == "provider":
+        if initial_setup and fire_hooks_on_initial_setup:
             self.after_value_set(parameter, value)
 
     def before_value_set(self, parameter: Parameter, value: Any) -> Any:
@@ -145,6 +150,8 @@ class ControlNetNode(ParameterConnectionPreservationMixin, ControlNode):
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
         if parameter.name == "provider" and self.did_provider_change:
             self.regenerate_controlnet_parameter_type_for_provider(value)
+        elif parameter.name == CONTROLNET_MODEL_PARAMETER_NAME:
+            self._controlnet_parameter_type.on_model_changed(value)
         return super().after_value_set(parameter, value)
 
     def regenerate_controlnet_parameter_type_for_provider(self, provider: str) -> None:

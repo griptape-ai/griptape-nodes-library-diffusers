@@ -12,6 +12,11 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
+    ControlNetDiffusionPipelineArtifact,
+    DiffusionPipelineArtifact,
+)
 from modular_diffusion_nodes_library.misc.partial_denoise import (
     PartialDenoisePipelineRunner,
     PartialDenoiseSchedulerProxy,
@@ -22,6 +27,7 @@ _T = TypeVar("_T")
 
 TextEncodings = dict[str, Any]
 DecodeResult = Image | list[Image] | np.ndarray
+
 
 class LatentPipelineDriver(ABC):
     """Abstract base class for latent pipeline drivers.
@@ -73,6 +79,7 @@ class LatentPipelineDriver(ABC):
     video_fps: ClassVar[int] = 16
     _partial_denoise_proxy_class: ClassVar[type[PartialDenoiseSchedulerProxy]] = PartialDenoiseSchedulerProxy
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = None
+    _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = None
 
     def __init__(self, pipe: DiffusionPipeline):
         self._pipe = pipe
@@ -251,9 +258,6 @@ class LatentPipelineDriver(ABC):
 
             inpaint_kwargs = self._get_inpaint_kwargs(inpaint_mask_artifact)
             kwargs.update(inpaint_kwargs)
-
-            inpaint_strength: float = kwargs.pop("inpaint_strength", 1.0)
-            kwargs["strength"] = inpaint_strength
         else:
             latents = self.prepare_input_latent(latents, latents_source_shape)
 
@@ -299,9 +303,55 @@ class LatentPipelineDriver(ABC):
     # Inpainting hooks
     # ------------------------------------------------------------------
 
+    @classmethod
+    def validate_run_configuration(
+        cls,
+        pipeline_artifact: DiffusionPipelineArtifact,
+        input_latent: LatentArtifact | None,
+    ) -> list[Exception] | None:
+        """Validate that the requested run configuration is supported by this driver.
+
+        Called from the Generate Latent node before execution.
+
+        Default implementation surfaces driver-agnostic compatibility problems:
+        when ``input_latent`` is an :class:`InpaintMaskArtifact`, the
+        driver must declare an inpaint pipeline class for the current variant.
+        """
+        if not isinstance(input_latent, InpaintMaskArtifact):
+            return None
+
+        is_controlnet = isinstance(pipeline_artifact, ControlNetDiffusionPipelineArtifact)
+        if is_controlnet:
+            required_class = cls._inpaint_controlnet_pipeline_class
+            mode = "ControlNet+Inpaint"
+        else:
+            required_class = cls._inpaint_pipeline_class
+            mode = "Inpaint"
+
+        if required_class is None:
+            return [
+                ValueError(
+                    f"Pipeline '{pipeline_artifact.pipeline_name}' does not support {mode} mode "
+                    f"(driver {cls.__name__} declares no inpaint pipeline class for this variant)."
+                )
+            ]
+        return None
+
+    def _is_controlnet_pipe(self) -> bool:
+        """True if the current pipe is a ControlNet variant (heuristic by class name)."""
+        return "ControlNet" in type(self.pipe).__name__
+
     def _get_inpaint_pipe(self) -> DiffusionPipeline | None:
-        """Return an inpaint pipeline for this driver."""
-        cls = self._inpaint_pipeline_class
+        """Return an inpaint pipeline for this driver.
+
+        If the current pipe is a ControlNet variant, swap to the combined
+        ControlNet+Inpaint class so the ControlNet conditioning is preserved.
+        """
+        is_control_net = self._is_controlnet_pipe()
+        if is_control_net:
+            cls = self._inpaint_controlnet_pipeline_class
+        else:
+            cls = self._inpaint_pipeline_class
         if cls is None:
             return None
         if isinstance(self.pipe, cls):
@@ -316,6 +366,7 @@ class LatentPipelineDriver(ABC):
         result: dict[str, Any] = {
             "image": artifact.source_latent.to(device=device, dtype=dtype),
             "mask_image": artifact.mask_image,
+            "strength": artifact.strength,
         }
         if artifact.masked_latent is not None:
             result["masked_image_latents"] = artifact.masked_latent.to(device=device, dtype=dtype)
