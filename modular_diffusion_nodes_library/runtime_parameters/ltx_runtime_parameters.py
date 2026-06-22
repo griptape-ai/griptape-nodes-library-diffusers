@@ -92,3 +92,10 @@ class LTXPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             "guidance_scale": self._node.get_parameter_value("guidance_scale"),
             **self._media_gen_conditioning_param.get_pipe_kwargs(),
         }
+
+    def validate_before_node_run(self) -> list[Exception] | None:
+        errors = super().validate_before_node_run() or []
+        conditioning_errors = self._media_gen_conditioning_param.validate_before_node_run()
+        if conditioning_errors:
+            errors.extend(conditioning_errors)
+        return errors or None

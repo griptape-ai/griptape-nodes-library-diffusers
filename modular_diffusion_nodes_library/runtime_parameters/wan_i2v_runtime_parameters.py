@@ -70,7 +70,6 @@ class WanImageToVideoPipelineRuntimeParameters(DiffusionPipelineRuntimeParameter
 
     def _remove_input_parameters(self) -> None:
         self._media_gen_conditioning_param.remove_input_parameters()
-        self._node.remove_parameter_element_by_name("auto_resize_input_image")
         self._node.remove_parameter_element_by_name("prompt")
         self._node.remove_parameter_element_by_name("negative_prompt")
         self._node.remove_parameter_element_by_name("guidance_scale")

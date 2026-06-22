@@ -68,7 +68,10 @@ class ControlParam:
         hide: bool = False,
     ) -> ControlParam:
         fallback_mode = allowed_modes[0]
-        default_value = default_mode.value if default_mode in allowed_modes else fallback_mode.value
+        if default_mode in allowed_modes:
+            default_value = default_mode.value
+        else:
+            default_value = fallback_mode.value
         return cls(
             name=PARAM_MODE,
             kind=ControlKind.OPTION,
@@ -272,7 +275,10 @@ class FlexibleImageConfig:
 
     def derive_layout(self, control_values: Mapping[str, Any]) -> Layout:
         raw = control_values.get(PARAM_NUM_IMAGES)
-        count = self.min_count if raw is None else max(self.min_count, min(self.max_count, int(raw)))
+        if raw is None:
+            count = self.min_count
+        else:
+            count = max(self.min_count, min(self.max_count, int(raw)))
         controls = (
             ControlParam.preset_dropdown(("Custom",), "Custom", hide=True),
             ControlParam.num_images_slider(self.min_count, self.max_count),
@@ -378,7 +384,10 @@ class HybridImageConfig:
         choices = (self.flexible_choice_label, *(p.display_name for p in self.presets))
         default = self.default_choice or self.flexible_choice_label
         raw_choice = control_values.get(PARAM_IMAGE_PRESET)
-        active_choice = raw_choice if raw_choice in choices else default
+        if raw_choice in choices:
+            active_choice = raw_choice
+        else:
+            active_choice = default
 
         tooltip = (
             "Pick a named preset arrangement of conditioning images, "
@@ -434,11 +443,23 @@ class VideoConditioningConfig:
 class MediaGenConditioningConfig:
     """Top-level conditioning surface for one runtime-parameters subclass.
 
-      * `image` only → image input(s), no mode toggle.
-      * `video` only → single video input, no mode toggle.
-      * both → mode toggle; initial side from `default_mode`.
+      * `image` only → image input(s); mode toggle present but hidden (single choice).
+      * `video` only → single video input; mode toggle present but hidden (single choice).
+      * both → mode toggle visible; initial side from `default_mode`.
 
     At least one of `image`/`video` must be set.
+
+    Invariant: every ``Layout`` returned by ``derive_layout`` has the mode toggle
+    (``PARAM_MODE``) as ``control_params[0]``.  Violating it causes three silent bugs:
+
+    1. ``LayoutComposer.arrange()`` sees mode absent from ``new_controls`` and removes
+       the mode Parameter from the node entirely.
+    2. ``_current_control_values()`` then returns no mode key, so every subsequent
+       ``derive_layout()`` call falls back to ``default_mode`` — ignoring the user's
+       selection.  A workflow saved in video mode silently reloads as image mode.
+    3. ``build_conditioning_payload()`` / ``_active_mode()`` also fall back to
+       ``default_mode``, so the driver receives the wrong conditioning type and produces
+       wrong output (image sent when video was expected, or vice versa).
     """
 
     image: ImageConditioningConfig | None = None
@@ -474,17 +495,23 @@ class MediaGenConditioningConfig:
             if video_config is None:
                 msg = "Video configuration is required when mode resolves to video."
                 raise ValueError(msg)
-            return Layout(control_params=(toggle,), cond_inputs=(ConditioningInput.video(video_config),))
+            layout = Layout(control_params=(toggle,), cond_inputs=(ConditioningInput.video(video_config),))
+        else:
+            if image_config is None:
+                msg = "Image configuration is required when mode resolves to image."
+                raise ValueError(msg)
+            image_layout = image_config.derive_layout(control_values)
+            layout = Layout(
+                control_params=(toggle, *image_layout.control_params),
+                cond_inputs=image_layout.cond_inputs,
+            )
 
-        if image_config is None:
-            msg = "Image configuration is required when mode resolves to image."
-            raise ValueError(msg)
-
-        image_layout = image_config.derive_layout(control_values)
-        return Layout(
-            control_params=(toggle, *image_layout.control_params),
-            cond_inputs=image_layout.cond_inputs,
+        # Enforce the class-level invariant — see MediaGenConditioningConfig docstring.
+        assert layout.control_params and layout.control_params[0].name == PARAM_MODE, (
+            f"derive_layout produced a layout whose first control is not '{PARAM_MODE}'. "
+            "Every composer-facing layout must begin with the mode toggle."
         )
+        return layout
 
     def _resolve_mode(self, value: Any) -> ConditioningMode:
         if isinstance(value, ConditioningMode):

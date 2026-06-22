@@ -52,6 +52,10 @@ class LayoutComposer:
     def current(self) -> Layout:
         return self._current
 
+    def set_current(self, layout: Layout) -> None:
+        """Update the snapshot without mutating the node. Use only on workflow load."""
+        self._current = layout
+
     def arrange(self, target: Layout) -> None:
         """Drive the host node from `self.current` to `target`."""
         if target == self._current:
@@ -70,7 +74,7 @@ class LayoutComposer:
                 remove_dynamic_param(self._node, name)
 
         for name, control in new_controls.items():
-            if name not in old_controls:
+            if name not in old_controls or self._node.get_parameter_by_name(name) is None:
                 self._add_control(control)
                 continue
             if old_controls[name] != control:
@@ -152,7 +156,14 @@ class LayoutComposer:
             raw = self._node.get_parameter_value(new_control.name)
             stored = raw if raw in new_control.choices else new_control.default
             param.default_value = new_control.default
-            param.ui_options = {"display_name": new_control.display_name, "hide": new_control.hide}
+            for trait in param.find_elements_by_type(Options):
+                trait.choices = list(new_control.choices)
+                break
+            if isinstance(param.ui_options, dict):
+                param.ui_options["display_name"] = new_control.display_name
+                param.ui_options["hide"] = new_control.hide
+            else:
+                param.ui_options = {"display_name": new_control.display_name, "hide": new_control.hide}
             self._node.parameter_values[new_control.name] = stored
             return
         msg = f"_update_control: unknown ControlKind '{new_control.kind}'."

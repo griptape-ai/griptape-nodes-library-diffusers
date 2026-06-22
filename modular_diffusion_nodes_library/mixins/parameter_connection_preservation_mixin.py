@@ -103,7 +103,17 @@ class ParameterConnectionPreservationMixin:
         outgoing = [
             conn for conn in result.outgoing_connections if conn.source_parameter_name not in self.STATIC_PARAMS
         ]
-        return incoming, outgoing
+
+        filtered_incoming = [
+            conn
+            for conn in incoming
+            if not (
+                _PARAMETER_LIST_CHILD_RE.match(conn.target_parameter_name)
+                and not self.does_name_exist(conn.target_parameter_name)  # type: ignore[attr-defined]
+            )
+        ]
+
+        return filtered_incoming, outgoing
 
     def _restore_connections(
         self, saved_incoming: list[IncomingConnection], saved_outgoing: list[OutgoingConnection]

@@ -154,11 +154,18 @@ class DiffusionPipelineGenerateLatentNode(ParameterConnectionPreservationMixin, 
 
     def _remove_user_defined_parameters(self) -> None:
         """Remove user_defined parameters before the runtime helper reinstalls them. Does not clear `parameter_values`."""
+
+        excluded_user_params = {
+            DiffusionPipelineGenerateLatentParameters.CONTROL_NET_PARAM_NAME,
+        }
+
         # Snapshot first; remove_parameter_element_by_name mutates the children list.
         targets = [
             child
             for child in list(self.root_ui_element._children)
-            if isinstance(child, Parameter) and getattr(child, "user_defined", False)
+            if isinstance(child, Parameter)
+            and getattr(child, "user_defined", False)
+            and child.name not in excluded_user_params
         ]
         # Parent removal does not cascade to ParameterList child connections; clean them up first.
         delete_parameter_list_child_connections(

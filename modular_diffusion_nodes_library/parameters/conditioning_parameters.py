@@ -40,6 +40,9 @@ from modular_diffusion_nodes_library.parameters.media_gen_conditioning.condition
     MediaGenConditioningConfig,
     VideoConditioningConfig,
 )
+from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
+    MediaGenConditioningPayload,
+)
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.parameter import (
     MediaGenConditioningParameter,
 )
@@ -146,7 +149,7 @@ class ModularDiffusionConditioningParameters:
             errors.extend(downstream_errors)
         return errors or None
 
-    def build_conditioning_payload(self) -> dict:
+    def build_conditioning_payload(self) -> MediaGenConditioningPayload:
         return self._conditioning_parameter.build_conditioning_payload()
 
     # ------------------------------------------------------------------
@@ -157,11 +160,11 @@ class ModularDiffusionConditioningParameters:
         """Update config without removing params (for workflow load)."""
         pipeline_class = self._pipeline_class_of(pipeline_artifact)
         new_config = _config_for_pipeline(pipeline_class)
-        
+
         if new_config == self._active_config:
             return
         self._active_config = new_config
-        self._conditioning_parameter._config = new_config
+        self._conditioning_parameter.update_config(new_config)
 
     def _handle_pipeline_change(self, old_value: Any, new_value: Any) -> None:
         old_class = self._pipeline_class_of(old_value)
@@ -173,12 +176,12 @@ class ModularDiffusionConditioningParameters:
             return
 
         saved_incoming, saved_outgoing = self._save_surface_connections()
-        
+
         self._conditioning_parameter.remove_input_parameters()
         self._active_config = new_config
         self._conditioning_parameter = MediaGenConditioningParameter(self._node, new_config)
         self._conditioning_parameter.add_input_parameters()
-        
+
         self._restore_surface_connections(saved_incoming, saved_outgoing)
 
     def _current_pipeline_class(self) -> str | None:

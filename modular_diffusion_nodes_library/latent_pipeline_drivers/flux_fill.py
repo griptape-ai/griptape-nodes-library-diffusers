@@ -30,7 +30,7 @@ class FluxFillLatentPipelineDriver(FluxLatentPipelineDriver):
         source_pil = artifact.source_image_pil()
         if source_pil is None:
             raise ValueError(
-                "Attempted to run FluxFill inpainting failed because no source image was provided. " \
+                "Attempted to run FluxFill inpainting failed because no source image was provided. "
                 "Connect an 'Encode Masked Media' node with a latent input."
             )
         return {
