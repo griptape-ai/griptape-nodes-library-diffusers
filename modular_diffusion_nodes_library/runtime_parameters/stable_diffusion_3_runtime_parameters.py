@@ -31,14 +31,18 @@ class StableDiffusion3PipelineRuntimeParameters(DiffusionPipelineRuntimeParamete
                 tooltip="The prompt or prompts not to guide the image generation. Ignored when guidance_scale < 1.",
             )
         )
-        self._node.add_parameter(
-            Parameter(
-                name="guidance_scale",
-                default_value=7.0,
-                type="float",
-                tooltip="Higher guidance scale encourages the model to generate images more closely linked to the text prompt, usually at the expense of lower image quality. Guidance is enabled by setting guidance_scale > 1.",
-            )
+        guidance_scale_param = Parameter(
+            name="guidance_scale",
+            default_value=7.0,
+            type="float",
+            tooltip="Higher guidance scale encourages the model to generate images more closely linked to the text prompt, usually at the expense of lower image quality. Guidance is enabled by setting guidance_scale > 1.",
         )
+        guidance_scale_param.set_badge(
+            variant="help",
+            title="Guidance scale",
+            message=("For recommended values, reset the node to restore the model author's defaults."),
+        )
+        self._node.add_parameter(guidance_scale_param)
         self._node.add_parameter(
             Parameter(
                 name="max_sequence_length",

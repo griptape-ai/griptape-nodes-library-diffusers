@@ -47,22 +47,37 @@ class QwenEditPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 tooltip="The prompt or prompts not to guide the image editing.",
             )
         )
-        self._node.add_parameter(
-            Parameter(
-                name="true_cfg_scale",
-                default_value=1.0,
-                type="float",
-                tooltip="True classifier-free guidance (guidance scale) is enabled when true_cfg_scale > 1 and negative_prompt is provided.",
-            )
+        true_cfg_param = Parameter(
+            name="true_cfg_scale",
+            default_value=1.0,
+            type="float",
+            tooltip="True classifier-free guidance scale. Set above 1.0 and provide a negative_prompt to enable. Higher values push output further from the negative prompt.",
         )
-        self._node.add_parameter(
-            Parameter(
-                name="guidance_scale",
-                default_value=4.0,
-                type="float",
-                tooltip="Higher guidance_scale encourages a model to generate images more aligned with prompt at the expense of lower image quality.",
-            )
+        true_cfg_param.set_badge(
+            variant="help",
+            title="Using negative prompts",
+            message=(
+                "This model doesn't support negative prompts out of the box. "
+                "This setting adds that ability, but at a cost: the model runs twice per step, "
+                "so generation takes roughly twice as long.\n\n"
+                "- ***1.0*** — off (default, faster)\n"
+                "- ***2.0–4.0*** — on; only has an effect when you also fill in `negative_prompt`\n\n"
+                "For most use cases, adjusting `guidance_scale` is enough and has no speed penalty."
+            ),
         )
+        self._node.add_parameter(true_cfg_param)
+        guidance_scale_param = Parameter(
+            name="guidance_scale",
+            default_value=4.0,
+            type="float",
+            tooltip="Higher guidance_scale encourages a model to generate images more aligned with prompt at the expense of lower image quality.",
+        )
+        guidance_scale_param.set_badge(
+            variant="help",
+            title="Guidance scale",
+            message=("For recommended values, reset the node to restore the model author's defaults."),
+        )
+        self._node.add_parameter(guidance_scale_param)
 
     def _remove_input_parameters(self) -> None:
         self._node.remove_parameter_element_by_name("prompt")

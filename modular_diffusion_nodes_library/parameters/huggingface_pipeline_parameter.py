@@ -53,8 +53,8 @@ class HuggingFacePipelineParameter:
             variant="help",
             title="Memory optimization help",
             message=(
-                "**Manual** exposes per-knob toggles (attention slicing, VAE slicing, layerwise casting, "
-                "CPU offload, quantization). **Automatic** lets Griptape pick reasonable defaults for you.\n\n"
+                "***Manual*** exposes per-knob toggles (attention slicing, VAE slicing, layerwise casting, "
+                "CPU offload, quantization). ***Automatic*** lets Griptape pick reasonable defaults for you.\n\n"
                 "Not sure which knob does what? See "
                 "[Manual Memory Settings](https://docs.griptapenodes.com/en/latest/nodes/advanced_media_library/diffusion_pipelines/#manual-memory-settings) "
                 "for guidance on when to enable each option."

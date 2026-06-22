@@ -2,7 +2,7 @@ import logging
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import diffusers  # type: ignore[reportMissingImports]
 import numpy as np
@@ -29,7 +29,6 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self._current_output_type = "image"
         super().__init__(**kwargs)
         self.pipe_params = ModularDiffusionPipelineParameters(self)
-        self.pipe_params.add_input_parameters()
 
         self.add_parameter(
             Parameter(

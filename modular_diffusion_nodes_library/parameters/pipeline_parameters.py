@@ -24,15 +24,23 @@ class ModularDiffusionPipelineParameters:
         self._node: BaseNode = node
         self._runtime_parameters: DiffusionPipelineRuntimeParameters = NullRuntimeParameters(node)
 
-    def add_input_parameters(self) -> None:
-        self._node.add_parameter(
-            Parameter(
-                name="pipeline",
-                type="Pipeline Config",
-                tooltip="🤗 Diffusion pipeline produced by a Pipeline Builder.",
-                allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
-            )
+    def add_input_parameters(self, doc_url: str | None = None) -> None:
+        pipeline_param = Parameter(
+            name="pipeline",
+            type="Pipeline Config",
+            tooltip="🤗 Diffusion pipeline produced by a Pipeline Builder.",
+            allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
         )
+        if doc_url is None:
+            badge_message = "View the [node reference](https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/index.md) for all nodes in this library."
+        else:
+            badge_message = f"View the [node reference]({doc_url}) for this node."
+        pipeline_param.set_badge(
+            variant="docs",
+            title="Node documentation",
+            message=badge_message,
+        )
+        self._node.add_parameter(pipeline_param)
 
     def set_runtime_parameters(self, pipeline_artifact: DiffusionPipelineArtifact) -> None:
         pipeline_class = pipeline_artifact.pipeline_name

@@ -31,14 +31,18 @@ class WanPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 tooltip="The prompt or prompts to avoid during video generation. Ignored when guidance_scale < 1.",
             )
         )
-        self._node.add_parameter(
-            Parameter(
-                name="guidance_scale",
-                default_value=5.0,
-                type="float",
-                tooltip="Higher guidance scale encourages the model to generate videos more closely linked to the text prompt, usually at the expense of lower quality. Guidance is enabled by setting guidance_scale > 1.",
-            )
+        guidance_scale_param = Parameter(
+            name="guidance_scale",
+            default_value=5.0,
+            type="float",
+            tooltip="Higher guidance scale encourages the model to generate videos more closely linked to the text prompt, usually at the expense of lower quality. Guidance is enabled by setting guidance_scale > 1.",
         )
+        guidance_scale_param.set_badge(
+            variant="help",
+            title="Guidance scale",
+            message=("For recommended values, reset the node to restore the model author's defaults."),
+        )
+        self._node.add_parameter(guidance_scale_param)
 
     def _remove_input_parameters(self) -> None:
         self._node.remove_parameter_element_by_name("prompt")

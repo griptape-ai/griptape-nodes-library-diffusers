@@ -32,7 +32,9 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         super().__init__(**kwargs)
 
         self.pipe_params = ModularDiffusionPipelineParameters(self)
-        self.pipe_params.add_input_parameters()
+        self.pipe_params.add_input_parameters(
+            doc_url="https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/nodes/encode_masked_media_latent.md"
+        )
 
         self.add_parameter(
             Parameter(
@@ -44,16 +46,25 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 user_defined=True,
             )
         )
-        self.add_parameter(
-            Parameter(
-                name="mask",
-                input_types=["ImageArtifact", "ImageUrlArtifact"],
-                type="ImageArtifact",
-                tooltip="Binary mask (white = inpaint region).",
-                allowed_modes={ParameterMode.INPUT},
-                user_defined=True,
-            )
+        mask_param = Parameter(
+            name="mask",
+            input_types=["ImageArtifact", "ImageUrlArtifact"],
+            type="ImageArtifact",
+            tooltip="Binary mask (white = inpaint region).",
+            allowed_modes={ParameterMode.INPUT},
+            user_defined=True,
         )
+        mask_param.set_badge(
+            variant="help",
+            title="Mask convention",
+            message=(
+                "- ***White*** — region to regenerate (inpaint area)\n"
+                "- ***Black*** — region to preserve\n"
+                "- ***Grey*** — blends proportionally between the two\n\n"
+                "The mask is automatically resized to match the source image."
+            ),
+        )
+        self.add_parameter(mask_param)
         self.add_parameter(
             Parameter(
                 name="strength",
@@ -65,15 +76,23 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 user_defined=True,
             )
         )
-        self.add_parameter(
-            Parameter(
-                name="latents",
-                output_type="InpaintMaskArtifact",
-                tooltip="Inpaint artifact bundling the mask plus source and masked-image latents. Connect to a Generate Latents input_latent for inpainting.",
-                allowed_modes={ParameterMode.OUTPUT},
-                serializable=False,
-            )
+        latents_param = Parameter(
+            name="latents",
+            output_type="InpaintMaskArtifact",
+            tooltip="Inpaint artifact bundling the mask plus source and masked-image latents. Connect to a Generate Latents input_latent for inpainting.",
+            allowed_modes={ParameterMode.OUTPUT},
+            serializable=False,
         )
+        latents_param.set_badge(
+            variant="help",
+            title="Where to connect this",
+            message=(
+                "Connect to the `input_latent` of a ***Generate Media Latents*** node — not to a VAE Decode node.\n\n"
+                "The Generate node detects the `InpaintMaskArtifact` type and automatically switches to inpainting mode, "
+                "regenerating only the masked region while preserving the rest of the image."
+            ),
+        )
+        self.add_parameter(latents_param)
         self._initializing = False
         self._create_status_parameters()
 

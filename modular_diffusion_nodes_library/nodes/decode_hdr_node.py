@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, ClassVar, NamedTuple
 
 import cv2  # type: ignore[reportMissingImports]
 import numpy as np
@@ -43,6 +43,10 @@ class DecodeHdrNode(VaeDecodeNode):
     behave identically to VaeDecodeNode.
     """
 
+    _DOC_URL: ClassVar[str] = (
+        "https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/nodes/decode_hdr_latents.md"
+    )
+
     def _additional_parameters(self) -> None:
         self.add_parameter(
             Parameter(
@@ -72,17 +76,27 @@ class DecodeHdrNode(VaeDecodeNode):
                 user_defined=True,
             )
         )
-        self.add_parameter(
-            Parameter(
-                name="tone_mapping",
-                default_value=DEFAULT_TONE_MAPPING,
-                type="str",
-                tooltip="Tone mapping function applied to linear HDR frames before encoding to SDR MP4.",
-                allowed_modes={ParameterMode.PROPERTY},
-                user_defined=True,
-                traits={Options(choices=TONE_MAPPING_CHOICES)},
-            )
+        tone_mapping_param = Parameter(
+            name="tone_mapping",
+            default_value=DEFAULT_TONE_MAPPING,
+            type="str",
+            tooltip="Tone mapping function applied to linear HDR frames before encoding to SDR MP4.",
+            allowed_modes={ParameterMode.PROPERTY},
+            user_defined=True,
+            traits={Options(choices=TONE_MAPPING_CHOICES)},
         )
+        tone_mapping_param.set_badge(
+            variant="help",
+            title="Tone mapping options",
+            message=(
+                "Compresses HDR brightness into standard video:\n\n"
+                "- ***clip*** — fastest; brightness above 1 may be limited\n"
+                "- ***reinhard*** — smooth, natural compression\n"
+                "- ***aces_filmic*** — cinematic contrast with film-like highlights (default)\n"
+                "- ***cv2_reinhard*** / ***cv2_mantiuk*** — OpenCV variants; similar to reinhard"
+            ),
+        )
+        self.add_parameter(tone_mapping_param)
         self.progress_bar_component = ProgressBarComponent(self)
         self.progress_bar_component.add_property_parameters()
         self.log_params = LogParameter(self)

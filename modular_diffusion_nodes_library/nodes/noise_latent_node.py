@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode
@@ -26,11 +26,15 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
+    _DOC_URL: ClassVar[str] = (
+        "https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/nodes/create-noise-latents.md"
+    )
+
     def __init__(self, **kwargs) -> None:
         self._initializing = True
         super().__init__(**kwargs)
         self.pipe_params = ModularDiffusionPipelineParameters(self)
-        self.pipe_params.add_input_parameters()
+        self.pipe_params.add_input_parameters(doc_url=self._DOC_URL)
 
         self.add_seed_parameter()
 

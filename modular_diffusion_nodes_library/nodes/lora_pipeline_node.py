@@ -22,17 +22,21 @@ class LoraActivationPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNod
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-        self.add_parameter(
-            Parameter(
-                name="pipeline",
-                type="Pipeline Config",
-                tooltip=(
-                    "Base diffusion pipeline. Connect from Pipeline Builder. The base pipeline is reused, "
-                    "not modified — wire it to other nodes simultaneously."
-                ),
-                allowed_modes={ParameterMode.INPUT},
-            )
+        pipeline_param = Parameter(
+            name="pipeline",
+            type="Pipeline Config",
+            tooltip=(
+                "Base diffusion pipeline. Connect from Pipeline Builder. The base pipeline is reused, "
+                "not modified — wire it to other nodes simultaneously."
+            ),
+            allowed_modes={ParameterMode.INPUT},
         )
+        pipeline_param.set_badge(
+            variant="docs",
+            title="Node documentation",
+            message="View the [node reference](https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/nodes/lora_pipeline.md) for this node.",
+        )
+        self.add_parameter(pipeline_param)
 
         self.add_parameter(
             Parameter(
@@ -65,10 +69,10 @@ class LoraActivationPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNod
             variant="help",
             title="Activation vs. fused LoRAs",
             message=(
-                "**Activation (this node)** \u2014 adapters are loaded and switched on per generation, "
-                "then released. The base pipeline is **not** mutated, so the same cached pipeline can "
+                "***Activation (this node)*** — adapters are loaded and switched on per generation, "
+                "then released. The base pipeline is ***not*** mutated, so the same cached pipeline can "
                 "power multiple branches (e.g. one branch with LoRAs, one without) without rebuilding.\n\n"
-                "**Fused** (the `loras` input on the Modular Diffusion Pipeline Builder) \u2014 adapters "
+                "***Fused*** (the `loras` input on the Modular Diffusion Pipeline Builder) — adapters "
                 "are baked permanently into the cached weights. Changing the LoRA set evicts and "
                 "rebuilds the entire pipeline.\n\n"
                 "Prefer activation for in-context (IC) LoRAs, distillation/acceleration LoRAs, slider "
