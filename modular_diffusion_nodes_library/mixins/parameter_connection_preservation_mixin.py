@@ -1,9 +1,10 @@
 """Mixin for preserving parameter connections and properties when parameters are dynamically removed/added."""
 
 import logging
+import re
 from typing import Any, ClassVar
 
-from griptape_nodes.exe_types.core_types import Parameter
+from griptape_nodes.exe_types.core_types import Parameter, ParameterList
 from griptape_nodes.retained_mode.events.connection_events import (
     CreateConnectionRequest,
     IncomingConnection,
@@ -11,9 +12,17 @@ from griptape_nodes.retained_mode.events.connection_events import (
     ListConnectionsForNodeResultSuccess,
     OutgoingConnection,
 )
+from griptape_nodes.retained_mode.events.parameter_events import (
+    AddParameterToNodeRequest,
+    AddParameterToNodeResultSuccess,
+)
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
+
+# ParameterList children use UUID-suffixed names that change on every rebuild;
+# restore by extracting the container name and minting a fresh child.
+_PARAMETER_LIST_CHILD_RE = re.compile(r"^(?P<container>.+)_ParameterListUniqueParamID_[0-9a-f]+$")
 
 
 class ParameterConnectionPreservationMixin:
@@ -106,15 +115,17 @@ class ParameterConnectionPreservationMixin:
             saved_outgoing: List of outgoing connections to restore
         """
         for conn in saved_incoming:
-            if self.does_name_exist(conn.target_parameter_name):  # type: ignore[attr-defined]
-                GriptapeNodes.handle_request(
-                    CreateConnectionRequest(
-                        source_node_name=conn.source_node_name,
-                        source_parameter_name=conn.source_parameter_name,
-                        target_node_name=self.name,  # type: ignore[attr-defined]
-                        target_parameter_name=conn.target_parameter_name,
-                    )
+            target_name = self._resolve_incoming_target(conn.target_parameter_name)
+            if target_name is None:
+                continue
+            GriptapeNodes.handle_request(
+                CreateConnectionRequest(
+                    source_node_name=conn.source_node_name,
+                    source_parameter_name=conn.source_parameter_name,
+                    target_node_name=self.name,  # type: ignore[attr-defined]
+                    target_parameter_name=target_name,
                 )
+            )
 
         for conn in saved_outgoing:
             if self.does_name_exist(conn.source_parameter_name):  # type: ignore[attr-defined]
@@ -126,6 +137,30 @@ class ParameterConnectionPreservationMixin:
                         target_parameter_name=conn.target_parameter_name,
                     )
                 )
+
+    def _resolve_incoming_target(self, saved_target: str) -> str | None:
+        """Resolve a saved target name to a live one, minting a fresh `ParameterList` child if needed; `None` if unresolvable."""
+        if self.does_name_exist(saved_target):  # type: ignore[attr-defined]
+            return saved_target
+
+        match = _PARAMETER_LIST_CHILD_RE.match(saved_target)
+        if match is None:
+            return None
+
+        container_name = match.group("container")
+        container = self.get_parameter_by_name(container_name)  # type: ignore[attr-defined]
+        if not isinstance(container, ParameterList):
+            return None
+
+        add_result = GriptapeNodes.handle_request(
+            AddParameterToNodeRequest(
+                node_name=self.name,  # type: ignore[attr-defined]
+                parent_container_name=container_name,
+            )
+        )
+        if not isinstance(add_result, AddParameterToNodeResultSuccess):
+            return None
+        return add_result.parameter_name
 
     def reorder_parameters_by_groups(self) -> None:
         """Reorder parameters to maintain consistent layout with START/END groups."""

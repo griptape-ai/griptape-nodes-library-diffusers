@@ -1,11 +1,4 @@
-"""Coordinator for media-gen conditioning parameters.
-
-Drives a `LayoutComposer` from the host node's current control-param values.
-A control-param change re-derives the target `Layout` and arranges it; input
-values (`image_{i}`, `*_strength`, `*_frame_index`) are stored by the engine
-and need no structural reaction. Output payload is a typed
-`MediaGenConditioningPayload`.
-"""
+"""Coordinator for media-gen conditioning parameters. Drives LayoutComposer from control values."""
 
 from __future__ import annotations
 
@@ -21,6 +14,7 @@ from modular_diffusion_nodes_library.parameters.media_gen_conditioning.condition
     ConditioningInput,
     MediaGenConditioningConfig,
 )
+
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
     ConditioningInputValue,
     MediaGenConditioningPayload,
@@ -30,10 +24,10 @@ from modular_diffusion_nodes_library.parameters.media_gen_conditioning.node_layo
 )
 from modular_diffusion_nodes_library.utils.conditioning_utils import (
     ConditioningMode,
-    MediaGenConditioningKey,
 )
 
 PARAM_CONDITIONING = "conditioning"
+CONDITIONING_OUTPUT_TYPE = "media_gen_conditioning"
 
 
 class MediaGenConditioningParameter:
@@ -48,7 +42,7 @@ class MediaGenConditioningParameter:
         self._node.add_parameter(
             Parameter(
                 name=PARAM_CONDITIONING,
-                output_type="dict",
+                output_type=CONDITIONING_OUTPUT_TYPE,
                 allowed_modes={ParameterMode.OUTPUT},
                 tooltip="Media generation conditioning output.",
                 serializable=False,
@@ -76,11 +70,9 @@ class MediaGenConditioningParameter:
         old_value: Any,
         new_value: Any,
         *,
-        initial_setup: bool,
+        initial_setup: bool,  # noqa: ARG002
     ) -> None:
         """Re-arrange the layout when a control-param value changes."""
-        if initial_setup:
-            return
         if param_name not in CONTROL_PARAM_NAMES:
             return
         if old_value == new_value:
@@ -94,19 +86,15 @@ class MediaGenConditioningParameter:
                 errors.append(ValueError(f"{self._node.name}: missing required '{ci.media_param}' conditioning input."))
         return errors or None
 
-    def build_conditioning_payload(self) -> dict:
-        """Build the conditioning output dict wired into the engine kwargs.
-
-        The outer dict's `MediaGenConditioningKey.OUTPUT` key becomes the
-        driver kwarg name; the value is a `MediaGenConditioningPayload`.
-        """
+    def build_conditioning_payload(self) -> MediaGenConditioningPayload:
+        """Build typed conditioning payload."""
         mode = self._active_mode()
         entries = tuple(self._value_for_input(ci) for ci in self._composer.current.cond_inputs)
-        payload = MediaGenConditioningPayload(mode=mode, entries=entries)
-        return {MediaGenConditioningKey.OUTPUT: payload}
+        return MediaGenConditioningPayload(mode=mode, entries=entries)
 
     def _rebuild_layout(self) -> None:
-        target = self._config.derive_layout(self._current_control_values())
+        control_vals = self._current_control_values()
+        target = self._config.derive_layout(control_vals)
         self._composer.arrange(target)
 
     def _current_control_values(self) -> dict[str, Any]:

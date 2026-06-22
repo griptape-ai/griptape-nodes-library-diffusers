@@ -10,6 +10,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory impo
 from modular_diffusion_nodes_library.runtime_parameters.ltx2_runtime_parameters import (
     LTX2PipelineRuntimeParameters,
 )
+from modular_diffusion_nodes_library.runtime_parameters.null_runtime_parameters import NullRuntimeParameters
 from modular_diffusion_nodes_library.runtime_parameters.runtime_parameters import (
     DiffusionPipelineRuntimeParameters,
 )
@@ -21,8 +22,7 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 class ModularDiffusionPipelineParameters:
     def __init__(self, node: BaseNode):
         self._node: BaseNode = node
-        self._runtime_parameters: DiffusionPipelineRuntimeParameters
-        self.set_runtime_parameters(DiffusionPipelineArtifact(pipeline_name="FluxPipeline"))
+        self._runtime_parameters: DiffusionPipelineRuntimeParameters = NullRuntimeParameters(node)
 
     def add_input_parameters(self) -> None:
         self._node.add_parameter(
@@ -63,12 +63,14 @@ class ModularDiffusionPipelineParameters:
             self.runtime_parameters.add_input_parameters()
             self.runtime_parameters.add_output_parameters()
 
+    def tear_down_runtime_parameters(self) -> None:
+        """Remove current runtime parameters and rebind to NullRuntimeParameters."""
+        self._runtime_parameters.remove_input_parameters()
+        self._runtime_parameters.remove_output_parameters()
+        self._runtime_parameters = NullRuntimeParameters(self._node)
+
     @property
     def runtime_parameters(self) -> DiffusionPipelineRuntimeParameters:
-        if self._runtime_parameters is None:
-            msg = "Runtime parameters not initialized. Ensure pipeline parameter is set."
-            logger.error(msg)
-            raise ValueError(msg)
         return self._runtime_parameters
 
     def get_pipeline_class(self) -> str | None:

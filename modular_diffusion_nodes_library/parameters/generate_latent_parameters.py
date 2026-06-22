@@ -142,12 +142,13 @@ class DiffusionPipelineGenerateLatentParameters:
     def _is_control_net_pipeline(self, pipeline_value: Any) -> bool:
         return isinstance(pipeline_value, ControlNetDiffusionPipelineArtifact)
 
-    def update_add_noise_visibility(self, input_latent_artifact: Any) -> None:
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
         """Hide ``add_noise`` when the input is an InpaintMaskArtifact; Inpaint flows manage noise internally."""
-        if isinstance(input_latent_artifact, InpaintMaskArtifact):
-            self._node.hide_parameter_by_name("add_noise")
-        else:
-            self._node.show_parameter_by_name("add_noise")
+        if parameter.name == "input_latent":
+            if isinstance(value, InpaintMaskArtifact):
+                self._node.hide_parameter_by_name("add_noise")
+            else:
+                self._node.show_parameter_by_name("add_noise")
 
     def add_or_remove_control_net_parameter(self, current_pipeline: Any, new_pipeline: Any) -> None:
         if self._is_control_net_pipeline(current_pipeline) and not self._is_control_net_pipeline(new_pipeline):

@@ -13,6 +13,9 @@ from modular_diffusion_nodes_library.parameters.media_gen_conditioning.condition
     MediaGenConditioningConfig,
     VideoConditioningConfig,
 )
+from modular_diffusion_nodes_library.runtime_parameters.conditioning_runtime_parameter import (
+    MediaGenConditioningRuntimeParameter,
+)
 from modular_diffusion_nodes_library.runtime_parameters.runtime_parameters import (
     DiffusionPipelineRuntimeParameters,
 )
@@ -34,6 +37,20 @@ class LTXPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
 
     def __init__(self, node: BaseNode):
         super().__init__(node)
+        self._media_gen_conditioning_param = MediaGenConditioningRuntimeParameter(
+            node,
+            param_name="media_conditions",
+            multiple=True,
+            badge_title="Frame conditions",
+            badge_message=(
+                "Connect one or more **Media Gen Conditioning** nodes here to insert conditioning frames at "
+                "chosen positions of the generated video. Accepts both **image** and **video** payloads. "
+                "Each payload sets a frame index (`first`, `last`, or a keyframe index) and a "
+                "strength in `[0, 1]` \u2014 `1.0` keeps the condition fully clean, intermediate values "
+                "mix it with noise. First-frame conditions overwrite the corresponding tokens; "
+                "non-first-frame conditions are appended as keyframe tokens."
+            ),
+        )
 
     def _add_input_parameters(self) -> None:
         self._node.add_parameter(
@@ -60,8 +77,10 @@ class LTXPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 tooltip="Higher guidance scale encourages the model to generate videos more closely linked to the text prompt, usually at the expense of lower quality. Guidance is enabled by setting guidance_scale > 1.",
             )
         )
+        self._media_gen_conditioning_param.add_input_parameters()
 
     def _remove_input_parameters(self) -> None:
+        self._media_gen_conditioning_param.remove_input_parameters()
         self._node.remove_parameter_element_by_name("prompt")
         self._node.remove_parameter_element_by_name("negative_prompt")
         self._node.remove_parameter_element_by_name("guidance_scale")
@@ -71,4 +90,5 @@ class LTXPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             "prompt": self._node.get_parameter_value("prompt"),
             "negative_prompt": self._node.get_parameter_value("negative_prompt"),
             "guidance_scale": self._node.get_parameter_value("guidance_scale"),
+            **self._media_gen_conditioning_param.get_pipe_kwargs(),
         }

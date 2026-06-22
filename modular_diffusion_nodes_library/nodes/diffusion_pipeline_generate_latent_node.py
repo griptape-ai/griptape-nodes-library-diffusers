@@ -1,7 +1,7 @@
 import logging
 from typing import Any, ClassVar
 
-from griptape_nodes.exe_types.core_types import Parameter
+from griptape_nodes.exe_types.core_types import Parameter, ParameterList
 from griptape_nodes.exe_types.node_types import AsyncResult, BaseNode, ControlNode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 from griptape_nodes.exe_types.param_components.progress_bar_component import ProgressBarComponent
@@ -18,6 +18,7 @@ from modular_diffusion_nodes_library.parameters.generate_latent_parameters impor
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import (
     ModularDiffusionPipelineParameters,
 )
+from modular_diffusion_nodes_library.utils.connection_utils import delete_parameter_list_child_connections
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -85,8 +86,9 @@ class DiffusionPipelineGenerateLatentNode(ParameterConnectionPreservationMixin, 
         saved_outgoing = []
         if did_pipeline_change:
             saved_incoming, saved_outgoing = self._save_connections()
-            self.pipe_params.runtime_parameters.remove_input_parameters()
-            self.pipe_params.runtime_parameters.remove_output_parameters()
+            self.pipe_params.tear_down_runtime_parameters()
+            # Strip user_defined params left from workflow load so the new runtime helper installs correctly.
+            self._remove_user_defined_parameters()
             self.latent_parameter.add_or_remove_control_net_parameter(current_pipeline, value)
 
         self.pipe_params.after_value_set(parameter, value)
@@ -106,8 +108,6 @@ class DiffusionPipelineGenerateLatentNode(ParameterConnectionPreservationMixin, 
             sorted_parameters = [*start_params, *middle_elements, *end_params]
 
             self.reorder_elements(sorted_parameters)
-
-        self.pipe_params.runtime_parameters.after_value_set(parameter, value)
 
         if did_pipeline_change:
             self._restore_connections(saved_incoming, saved_outgoing)
@@ -133,26 +133,8 @@ class DiffusionPipelineGenerateLatentNode(ParameterConnectionPreservationMixin, 
         parameter: Parameter,
         value: Any,
     ) -> None:
-        if parameter.name == "input_latent":
-            self.latent_parameter.update_add_noise_visibility(value)
-        if parameter.name == "input_latent" and value is not None:
-            source_shape = value.source_shape
-            if self.get_parameter_by_name("height") is not None:
-                super().set_parameter_value(
-                    "height",
-                    source_shape[-2],
-                    initial_setup=False,
-                    emit_change=False,
-                    skip_before_value_set=True,
-                )
-            if self.get_parameter_by_name("width") is not None:
-                super().set_parameter_value(
-                    "width",
-                    source_shape[-1],
-                    initial_setup=False,
-                    emit_change=False,
-                    skip_before_value_set=True,
-                )
+        self.pipe_params.runtime_parameters.after_value_set(parameter, value)
+        self.latent_parameter.after_value_set(parameter, value)
 
     def add_parameter(self, param: Parameter) -> None:
         """Add a parameter to the node.
@@ -169,6 +151,22 @@ class DiffusionPipelineGenerateLatentNode(ParameterConnectionPreservationMixin, 
         if not self.does_name_exist(param.name):
             param.user_defined = True
             super().add_parameter(param)
+
+    def _remove_user_defined_parameters(self) -> None:
+        """Remove user_defined parameters before the runtime helper reinstalls them. Does not clear `parameter_values`."""
+        # Snapshot first; remove_parameter_element_by_name mutates the children list.
+        targets = [
+            child
+            for child in list(self.root_ui_element._children)
+            if isinstance(child, Parameter) and getattr(child, "user_defined", False)
+        ]
+        # Parent removal does not cascade to ParameterList child connections; clean them up first.
+        delete_parameter_list_child_connections(
+            self,
+            [target for target in targets if isinstance(target, ParameterList)],
+        )
+        for target in targets:
+            self.remove_parameter_element_by_name(target.name)
 
     def preprocess(self) -> None:
         self.pipe_params.runtime_parameters.preprocess()
@@ -217,7 +215,8 @@ class DiffusionPipelineGenerateLatentNode(ParameterConnectionPreservationMixin, 
         # HACK: `node.remove_parameter_element_by_name` does not remove connections so we need to use the retained mode request which does.  # noqa: FIX004
         # To avoid updating a ton of callers, we just override this method here.
         # TODO: Remove after https://github.com/griptape-ai/griptape-nodes/issues/2511
-        if self.get_element_by_name_and_type(element_name):
+        element = self.get_element_by_name_and_type(element_name)
+        if element:
             GriptapeNodes.handle_request(
                 RemoveParameterFromNodeRequest(parameter_name=element_name, node_name=self.name)
             )

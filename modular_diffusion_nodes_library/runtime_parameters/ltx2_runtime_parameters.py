@@ -14,6 +14,9 @@ from modular_diffusion_nodes_library.parameters.media_gen_conditioning.condition
     MediaGenConditioningConfig,
     VideoConditioningConfig,
 )
+from modular_diffusion_nodes_library.runtime_parameters.conditioning_runtime_parameter import (
+    MediaGenConditioningRuntimeParameter,
+)
 from modular_diffusion_nodes_library.runtime_parameters.runtime_parameters import (
     DiffusionPipelineRuntimeParameters,
 )
@@ -44,6 +47,20 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             parameter_name="text_embeddings_path",
             file_types=[".safetensors"],
             tooltip="Optional safetensors file with LTX2 HDR text embeddings. Used only when HDR IC-LoRA is active and overrides prompt text.",
+        )
+        self._media_gen_conditioning_param = MediaGenConditioningRuntimeParameter(
+            node,
+            param_name="media_conditions",
+            multiple=True,
+            badge_title="Frame conditions",
+            badge_message=(
+                "Connect one or more **Media Gen Conditioning** nodes here to insert conditioning frames at "
+                "chosen positions of the generated video. Accepts both **image** and **video** payloads. "
+                "Each payload sets a frame index (`first`, `last`, or a keyframe index) and a "
+                "strength in `[0, 1]` \u2014 `1.0` keeps the condition fully clean, intermediate values "
+                "mix it with noise. First-frame conditions overwrite the corresponding tokens; "
+                "non-first-frame conditions are appended as keyframe tokens."
+            ),
         )
 
     def add_input_parameters(self) -> None:
@@ -154,6 +171,7 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             self._node.show_parameter_by_name("text_embeddings_path")
         else:
             self._node.hide_parameter_by_name("text_embeddings_path")
+        self._media_gen_conditioning_param.add_input_parameters()
 
     @property
     def _is_distilled(self) -> bool:
@@ -173,6 +191,7 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         return False
 
     def _remove_input_parameters(self) -> None:
+        self._media_gen_conditioning_param.remove_input_parameters()
         if self._is_distilled:
             self._node.remove_parameter_element_by_name("use_stage_2")
         self._node.remove_parameter_element_by_name("prompt")
@@ -218,4 +237,5 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             pipe_kwargs["text_embeddings_path"] = str(self._text_embeddings_path_param.get_file_path())
         if self._is_distilled:
             pipe_kwargs["use_stage_2"] = bool(self._node.get_parameter_value("use_stage_2"))
+        pipe_kwargs.update(self._media_gen_conditioning_param.get_pipe_kwargs())
         return pipe_kwargs

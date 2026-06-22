@@ -58,14 +58,12 @@ class LayoutComposer:
             return
 
         old = self._current
-        old_input_keys = {ci.key: ci for ci in old.cond_inputs}
-        new_input_keys = {ci.key: ci for ci in target.cond_inputs}
         old_controls = {c.name: c for c in old.control_params}
         new_controls = {c.name: c for c in target.control_params}
-
-        for key, conditioning_input in old_input_keys.items():
-            if key not in new_input_keys:
-                self._remove_input(conditioning_input)
+        # Index→position mapping changes between presets (LAST is index 2 in FMLF, 1 in FLF);
+        # partial reconciliation leaves dangling params. Nuke and rebuild unconditionally.
+        for conditioning_input in old.cond_inputs:
+            self._remove_input(conditioning_input)
 
         for name in old_controls:
             if name not in new_controls:
@@ -74,10 +72,12 @@ class LayoutComposer:
         for name, control in new_controls.items():
             if name not in old_controls:
                 self._add_control(control)
+                continue
+            if old_controls[name] != control:
+                self._update_control(old_controls[name], control)
 
-        for key, conditioning_input in new_input_keys.items():
-            if key not in old_input_keys:
-                self._add_input(conditioning_input)
+        for conditioning_input in target.cond_inputs:
+            self._add_input(conditioning_input)
 
         self._reorder(target)
 
@@ -95,7 +95,7 @@ class LayoutComposer:
                     traits={Options(choices=list(control.choices))},
                     tooltip=control.tooltip,
                     allowed_modes={ParameterMode.PROPERTY},
-                    ui_options={"display_name": control.display_name},
+                    ui_options={"display_name": control.display_name, "hide": control.hide},
                 )
             )
         if control.kind is ControlKind.SLIDER:
@@ -108,12 +108,54 @@ class LayoutComposer:
                     allowed_modes={ParameterMode.PROPERTY},
                     ui_options={
                         "display_name": control.display_name,
+                        "hide": control.hide,
                         "slider": {"min_val": control.slider_min, "max_val": control.slider_max},
                         "step": 1,
                     },
                 )
             )
         msg = f"_add_control: unknown ControlKind '{control.kind}'."
+        raise ValueError(msg)
+
+    def _update_control(self, old_control: ControlParam, new_control: ControlParam) -> None:
+        """Update a control's ui_options in place, preserving its stored value and position.
+
+        Remove+re-add would reset the stored value and push the param to the end of the node.
+        Kind changes (structural swap) fall back to remove+re-add.
+        """
+        param = self._node.get_parameter_by_name(new_control.name)
+        if param is None:
+            self._add_control(new_control)
+            return
+        if old_control.kind != new_control.kind:
+            remove_dynamic_param(self._node, new_control.name)
+            self._add_control(new_control)
+            return
+        if new_control.kind is ControlKind.SLIDER:
+            # Capture stored value before overwriting default; un-written params fall back to the old default.
+            raw = self._node.get_parameter_value(new_control.name)
+            try:
+                stored = int(raw) if raw is not None else new_control.default
+            except (TypeError, ValueError):
+                stored = new_control.default
+            clamped = max(new_control.slider_min, min(new_control.slider_max, stored))
+            param.default_value = new_control.default
+            param.ui_options = {
+                "display_name": new_control.display_name,
+                "hide": new_control.hide,
+                "slider": {"min_val": new_control.slider_min, "max_val": new_control.slider_max},
+                "step": 1,
+            }
+            self._node.parameter_values[new_control.name] = clamped
+            return
+        if new_control.kind is ControlKind.OPTION:
+            raw = self._node.get_parameter_value(new_control.name)
+            stored = raw if raw in new_control.choices else new_control.default
+            param.default_value = new_control.default
+            param.ui_options = {"display_name": new_control.display_name, "hide": new_control.hide}
+            self._node.parameter_values[new_control.name] = stored
+            return
+        msg = f"_update_control: unknown ControlKind '{new_control.kind}'."
         raise ValueError(msg)
 
     def _add_input(self, conditioning_input: ConditioningInput) -> None:
@@ -126,13 +168,17 @@ class LayoutComposer:
         group_name = conditioning_input.group_param
         if group_name is not None and self._node.get_group_by_name_or_element_id(group_name) is None:
             self._node.add_node_element(
-                ParameterGroup(name=group_name, ui_options={"display_name": conditioning_input.group_label})
+                ParameterGroup(
+                    name=group_name,
+                    ui_options={"display_name": conditioning_input.group_label},
+                    user_defined=True,
+                )
             )
         if self._node.get_parameter_by_name(conditioning_input.media_param) is None:
             self._node.add_parameter(
                 Parameter(
                     name=conditioning_input.media_param,
-                    input_types=["ImageArtifact", "ImageUrlArtifact"],
+                    input_types=["ImageUrlArtifact"],
                     type="ImageUrlArtifact",
                     tooltip=conditioning_input.image_tooltip,
                     allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
@@ -183,7 +229,7 @@ class LayoutComposer:
             self._node.add_parameter(
                 Parameter(
                     name=conditioning_input.media_param,
-                    input_types=["VideoArtifact", "VideoUrlArtifact"],
+                    input_types=["VideoUrlArtifact"],
                     type="VideoUrlArtifact",
                     tooltip=conditioning_input.image_tooltip,
                     allowed_modes={ParameterMode.INPUT},

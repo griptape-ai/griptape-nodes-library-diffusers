@@ -8,6 +8,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from griptape.artifacts import ImageUrlArtifact
+from griptape.artifacts.video_url_artifact import VideoUrlArtifact
+
 from modular_diffusion_nodes_library.utils.conditioning_utils import ConditioningMode
 
 
@@ -15,7 +18,7 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import Conditionin
 class ConditioningInputValue:
     """Resolved value of one `ConditioningInput`; `kind` discriminates image vs video."""
 
-    artifact: Any  # ImageArtifact | ImageUrlArtifact | VideoArtifact | VideoUrlArtifact
+    artifact: ImageUrlArtifact | VideoUrlArtifact
     frame_index: int | str  # int, or a `FramePosition` value (str)
     strength: float
     kind: Literal["image", "video"]

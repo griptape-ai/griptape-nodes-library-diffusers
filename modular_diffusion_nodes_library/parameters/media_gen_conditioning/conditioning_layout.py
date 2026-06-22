@@ -57,20 +57,30 @@ class ControlParam:
     choices: tuple[str, ...] = ()
     slider_min: int = 0
     slider_max: int = 0
+    hide: bool = False
 
     @classmethod
-    def mode_toggle(cls, default_mode: ConditioningMode) -> ControlParam:
+    def mode_toggle(
+        cls,
+        default_mode: ConditioningMode,
+        *,
+        allowed_modes: tuple[ConditioningMode, ...],
+        hide: bool = False,
+    ) -> ControlParam:
+        fallback_mode = allowed_modes[0]
+        default_value = default_mode.value if default_mode in allowed_modes else fallback_mode.value
         return cls(
             name=PARAM_MODE,
             kind=ControlKind.OPTION,
-            default=default_mode.value,
+            default=default_value,
             display_name="Conditioning Mode",
             tooltip="Select conditioning input type: image or video.",
-            choices=tuple(m.value for m in ConditioningMode),
+            choices=tuple(mode.value for mode in allowed_modes),
+            hide=hide,
         )
 
     @classmethod
-    def num_images_slider(cls, min_count: int, max_count: int) -> ControlParam:
+    def num_images_slider(cls, min_count: int, max_count: int, *, hide: bool = False) -> ControlParam:
         return cls(
             name=PARAM_NUM_IMAGES,
             kind=ControlKind.SLIDER,
@@ -79,10 +89,18 @@ class ControlParam:
             tooltip="Number of conditioning images.",
             slider_min=min_count,
             slider_max=max_count,
+            hide=hide,
         )
 
     @classmethod
-    def preset_dropdown(cls, choices: tuple[str, ...], default: str, *, tooltip: str | None = None) -> ControlParam:
+    def preset_dropdown(
+        cls,
+        choices: tuple[str, ...],
+        default: str,
+        *,
+        tooltip: str | None = None,
+        hide: bool = False,
+    ) -> ControlParam:
         return cls(
             name=PARAM_IMAGE_PRESET,
             kind=ControlKind.OPTION,
@@ -90,6 +108,7 @@ class ControlParam:
             display_name="Preset",
             tooltip=tooltip or "Select which preset arrangement of conditioning images to use.",
             choices=choices,
+            hide=hide,
         )
 
 
@@ -254,9 +273,12 @@ class FlexibleImageConfig:
     def derive_layout(self, control_values: Mapping[str, Any]) -> Layout:
         raw = control_values.get(PARAM_NUM_IMAGES)
         count = self.min_count if raw is None else max(self.min_count, min(self.max_count, int(raw)))
-        control = ControlParam.num_images_slider(self.min_count, self.max_count)
+        controls = (
+            ControlParam.preset_dropdown(("Custom",), "Custom", hide=True),
+            ControlParam.num_images_slider(self.min_count, self.max_count),
+        )
         cond_inputs = tuple(ConditioningInput.flexible(i, self) for i in range(count))
-        return Layout(control_params=(control,), cond_inputs=cond_inputs)
+        return Layout(control_params=controls, cond_inputs=cond_inputs)
 
 
 @dataclass(frozen=True)
@@ -304,12 +326,13 @@ class PresetCatalogImageConfig:
 
     def derive_layout(self, control_values: Mapping[str, Any]) -> Layout:
         preset = self._resolve_preset(control_values.get(PARAM_IMAGE_PRESET))
-        controls: tuple[ControlParam, ...]
-        if len(self.presets) >= 2:
-            choices = tuple(p.display_name for p in self.presets)
-            controls = (ControlParam.preset_dropdown(choices, preset.display_name),)
-        else:
-            controls = ()
+        choices = tuple(p.display_name for p in self.presets)
+        preset_count = len(preset.positions)
+        hide_presets = len(self.presets) <= 1
+        controls = (
+            ControlParam.preset_dropdown(choices, preset.display_name, hide=hide_presets),
+            ControlParam.num_images_slider(preset_count, preset_count, hide=True),
+        )
         cond_inputs = tuple(
             ConditioningInput.preset(
                 i, position, expose_strength=self.expose_strength, default_strength=self.default_strength
@@ -365,12 +388,16 @@ class HybridImageConfig:
 
         if active_choice == self.flexible_choice_label:
             flexible_layout = self.flexible.derive_layout(control_values)
+            remaining_controls = tuple(
+                control for control in flexible_layout.control_params if control.name != PARAM_IMAGE_PRESET
+            )
             return Layout(
-                control_params=(dropdown, *flexible_layout.control_params),
+                control_params=(dropdown, *remaining_controls),
                 cond_inputs=flexible_layout.cond_inputs,
             )
 
         matched = next((p for p in self.presets if p.display_name == active_choice), self.presets[0])
+        preset_count = len(matched.positions)
         cond_inputs = tuple(
             ConditioningInput.preset(
                 i,
@@ -380,7 +407,11 @@ class HybridImageConfig:
             )
             for i, position in enumerate(matched.positions)
         )
-        return Layout(control_params=(dropdown,), cond_inputs=cond_inputs)
+        controls = (
+            dropdown,
+            ControlParam.num_images_slider(preset_count, preset_count, hide=True),
+        )
+        return Layout(control_params=controls, cond_inputs=cond_inputs)
 
 
 ImageConditioningConfig = FlexibleImageConfig | PresetCatalogImageConfig | HybridImageConfig
@@ -422,20 +453,33 @@ class MediaGenConditioningConfig:
         image_config = self.image
         video_config = self.video
 
-        if image_config is not None and video_config is None:
-            return image_config.derive_layout(control_values)
-
-        if video_config is not None and image_config is None:
-            return Layout(control_params=(), cond_inputs=(ConditioningInput.video(video_config),))
-
         # __post_init__ guarantees at least one side is configured.
         if image_config is None or video_config is None:
-            msg = "MediaGenConditioningConfig requires at least one of `image` or `video`."
+            if image_config is not None:
+                allowed_modes = (ConditioningMode.IMAGE,)
+            elif video_config is not None:
+                allowed_modes = (ConditioningMode.VIDEO,)
+            else:
+                msg = "MediaGenConditioningConfig requires at least one of `image` or `video`."
+                raise ValueError(msg)
+        else:
+            allowed_modes = (ConditioningMode.IMAGE, ConditioningMode.VIDEO)
+
+        toggle = ControlParam.mode_toggle(self.default_mode, allowed_modes=allowed_modes)
+        mode = self._resolve_mode(control_values.get(PARAM_MODE))
+        if mode not in allowed_modes:
+            mode = allowed_modes[0]
+
+        if mode is ConditioningMode.VIDEO:
+            if video_config is None:
+                msg = "Video configuration is required when mode resolves to video."
+                raise ValueError(msg)
+            return Layout(control_params=(toggle,), cond_inputs=(ConditioningInput.video(video_config),))
+
+        if image_config is None:
+            msg = "Image configuration is required when mode resolves to image."
             raise ValueError(msg)
 
-        toggle = ControlParam.mode_toggle(self.default_mode)
-        if self._resolve_mode(control_values.get(PARAM_MODE)) is ConditioningMode.VIDEO:
-            return Layout(control_params=(toggle,), cond_inputs=(ConditioningInput.video(video_config),))
         image_layout = image_config.derive_layout(control_values)
         return Layout(
             control_params=(toggle, *image_layout.control_params),
