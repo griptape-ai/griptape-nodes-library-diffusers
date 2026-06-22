@@ -1,67 +1,88 @@
 # Media Generation Conditioning
 
-**Bundles one or more conditioning images (or a conditioning video) with per-frame placement and strength — consumed by video pipelines that support media-driven conditioning (notably WAN first/last-frame Image-to-Video, LTX media-gen, and LTX2 image/video conditioning + IC-LoRA / HDR IC-LoRA reference video).**
+**Packages one or more conditioning images (or a video) with per-frame placement and strength, ready to connect into any pipeline that supports media-driven conditioning.**
 
 Category: `ModularDiffusion/Conditioning`
 
 ## TL;DR
-- Pick `mode` (`image` or `video`); the parameters dynamically regenerate.
-- In `image` mode, **`num_images`** controls how many image slots appear (0–8). Each image gets its own frame index + strength.
-- In `video` mode, a single conditioning video + frame index + strength is exposed.
-- Connect the `conditioning` output to the Generate Media Latents node (as `additional_parameters` for the pipelines that support it).
+- Connect a pipeline to get preset layouts tailored to that model (e.g. first/last frame slots for WAN Image-to-Video).
+- Without a pipeline, a flexible image-or-video layout is shown with a "Preset" dropdown; a number of images slider is shown in "Custom" preset mode.
+- Connect the `conditioning` output to the `media_conditions` (LTX / LTX2 / WAN) or `reference_images` (Flux2 Klein) input on Generate Media Latents.
 
 ## Typical workflow position
 ```text
-Load Image (first) ──┐
-Load Image (last) ───┴─→ [Media Generation Conditioning] ──┐
-                                                            ├─→ Generate Media Latents → Decode
-Pipeline Builder ───────────────────────────────────────────┘
+Pipeline Builder ──────────────────────────────────────────┐
+                                                           ├─→ Generate Media Latents → Decode
+Load Image (first) ──┐                                     │
+Load Image (last) ───┴─→ [Media Generation Conditioning] ──┘
 ```
 
 ## Node preview
 
 <img src="../assets/nodes/media-gen-conditioning.png" alt="Media Generation Conditioning" width="480">
 
+## Inputs
+
+| Name | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `pipeline` | `Pipeline Config` | No | When connected, swaps the conditioning surface to the layout tailored for that pipeline. |
+| `image_{i}` | `ImageUrlArtifact` | No | Conditioning image at slot `i`. Visible in image mode; the number of slots depends on user settings. |
+| `video` | `VideoUrlArtifact` | No | Conditioning video. Visible in video mode only. |
+
 ## Outputs
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `conditioning` | `dict` | Bundle of images/video + per-entry frame index + strength. |
+| `conditioning` | `media_gen_conditioning` | Typed payload of images/video + per-entry frame position + strength. Connect to the matching input on Generate Media Latents. |
 
 ## Parameters
 
-### Mode selection
+### Mode and preset selection
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `mode` | choice | `image` | `image` or `video`. Switching regenerates the parameter set. |
+| `mode` | `image` \| `video` | `image` | Hidden when the connected pipeline supports only one mode. Switching regenerates all input slots. |
+| `image_preset` | choice | `Custom` | Dropdown selecting a named arrangement of image slots. Options and default depend on the connected pipeline (see Provider / model behavior). Hidden in video mode. |
+| `num_images` | int slider | `0` | Number of image slots. Visible only when `image_preset = Custom`. Range is 0–8 by default; may be narrowed by the pipeline config. |
 
-### Image mode *(dynamic — count driven by `num_images`)*
+### Per-image slot *(one set per slot, in image mode)*
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `num_images` | int (0–8) | `0` | Number of image slots to expose. |
-| `image_{i}` | `ImageArtifact` / `ImageUrlArtifact` | — | Conditioning image at slot `i`. |
-| `image_{i}_frame_index` | int | `0` | Output-frame index where this image is applied. |
-| `image_{i}_strength` | float (0.0–1.0) | `1.0` | Per-image conditioning weight. |
+| `image_{i}_frame_index` | int | `0` | Output-frame position for this image. Hidden in preset mode (position is locked) and for pipelines where it is not applicable (e.g. Flux2 Klein). |
+| `image_{i}_strength` | float (0.0–1.0) | `1.0` | Per-image conditioning weight. Hidden for pipelines that do not use per-image strength. |
 
 ### Video mode
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `video` | `VideoArtifact` / `VideoUrlArtifact` | — | Conditioning video. |
-| `frame_index` | int | `0` | Output-frame index where the conditioning starts. |
-| `video_strength` | float (0.0–1.0) | `1.0` | Conditioning weight. |
+| `frame_index` | int | `0` | Output-frame index where the conditioning video starts. |
+| `video_strength` | float (0.0–1.0) | `1.0` | Conditioning weight for the video. |
+
+## Provider / model behavior
+
+### No pipeline connected (default)
+
+Both image and video modes are available. `Preset` choices: **Custom** (default), First + Middle + Last, First + Last, First frame. In Custom mode, `num_images` (0–8), `frame_index`, and `strength` are all adjustable. video mode, a single `video` input with `frame_index` and `video_strength` is shown
+
+### WAN Image-to-Video
+
+Image mode only. `Preset` choices: **First + Last** (default), First frame.
+
+### LTX / LTX2
+
+Same as "No pipeline connected" but in image mode, **First + Middle + Last** is default.
+
+### Flux2 Klein
+
+Image mode only. Flexible image slots (1–8). The `reference_images` input on Generate Media Latents is active only when an inpaint mask is also connected.
 
 ## Tips & pitfalls
 
-- **`frame_index` is into the *output* timeline**, not the conditioning media. `0` = start of output, `num_frames - 1` = end.
-- **First/last-frame Image-to-Video** = drop two image slots, set `image_0_frame_index = 0` and `image_1_frame_index = num_frames - 1`.
-- **Image slot count is destructive.** Lowering `num_images` removes the trailing slots and any connections to them.
-- **Not every video pipeline reads this conditioning.** It's used by WAN Image-to-Video, LTX media-gen, and LTX2 (which auto-swaps to a conditioning, IC-LoRA, or HDR IC-LoRA variant depending on what's connected); other pipelines ignore the input.
-- **LTX2 + HDR IC-LoRA requires a reference video.** When an HDR IC-LoRA is loaded, set `mode = video` and connect a reference clip. The HDR pipeline will not run from images alone.
+- **Connect the pipeline first.** The layout swaps immediately on connection, replacing slots with the correct preset arrangement for that model.
+- **Named presets lock frame positions.** When you select a named preset, each slot's output position is fixed by the preset's definition — you cannot override it. For example, with "First + Last", slot 0 is pinned to frame 0 and slot 1 is pinned to the final frame; the `frame_index` control is hidden because there is nothing to adjust. Switch to **Custom** preset if you need to place an image at a specific frame.
+- **`frame_index` controls *where in the output video* the conditioning image appears**. `0` places the image at the very first frame of the generated video; -1 set it to the last frame number to anchor it at the end.
 
 ## See also
 
-- [Generate Media Latents](generate_media_latents.md) — consumer (via `additional_parameters`).
-- Workflow templates: `Modular_first_n_last_i2v_workflow.py`, `Modular_t2v_workflow.py`.
+- [Generate Media Latents](generate_media_latents.md) · [Modular Diffusion Pipeline Builder](pipeline_builder.md)

@@ -26,7 +26,7 @@ Pipeline Builder → Create Noise Latents → [Generate Media Latents] → Decod
 | `pipeline` | `Pipeline Config` | Yes | From [Pipeline Builder](pipeline_builder.md) or [ControlNet Pipeline](controlnet_pipeline.md). |
 | `input_latent` | `LatentArtifact` or `InpaintMaskArtifact` | Yes | Starting latent. Use Noise (Text-to-Image / Text-to-Video), Encode (Image-to-Image, Video-to-Video), or a prior Generate output (multi-stage). |
 | `controlnet_parameters` | `control_parameters` | Only if `pipeline` is a ControlNet pipeline | From the ControlNet Pipeline node's `control_parameters` output. |
-| `additional_parameters` | list[dict] | No | Provider-specific conditioning extras. See [Media Gen Conditioning](media_gen_conditioning.md). |
+| `additional_parameters` | list[dict] | No | Generic provider-specific kwargs forwarded to the pipeline call. |
 
 ## Outputs
 
@@ -66,7 +66,7 @@ The exact list depends on the connected pipeline. Common parameters:
 
 ## Tips & pitfalls
 
-- **Pipeline change resets connections you don't care about.** The node preserves connections to parameters whose names survive the change, but reorders the UI. Save your workflow before swapping providers.
+- **Switching pipelines preserves matching connections.** Any connection whose parameter name exists in the new pipeline is kept automatically; the UI reorders to reflect the new layout.
 - **Live previews slow inference.** Off by default. Toggle in **Settings → Modular Diffusion Library → Enable Image Preview Intermediates**.
 - **`start_step` / `end_step` are sliced from the scheduler.** Combine two Generate nodes (e.g. `0–10` then `10–20`) for multi-stage refinement.
 - **Cancellation works mid-step.** Hitting cancel sets the pipeline's `_interrupt` flag; the run stops after the current step.
