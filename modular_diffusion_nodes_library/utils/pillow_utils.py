@@ -24,7 +24,7 @@ def pil_to_image_artifact(pil_image: Image, directory_path: str = "") -> ImageUr
     if directory_path:
         # Perform cleanup if needed before saving new file
         cleanup_enabled = GriptapeNodes.ConfigManager().get_config_value(
-            "advanced_media_library.enable_directory_cleanup"
+            "modular_diffusion_library.enable_directory_cleanup"
         )
         if cleanup_enabled:
             static_files_directory = GriptapeNodes.ConfigManager().get_config_value(
@@ -32,7 +32,7 @@ def pil_to_image_artifact(pil_image: Image, directory_path: str = "") -> ImageUr
             )
             path = GriptapeNodes.ConfigManager().workspace_path / static_files_directory / directory_path
 
-            max_size_gb = GriptapeNodes.ConfigManager().get_config_value("advanced_media_library.max_directory_size_gb")
+            max_size_gb = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.max_directory_size_gb")
             GriptapeNodes.OSManager().cleanup_directory_if_needed(full_directory_path=path, max_size_gb=max_size_gb)
 
         dest = ProjectFileDestination.from_situation(

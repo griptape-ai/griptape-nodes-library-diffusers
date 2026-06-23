@@ -200,10 +200,10 @@ class DiffusionPipelineGenerateLatentParameters:
         num_inference_steps = self.get_num_inference_steps()
         # Default to False for better performance - preview intermediates slow down inference
         enable_preview = GriptapeNodes.ConfigManager().get_config_value(
-            "advanced_media_library.enable_image_preview_intermediates", default=False
+            "modular_diffusion_library.enable_image_preview_intermediates", default=False
         )
 
-        strength_affected_steps = math.ceil(num_inference_steps * (self.get_strength() or 1))
+        strength_affected_steps = self.get_strength_affected_steps()
 
         first_iteration_time = None
         latent_pipeline_driver = create_driver(pipe, pipeline_class)
@@ -242,7 +242,7 @@ class DiffusionPipelineGenerateLatentParameters:
                 self._node.progress_bar_component.increment()  # type: ignore[reportAttributeAccessIssue]
             return {}
 
-        self._node.progress_bar_component.initialize(num_inference_steps)  # type: ignore[reportAttributeAccessIssue]
+        self._node.progress_bar_component.initialize(strength_affected_steps)  # type: ignore[reportAttributeAccessIssue]
         input_latent_for_denoise = self.prepare_input_latent(input_latent_artifact, latent_pipeline_driver)
         if input_latent_for_denoise is None:
             raise ValueError("Failed to prepare input latent for the pipeline.")
@@ -342,6 +342,9 @@ class DiffusionPipelineGenerateLatentParameters:
         if number_of_steps > 0 and self.start_step > 0:
             return 1.0 - (self.start_step / number_of_steps)
         return 1.0
+    
+    def get_strength_affected_steps(self) -> int:
+        return math.ceil(self.get_num_inference_steps() * self.get_strength())
 
     def get_control_net_parameters(self) -> dict[str, Any] | None:
         control_net_parameters = self._node.get_parameter_value(
