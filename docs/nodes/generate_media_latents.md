@@ -24,7 +24,7 @@ Pipeline Builder → Create Noise Latents → [Generate Media Latents] → Decod
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `pipeline` | `Pipeline Config` | Yes | From [Pipeline Builder](pipeline_builder.md) or [ControlNet Pipeline](controlnet_pipeline.md). |
-| `input_latent` | `LatentArtifact` or `InpaintMaskArtifact` | Yes | Starting latent. Use Noise (Text-to-Image / Text-to-Video), Encode (Image-to-Image), or a prior Generate output (multi-stage). |
+| `input_latent` | `LatentArtifact` or `InpaintMaskArtifact` | Yes | Starting latent. Use Noise (Text-to-Image / Text-to-Video), Encode (Image-to-Image, Video-to-Video), or a prior Generate output (multi-stage). |
 | `controlnet_parameters` | `control_parameters` | Only if `pipeline` is a ControlNet pipeline | From the ControlNet Pipeline node's `control_parameters` output. |
 | `additional_parameters` | list[dict] | No | Provider-specific conditioning extras. See [Media Gen Conditioning](media_gen_conditioning.md). |
 
@@ -77,4 +77,4 @@ The exact list depends on the connected pipeline. Common parameters:
 - [Modular Diffusion Pipeline Builder](pipeline_builder.md)
 - [Create Noise Latents](create-noise-latents.md) · [Encode Media Latent](encode_media_latent.md) · [Encode Masked Media Latent](encode_masked_media_latent.md) — common upstream nodes.
 - [Decode Media Latent](decode_media_latent.md) — typical downstream node.
-- Workflow templates: `Modular_t2i_workflow.py`, `Modular_Multi_stage_t2i_workflow.py`, `Modular_t2i_rediffusion_workflow.py`, `Modular_i2i_workflow.py`.
+- Workflow templates: `workflows/templates/Text2Image.py`, `workflows/templates/MultistageText2Image.py`, `workflows/templates/Image2Image.py`.

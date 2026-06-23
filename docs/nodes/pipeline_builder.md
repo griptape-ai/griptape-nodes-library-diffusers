@@ -5,7 +5,7 @@
 Category: `ModularDiffusion/Pipeline`
 
 ## TL;DR
-- **Build once, generate many.** Place this node first; connect its `pipeline` output to every other Modular Diffusion node that needs weights (Generate, VAE Encode/Decode, Noise, etc.).
+- **Build once, generate many.** Place this node first; connect its `pipeline` output to every other Modular Diffusion node that needs weights (Generate Media Latent, VAE Encode/Decode, Create Noise, etc.).
 - **Pick `provider` first.** All other parameters (model repo, runtime knobs) regenerate based on this choice.
 - **The pipeline is cached** by a hash of its config. Changing a load-time parameter (model repo, quantization, LoRAs) rebuilds and re-caches; runtime parameters (prompt, steps) do **not** trigger a rebuild.
 - Output type: `Pipeline Config`.
@@ -38,7 +38,7 @@ Category: `ModularDiffusion/Pipeline`
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `provider` | choice | `Flux`, `Flux2`, `Stable Diffusion`, `Qwen`, `Z-Image`, `LTX`, `LTX2`, `WAN`. Changing this swaps every parameter below. |
+| `provider` | choice | `Flux`, `Flux2`, `Stable Diffusion`, `Stable Diffusion 3`, `Qwen`, `Z-Image`, `LTX`, `LTX2`, `WAN`. Changing this swaps every parameter below. |
 | `pipeline_type` | choice | Per-provider pipeline class (e.g. `FluxPipeline`, `WanImageToVideoPipeline`). Determines what the pipeline can do. |
 | `<model repo>` | HF repo picker | Hugging Face repo ID. Diffusers-format only — single-file `.safetensors` checkpoints are not loaded directly. |
 
@@ -57,11 +57,10 @@ Enable only what you need — each option trades speed for memory.
 
 ## Tips & pitfalls
 
-- **Cache invalidation is hash-based.** If `pipeline` mysteriously rebuilds every run, check `logs` — a non-deterministic value in a load-time parameter (e.g. a random seed bleeding in) is hashing differently each run.
-- **Pipeline missing from cache after restart.** The cache lives in process memory only; the node re-resolves automatically on the next run.
-- **VRAM crash on load.** Drop quantization to `int8` or `int4`, switch `cpu_offload_strategy` to `Sequential`, or enable `vae_slicing`. Don't enable everything at once.
-- **LoRAs not applying.** Confirm the LoRA file format is compatible with the chosen pipeline type, and that the LoRA node is connected to `loras` (not to a runtime input).
-- **Provider switch wipes parameter values.** Provider is a destructive choice — input connections are preserved where the parameter name matches, but values reset.
+- **Pipeline cache after restart.** The cache lives in process memory only; the node re-resolves automatically on the next run.
+- **Out of VRAM on load.** The model weights exceed your available GPU memory. Try one or more of these in order of impact: set `quantization_mode` to `int8` or `int4`, set `cpu_offload_strategy` to `Model` (moves idle submodules to CPU), or enable `vae_slicing` (reduces peak memory during decode). Each option trades some inference speed for lower VRAM usage.
+- **LoRAs not applying.** Check two things: (1) the LoRA was trained for the same model architecture as your chosen `pipeline_type` — a Flux LoRA will not work on a WAN pipeline; (2) the [Load LoRA](load_lora.md) node is wired to the `loras` input on this node.
+- **Set `provider` before configuring other parameters.** Changing `provider` regenerates all parameters for the new model — connections are carried over where parameter names match, but values return to their defaults. Choosing the right provider upfront avoids repeating your setup.
 
 ## See also
 

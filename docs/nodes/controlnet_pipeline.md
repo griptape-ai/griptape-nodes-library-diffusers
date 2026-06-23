@@ -5,7 +5,7 @@
 Category: `ModularDiffusion/Pipeline`
 
 ## TL;DR
-- Sits **between** the [Pipeline Builder](pipeline_builder.md) and [Generate Media Latents](generate_media_latents.md) — it does not load new weights, it re-wires the cached pipeline to a ControlNet variant.
+- Sits **between** the [Pipeline Builder](pipeline_builder.md) and [Generate Media Latents](generate_media_latents.md) — it re-wires the cached pipeline to a ControlNet variant.
 - Accepts a list of `control_net` configs (from one or more [Configure ControlNet](configure_controlnet.md) nodes). Stacked ControlNets are supported where the model allows it (e.g. Flux Union).
 - Output type: `Pipeline Config` — drop-in replacement for the base pipeline downstream.
 
@@ -37,13 +37,13 @@ Configure ControlNet ─┘
 
 ## Tips & pitfalls
 
-- **Provider mismatch.** Each ControlNet's `provider` must equal the base pipeline's provider — the node will refuse to validate otherwise.
-- **Pipeline class compatibility.** Not every base pipeline supports ControlNet stacking; the node validates the driver before running. Check the error message for which combination failed.
-- **Don't chain two ControlNet Pipelines.** If `pipeline` is already a ControlNet artifact the node errors. Use a single ControlNet Pipeline with multiple `control_nets` entries instead.
-- **No new weights are downloaded.** This node reuses the cached base pipeline.
+- **Provider must match.** Each ControlNet's `provider` must equal the base pipeline's provider — the node validates this before running.
+- **Pipeline class compatibility.** Not every base pipeline supports ControlNet stacking; the node validates the driver before running and surfaces which combination is unsupported.
+- **Stack multiple ControlNets within a single node.** Use multiple `control_nets` entries on one ControlNet Pipeline node rather than chaining two ControlNet Pipeline nodes — the second node will error if the input is already a ControlNet artifact.
+- **Pipeline reuse** ControlNet weights may be loaded for the selected control_nets; the base pipeline itself is reused from cache when available.
 
 ## See also
 
 - [Configure ControlNet](configure_controlnet.md) — produces the `control_net` entries this node consumes.
 - [Modular Diffusion Pipeline Builder](pipeline_builder.md) — required upstream.
-- Workflow template: `workflows/templates/Modular_controlnet_stacking_t2i_workflow.py`.
+- Workflow template: `workflows/templates/ControlnetText2Image.py`.

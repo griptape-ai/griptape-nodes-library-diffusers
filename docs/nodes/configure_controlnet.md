@@ -7,7 +7,7 @@ Category: `ModularDiffusion/Conditioning`
 ## TL;DR
 - Pick `provider` first; the rest of the parameters are **dynamic** and regenerate per provider.
 - One node = one ControlNet. To stack multiple, drop multiple nodes and connect each `control_net` output to the [ControlNet Pipeline](controlnet_pipeline.md) node's `control_nets` list input.
-- Supported providers: **Flux, Qwen, Stable Diffusion, Z-Image**.
+- Supported providers: **Flux, Qwen, Stable Diffusion, Z-Image** etc.
 
 ## Typical workflow position
 ```text
@@ -36,16 +36,16 @@ Load Image → [Configure ControlNet] → ControlNet Pipeline → Generate Media
 
 The model dropdown and extra parameters change per provider. Notable extras:
 
-- **Flux** — `control_mode` (`canny`, `tile`, `depth`, `blur`, `pose`, `gray`, `low_quality`), `control_guidance_start`, `control_guidance_end`. Default models include InstantX and Shakker-Labs Union variants.
+- **Flux** — `control_mode` (`canny`, `tile`, `depth`, `blur`, `pose`, `gray`, `low_quality`), `control_guidance_start`, `control_guidance_end`.
 - **Qwen / Stable Diffusion / Z-Image** — provider-specific model repos and conditioning knobs.
 
 ## Tips & pitfalls
 
 - **Provider must match the base pipeline.** A Flux ControlNet plugged into an SDXL pipeline will be rejected by the ControlNet Pipeline node's validator.
-- **Don't preprocess control images here.** Run your detector (Canny, depth estimator, pose) upstream and feed the rendered control image directly.
+- **Preprocess control images upstream.** Run your detector (Canny, depth estimator, pose) in an earlier node and feed the result directly — this node expects a ready-to-use control image.
 - **`controlnet_conditioning_scale` is per-ControlNet.** When stacking, each node has its own weight.
 
 ## See also
 
 - [ControlNet Pipeline](controlnet_pipeline.md) — required downstream consumer.
-- Workflow template: `workflows/templates/Modular_controlnet_stacking_t2i_workflow.py`.
+- Workflow template: `workflows/templates/ControlnetText2Image.py`.

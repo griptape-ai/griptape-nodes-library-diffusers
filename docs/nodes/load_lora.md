@@ -1,19 +1,27 @@
 # Load LoRA
 
-**Loads a LoRA file from local disk and exposes it as a `loras` output that the Pipeline Builder accepts.**
+**Loads a LoRA file from local disk and exposes it as an output that the Pipeline Builder accepts.**
 
 Category: `ModularDiffusion/Pipeline`
 
 ## TL;DR
-- One LoRA per node. To stack LoRAs, drop multiple `Load LoRA` nodes and connect them all to the same Pipeline Builder.
-- LoRAs are **fused** into the model weights when the pipeline is built — `weight` is baked in at that point, not applied at generation time. Changing any LoRA or its weight **rebuilds** the cached pipeline.
+- One LoRA per node. To stack LoRAs, drop multiple `Load LoRA` nodes and connect them all to the same consumer.
+- **Two ways to use a LoRA:**
+  - **Pipeline Builder** — LoRA is **fused** (baked) into the model weights at build time. `weight` is fixed at that point; changing it **rebuilds** the cached pipeline. Best for LoRAs you always want active.
+  - **LoRA Pipeline** — LoRA is activated **per generation** and released afterward. The base pipeline is never modified, so changing `weight` between runs does not trigger a rebuild. Best for IC LoRAs, slider LoRAs, or workflows that swap adapters between branches.
 - Accepts `.safetensors`, `.sft`, `.pt`, `.bin`, `.json`, `.lora`.
 
 ## Typical workflow position
 ```text
+# Fused (baked into model at build time):
 [Load LoRA] ─┐
 [Load LoRA] ─┼─→ Pipeline Builder → Generate Media Latents
 [Load LoRA] ─┘
+
+# Per-generation (applied at run time):
+Pipeline Builder ──┐
+[Load LoRA] ───────┤→ LoRA Pipeline → Generate Media Latents
+[Load LoRA] ───────┘
 ```
 
 ## Node preview
@@ -43,5 +51,6 @@ Category: `ModularDiffusion/Pipeline`
 
 ## See also
 
-- [Modular Diffusion Pipeline Builder](pipeline_builder.md) — required consumer.
-- Workflow template: `workflows/templates/Modular_t2i_with_Loras_workflow.py`.
+- [Modular Diffusion Pipeline Builder](pipeline_builder.md) — fused LoRA consumer.
+- [LoRA Pipeline](lora_pipeline.md) — per-generation LoRA consumer.
+- Workflow template: `workflows/templates/LoRAText2Image.py`.

@@ -42,7 +42,7 @@ Paint Mask (mask) ────────┘
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `x_offset` | int (pixels, 0–2000) | `0` | Horizontal placement (divided by 8 internally). |
-| `y_offset` | int (pixels, 0–2000) | `0` | Vertical placement. |
+| `y_offset` | int (pixels, 0–2000) | `0` | Vertical placement (divided by 8 internally). |
 | `resize_source` | bool | `False` | Bilinearly resize source to match destination spatial size before compositing. |
 
 ### Mask options *(collapsed by default)*
@@ -56,7 +56,7 @@ Paint Mask (mask) ────────┘
 
 ## Tips & pitfalls
 
-- **Source outside the destination is silently dropped.** If `x_offset` + source width clips off-canvas, the off-canvas portion is discarded; the destination is returned unchanged if nothing intersects.
+- **Only the overlapping region is composited.** If `x_offset` + source width extends beyond the destination canvas, the out-of-bounds portion is ignored; if source and destination don't intersect at all, the destination is returned unchanged.
 - **Pixel offsets, not latent offsets.** A 1024-px destination = 128 latent units. Offsets are in the bigger pixel space — the node divides by the VAE scale factor (8) internally.
 - **Works for both 4D image latents and 5D video latents.** The mask is broadcast across the temporal dimension.
 - **Output inherits the destination's `shape`. Metadata is merged; on key conflicts the destination wins.**

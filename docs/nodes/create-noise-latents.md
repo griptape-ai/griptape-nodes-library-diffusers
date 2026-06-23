@@ -43,9 +43,9 @@ Pipeline Builder → [Create Noise Latents] → Generate Media Latents → Decod
 
 ## Tips & pitfalls
 
-- **`width` / `height` must respect VAE divisibility.** Most VAEs require multiples of 8 or 16. Pick standard dimensions (512, 768, 1024, …) to avoid surprises.
+- **`width` / `height` must respect VAE divisibility.** Most VAEs require multiples of 8 or 16. Pick standard dimensions (512, 768, 1024, …) to keep shapes valid.
 - **Same seed across pipelines ≠ same image.** Latent shape and VAE space differ per model; the seed is only meaningful within one pipeline type.
-- **For Image-to-Image or rediffusion, don't use this node.** Use [Encode Media Latent](encode_media_latent.md) instead, optionally feeding the result through Generate Media Latents with `add_noise=True`.
+- **For Image-to-Image or rediffusion, use [Encode Media Latent](encode_media_latent.md) instead.** Encoding an existing image gives you a conditioned starting point; optionally feed it through Generate Media Latents with `add_noise=True`.
 
 ## See also
 

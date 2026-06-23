@@ -35,8 +35,8 @@ Generate Media Latents (B) ─┘
 
 ## Tips & pitfalls
 
-- **Shape mismatch fails validation.** Resize or upsample one of the inputs first.
-- **Mixing latents from different pipeline families is unsafe** — the latent spaces are not compatible.
+- **Both inputs must have the same shape.** Resize or upsample one of the inputs first if they differ.
+- **Keep latents within the same pipeline family.** Each model uses a different latent space — mixing latents across families (e.g. Flux and SDXL) produces meaningless results.
 
 ## See also
 
