@@ -49,6 +49,9 @@ from modular_diffusion_nodes_library.runtime_parameters.wan_i2v_runtime_paramete
 from modular_diffusion_nodes_library.runtime_parameters.wan_runtime_parameters import (
     WanPipelineRuntimeParameters,
 )
+from modular_diffusion_nodes_library.runtime_parameters.wan_vace_runtime_parameters import (
+    WanVacePipelineRuntimeParameters,
+)
 from modular_diffusion_nodes_library.runtime_parameters.z_image_runtime_parameters import (
     ZImagePipelineRuntimeParameters,
 )
@@ -66,6 +69,7 @@ _RUNTIME_PARAMS_REGISTRY: dict[str, type[DiffusionPipelineRuntimeParameters]] = 
     "StableDiffusionXLPipeline": StableDiffusionXLPipelineRuntimeParameters,
     "WanPipeline": WanPipelineRuntimeParameters,
     "WanImageToVideoPipeline": WanImageToVideoPipelineRuntimeParameters,
+    "WanVACEPipeline": WanVacePipelineRuntimeParameters,
     "ZImagePipeline": ZImagePipelineRuntimeParameters,
 }
 

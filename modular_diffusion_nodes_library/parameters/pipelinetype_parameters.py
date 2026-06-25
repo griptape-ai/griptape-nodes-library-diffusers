@@ -46,6 +46,9 @@ from modular_diffusion_nodes_library.standard_parameters.wan_i2v_parameters impo
 from modular_diffusion_nodes_library.standard_parameters.wan_parameters import (
     WanPipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.wan_vace_parameters import (
+    WanVacePipelineParameters,
+)
 from modular_diffusion_nodes_library.standard_parameters.z_image_parameters import (
     ZImagePipelineParameters,
 )
@@ -299,6 +302,7 @@ class LatentWanPipelineTypeParameters(LatentPipelineTypeParameters):
         return {
             "WanPipeline": WanPipelineParameters,
             "WanImageToVideoPipeline": WanImageToVideoPipelineParameters,
+            "WanVACEPipeline": WanVacePipelineParameters,
         }
 
 
