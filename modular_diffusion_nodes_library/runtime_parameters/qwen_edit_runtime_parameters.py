@@ -1,36 +1,52 @@
-# Copied from diffusers_nodes_library.common.parameters.diffusion.qwen.edit_runtime_parameters
 import logging
+from typing import ClassVar
 
-from griptape.artifacts import ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import BaseNode
-from PIL.Image import Image
 
+from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_layout import (
+    FlexibleImageConfig,
+    MediaGenConditioningConfig,
+)
+from modular_diffusion_nodes_library.runtime_parameters.conditioning_runtime_parameter import (
+    MediaGenConditioningRuntimeParameter,
+)
 from modular_diffusion_nodes_library.runtime_parameters.runtime_parameters import (
     DiffusionPipelineRuntimeParameters,
 )
-from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
-from modular_diffusion_nodes_library.utils.pillow_utils import (
-    image_artifact_to_pil,
-)
+from modular_diffusion_nodes_library.utils.conditioning_utils import ConditioningMode
 
 logger = logging.getLogger("diffusers_nodes_library")
 
 
 class QwenEditPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
+    CONDITIONING_CONFIG: ClassVar[MediaGenConditioningConfig | None] = MediaGenConditioningConfig(
+        image=FlexibleImageConfig(
+            min_count=1,
+            max_count=8,
+            expose_strength=False,
+            expose_frame_index=False,
+        ),
+    )
+
     def __init__(self, node: BaseNode):
         super().__init__(node)
+        self._image_references = MediaGenConditioningRuntimeParameter(
+            node,
+            param_name="image_references",
+            accepted_modes=(ConditioningMode.IMAGE,),
+            tooltip="Image(s) to edit. Connect a Media Gen Conditioning node for multi-image support, or connect an image directly.",
+            badge_title="Reference images",
+            badge_message=(
+                "Connect a **Media Gen Conditioning** node here to supply one or more reference images for editing. "
+                "Only **image**-mode payloads are accepted; **video** payloads are not allowed.\n\n"
+                "**Tip:** You can also connect an image directly — without a Media Gen Conditioning node — "
+                "for single-image conditioning."
+            ),
+        )
 
     def _add_input_parameters(self) -> None:
-        self._node.add_parameter(
-            Parameter(
-                name="image",
-                input_types=["ImageArtifact", "ImageUrlArtifact"],
-                type="ImageArtifact",
-                tooltip="Image to be edited.",
-                ui_options={"hide_property": True},
-            )
-        )
+        self._image_references.add_input_parameters()
         self._node.add_parameter(
             Parameter(
                 name="prompt",
@@ -84,26 +100,19 @@ class QwenEditPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         self._node.remove_parameter_element_by_name("negative_prompt")
         self._node.remove_parameter_element_by_name("true_cfg_scale")
         self._node.remove_parameter_element_by_name("guidance_scale")
-        self._node.remove_parameter_element_by_name("image")
+        self._image_references.remove_input_parameters()
 
     def validate_before_node_run(self) -> list[Exception] | None:
-        image = self._node.get_parameter_value("image")
-        if image is None:
-            return [ValueError("Image must be connected to use Qwen Edit")]
-        return None
-
-    def get_image_pil(self) -> Image:
-        input_image_artifact = self._node.get_parameter_value("image")
-        if isinstance(input_image_artifact, ImageUrlArtifact):
-            input_image_artifact = load_image_from_url_artifact(input_image_artifact)
-        input_image_pil = image_artifact_to_pil(input_image_artifact)
-        return input_image_pil.convert("RGB")
+        if self._node.get_parameter_value("image_references") is None:
+            return [ValueError("image_references must be connected to use Qwen Edit.")]
+        return self._image_references.validate_before_node_run()
 
     def _get_pipe_kwargs(self) -> dict:
-        return {
+        base = {
             "prompt": self._node.get_parameter_value("prompt"),
             "negative_prompt": self._node.get_parameter_value("negative_prompt"),
             "true_cfg_scale": self._node.get_parameter_value("true_cfg_scale"),
             "guidance_scale": self._node.get_parameter_value("guidance_scale"),
-            "image": self.get_image_pil(),
         }
+        base.update(self._image_references.get_pipe_kwargs())
+        return base

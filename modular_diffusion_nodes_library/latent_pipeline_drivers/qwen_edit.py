@@ -6,6 +6,9 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 from diffusers.pipelines.qwenimage.pipeline_qwenimage_edit import (
     calculate_dimensions,  # type: ignore[reportMissingImports]
 )
+from diffusers.pipelines.qwenimage.pipeline_qwenimage_edit_plus import (  # type: ignore[reportMissingImports]
+    QwenImageEditPlusPipeline,
+)
 from PIL import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
@@ -17,6 +20,14 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.qwen import QwenLatentPipelineDriver
+from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
+    normalize_to_payloads,
+)
+from modular_diffusion_nodes_library.utils.conditioning_utils import (
+    MediaGenConditioningKey,
+    resolve_conditioning_image,
+)
+from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 _QWEN_EDIT_TARGET_AREA = 1024 * 1024
@@ -67,6 +78,17 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
             source_shape=original_source_shape,
             upstream=snapped_output,
         )
+
+    @staticmethod
+    def _images_from_conditioning(payload: Any) -> list[Image.Image]:
+        payloads = normalize_to_payloads(payload)
+        if payloads is None:
+            return []
+        images: list[Image.Image] = []
+        for p in payloads:
+            for entry in p.entries:
+                images.append(resolve_conditioning_image(entry.artifact))
+        return images
 
     @override
     def prepare_output_latent(
@@ -132,9 +154,17 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
         call_kwargs: dict[str, Any] = {"prompt": prompt}
         if negative_prompt:
             call_kwargs["negative_prompt"] = negative_prompt
-        image = kwargs.get("image")
-        if image is not None:
-            call_kwargs["image"] = image
+
+        payload = kwargs.get(MediaGenConditioningKey.OUTPUT)
+        if payload is not None:
+            images = self._images_from_conditioning(payload)
+            if images:
+                call_kwargs["image"] = images[0]
+        else:
+            image = kwargs.get("image")
+            if image is not None:
+                call_kwargs["image"] = image
+
         return self._call_block(text_encoder_pipe, **call_kwargs)
 
     @override
@@ -149,17 +179,42 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
         return_fully_denoised: bool = False,
         **kwargs: Any,
     ) -> LatentArtifact:
+        original_pipe = self._pipe
+
+        payload = kwargs.pop(MediaGenConditioningKey.OUTPUT, None)
+        if payload is not None:
+            images = self._images_from_conditioning(payload)
+            if len(images) > 1:
+                # Plus variant: swap pipeline, strip pre-computed embeddings so the Plus pipeline
+                # re-encodes with all conditioning images via its own VLM call.
+                torch_dtype = self._get_torch_type(self._pipe)
+                self._pipe = create_pipe_variant(original_pipe, QwenImageEditPlusPipeline, torch_dtype=torch_dtype)
+                kwargs["image"] = images
+                for key in (
+                    "prompt_embeds",
+                    "prompt_embeds_mask",
+                    "negative_prompt_embeds",
+                    "negative_prompt_embeds_mask",
+                ):
+                    kwargs.pop(key, None)
+            elif images:
+                kwargs["image"] = images[0]
+
         original_source_shape = latent.source_shape
         if isinstance(latent, LatentArtifact):
             latent = self._with_snapped_source_shape(latent)
-        snapped_output = super().denoise_latent(
-            latent,
-            num_inference_steps,
-            generator_state=generator_state,
-            callback=callback,
-            start_step=start_step,
-            end_step=end_step,
-            return_fully_denoised=return_fully_denoised,
-            **kwargs,
-        )
+        try:
+            snapped_output = super().denoise_latent(
+                latent,
+                num_inference_steps,
+                generator_state=generator_state,
+                callback=callback,
+                start_step=start_step,
+                end_step=end_step,
+                return_fully_denoised=return_fully_denoised,
+                **kwargs,
+            )
+        finally:
+            self._pipe = original_pipe
+
         return self._with_original_source_shape(snapped_output, original_source_shape)
