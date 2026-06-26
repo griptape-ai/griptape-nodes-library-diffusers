@@ -167,8 +167,13 @@ class ModularDiffusionConditioningParameters:
         self._conditioning_parameter.update_config(new_config)
 
     def _handle_pipeline_change(self, old_value: Any, new_value: Any) -> None:
-        old_class = self._pipeline_class_of(old_value)
         new_class = self._pipeline_class_of(new_value)
+        if new_class is None:
+            # Disconnecting: keep the current config. A replace-connection fires as two
+            # events (disconnect then connect); not resetting here means the connect event
+            # sees _active_config still matching the old class and skips the swap.
+            return
+        old_class = self._pipeline_class_of(old_value)
         if old_class == new_class:
             return
         new_config = _config_for_pipeline(new_class)
@@ -176,12 +181,10 @@ class ModularDiffusionConditioningParameters:
             return
 
         saved_incoming, saved_outgoing = self._save_surface_connections()
-
         self._conditioning_parameter.remove_input_parameters()
         self._active_config = new_config
         self._conditioning_parameter = MediaGenConditioningParameter(self._node, new_config)
         self._conditioning_parameter.add_input_parameters()
-
         self._restore_surface_connections(saved_incoming, saved_outgoing)
 
     def _current_pipeline_class(self) -> str | None:
