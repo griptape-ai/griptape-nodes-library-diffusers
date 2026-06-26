@@ -110,7 +110,17 @@ Reference: [ltx.py](../../../modular_diffusion_nodes_library/latent_pipeline_dri
 Skeleton:
 ```python
 @override
-def denoise_latent(self, latents, latents_source_shape, num_inference_steps, **kwargs):
+def denoise_latent(
+    self,
+    latent: LatentArtifact | InpaintMaskArtifact,
+    num_inference_steps: int,
+    generator_state: GeneratorState,
+    callback: Any = None,
+    start_step: int = 0,
+    end_step: int = -1,
+    return_fully_denoised: bool = False,
+    **kwargs: Any,
+) -> LatentArtifact:
     trigger_value = kwargs.pop("<custom_kwarg>", None)
     original_pipe = self._pipe
     if trigger_value is not None:
@@ -119,7 +129,16 @@ def denoise_latent(self, latents, latents_source_shape, num_inference_steps, **k
         # convert trigger_value into the variant pipeline's kwargs
         kwargs["<variant_kwarg>"] = self._convert(trigger_value, ...)
     try:
-        return super().denoise_latent(latents, latents_source_shape, num_inference_steps, **kwargs)
+        return super().denoise_latent(
+            latent,
+            num_inference_steps=num_inference_steps,
+            generator_state=generator_state,
+            callback=callback,
+            start_step=start_step,
+            end_step=end_step,
+            return_fully_denoised=return_fully_denoised,
+            **kwargs,
+        )
     finally:
         self._pipe = original_pipe
 ```

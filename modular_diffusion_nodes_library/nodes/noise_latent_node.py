@@ -10,14 +10,11 @@ from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
 )
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
-from modular_diffusion_nodes_library.latent_pipeline_drivers.stable_diffusion_xl import (
-    StableDiffusionXLLatentPipelineDriver,
-)
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import GeneratorState
 from modular_diffusion_nodes_library.mixins.parameter_connection_preservation_mixin import (
     ParameterConnectionPreservationMixin,
 )
 from modular_diffusion_nodes_library.parameters.generate_latent_parameters import (
-    DEFAULT_NUM_INFERENCE_STEPS,
     DiffusionPipelineGenerateLatentParameters,
 )
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import (
@@ -35,14 +32,6 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         self.pipe_params = ModularDiffusionPipelineParameters(self)
         self.pipe_params.add_input_parameters()
 
-        self.add_parameter(
-            Parameter(
-                name="num_inference_steps",
-                default_value=DEFAULT_NUM_INFERENCE_STEPS,
-                type="int",
-                tooltip="The number of denoising steps. More denoising steps usually lead to a higher quality image at the expense of slower inference.",
-            )
-        )
         self.add_seed_parameter()
 
         self.add_parameter(
@@ -71,7 +60,6 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         )
         self.latent_parameter = DiffusionPipelineGenerateLatentParameters(self)  # type: ignore[reportOptionalMemberAccess]
         self.latent_parameter.add_output_parameters()
-        self.hide_parameter_by_name("num_inference_steps")
         self._reorder_trailing_parameters()
         self._initializing = False
 
@@ -115,16 +103,11 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
                 self.show_parameter_by_name("num_frames")
             else:
                 self.hide_parameter_by_name("num_frames")
-            # num_inference_steps only applies to SDXL noise scaling
-            if latent_pipeline_driver is StableDiffusionXLLatentPipelineDriver:
-                self.show_parameter_by_name("num_inference_steps")
-            else:
-                self.hide_parameter_by_name("num_inference_steps")
             self._reorder_trailing_parameters()
 
     def _reorder_trailing_parameters(self) -> None:
-        """Move ``num_inference_steps`` and ``output_latent`` to the end."""
-        trailing = ["num_inference_steps", "output_latent"]
+        """Move ``output_latent`` to the end."""
+        trailing = ["output_latent"]
         existing = [element.name for element in self.root_ui_element._children]
         head = [name for name in existing if name not in trailing]
         tail = [name for name in trailing if name in existing]
@@ -157,8 +140,7 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
 
         def work() -> Any:
             try:
-                latents, source_shape = self._process()
-                latent_artifact = LatentArtifact.from_torch(latents, source_shape=source_shape)
+                latent_artifact = self._process()
                 self.publish_update_to_parameter("output_latent", latent_artifact)
                 self.set_parameter_value("output_latent", latent_artifact)
                 self.parameter_output_values["output_latent"] = latent_artifact
@@ -171,24 +153,16 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
 
         yield work
 
-    def _process(self) -> Any:
+    def _process(self) -> LatentArtifact:
         pipe = self.pipe_params.get_pipeline()
         latent_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
         height = self.get_parameter_value("height")
         width = self.get_parameter_value("width")
         seed = self.get_parameter_value("seed") or 0
+        generator_state = GeneratorState.from_seed(seed)
         if latent_pipeline_driver.produces_video:
             num_frames = self.get_parameter_value("num_frames") or 1
             latents_source_shape = (1, 3, num_frames, height, width)
         else:
             latents_source_shape = (1, 3, height, width)
-        if isinstance(latent_pipeline_driver, StableDiffusionXLLatentPipelineDriver):
-            num_inference_steps = int(self.get_parameter_value("num_inference_steps") or 50)
-            latents = latent_pipeline_driver.create_noise_latent(
-                latents_source_shape,
-                seed,
-                num_inference_steps=num_inference_steps,
-            )
-        else:
-            latents = latent_pipeline_driver.create_noise_latent(latents_source_shape, seed)
-        return latents, latents_source_shape
+        return latent_pipeline_driver.create_noise_latent(latents_source_shape, generator_state)

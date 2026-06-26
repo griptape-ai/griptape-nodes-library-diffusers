@@ -16,7 +16,14 @@ from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from PIL.Image import Image
 
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    GeneratorState,
+    ImageMedia,
+    MaskMedia,
+    VideoMedia,
+)
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -35,11 +42,11 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         return Flux2AutoBlocks().init_pipeline()
 
     @override
-    def create_noise_latent(self, latents_source_shape: tuple[int, ...], seed: int) -> torch.Tensor:  # noqa: ARG002
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         device, dtype = self._get_device_and_type()
-        height, width = latents_source_shape[-2], latents_source_shape[-1]
+        height, width = source_shape[-2], source_shape[-1]
 
-        generator = torch.Generator().manual_seed(seed)
+        generator = generator_state.to_generator()
         prepare_latents = Flux2PrepareLatentsStep()
         output_state = self._call_block(
             prepare_latents,
@@ -57,12 +64,16 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         latents_state = self._call_block(unpack_latents, latents=packed_latents, latent_ids=latent_ids)
         latents = latents_state.get("latents")
         latents = latents.to(device)
-        return latents
+        return self._make_latent_artifact(
+            latents,
+            source_shape=source_shape,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
 
     @override
-    def decode_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> Image:  # noqa: ARG002
+    def decode_latent(self, latent: LatentArtifact) -> Image:
         device, dtype = self._get_device_and_type()
-        latents = latents.to(device=device, dtype=dtype)
+        latents = latent.to_torch(device=device, dtype=dtype)
 
         decode_block = self.modular_pipe.blocks.sub_blocks["decode"]
         output_state = self._call_block(decode_block, latents=latents, output_type="pil")
@@ -89,46 +100,61 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         return unpack_state.get("latents")
 
     @override
-    def encode_image(self, image: Image | torch.Tensor) -> torch.Tensor:
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        if isinstance(media, VideoMedia):
+            raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
+        image = media.image
         if isinstance(image, torch.Tensor):
             # Flux2 modular VAE encoder only accepts PIL images
             img_np = image.squeeze(0).permute(1, 2, 0).clamp(0, 1).mul(255).byte().cpu().numpy()
             image = PIL.Image.fromarray(img_np)
+        generator = generator_state.to_generator()
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
-        output_state = self._call_block(encode_block, image=image, height=image.height, width=image.width)
-        return output_state.get("image_latents")[0]
+        output_state = self._call_block(
+            encode_block, image=image, height=image.height, width=image.width, generator=generator
+        )
+        return self._make_latent_artifact(output_state.get("image_latents")[0], source_shape=media.source_shape)
 
     @override
-    def encode_masked_image(self, image: Image, mask: Image) -> torch.Tensor:
+    def encode_masked_image(
+        self, image: ImageMedia, mask: MaskMedia, generator_state: GeneratorState
+    ) -> LatentArtifact:
+        pil_image = image.image
+        if isinstance(pil_image, torch.Tensor):
+            img_np = pil_image.squeeze(0).permute(1, 2, 0).clamp(0, 1).mul(255).byte().cpu().numpy()
+            pil_image = PIL.Image.fromarray(img_np)
+
         # PIL -> aligned, normalized tensor (multiple-of-32 alignment + <=1024^2 cap).
-        pre = self._call_block(Flux2ProcessImagesInputStep(), image=image)
+        pre = self._call_block(Flux2ProcessImagesInputStep(), image=pil_image)
         source_t = pre.get("condition_images")[0]
 
         # Resize mask to match the (possibly aligned/cropped) tensor dims.
         aligned_h, aligned_w = source_t.shape[-2:]
-        mask_resized = mask.convert("L").resize((aligned_w, aligned_h), PIL.Image.NEAREST)
+        mask_resized = mask.mask.convert("L").resize((aligned_w, aligned_h), PIL.Image.NEAREST)
         mask_t = TF.to_tensor(mask_resized)[None]  # (1, 1, H, W), float32 in [0, 1]
 
         masked_t = source_t * (mask_t < 0.5)
 
         out = self._call_block(Flux2VaeEncoderStep(), condition_images=[masked_t])
-        return out.get("image_latents")[0]
+        return self._make_latent_artifact(out.get("image_latents")[0], source_shape=image.source_shape)
 
     @override
     def add_noise_to_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
-        seed: int,
+        latent: LatentArtifact,
+        generator_state: GeneratorState,
         num_inference_steps: int,
         strength: float,
-    ) -> torch.Tensor:
+    ) -> LatentArtifact:
         # scale_noise is called manually because diffusers has no modular block for
         # strength-based noise addition. Flux2PrepareLatentsStep only generates or
         # passes through latents without blending noise at a specific timestep.
         # Flux2SetTimestepsStep to handle sigmas, dynamic shifting, and mu computation
+        device, dtype = self._get_device_and_type()
+        source_shape = latent.source_shape
+        latents = latent.to_torch(device=device, dtype=dtype)
         set_timesteps = Flux2SetTimestepsStep()
-        height, width = latents_source_shape[-2], latents_source_shape[-1]
+        height, width = source_shape[-2], source_shape[-1]
         timesteps_state = self._call_block(
             set_timesteps, num_inference_steps=num_inference_steps, height=height, width=width
         )
@@ -138,7 +164,9 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         if timesteps is None or len(timesteps) == 0:
             raise ValueError("Scheduler timesteps are not set. Cannot add noise to latent.")
 
-        noise = self.create_noise_latent(latents_source_shape, seed)
+        noise_artifact = self.create_noise_latent(source_shape, generator_state)
+        noise = noise_artifact.to_torch(device=device, dtype=dtype)
+        noise_generator_state = GeneratorState.from_artifact(noise_artifact) or generator_state
 
         # Compute the timestep at which to add noise based on strength
         init_timestep = min(num_inference_steps * strength, num_inference_steps)
@@ -146,4 +174,9 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         latent_timestep = timesteps[t_start * self.pipe.scheduler.order :][:1]
 
         noisy_latent = self.pipe.scheduler.scale_noise(latents, latent_timestep, noise)
-        return noisy_latent
+        return self._make_latent_artifact(
+            noisy_latent,
+            source_shape=source_shape,
+            upstream=latent,
+            meta=noise_generator_state.as_meta(),
+        )

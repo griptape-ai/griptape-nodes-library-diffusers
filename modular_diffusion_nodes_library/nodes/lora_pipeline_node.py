@@ -153,9 +153,9 @@ class LoraActivationPipelineNode(ControlNode):
         try:
             loras = self._get_loras()
         except (TypeError, ValueError):
-            return None
+            return base_artifact
         if not loras:
-            return None
+            return base_artifact
 
         return base_artifact.with_additional_runtime_adapter_steps([LoraPipelineRuntimeAdapterStep(loras)])
 

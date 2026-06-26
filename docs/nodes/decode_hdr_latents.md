@@ -23,7 +23,7 @@ Generate Media Latents → [Decode HDR Latents] → Save Image / Save Video
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `pipeline` | `Pipeline Config` | Yes | Must match the pipeline that produced the latent. Use an HDR-capable driver (e.g. LTX 2.3 HDR) to get linear frame output. |
+| `pipeline` | `Pipeline Config` | Yes | Must match the pipeline that produced the latent. Use an HDR-capable model (e.g. LTX 2.3 HDR) to get linear frame output. |
 | `latent_tensor` | `LatentArtifact` | Yes | Latent to decode. |
 
 ## Outputs
@@ -50,8 +50,8 @@ Generate Media Latents → [Decode HDR Latents] → Save Image / Save Video
   - `output/frames/` (trailing slash, folder) → files saved as `output/frames/frame_0000.exr`, `frame_0001.exr`, …
   - `output/frames` (no trailing slash, no extension, existing or non-existing folder) → same as above, stem `frame`
   - `output/frames/shot.exr` (`.exr` extension) → files saved as `output/frames/shot_0000.exr`, `shot_0001.exr`, …
-- **Use the same pipeline that produced the latent.** Decoding with a mismatched VAE produces corrupt output — the pipeline carries the VAE that matches.
-- **VRAM spike on decode.** Large latents (high resolution, many frames) can spike memory. Enable `vae_slicing` on the Pipeline Builder if you hit out-of-memory errors.
+- **Use the same pipeline that produced the latent.** Each pipeline carries the VAE it was trained with — decoding with a mismatched VAE produces corrupt output.
+- **Large latents need more VRAM to decode.** High-resolution or multi-frame latents require more memory during decode. Enable `vae_slicing` on the Pipeline Builder to decode in batches and keep peak VRAM usage lower.
 
 ## See also
 

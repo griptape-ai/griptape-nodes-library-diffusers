@@ -15,6 +15,7 @@ from PIL import Image as PILImage
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import GeneratorState, ImageMedia, MaskMedia
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
@@ -140,18 +141,22 @@ class VaeMaskEncodeNode(ControlNode):
         if mask_pil.size != image_pil.size:
             mask_pil = mask_pil.resize(image_pil.size, PILImage.NEAREST)
 
-        source_latent = driver.encode_image(image_pil)
-        masked_latent = driver.encode_masked_image(image_pil, mask_pil)
-        strength = float(self.get_parameter_value("strength") or 1.0)
         source_shape = (1, 3, image_pil.height, image_pil.width)
+        image = ImageMedia(image=image_pil, source_shape=source_shape)
+        mask = MaskMedia(mask=mask_pil, source_shape=source_shape)
+        generator_state = GeneratorState.from_seed(42)
+        source_encode = driver.encode_media(image, generator_state)
+        masked_encode = driver.encode_masked_image(image, mask, generator_state)
+        strength = float(self.get_parameter_value("strength") or 1.0)
 
         artifact = InpaintMaskArtifact(
             mask_image=mask_pil,
             source_image=self.get_parameter_value("image"),
-            source_latent=source_latent,
-            masked_latent=masked_latent,
+            source_latent=source_encode.to_torch(),
+            masked_latent=masked_encode.to_torch(),
             source_shape=source_shape,
             strength=strength,
+            meta=dict(source_encode.meta or {}),
         )
         self.set_parameter_value("latents", artifact)
         self.parameter_output_values["latents"] = artifact

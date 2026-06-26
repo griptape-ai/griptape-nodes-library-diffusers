@@ -1,7 +1,6 @@
 import logging
 from typing import Any, ClassVar, override
 
-import torch  # type: ignore[reportMissingImports]
 from diffusers import (  # type: ignore[reportMissingImports]
     ControlNetModel,
     StableDiffusionXLControlNetImg2ImgPipeline,
@@ -25,9 +24,25 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    GeneratorState,
+    ImageMedia,
+    VideoMedia,
+    read_driver_meta,
+)
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
+
+
+# ------------------------------------------------------------------
+# Driver-namespaced meta keys (SDXL-only routing state)
+# ------------------------------------------------------------------
+#: Tag indicating how a latent should be consumed by ``denoise_latent``.
+#: Values: ``"noise"``, ``"image_latents"``, ``"noised_image_latents"``.
+#: Missing is treated as empty noise.
+_KIND_META_KEY = "kind"
 
 
 # ------------------------------------------------------------------
@@ -108,80 +123,129 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
     @override
     def create_noise_latent(
         self,
-        latents_source_shape: tuple[int, ...],
-        seed: int,
-        num_inference_steps: int = 20,
-    ) -> torch.Tensor:
+        source_shape: tuple[int, ...],
+        generator_state: GeneratorState,
+    ) -> LatentArtifact:
+        """Return pure noise latent tagged ``kind="noise"``."""
+        generator = generator_state.to_generator()
         output_state = self._call_block(
             _SDXLPrepareNoiseLatentStep(),
-            height=latents_source_shape[-2],
-            width=latents_source_shape[-1],
+            height=source_shape[-2],
+            width=source_shape[-1],
             batch_size=1,
             num_images_per_prompt=1,
-            num_inference_steps=num_inference_steps,
-            generator=torch.Generator().manual_seed(seed),
+            num_inference_steps=self._DEFAULT_NUM_INFERENCE_STEPS,
+            generator=generator,
         )
         latents = output_state.get("latents")
+        latents = latents / self.pipe.scheduler.init_noise_sigma
 
-        return latents
+        meta = {_KIND_META_KEY: "noise", **GeneratorState.from_generator(generator).as_meta()}
+        return self._make_latent_artifact(latents, source_shape=source_shape, meta=meta)
 
     @override
     def add_noise_to_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],  # noqa: ARG002
-        seed: int,
+        latent: LatentArtifact,
+        generator_state: GeneratorState,
         num_inference_steps: int,
         strength: float,
-    ) -> torch.Tensor:
+    ) -> LatentArtifact:
         """Add noise to image latents via modular pipeline blocks.
 
-        Returns the noised latent at the scheduler's sigma scale for the
-        requested strength.
+        1. ``strength <= 0.0`` — no-op, return input unchanged.
+        2. ``strength >= 1.0`` — delegate to ``create_noise_latent``; output
+           tagged ``"noise"``.
+        3. Input is degenerate (``kind in {"", "noise"}``) with partial strength —
+           run the block on the (zero-or-noise) input, normalise by
+           ``init_noise_sigma`` & tag as ``"noise"``. This is an unexpected call
+           shape; the output is consistent but not statistically meaningful.
+        4. Input is image latents (``kind in {"image_latents",
+           "noised_image_latents"}`` or any other tag) — run the block, tag
+           ``"noised_image_latents"``.
         """
+        if strength <= 0.0:
+            return latent
+        if strength >= 1.0:
+            noise_artifact = self.create_noise_latent(latent.source_shape, generator_state)
+            return self._make_latent_artifact(
+                noise_artifact.to_torch(),
+                source_shape=latent.source_shape,
+                upstream=latent,
+                meta=noise_artifact.meta,
+            )
+
         device, dtype = self._get_device_and_type()
+        latents = latent.to_torch(device=device, dtype=dtype)
+        generator = generator_state.to_generator()
         output_state = self._call_block(
             _SDXLAddNoiseStep(),
-            image_latents=latents.to(device=device, dtype=dtype),
+            image_latents=latents,
             num_inference_steps=num_inference_steps,
             strength=strength,
             batch_size=latents.shape[0],
             num_images_per_prompt=1,
-            generator=torch.Generator(device=device).manual_seed(seed),
+            generator=generator,
             dtype=dtype,
         )
-        return output_state.get("latents")
+        noised = output_state.get("latents")
+        generator_meta = GeneratorState.from_generator(generator).as_meta()
+
+        kind = read_driver_meta(latent, _KIND_META_KEY, self.driver_namespace, "")
+        if kind in ("", "noise"):
+            noised = noised / self.pipe.scheduler.init_noise_sigma
+            meta = {
+                _KIND_META_KEY: "noise",
+                **generator_meta,
+            }
+        else:
+            meta = {
+                _KIND_META_KEY: "noised_image_latents",
+                **generator_meta,
+            }
+        return self._make_latent_artifact(
+            noised,
+            source_shape=latent.source_shape,
+            upstream=latent,
+            meta=meta,
+        )
 
     @override
     def denoise_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
+        latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
-        seed: int = 0,
+        generator_state: GeneratorState,
         callback: Any = None,
         start_step: int = 0,
         end_step: int = -1,
         return_fully_denoised: bool = False,
         **kwargs: Any,
-    ) -> torch.Tensor:
-        device, dtype = self._get_device_and_type()
-        latents_on_device = latents.to(device=device, dtype=dtype)
+    ) -> LatentArtifact:
+        """Switch on ``kind`` to pick the correct entry path.
 
-        # Img2Img requires ``image`` and ``strength``.  Pass the latent
-        # as ``image`` — preprocess detects 4-channel input and returns
-        # it as-is; ``prepare_latents`` is skipped because ``latents``
-        # is also provided.
-        # Skip if inpainting — the inpaint path provides its own ``image``.
-        if "inpaint_mask_artifact" not in kwargs or self.pipe.__class__ == StableDiffusionXLInpaintPipeline:
+        - "noise" → scale by init_noise_sigma(num_inference_steps), then img2img at strength=1.0
+          (img2img with `latents` provided short-circuits to the txt2img-equivalent path).
+        - "image_latents" / "noised_image_latents" / "" / unknown → img2img at strength=1.0.
+        - InpaintMaskArtifact → existing inpaint routing in the base class.
+        """
+        is_inpaint = isinstance(latent, InpaintMaskArtifact)
+
+        if not is_inpaint:
+            device, dtype = self._get_device_and_type()
+            latents_on_device = latent.to_torch(device=device, dtype=dtype)
+            kind = read_driver_meta(latent, _KIND_META_KEY, self.driver_namespace, "")
+            if kind == "noise":
+                self.pipe.scheduler.set_timesteps(num_inference_steps, device=device)
+                latents_on_device = latents_on_device * self.pipe.scheduler.init_noise_sigma
+                kwargs.setdefault("latents", latents_on_device)
             kwargs.setdefault("image", latents_on_device)
             kwargs.setdefault("strength", 1.0)
 
-        return super().denoise_latent(
-            latents_on_device,
-            latents_source_shape,
+        result_artifact = super().denoise_latent(
+            latent,
             num_inference_steps,
-            seed=seed,
+            generator_state=generator_state,
             callback=callback,
             start_step=start_step,
             end_step=end_step,
@@ -189,8 +253,17 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
             **kwargs,
         )
 
+        return self._make_latent_artifact(
+            result_artifact.to_torch(),
+            source_shape=result_artifact.source_shape,
+            upstream=result_artifact,
+            meta={_KIND_META_KEY: "image_latents"},
+        )
+
     @override
-    def decode_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> Image:
+    def decode_latent(self, latent: LatentArtifact) -> Image:
+        device, dtype = self._get_device_and_type()
+        latents = latent.to_torch(device=device, dtype=dtype)
         decode_block = self.modular_pipe.blocks.sub_blocks["decode"]
         output_state = self._call_block(decode_block, latents=latents, output_type="pil")
         images = output_state.get("images")
@@ -213,8 +286,12 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
         return super()._get_inpaint_kwargs(artifact)
 
     @override
-    def encode_image(self, image: Image | torch.Tensor) -> torch.Tensor:
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        if isinstance(media, VideoMedia):
+            raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
+        generator = generator_state.to_generator()
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
-        output_state = self._call_block(encode_block, image=image)
+        output_state = self._call_block(encode_block, image=media.image, generator=generator)
         result = output_state.get("image_latents")
-        return result
+        meta = {_KIND_META_KEY: "image_latents"}
+        return self._make_latent_artifact(result, source_shape=media.source_shape, meta=meta)

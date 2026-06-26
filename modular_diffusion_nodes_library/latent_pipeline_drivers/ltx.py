@@ -25,12 +25,26 @@ from diffusers.pipelines.ltx.pipeline_ltx_condition import LTXVideoCondition  # 
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from diffusers.schedulers import FlowMatchEulerDiscreteScheduler  # type: ignore[reportMissingImports]
 from diffusers.video_processor import VideoProcessor  # type: ignore[reportMissingImports]
-from PIL.Image import Image
 
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import DecodeResult, LatentPipelineDriver
+from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeResult,
+    GeneratorState,
+    ImageMedia,
+    VideoMedia,
+)
+from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
+    MediaGenConditioningPayload,
+    normalize_to_payloads,
+)
 from modular_diffusion_nodes_library.utils.conditioning_utils import (
+    ConditioningMode,
+    MediaGenConditioningKey,
     resolve_conditioning_image,
     resolve_conditioning_video,
+    resolve_frame_index,
 )
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
 
@@ -205,13 +219,14 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
     # ------------------------------------------------------------------
 
     @override
-    def create_noise_latent(self, latents_source_shape: tuple[int, ...], seed: int) -> torch.Tensor:
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         """Create a raw noise latent via modular pipeline block.
 
         Returns unpacked 5D latent ``[B, C, T, H, W]``.
         The block produces packed latents; we unpack before returning.
         """
-        num_frames, height, width = latents_source_shape[-3], latents_source_shape[-2], latents_source_shape[-1]
+        num_frames, height, width = source_shape[-3], source_shape[-2], source_shape[-1]
+        generator = generator_state.to_generator()
         output_state = self._call_block(
             LTXPrepareLatentsStep(),
             height=height,
@@ -219,20 +234,24 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
             num_frames=num_frames,
             batch_size=1,
             num_videos_per_prompt=1,
-            generator=torch.Generator().manual_seed(seed),
+            generator=generator,
         )
         packed_latents = output_state.get("latents")
-        return self._unpack_latents(packed_latents, height, width, num_frames)
+        latents = self._unpack_latents(packed_latents, height, width, num_frames)
+        return self._make_latent_artifact(
+            latents,
+            source_shape=source_shape,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
 
     @override
     def add_noise_to_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
-        seed: int,
+        latent: LatentArtifact,
+        generator_state: GeneratorState,
         num_inference_steps: int,
         strength: float,
-    ) -> torch.Tensor:
+    ) -> LatentArtifact:
         """Add noise to image latents via modular pipeline blocks.
 
         Uses LTXSetTimesteps -> SetTimestepsWithStrength -> ScaleNoise
@@ -240,13 +259,16 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         and calls scale_noise internally.
         """
         device, dtype = self._get_device_and_type()
-        num_frames, height, width = latents_source_shape[-3], latents_source_shape[-2], latents_source_shape[-1]
+        source_shape = latent.source_shape
+        latents = latent.to_torch(device=device, dtype=dtype)
+        num_frames, height, width = source_shape[-3], source_shape[-2], source_shape[-1]
 
-        noise = self.create_noise_latent(latents_source_shape, seed)
+        noise_artifact = self.create_noise_latent(source_shape, generator_state)
+        noise = noise_artifact.to_torch(device=device, dtype=dtype)
         output_state = self._call_block(
             LTXAddNoiseStep(),
-            latents=noise.to(device=device, dtype=dtype),
-            image_latents=latents.to(device=device, dtype=dtype),
+            latents=noise,
+            image_latents=latents,
             num_inference_steps=num_inference_steps,
             strength=strength,
             height=height,
@@ -254,17 +276,23 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
             num_frames=num_frames,
             frame_rate=self.video_fps,
         )
-        return output_state.get("latents")
+        noise_generator_state = GeneratorState.from_artifact(noise_artifact) or generator_state
+        return self._make_latent_artifact(
+            output_state.get("latents"),
+            source_shape=source_shape,
+            upstream=latent,
+            meta=noise_generator_state.as_meta(),
+        )
 
     # ------------------------------------------------------------------
     # VAE encode / decode (modular blocks)
     # ------------------------------------------------------------------
 
     @override
-    def decode_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> DecodeResult:
+    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
         """Decode a 5D video latent and return frames as PIL images."""
         device, dtype = self._get_device_and_type()
-        latents = latents.to(device=device, dtype=dtype)
+        latents = latent.to_torch(device=device, dtype=dtype)
 
         packed_latents = self._pack_latents(latents)
 
@@ -288,28 +316,30 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         return videos[0]
 
     @override
-    def encode_image(self, image: Image | torch.Tensor) -> torch.Tensor:
-        """Encode an image into a 5D latent ``[B, C, 1, H, W]``."""
-        output_state = self._call_block(LTXAutoVaeEncoderStep(), image=image)
-        return output_state.get("image_latents")
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        """Encode an image or video into a 5D latent ``[B, C, T, H, W]``."""
+        generator = generator_state.to_generator()
+        if isinstance(media, ImageMedia):
+            output_state = self._call_block(LTXAutoVaeEncoderStep(), image=media.image, generator=generator)
+            return self._make_latent_artifact(output_state.get("image_latents"), source_shape=media.source_shape)
 
-    @override
-    def encode_video(self, frames: list[Image]) -> torch.Tensor:
         device, dtype = self._get_device_and_type()
         vae = self.modular_pipe.vae
 
         video_processor = VideoProcessor(vae_scale_factor=self._vae_spatial_compression_ratio)
-        video_tensor = video_processor.preprocess_video(frames)  # [1, 3, T, H, W]
+        video_tensor = video_processor.preprocess_video(media.frames)  # [1, 3, T, H, W]
         video_tensor = video_tensor.to(device=device, dtype=dtype)
 
         with torch.no_grad():
-            latents = vae.encode(video_tensor).latent_dist.sample()  # [1, C, T_latent, H_latent, W_latent]
+            latents = vae.encode(video_tensor).latent_dist.sample(
+                generator=generator
+            )  # [1, C, T_latent, H_latent, W_latent]
 
         latents = latents.to(dtype=dtype)
         latents_mean = vae.latents_mean.view(1, -1, 1, 1, 1).to(device=device, dtype=dtype)
         latents_std = vae.latents_std.view(1, -1, 1, 1, 1).to(device=device, dtype=dtype)
         latents = (latents - latents_mean) * vae.config.scaling_factor / latents_std
-        return latents
+        return self._make_latent_artifact(latents, source_shape=media.source_shape)
 
     # ------------------------------------------------------------------
     # Denoise (standard pipeline)
@@ -318,43 +348,43 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
     @override
     def denoise_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
+        latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
-        seed: int = 0,
+        generator_state: GeneratorState,
         callback: Any = None,
         start_step: int = 0,
         end_step: int = -1,
         return_fully_denoised: bool = False,
         **kwargs: Any,
-    ) -> torch.Tensor:
+    ) -> LatentArtifact:
         """Denoise using the standard LTXPipeline.
 
-        Injects num_frames into kwargs, then delegates to the base class
-        which handles packing/unpacking via prepare_input_latent/prepare_output_latent.
+        Pre-packs the latent (or swaps to LTXConditionPipeline) before delegating to base.
         """
-        media_gen_conditioning_list = kwargs.pop("media_gen_conditioning", None)
-        if media_gen_conditioning_list is not None and not isinstance(media_gen_conditioning_list, list):
-            media_gen_conditioning_list = [media_gen_conditioning_list]
+        source_shape = latent.source_shape
+
+        media_gen_conditioning_payloads = normalize_to_payloads(kwargs.pop(MediaGenConditioningKey.OUTPUT, None))
         original_pipe = self._pipe
 
-        if media_gen_conditioning_list is not None:
-            video_condition_list = self._build_video_conditions(media_gen_conditioning_list, latents_source_shape)
+        if media_gen_conditioning_payloads is not None:
+            video_condition_list = self._build_video_conditions(media_gen_conditioning_payloads, source_shape)
             kwargs["conditions"] = video_condition_list
             torch_dtype = self._get_torch_type(self._pipe)
             self._pipe = create_pipe_variant(original_pipe, LTXConditionPipeline, torch_dtype=torch_dtype)
         else:
+            device, dtype = self._get_device_and_type()
+            latents = latent.to_torch(device=device, dtype=dtype)
             latents = self._pack_latents(latents)
+            # Pre-set so base does not overwrite
+            kwargs["latents"] = latents
 
-        if "num_frames" not in kwargs:
-            kwargs["num_frames"] = latents_source_shape[-3]
+        kwargs.setdefault("num_frames", source_shape[-3])
 
         try:
-            denoised_latent = super().denoise_latent(
-                latents=latents,
-                latents_source_shape=latents_source_shape,
+            denoised_artifact = super().denoise_latent(
+                latent,
                 num_inference_steps=num_inference_steps,
-                seed=seed,
+                generator_state=generator_state,
                 callback=callback,
                 start_step=start_step,
                 end_step=end_step,
@@ -364,7 +394,7 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         finally:
             self._pipe = original_pipe
 
-        return denoised_latent
+        return denoised_artifact
 
     # ------------------------------------------------------------------
     # Packing / Unpacking helpers
@@ -391,37 +421,41 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
 
     def _build_video_conditions(
         self,
-        media_gen_conditioning_list: list[dict[str, Any]],
+        media_gen_conditioning_payloads: list[MediaGenConditioningPayload],
         latents_source_shape: tuple[int, ...],
     ) -> list[LTXVideoCondition]:
-        """Convert media_gen_conditioning dicts into LTXVideoCondition objects."""
+        """Convert typed conditioning payloads into LTXVideoCondition objects."""
         video_condition_list: list[LTXVideoCondition] = []
-        for media_gen_conditioning in media_gen_conditioning_list:
-            mode = media_gen_conditioning.get("mode")
-            if mode == "image":
-                for image_item in media_gen_conditioning.get("images", []):
-                    image = resolve_conditioning_image(image_item.get("image"))
-                    strength = image_item.get("strength", 1.0)
-                    frame_index = self._resolve_frame_index(image_item.get("frame_index", 0), latents_source_shape[-3])
+        num_frames = latents_source_shape[-3]
+        for payload in media_gen_conditioning_payloads:
+            if payload.mode is ConditioningMode.IMAGE:
+                for entry in payload.entries:
+                    image = resolve_conditioning_image(entry.artifact)
+                    frame_index = self._resolve_frame_index(entry.frame_index, num_frames)
                     video_condition_list.append(
-                        LTXVideoCondition(image=image, frame_index=frame_index, strength=strength)
+                        LTXVideoCondition(image=image, frame_index=frame_index, strength=entry.strength)
                     )
-            elif mode == "video":
-                video = resolve_conditioning_video(media_gen_conditioning)
-                strength = media_gen_conditioning.get("strength", 1.0)
-                frame_index = self._resolve_frame_index(
-                    media_gen_conditioning.get("frame_index", 0), latents_source_shape[-3]
+            elif payload.mode is ConditioningMode.VIDEO:
+                entry = payload.entries[0]
+                video = resolve_conditioning_video(entry.artifact)
+                frame_index = self._resolve_frame_index(entry.frame_index, num_frames)
+                video_condition_list.append(
+                    LTXVideoCondition(video=video, frame_index=frame_index, strength=entry.strength)
                 )
-                video_condition_list.append(LTXVideoCondition(video=video, frame_index=frame_index, strength=strength))
+            else:
+                msg = f"Failed to build LTX video conditioning because mode '{payload.mode.value}' is unsupported."
+                raise ValueError(msg)
         return video_condition_list
 
     @staticmethod
-    def _resolve_frame_index(frame_index: int, num_of_frames: int) -> int:
+    def _resolve_frame_index(frame_index: int | str, num_of_frames: int) -> int:
+        # Resolve symbolic FramePosition values first; ints pass through unchanged.
+        resolved = resolve_frame_index(frame_index, num_of_frames)
         # No upper bound check: LTX conditioning supports frame_index >= num_frames
         # for future-frame positioning via positional encodings (tokens are concatenated,
         # not indexed into the latent tensor).
-        if frame_index < -1:
-            raise ValueError(f"Unsupported frame_index {frame_index} for LTX conditioning. Only >= -1 are supported.")
-        if frame_index == -1:
+        if resolved < -1:
+            raise ValueError(f"Unsupported frame_index {resolved} for LTX conditioning. Only >= -1 are supported.")
+        if resolved == -1:
             return num_of_frames - 1
-        return frame_index
+        return resolved

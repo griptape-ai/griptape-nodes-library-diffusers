@@ -42,7 +42,7 @@ No `seed` parameter — output is deterministic by construction.
 
 ## Tips & pitfalls
 
-- **An all-zero latent only works if you add noise later.** Feeding it directly to [Generate Media Latents](generate_media_latents.md) with `add_noise=False` will not produce reasonable output, but it becomes a valid starting latent if that downstream node has `add_noise=True` (or if you inject noise with composite / math nodes first).
+- **Pair with noise before generating.** An all-zero latent needs noise before denoising — enable `add_noise=True` on [Generate Media Latents](generate_media_latents.md), or inject noise via composite / math nodes first. Without noise it has nothing to denoise from.
 
 ## See also
 

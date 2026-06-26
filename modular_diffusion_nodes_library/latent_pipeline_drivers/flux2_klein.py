@@ -7,8 +7,18 @@ from diffusers.modular_pipelines.flux2.encoders import Flux2VaeEncoderStep
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import GeneratorState
 from modular_diffusion_nodes_library.latent_pipeline_drivers.flux2_base import Flux2BaseLatentPipelineDriver
-from modular_diffusion_nodes_library.utils.conditioning_utils import resolve_conditioning_image
+from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
+    MediaGenConditioningPayload,
+    normalize_to_payloads,
+)
+from modular_diffusion_nodes_library.utils.conditioning_utils import (
+    ConditioningMode,
+    MediaGenConditioningKey,
+    resolve_conditioning_image,
+)
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -66,27 +76,29 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
     @override
     def denoise_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
+        latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
-        seed: int = 0,
+        generator_state: GeneratorState,
         callback: Any = None,
         start_step: int = 0,
         end_step: int = -1,
         return_fully_denoised: bool = False,
         **kwargs: Any,
-    ) -> torch.Tensor:
-        media_gen_conditioning = kwargs.pop("media_gen_conditioning", None)
-        if media_gen_conditioning is not None:
-            image_reference = self._build_image_reference(media_gen_conditioning)
+    ) -> LatentArtifact:
+        payloads = normalize_to_payloads(kwargs.pop(MediaGenConditioningKey.OUTPUT, None))
+        if payloads is not None:
+            # Flux2Klein only routes conditioning into the inpaint variant
+            if not isinstance(latent, InpaintMaskArtifact):
+                msg = "Failed to apply Flux2Klein conditioning because it requires an inpaint mask input."
+                raise ValueError(msg)
+            image_reference = self._build_image_reference(payloads)
             if image_reference:
                 kwargs["image_reference"] = image_reference
 
         return super().denoise_latent(
-            latents,
-            latents_source_shape,
+            latent,
             num_inference_steps,
-            seed,
+            generator_state,
             callback,
             start_step,
             end_step,
@@ -96,18 +108,15 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
 
     @staticmethod
     def _build_image_reference(
-        media_gen_conditioning: dict[str, Any] | list[dict[str, Any]],
+        payloads: list[MediaGenConditioningPayload],
     ) -> list[Any] | None:
-        """Convert media_gen_conditioning into a list of PIL images for image_reference."""
-        if not isinstance(media_gen_conditioning, list):
-            media_gen_conditioning = [media_gen_conditioning]
-
+        """Convert typed conditioning payloads into a list of PIL images for image_reference."""
         reference_images: list[Any] = []
-        for conditioning in media_gen_conditioning:
-            mode = conditioning.get("mode")
-            if mode == "image":
-                for image_item in conditioning.get("images", []):
-                    image = resolve_conditioning_image(image_item.get("image"))
-                    reference_images.append(image)
+        for payload in payloads:
+            if payload.mode is not ConditioningMode.IMAGE:
+                msg = f"Failed to build Flux2Klein conditioning because mode '{payload.mode.value}' is unsupported."
+                raise ValueError(msg)
+            for entry in payload.entries:
+                reference_images.append(resolve_conditioning_image(entry.artifact))
 
         return reference_images or None

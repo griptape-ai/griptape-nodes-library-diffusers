@@ -77,12 +77,14 @@ That is the entire implementation when the inpaint pipeline accepts the standard
 
 ### When to override `_get_inpaint_kwargs`
 
-Override only if the inpaint pipeline needs non-standard kwargs. Default in base class:
+Override only if the inpaint pipeline needs non-standard kwargs. The base class implementation in [`base_driver.py`](../../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py) (around line 381) is:
 
 ```python
-def _get_inpaint_kwargs(self, artifact, latents, device, dtype):
-    result = {
-        "image": latents,  # base passes the encoded latent as 'image'
+def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
+    """Map an InpaintMaskArtifact to pipeline call kwargs."""
+    device, dtype = self._get_device_and_type()
+    result: dict[str, Any] = {
+        "image": artifact.source_latent.to(device=device, dtype=dtype),
         "mask_image": artifact.mask_image,
     }
     if artifact.masked_latent is not None:
@@ -90,7 +92,7 @@ def _get_inpaint_kwargs(self, artifact, latents, device, dtype):
     return result
 ```
 
-For packed-latent models (Flux, Qwen), the base passes unpacked latents — the inpaint pipeline does its own packing internally. If your inpaint pipeline doesn't accept latents as `image`, you must override and provide a decoded image. Cite the inpaint pipeline's signature when justifying.
+Overrides receive only the `InpaintMaskArtifact`; pull `device`/`dtype` via `self._get_device_and_type()` and read latents off the artifact (`artifact.source_latent`, `artifact.masked_latent`). For packed-latent models (Flux, Qwen), the base passes unpacked latents — the inpaint pipeline does its own packing internally. If your inpaint pipeline doesn't accept latents as `image`, you must override and provide a decoded image. Cite the inpaint pipeline's signature when justifying. See [`flux_fill.py`](../../../../modular_diffusion_nodes_library/latent_pipeline_drivers/flux_fill.py), [`flux2_klein.py`](../../../../modular_diffusion_nodes_library/latent_pipeline_drivers/flux2_klein.py), and [`z_image.py`](../../../../modular_diffusion_nodes_library/latent_pipeline_drivers/z_image.py) for real overrides.
 
 ### Pitfalls
 - **No `<Model>InpaintPipeline`**: if diffusers doesn't ship one, inpaint isn't supportable yet. Leave `_inpaint_pipeline_class = None` (the base default).
@@ -111,35 +113,36 @@ For packed-latent models (Flux, Qwen), the base passes unpacked latents — the 
 ```python
 from diffusers import <VariantPipelineClass>  # verify it exists
 
+from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import GeneratorState
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
 
 @override
 def denoise_latent(
     self,
-    latents: torch.Tensor,
-    latents_source_shape: tuple[int, ...],
+    latent: LatentArtifact | InpaintMaskArtifact,
     num_inference_steps: int,
-    seed: int = 0,
+    generator_state: GeneratorState,
     callback: Any = None,
     start_step: int = 0,
     end_step: int = -1,
     return_fully_denoised: bool = False,
     **kwargs: Any,
-) -> torch.Tensor:
+) -> LatentArtifact:
     trigger = kwargs.pop("<custom_kwarg>", None)
     original_pipe = self._pipe
 
     if trigger is not None:
         torch_dtype = self._get_torch_type(self._pipe)
         self._pipe = create_pipe_variant(original_pipe, <VariantPipelineClass>, torch_dtype=torch_dtype)
-        kwargs["<variant_kwarg>"] = self._convert_trigger(trigger, latents_source_shape)
+        kwargs["<variant_kwarg>"] = self._convert_trigger(trigger, latent.source_shape)
 
     try:
         return super().denoise_latent(
-            latents=latents,
-            latents_source_shape=latents_source_shape,
+            latent,
             num_inference_steps=num_inference_steps,
-            seed=seed,
+            generator_state=generator_state,
             callback=callback,
             start_step=start_step,
             end_step=end_step,
@@ -153,8 +156,9 @@ def denoise_latent(
 ### Critical invariants
 - **`finally` is mandatory.** An exception during denoising must not leave `self._pipe` swapped. Cite this when justifying the implementation.
 - **Use `create_pipe_variant`**, not `<VariantPipelineClass>.from_pipe()` directly. `create_pipe_variant` preserves the source pipeline's CPU/sequential offload state. See [`utils/pipeline_utils.py`](../../../../modular_diffusion_nodes_library/utils/pipeline_utils.py) `create_pipe_variant` (around line 40).
-- **`super().denoise_latent` does the actual call.** Do not call `self._pipe(...)` directly — you'd lose partial-denoise, callback, cancellation, and inpaint routing.
-- **Pack/unpack inside the override** if the variant pipeline expects packed latents and the base pipeline didn't. See the LTX override at line 280: it calls `self._pack_latents(latents)` only when `media_gen_conditioning_list is None` (the variant path lets the LTXConditionPipeline handle its own packing).
+- **`super().denoise_latent` does the actual call.** Do not call `self._pipe(...)` directly — you'd lose partial-denoise, callback, cancellation, inpaint routing, and the post-call `GeneratorState` stamp.
+- **Source shape comes off the artifact** (`latent.source_shape`), not a separate parameter. Same for any pack/unpack helpers — derive dims from `latent.source_shape`.
+- **Pack/unpack inside the override** if the variant pipeline expects packed latents and the base pipeline didn't. See the LTX override in [`ltx.py`](../../../../modular_diffusion_nodes_library/latent_pipeline_drivers/ltx.py) `denoise_latent`: it calls `self._pack_latents(latents)` only when the variant trigger is absent (the variant path lets the `LTXConditionPipeline` handle its own packing).
 
 ### Pitfalls
 - **Pop, don't get**: use `kwargs.pop("<custom_kwarg>", None)` so the custom kwarg doesn't end up in the pipeline call.

@@ -39,9 +39,8 @@ Generate Media Latents → [Decode Media Latent] → Save Image / Save Video
 
 ## Tips & pitfalls
 
-- **Use the same pipeline that produced the latent.** Decoding a Flux latent with an SDXL VAE produces garbage. The pipeline carries the VAE that matches.
-- **VRAM spike on decode.** Large latents (high resolution, many frames) can spike memory during decode. Enable `vae_slicing` on the Pipeline Builder if you hit OOM.
-- **Output is non-serializable**: the parameter holds an in-memory artifact, not a saved file. Use a Save node downstream.
+- **Use the same pipeline that produced the latent.** Each pipeline carries the VAE it was trained with — decoding a latent with a mismatched VAE produces corrupt output.
+- **Large latents need more VRAM to decode.** High-resolution or multi-frame latents require more memory during decode. Enable `vae_slicing` on the Pipeline Builder to decode in batches and keep peak VRAM usage lower.
 
 ## See also
 

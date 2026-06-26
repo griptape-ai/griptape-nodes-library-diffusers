@@ -93,8 +93,11 @@ If a parameter is **absent from `__call__` entirely** — for example because th
 The latent shape & space contract is documented in the `LatentPipelineDriver` docstring in [`modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py). **Read it before designing the driver — it is the source of truth.** Summary of the invariants the agent MUST honour:
 
 - **Public latents are unpacked**: 4-D `[B, C, H/vae, W/vae]` for image, 5-D `[B, C, T_lat, H/vae, W/vae]` for video. No model-specific sequence packing on the public surface.
-- **Public latents are normalised** (~N(0, 1)). If the VAE config publishes per-channel `latents_mean` / `latents_std`, apply whitening `(z - mean) / std` inside `encode_image`/`encode_video` and the inverse inside `decode_latent`. If it publishes only scalar `scaling_factor` (and optional `shift_factor`), the standard `(z - shift) * scaling` transform is sufficient — no whitening. Verify on the actual VAE config of the model you are adding; do not assume from family name. Mirror the closest existing driver.
-- **`latents_source_shape` is pixel-space**, not latent-space. Drivers translate to latent-space dims internally.
+- **Public methods exchange `LatentArtifact`**, never raw tensors. The four forwardable methods (`encode_media`, `decode_latent`, `create_noise_latent`, `add_noise_to_latent`) return `LatentArtifact` (or `DecodeResult` for `decode_latent`) and accept input artifacts / media dataclasses. Build outputs via `_make_latent_artifact(...)`.
+- **Forwardable signature is enforced**: those four methods MUST match [`FORWARDABLE_METHOD_POSITIONAL`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/_base_driver_forwardable_signature.py) exactly — same names, same order, no extra positional or kw-only parameters, no `*args`/`**kwargs`. `__init_subclass__` raises `TypeError` at import time otherwise. Route driver-specific tunables through the driver-namespaced sub-bag on `LatentArtifact.meta` (`META_DRIVER_KEY`, `read_driver_meta` in [`driver_types.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_types.py); SDXL `_KIND_META_KEY` is the canonical precedent).
+- **Public latents are normalised** (~N(0, 1)). If the VAE config publishes per-channel `latents_mean` / `latents_std`, apply whitening `(z - mean) / std` inside `encode_media` and the inverse inside `decode_latent`. If it publishes only scalar `scaling_factor` (and optional `shift_factor`), the standard `(z - shift) * scaling` transform is sufficient — no whitening. Verify on the actual VAE config of the model you are adding; do not assume from family name. Mirror the closest existing driver.
+- **`source_shape` rides on the artifact / media dataclass** (pixel-space), not as a separate parameter. `LatentArtifact.source_shape`, `ImageMedia.source_shape`, `VideoMedia.source_shape`, `MaskMedia.source_shape` are the only sources of truth. Drivers translate to latent-space dims internally.
+- **RNG flows via `GeneratorState`**, not raw `seed`. Build a generator with `generator_state.to_generator()`; stamp the post-call state onto the returned artifact via `_make_latent_artifact(..., meta=GeneratorState.from_generator(g).as_meta())` so downstream same-driver calls can resume with `GeneratorState.from_artifact(latent)`. See [`driver_types.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_types.py).
 - **Packing is transient**: any transformer-side sequence packing happens only inside `prepare_input_latent` / `prepare_output_latent`, never on the public surface. Mirror the closest existing driver that packs.
 - **Never bypass `super().denoise_latent()` for callback / partial-denoise / cancellation concerns.** Override `denoise_latent()` only to munge kwargs (e.g. set `image=` for img2img, build video conditions, extract first/last frames), then delegate to `super()`.
 
@@ -103,7 +106,7 @@ The latent shape & space contract is documented in the `LatentPipelineDriver` do
 Every implementation choice MUST be justified with concrete evidence:
 
 - Cite file paths and (where useful) line numbers or symbol names.
-- When copying a pattern from an existing driver, name it explicitly: "modelling `encode_image()` after `FluxLatentPipelineDriver.encode_image()` because both pipelines pack latents transformer-side."
+- When copying a pattern from an existing driver, name it explicitly: "modelling `encode_media()` after `FluxLatentPipelineDriver.encode_media()` because both pipelines pack latents transformer-side."
 - When referencing a diffusers API, the agent MUST verify it exists by reading the source under `.venv/Lib/site-packages/diffusers` before citing it. **Do not invent symbols, block names, or kwargs.**
 - When no precedent exists for a new modular block path, cite the diffusers source file that documents/implements the block.
 - Assertions without proof are not acceptable.
@@ -144,7 +147,7 @@ Three open blockers force every driver to delegate the **denoise loop** to `Diff
 3. **Cancellation** — Implemented by `pipe._interrupt = True` inside the callback; no equivalent on `ModularPipeline`.
 
 **Implication for the agent**: when planning the driver:
-- Modular blocks for: `_create_modular_pipe`, `encode_image`, `encode_video`, `decode_latent`, `create_noise_latent`, `add_noise_to_latent`, `encode_prompt`.
+- Modular blocks for: `_create_modular_pipe`, `encode_media`, `decode_latent`, `create_noise_latent`, `add_noise_to_latent`, `encode_prompt`.
 - `DiffusionPipeline.__call__` via `super().denoise_latent()` for the denoise loop. Do not attempt to bypass — fixing the three blockers is a framework-level task, not a per-driver one.
 
 ### Read every block's `inputs` before calling `_call_block(...)`
@@ -163,10 +166,10 @@ Modular block input contracts are NOT consistent across pipelines, and they are 
 
 **Sourcing required inputs (general principles):**
 
-- Latent/noise tensors: prefer `self.create_noise_latent(...)` over inline `torch.randn(...)` — it goes through the scheduler-aware modular path and keeps noise generation consistent across the driver. Inline `torch.randn` is only acceptable when no modular noise path exists for the pipeline.
-- Image latents: pass the caller-provided latent tensor (cast to the right `device` / `dtype` via `self._get_device_and_type()`).
+- Latent/noise tensors: prefer `self.create_noise_latent(...)` over inline `torch.randn(...)` — it goes through the scheduler-aware modular path and keeps noise generation consistent across the driver. The call returns a `LatentArtifact`; use `.to_torch(device=device, dtype=dtype)` to get a tensor for the block. Inline `torch.randn` is only acceptable when no modular noise path exists for the pipeline.
+- Image latents: from the caller-provided `LatentArtifact`, use `latent.to_torch(device=device, dtype=dtype)`. `device` / `dtype` come from `self._get_device_and_type()`.
 - `batch_size`: derive from the input tensor's `.shape[0]`, never hard-code.
-- `generator`: build from `seed` with `torch.Generator(device=device).manual_seed(seed)`.
+- `generator`: `generator_state.to_generator()`. For `create_noise_latent`, `add_noise_to_latent`, and the denoise output, stamp the post-call state onto the returned artifact via `_make_latent_artifact(..., meta=GeneratorState.from_generator(g).as_meta())` so downstream same-driver calls can resume with `GeneratorState.from_artifact(latent)`. **`encode_media` does NOT stamp the generator state** — VAE encoding consumes the generator but does not advance an RNG chain that downstream nodes need to continue.
 - `dtype`: pass the `dtype` from `_get_device_and_type()`, not the tensor's current dtype after a `.to(...)` cast.
 
 ---
@@ -216,11 +219,11 @@ Produce a plan in this format:
 
 ## Modular vs DiffusionPipeline split
 | Method | Approach | Justification | Required inputs → source |
-| encode_image | ModularPipeline.sub_blocks["vae_encoder"] | exists at ... | `image` ← caller |
+| encode_media | ModularPipeline.sub_blocks["vae_encoder"] | exists at ... | `image` / `video` ← `media.image` or `media.frames`; `generator` ← `generator_state.to_generator()` |
 | encode_prompt | ModularPipeline.sub_blocks["text_encoder"] (or override) | exists at ...; declare extra required inputs (e.g. `prompt_2`, image conditioning) if the block needs them | enumerate every `required=True` `InputParam` |
-| decode_latent | ModularPipeline.sub_blocks["decode"] | exists at ... | `latents` ← caller; `output_type="pil"` |
-| create_noise_latent | ModularPipeline PrepareLatents step | ... | `height`/`width` ← `latents_source_shape[-2:]`; `batch_size=1`; `num_images_per_prompt=1`; `generator` ← seeded |
-| add_noise_to_latent | ModularPipeline Img2Img steps | ... | enumerate every `required=True` `InputParam` (see Modular-Blocks-First rule); e.g. `latents` ← `self.create_noise_latent(...)`, `image_latents` ← caller latent, `batch_size` ← `latents.shape[0]`, `dtype` ← `_get_device_and_type()[1]`, `generator` ← seeded |
+| decode_latent | ModularPipeline.sub_blocks["decode"] | exists at ... | `latents` ← `latent.to_torch(device, dtype)`; `output_type="pil"` |
+| create_noise_latent | ModularPipeline PrepareLatents step | ... | `height`/`width` ← `source_shape[-2:]`; `batch_size=1`; `num_images_per_prompt=1`; `generator` ← `generator_state.to_generator()` |
+| add_noise_to_latent | ModularPipeline Img2Img steps | ... | enumerate every `required=True` `InputParam` (see Modular-Blocks-First rule); e.g. `latents` ← `self.create_noise_latent(...).to_torch(device, dtype)`, `image_latents` ← `latent.to_torch(device, dtype)`, `batch_size` ← `image_latents.shape[0]`, `dtype` ← `_get_device_and_type()[1]`, `generator` ← `generator_state.to_generator()` |
 | denoise_latent | super() → DiffusionPipeline.__call__ | three blockers, see SKILL | n/a (delegated) |
 
 ## Provider classification (must match the Rule 1, Axis B approval)
@@ -286,7 +289,7 @@ All `uv run ...` commands below must be executed from the repo root. This repo i
 1. **Provider enum entry** (only for the new-Provider shape) added to [`parameters/providers.py`](../../../modular_diffusion_nodes_library/parameters/providers.py) → verify: `uv run python -c "from modular_diffusion_nodes_library.parameters.providers import Provider; Provider.<NEW_NAME>"` exits 0.
 2. **Standard parameters** file created → verify: `uv run ruff format --check` + `uv run ruff check .` pass for the new file.
 3. **Runtime parameters** file created (or reuse declared) → verify: every parameter default and tooltip cites an upstream source per Rule 4; `uv run ruff format --check` + `uv run ruff check .` pass.
-4. **Driver** file created → verify: file imports cleanly; every `_call_block(...)` site passes every `required=True` input enumerated in Phase B's table; latent contract (Rule 5) is honoured (unpacked, normalised, `latents_source_shape` is pixel-space); `uv run ruff format --check` + `uv run ruff check .` pass.
+4. **Driver** file created → verify: file imports cleanly (the `__init_subclass__` forwardable-signature check raises at import if any of `encode_media`/`decode_latent`/`create_noise_latent`/`add_noise_to_latent` deviate from the contract); every `_call_block(...)` site passes every `required=True` input enumerated in Phase B's table; latent contract (Rule 5) is honoured (unpacked, normalised, public methods return `LatentArtifact`, `source_shape` rides on the artifact / media dataclass); `uv run ruff format --check` + `uv run ruff check .` pass.
 5. **Registration edits**:
    - Always: one entry in [`driver_factory.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py) `_DRIVER_REGISTRY`; one or more `case` clauses in [`pipeline_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipeline_parameters.py) `set_runtime_parameters`.
    - **New-Provider shape**: a new `Provider` enum entry in [`providers.py`](../../../modular_diffusion_nodes_library/parameters/providers.py), a new `LatentPipelineTypeParameters` subclass AND a `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` entry in [`pipelinetype_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipelinetype_parameters.py).

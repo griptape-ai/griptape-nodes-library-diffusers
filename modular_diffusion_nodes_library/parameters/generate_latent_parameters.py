@@ -21,8 +21,12 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
 )
-from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import DecodeResult, LatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeResult,
+    GeneratorState,
+)
 from modular_diffusion_nodes_library.utils.directory_utils import (
     check_cleanup_intermediates_directory,
     get_intermediates_directory_path,
@@ -138,12 +142,13 @@ class DiffusionPipelineGenerateLatentParameters:
     def _is_control_net_pipeline(self, pipeline_value: Any) -> bool:
         return isinstance(pipeline_value, ControlNetDiffusionPipelineArtifact)
 
-    def update_add_noise_visibility(self, input_latent_artifact: Any) -> None:
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
         """Hide ``add_noise`` when the input is an InpaintMaskArtifact; Inpaint flows manage noise internally."""
-        if isinstance(input_latent_artifact, InpaintMaskArtifact):
-            self._node.hide_parameter_by_name("add_noise")
-        else:
-            self._node.show_parameter_by_name("add_noise")
+        if parameter.name == "input_latent":
+            if isinstance(value, InpaintMaskArtifact):
+                self._node.hide_parameter_by_name("add_noise")
+            else:
+                self._node.show_parameter_by_name("add_noise")
 
     def add_or_remove_control_net_parameter(self, current_pipeline: Any, new_pipeline: Any) -> None:
         if self._is_control_net_pipeline(current_pipeline) and not self._is_control_net_pipeline(new_pipeline):
@@ -192,23 +197,17 @@ class DiffusionPipelineGenerateLatentParameters:
         return end_parameters
 
     def process_pipeline(self, pipe: DiffusionPipeline, pipeline_class: str | None, pipe_kwargs: dict) -> None:
+        self._node.clear_cancellation()
         num_inference_steps = self.get_num_inference_steps()
         # Default to False for better performance - preview intermediates slow down inference
         enable_preview = GriptapeNodes.ConfigManager().get_config_value(
-            "advanced_media_library.enable_image_preview_intermediates", default=False
+            "modular_diffusion_library.enable_image_preview_intermediates", default=False
         )
 
-        strength_affected_steps = math.ceil(num_inference_steps * self.get_strength())
+        strength_affected_steps = self.get_strength_affected_steps()
 
         first_iteration_time = None
         latent_pipeline_driver = create_driver(pipe, pipeline_class)
-        pipeline_artifact = self._node.pipe_params.get_pipeline_artifact()
-        # TODO: Temporary hack — we mutate the driver instance with the pipeline's provenance
-        # metadata so model-specific decode/denoise paths can detect generation-time state
-        # (e.g. LTX-2 HDR LoRA via ``runtime_adapter_steps``) without re-activating the pipeline.
-        # A more robust solution would pass state in and out of driver stages explicitly
-        latent_pipeline_driver.provenance_metadata = dict(pipeline_artifact.metadata)
-        pipe_kwargs = self.update_kwargs(pipe_kwargs)
 
         input_latent_artifact = self._node.get_parameter_value("input_latent")
         if input_latent_artifact is None:
@@ -244,63 +243,60 @@ class DiffusionPipelineGenerateLatentParameters:
                 self._node.progress_bar_component.increment()  # type: ignore[reportAttributeAccessIssue]
             return {}
 
-        self._node.progress_bar_component.initialize(num_inference_steps)  # type: ignore[reportAttributeAccessIssue]
-        input_latent = self.prepare_input_latent(input_latent_artifact, latent_pipeline_driver)
-        if input_latent is None:
+        self._node.progress_bar_component.initialize(strength_affected_steps)  # type: ignore[reportAttributeAccessIssue]
+        input_latent_for_denoise = self.prepare_input_latent(input_latent_artifact, latent_pipeline_driver)
+        if input_latent_for_denoise is None:
             raise ValueError("Failed to prepare input latent for the pipeline.")
 
         if self.end_step == 0 and self.add_noise():
             # Noise-only shortcut — skip denoising entirely
-            output_latent = input_latent
+            output_latent_artifact = input_latent_for_denoise
         else:
-            if isinstance(input_latent_artifact, InpaintMaskArtifact):
-                pipe_kwargs["inpaint_mask_artifact"] = input_latent_artifact
-
-            output_latent = latent_pipeline_driver.denoise_latent(
-                latents=input_latent,
-                latents_source_shape=source_shape,
-                num_inference_steps=num_inference_steps,
+            pipe_kwargs = self.update_kwargs(pipe_kwargs)
+            output_latent_artifact = latent_pipeline_driver.denoise_latent(
+                input_latent_for_denoise,
+                num_inference_steps,
                 callback=callback_on_step_end,
                 start_step=self.start_step,
                 end_step=self.end_step,
                 return_fully_denoised=self.return_fully_denoised,
-                seed=self.get_seed(),
+                generator_state=self._resolve_generator_state(input_latent_for_denoise),
                 **pipe_kwargs,
             )
-        self.publish_output_latent(output_latent, source_shape)
+        self.publish_output_latent(output_latent_artifact)
         self._node.log_params.append_to_logs("Done.\n")  # type: ignore[reportAttributeAccessIssue]
 
     def prepare_input_latent(
-        self, input_latent_artifact: LatentArtifact, latent_pipeline_driver: LatentPipelineDriver
-    ) -> torch.Tensor | None:
+        self, input_latent_artifact: LatentArtifact | InpaintMaskArtifact, latent_pipeline_driver: LatentPipelineDriver
+    ) -> LatentArtifact | InpaintMaskArtifact | None:
         if input_latent_artifact is None:
             raise ValueError("Input latent is missing")
-        device, dtype = latent_pipeline_driver._get_device_and_type()
-        latent = input_latent_artifact.to_torch(device=device, dtype=dtype)
-        source_shape = input_latent_artifact.source_shape
-        if self.add_noise():
-            latent = latent_pipeline_driver.add_noise_to_latent(
-                latent, source_shape, self.get_seed(), self.get_num_inference_steps(), self.get_strength()
-            )
-        return latent
-
-    def publish_output_latent(self, output_latent: Any, source_shape: tuple[int, ...]) -> None:
-        pipeline_artifact = self._node.pipe_params.get_pipeline_artifact()
-        latent_artifact = LatentArtifact.from_torch(
-            output_latent, source_shape=source_shape, meta=pipeline_artifact.metadata
+        if not self.add_noise():
+            return input_latent_artifact
+        if isinstance(input_latent_artifact, InpaintMaskArtifact):
+            # Inpaint flows manage their own noising inside denoise_latent.
+            return input_latent_artifact
+        return latent_pipeline_driver.add_noise_to_latent(
+            input_latent_artifact,
+            self._resolve_generator_state(input_latent_artifact),
+            self.get_num_inference_steps(),
+            self.get_strength(),
         )
-        self._node.publish_update_to_parameter("output_latent", latent_artifact)
-        self._node.set_parameter_value("output_latent", latent_artifact)
-        self._node.parameter_output_values["output_latent"] = latent_artifact
+
+    def publish_output_latent(self, output_latent_artifact: LatentArtifact) -> None:
+        self._node.publish_update_to_parameter("output_latent", output_latent_artifact)
+        self._node.set_parameter_value("output_latent", output_latent_artifact)
+        self._node.parameter_output_values["output_latent"] = output_latent_artifact
 
     def latents_to_image_pil(
-        self, latents: Any, source_shape: tuple[int, ...], latent_pipeline_driver: LatentPipelineDriver
+        self, latents: torch.Tensor, source_shape: tuple[int, ...], latent_pipeline_driver: LatentPipelineDriver
     ) -> DecodeResult:
-        output_latent = latent_pipeline_driver.prepare_output_latent(latents, source_shape)
-        return latent_pipeline_driver.decode_latent(output_latent, source_shape)
+        unpacked = latent_pipeline_driver.prepare_output_latent(latents, source_shape)
+        preview_artifact = latent_pipeline_driver._make_latent_artifact(unpacked, source_shape=source_shape)
+        return latent_pipeline_driver.decode_latent(preview_artifact)
 
     def publish_output_image_preview_latents(
-        self, latents: Any, source_shape: tuple[int, ...], latent_pipeline_driver: LatentPipelineDriver
+        self, latents: torch.Tensor, source_shape: tuple[int, ...], latent_pipeline_driver: LatentPipelineDriver
     ) -> None:
         # Check to ensure there's enough space in the intermediates directory
         # if that setting is enabled.
@@ -326,6 +322,10 @@ class DiffusionPipelineGenerateLatentParameters:
     def get_seed(self) -> int:
         return int(self._node.get_parameter_value("seed"))
 
+    def _resolve_generator_state(self, upstream: LatentArtifact | InpaintMaskArtifact) -> GeneratorState:
+        """Return GeneratorState from upstream meta, or build one from the UI seed."""
+        return GeneratorState.from_artifact(upstream) or GeneratorState.from_seed(self.get_seed())
+
     @property
     def start_step(self) -> int:
         return int(self._node.get_parameter_value("start_step"))
@@ -343,6 +343,9 @@ class DiffusionPipelineGenerateLatentParameters:
         if number_of_steps > 0 and self.start_step > 0:
             return 1.0 - (self.start_step / number_of_steps)
         return 1.0
+    
+    def get_strength_affected_steps(self) -> int:
+        return math.ceil(self.get_num_inference_steps() * self.get_strength())
 
     def get_control_net_parameters(self) -> dict[str, Any] | None:
         control_net_parameters = self._node.get_parameter_value(

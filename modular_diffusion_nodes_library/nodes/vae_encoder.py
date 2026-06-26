@@ -8,11 +8,13 @@ from griptape_nodes.retained_mode.events.parameter_events import RemoveParameter
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from PIL.Image import Image
 
-from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
-    LatentArtifact,  # type: ignore[reportMissingImports]
-)
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    GeneratorState,
+    ImageMedia,
+    VideoMedia,
+)
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
@@ -176,12 +178,14 @@ class VaeEncodeNode(ControlNode):
         image = self.get_input_image()
 
         latents_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
-        latents = latents_pipeline_driver.encode_image(image)
         image_tensor = pipe.image_processor.preprocess(image)
         if isinstance(image_tensor, (list, tuple)):
             image_tensor = image_tensor[0]
-
-        latent_artifact = LatentArtifact.from_torch(latents, source_shape=image_tensor.shape)
+        source_shape = tuple(image_tensor.shape)
+        generator_state = GeneratorState.from_seed(42)
+        latent_artifact = latents_pipeline_driver.encode_media(
+            ImageMedia(image=image, source_shape=source_shape), generator_state
+        )
         self.set_parameter_value("latent_tensor", latent_artifact)
         self.parameter_output_values["latent_tensor"] = latent_artifact
 
@@ -202,7 +206,6 @@ class VaeEncodeNode(ControlNode):
             raise ValueError(msg)
 
         frames_rgb = [f.convert("RGB") for f in frames]
-        latents = latents_pipeline_driver.encode_video(frames_rgb)
 
         # Build 5-D source shape [B, C, T, H, W] so downstream nodes recover height/width correctly.
         sample_tensor = pipe.video_processor.preprocess(frames_rgb[0])
@@ -211,7 +214,10 @@ class VaeEncodeNode(ControlNode):
         b, c, h, w = sample_tensor.shape
         source_shape = (b, c, num_frames, h, w)
 
-        latent_artifact = LatentArtifact.from_torch(latents, source_shape=source_shape)
+        generator_state = GeneratorState.from_seed(42)
+        latent_artifact = latents_pipeline_driver.encode_media(
+            VideoMedia(frames=frames_rgb, source_shape=source_shape), generator_state
+        )
         self.set_parameter_value("latent_tensor", latent_artifact)
         self.parameter_output_values["latent_tensor"] = latent_artifact
 

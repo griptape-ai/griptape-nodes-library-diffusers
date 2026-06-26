@@ -9,13 +9,25 @@ from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[repor
     PipelineState,
 )
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
+)
+from modular_diffusion_nodes_library.latent_pipeline_drivers._base_driver_forwardable_signature import (
+    FORWARDABLE_METHODS,
+    validate_forwardable_signature,
+)
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    META_DRIVER_KEY,
+    DecodeResult,
+    GeneratorState,
+    ImageMedia,
+    MaskMedia,
+    TextEncodings,
+    VideoMedia,
 )
 from modular_diffusion_nodes_library.misc.partial_denoise import (
     PartialDenoisePipelineRunner,
@@ -25,9 +37,6 @@ from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_var
 
 _T = TypeVar("_T")
 
-TextEncodings = dict[str, Any]
-DecodeResult = Image | list[Image] | np.ndarray
-
 
 class LatentPipelineDriver(ABC):
     """Abstract base class for latent pipeline drivers.
@@ -35,15 +44,25 @@ class LatentPipelineDriver(ABC):
     Latent shape & space contract
     -----------------------------
     All latents flowing across the public driver surface
-    (``create_noise_latent``, ``encode_image``, ``encode_video``,
-    ``add_noise_to_latent``, the output of ``denoise_latent``, and the input
-    of ``decode_latent``) share a single canonical shape **and** statistical
-    space so they can be freely composited, masked, added, or otherwise
-    manipulated by downstream nodes.
+    (``create_noise_latent``, ``encode_media``, ``add_noise_to_latent``, the
+    output of ``denoise_latent``, and the input of ``decode_latent``) share a
+    single canonical shape **and** statistical space so they can be freely
+    composited, masked, added, or otherwise manipulated by downstream nodes.
+
+    Public latents are exchanged as :class:`LatentArtifact` instances. The
+    artifact carries:
+
+    - The unpacked tensor (4-D image or 5-D video, see below).
+    - ``source_shape`` — the pixel-space shape of the original media before
+      VAE encoding. Drivers translate between pixel-space dimensions and the
+      divided latent-space tensor dimensions internally.
+    - ``meta`` — free-form upstream entries (e.g. user-set provenance) plus a
+      driver-namespaced sub-bag at ``meta[<driver_namespace>]`` for
+      driver-internal invariants. See :meth:`_make_latent_artifact`.
 
     Shape
     ^^^^^
-    Public latents are **unpacked** tensors (no model-specific patchifying /
+    Public latent tensors are **unpacked** (no model-specific patchifying /
     sequence packing). Their shape is:
 
     - 4-D for image pipelines: ``[B, C, H // vae_scale_factor, W // vae_scale_factor]``
@@ -52,23 +71,19 @@ class LatentPipelineDriver(ABC):
     where ``C`` (``num_channels_latents``) is inferred from the pipeline and
     ``T_latent = (T_video - 1) // vae_scale_factor_temporal + 1`` for video.
 
-    The ``latents_source_shape`` argument passed to driver methods is in
-    **pixel space**, **not** latent space:
+    The ``source_shape`` on the artifact is in **pixel space**, **not**
+    latent space:
 
     - 4-D for image: ``[B, C_image, H_pixel, W_pixel]``
     - 5-D for video: ``[B, C_image, T_video, H_pixel, W_pixel]``
 
-    Drivers are responsible for translating between pixel-space dimensions
-    (``latents_source_shape``) and the divided latent-space tensor dimensions
-    when calling underlying pipelines.
-
     Space
     ^^^^^
-    Latents are **normalised**: each channel is ~N(0, 1), matching the
+    Latent tensors are **normalised**: each channel is ~N(0, 1), matching the
     distribution of ``torch.randn``. For VAEs whose raw latents are not
     unit-variance (e.g. WAN, Flux2), drivers must apply the per-channel
-    whitening ``(z - latents_mean) / latents_std`` inside ``encode_image`` /
-    ``encode_video`` and the inverse inside ``decode_latent``.
+    whitening ``(z - latents_mean) / latents_std`` inside ``encode_media``
+    and the inverse inside ``decode_latent``.
 
     Any model-specific *packing* (e.g. Flux, Qwen) is applied transiently
     inside ``prepare_input_latent`` / ``prepare_output_latent`` and never
@@ -80,21 +95,36 @@ class LatentPipelineDriver(ABC):
     _partial_denoise_proxy_class: ClassVar[type[PartialDenoiseSchedulerProxy]] = PartialDenoiseSchedulerProxy
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = None
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = None
+    _DEFAULT_NUM_INFERENCE_STEPS: ClassVar[int] = 20
+
+    # ------------------------------------------------------------------
+    # Public driver surface — cross-driver signature contract
+    # ------------------------------------------------------------------
+    # The methods listed in ``FORWARDABLE_METHODS`` must share an identical
+    # positional signature across all drivers so callers can invoke them
+    # uniformly; any driver-specific tunable beyond the contract must be
+    # keyword-only. Enforced in ``__init_subclass__``.
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        for method_name in FORWARDABLE_METHODS:
+            method = cls.__dict__.get(method_name)
+            if method is None:
+                continue
+            validate_forwardable_signature(cls.__name__, method_name, method)
 
     def __init__(self, pipe: DiffusionPipeline):
         self._pipe = pipe
         self._modular_pipe: ModularPipeline | None = None
-        # TODO: Temporary hack — Provenance for the Latent being processed (a copy of
-        # ``LatentArtifact.metadata`` or ``DiffusionPipelineArtifact.metadata``).
-        # Mutated by callers (e.g. vae_decoder, generate_latent_parameters) before invoking
-        # decode/denoise/preview methods. Drivers may consult it to detect generation-time
-        # pipeline state (e.g. HDR LoRA via ``runtime_adapter_steps``) when the corresponding
-        # adapters are not currently loaded on ``self.pipe``.
-        self.provenance_metadata: dict[str, Any] = {}
 
     @property
     def pipe(self) -> DiffusionPipeline:
         return self._pipe
+
+    @property
+    def driver_namespace(self) -> str:
+        """Stable per-driver identifier used as the key into ``LatentArtifact.meta``."""
+        return type(self).__name__
 
     @property
     def modular_pipe(self) -> ModularPipeline:
@@ -158,6 +188,37 @@ class LatentPipelineDriver(ABC):
         dtype = getattr(self.pipe.vae, "dtype", None) or torch.float32
         return device, dtype
 
+    def _make_latent_artifact(
+        self,
+        tensor: torch.Tensor,
+        *,
+        source_shape: tuple[int, ...],
+        upstream: LatentArtifact | InpaintMaskArtifact | None = None,
+        meta: dict[str, Any] | None = None,
+    ) -> LatentArtifact:
+        """Build a :class:`LatentArtifact` carrying this driver's namespaced meta.
+
+        ``upstream`` is the input artifact this call was derived from, if any.
+        Its non-namespace meta (e.g. user-set provenance) is preserved, and any
+        same-driver namespaced meta is merged with ``meta`` (new values win).
+        """
+
+        base: dict[str, Any] = {}
+        if upstream is not None:
+            base = upstream.metadata
+
+        upstream_driver_meta: dict[str, Any] = {}
+        if base.get(META_DRIVER_KEY) == self.driver_namespace:
+            existing = base.get(self.driver_namespace)
+            if isinstance(existing, dict):
+                upstream_driver_meta = dict(existing)
+
+        namespaced_meta = {**upstream_driver_meta, **(meta or {})}
+        base[META_DRIVER_KEY] = self.driver_namespace
+        base[self.driver_namespace] = namespaced_meta
+
+        return LatentArtifact.from_torch(tensor, source_shape=source_shape, meta=base)
+
     def prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
         """Return latents ready to be passed into the pipeline, which may involve packing or other preprocessing."""
         return latents
@@ -169,7 +230,7 @@ class LatentPipelineDriver(ABC):
         return latents_from_pipe
 
     @abstractmethod
-    def create_noise_latent(self, latents_source_shape: tuple[int, ...], seed: int) -> torch.Tensor:
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         """Return pure noise latent. See class docstring for the latent shape contract."""
         ...
 
@@ -181,38 +242,40 @@ class LatentPipelineDriver(ABC):
         return pipe_output.images
 
     @abstractmethod
-    def decode_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> DecodeResult:
+    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
         """Return decoded image. See class docstring for the input latent shape contract."""
         ...
 
     @abstractmethod
-    def encode_image(self, image: Image | torch.Tensor) -> torch.Tensor:
-        """Return encoded latent. See class docstring for the output latent shape contract."""
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        """Return encoded latent for an :class:`ImageMedia` or :class:`VideoMedia` input.
+
+        Image-only drivers should raise :class:`NotImplementedError` for
+        :class:`VideoMedia` and vice versa. See class docstring for the output
+        latent shape contract.
+        """
         ...
 
-    def encode_masked_image(self, image: Image, mask: Image) -> torch.Tensor:
+    def encode_masked_image(
+        self, image: ImageMedia, mask: MaskMedia, generator_state: GeneratorState
+    ) -> LatentArtifact:
         """Encode the source image with the masked region zeroed out."""
         image_processor = self.modular_pipe.image_processor
-        source_t = image_processor.preprocess(image, height=image.height, width=image.width)
-        mask_t = torch.from_numpy(np.array(mask, dtype="float32") / 255.0)[None, None]
+        source_t = image_processor.preprocess(image.image, height=image.image.height, width=image.image.width)
+        mask_t = torch.from_numpy(np.array(mask.mask, dtype="float32") / 255.0)[None, None]
         masked_t = source_t * (mask_t < 0.5)
-        return self.encode_image(masked_t)
+        return self.encode_media(ImageMedia(image=masked_t, source_shape=image.source_shape), generator_state)
 
     @abstractmethod
     def add_noise_to_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
-        seed: int,
+        latent: LatentArtifact,
+        generator_state: GeneratorState,
         num_inference_steps: int,
         strength: float,
-    ) -> torch.Tensor:
+    ) -> LatentArtifact:
         """Return noised latent. See class docstring for the latent shape contract."""
         ...
-
-    def encode_video(self, frames: list[Image]) -> torch.Tensor:
-        """Encode a video file into a latent tensor. Override for pipelines that support video."""
-        raise NotImplementedError(f"Pipeline '{self.pipe.__class__.__name__}' does not support video encoding.")
 
     def encode_prompt(self, prompt: str, negative_prompt: str, **kwargs: Any) -> TextEncodings:  # noqa: ARG002
         """Encode prompt text into embeddings via the modular pipeline's ``text_encoder`` sub-block.
@@ -229,54 +292,57 @@ class LatentPipelineDriver(ABC):
 
     def denoise_latent(
         self,
-        latents: torch.Tensor,
-        latents_source_shape: tuple[int, ...],
+        latent: LatentArtifact | InpaintMaskArtifact,
         num_inference_steps: int,
-        seed: int = 0,
+        generator_state: GeneratorState,
         callback: Any = None,
         start_step: int = 0,
         end_step: int = -1,
         return_fully_denoised: bool = False,
         **kwargs: Any,
-    ) -> torch.Tensor:
-        """Run the denoising loop. See class docstring for the latent shape contract."""
+    ) -> LatentArtifact:
+        """Run the denoising loop. See class docstring for the latent shape contract.
+
+        ``latent`` is either a :class:`LatentArtifact` (standard denoise) or an
+        :class:`InpaintMaskArtifact` (inpaint denoise).
+
+        Subclasses can override behaviour by passing extra ``kwargs`` when
+        re-implementing this method. E.g. ``height`` / ``width`` default to
+        ``latent.source_shape`` but can be overridden by setting kwargs; useful when the
+        dimensions differ from the source (e.g. pipeline expects specific resolution).
+        """
         if isinstance(self.pipe, ModularPipeline):
             raise NotImplementedError(
                 "denoise_latent is not implemented for ModularPipelines. Subclasses should implement this method for modular pipeline."
             )
 
         pipe = self.pipe
-
         device, dtype = self._get_device_and_type()
-        latents = latents.to(device=device, dtype=dtype)
+        source_shape = latent.source_shape
 
-        inpaint_mask_artifact: InpaintMaskArtifact | None = kwargs.pop("inpaint_mask_artifact", None)
-        if inpaint_mask_artifact is not None:
+        if isinstance(latent, InpaintMaskArtifact):
             pipe = self._get_inpaint_pipe()
             if pipe is None:
-                raise NotImplementedError(f"Inpainting is not supported by {type(self).__name__}. ")
+                raise NotImplementedError(f"Inpainting is not supported by {self.driver_namespace}. ")
 
-            inpaint_kwargs = self._get_inpaint_kwargs(inpaint_mask_artifact)
+            inpaint_kwargs = self._get_inpaint_kwargs(latent)
             kwargs.update(inpaint_kwargs)
-        else:
-            latents = self.prepare_input_latent(latents, latents_source_shape)
+        elif "latents" not in kwargs:
+            latents = latent.to_torch(device=device, dtype=dtype)
+            latents = self.prepare_input_latent(latents, source_shape)
+            kwargs["latents"] = latents
 
-        height = latents_source_shape[-2]
-        width = latents_source_shape[-1]
+        kwargs.setdefault("height", source_shape[-2])
+        kwargs.setdefault("width", source_shape[-1])
+        generator = kwargs.pop("generator", generator_state.to_generator())
 
         pipe_kwargs: dict[str, Any] = {
             **kwargs,
-            "width": width,
-            "height": height,
             "output_type": "latent",
             "num_inference_steps": num_inference_steps,
             "callback_on_step_end": callback,
-            "generator": kwargs.pop("generator", None) or torch.Generator().manual_seed(seed),
+            "generator": generator,
         }
-        # Only pass latents when not inpainting — inpaint pipelines
-        # handle their own latent preparation from image + mask.
-        if inpaint_mask_artifact is None:
-            pipe_kwargs["latents"] = latents
 
         is_partial_denoise = start_step > 0 or end_step >= 0
         if is_partial_denoise:
@@ -297,7 +363,13 @@ class LatentPipelineDriver(ABC):
         else:
             pipe_output = pipe(**pipe_kwargs)  # type: ignore[reportCallIssue]
 
-        return self.prepare_output_latent(self._extract_latents_from_output(pipe_output), latents_source_shape)
+        output_tensor = self.prepare_output_latent(self._extract_latents_from_output(pipe_output), source_shape)
+        return self._make_latent_artifact(
+            output_tensor,
+            source_shape=source_shape,
+            upstream=latent,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
 
     # ------------------------------------------------------------------
     # Inpainting hooks

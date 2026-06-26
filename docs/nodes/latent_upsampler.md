@@ -6,7 +6,7 @@ Category: `ModularDiffusion/Processing`
 
 ## TL;DR
 - Upsamples in **latent space**, so you avoid a costly decode → upscale → re-encode round trip.
-- `provider` picks the upsampler family; today the primary option is **LTX2** (Hugging Face repo picker for the upsampler model).
+- `provider` picks the upsampler family.
 - Use between two Generate Media Latents nodes: low-res pass → upsample → high-res refinement pass.
 
 ## Typical workflow position

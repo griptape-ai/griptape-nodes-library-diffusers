@@ -35,8 +35,8 @@ Latent B ─┘
 
 ## Tips & pitfalls
 
-- **Order matters** — this is not commutative.
-- **Shape mismatch fails validation.**
+- **Order matters** — subtraction is not commutative; `a − b` ≠ `b − a`.
+- **Both inputs must have the same shape.** Resize or upsample one to match before subtracting.
 
 ## See also
 
