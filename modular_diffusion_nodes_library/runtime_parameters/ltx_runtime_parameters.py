@@ -48,7 +48,9 @@ class LTXPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 "Each payload sets a frame index (`first`, `last`, or a keyframe index) and a "
                 "strength in `[0, 1]` \u2014 `1.0` keeps the condition fully clean, intermediate values "
                 "mix it with noise. First-frame conditions overwrite the corresponding tokens; "
-                "non-first-frame conditions are appended as keyframe tokens."
+                "non-first-frame conditions are appended as keyframe tokens.\n\n"
+                "**Tip:** You can also connect an image or video directly — without a Media Gen Conditioning node — "
+                "for quick single-item conditioning at frame index **0** and strength **1.0**."
             ),
         )
 

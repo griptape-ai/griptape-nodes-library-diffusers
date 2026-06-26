@@ -37,7 +37,9 @@ class WanImageToVideoPipelineRuntimeParameters(DiffusionPipelineRuntimeParameter
             badge_message=(
                 "Connect a **Media Gen Conditioning** node here to supply the start (and optionally end) "
                 "frame for image-to-video generation. Only **image**-mode payloads are accepted; "
-                "**video** payloads are rejected."
+                "**video** payloads are rejected.\n\n"
+                "**Tip:** You can also connect an image directly — without a Media Gen Conditioning node — "
+                "for single first-frame conditioning (frame index **0**)."
             ),
         )
 

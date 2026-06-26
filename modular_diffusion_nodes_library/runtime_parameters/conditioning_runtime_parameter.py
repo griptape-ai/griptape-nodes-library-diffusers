@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
+from griptape.artifacts import ImageUrlArtifact
+from griptape.artifacts.video_url_artifact import VideoUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterList, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
 
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
+    ConditioningInputValue,
+    MediaGenConditioningPayload,
     normalize_to_payloads,
 )
 from modular_diffusion_nodes_library.utils.conditioning_utils import ConditioningMode, MediaGenConditioningKey
@@ -28,11 +32,17 @@ class MediaGenConditioningRuntimeParameter:
 
     _DEFAULT_BADGE_TITLE = "Conditioning input"
 
+    _MODE_TO_URL_TYPE: ClassVar[dict[ConditioningMode, str]] = {
+        ConditioningMode.IMAGE: "ImageUrlArtifact",
+        ConditioningMode.VIDEO: "VideoUrlArtifact",
+    }
+
     def __init__(
         self,
         node: BaseNode,
         *,
         param_name: str,
+        output_key: str | None = None,
         accepted_modes: tuple[ConditioningMode, ...] = (ConditioningMode.IMAGE, ConditioningMode.VIDEO),
         multiple: bool = False,
         tooltip: str | None = None,
@@ -42,17 +52,22 @@ class MediaGenConditioningRuntimeParameter:
         self._node = node
         self._param_name = param_name
         self._param_type = MEDIA_GEN_CONDITIONING_TYPE
+        self._output_key = output_key or MediaGenConditioningKey.OUTPUT
         self._accepted_modes = accepted_modes
+        self._accepted_url_types: tuple[str, ...] = tuple(
+            self._MODE_TO_URL_TYPE[mode] for mode in self._accepted_modes if mode in self._MODE_TO_URL_TYPE
+        )
         self._multiple = multiple
         self._tooltip = tooltip or "Media generation conditioning from a Media Gen Conditioning node."
         self._badge_title = badge_title or self._DEFAULT_BADGE_TITLE
         self._badge_message = badge_message
 
     def add_input_parameters(self) -> None:
+        input_types = [self._param_type, *self._accepted_url_types]
         if self._multiple:
             param: Parameter = ParameterList(
                 name=self._param_name,
-                input_types=[self._param_type],
+                input_types=input_types,
                 type=self._param_type,
                 default_value=[],
                 allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
@@ -61,7 +76,7 @@ class MediaGenConditioningRuntimeParameter:
         else:
             param = Parameter(
                 name=self._param_name,
-                input_types=[self._param_type],
+                input_types=input_types,
                 type=self._param_type,
                 default_value=None,
                 allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
@@ -83,25 +98,76 @@ class MediaGenConditioningRuntimeParameter:
 
     def get_pipe_kwargs(self) -> dict[str, Any]:
         value = self._node.get_parameter_value(self._param_name)
-        if self._multiple:
-            # `ParameterList` returns a list of connected payloads (or [] when none wired).
-            if not value:
-                return {}
-            return {MediaGenConditioningKey.OUTPUT: list(value)}
-        if value is None:
+        if value is None or (self._multiple and not value):
             return {}
-        return {MediaGenConditioningKey.OUTPUT: value}
+
+        payloads = self._coerce_to_payloads(value)
+        if not payloads:
+            return {}
+
+        mode_errors = self._validate_payload_modes(payloads)
+        if mode_errors:
+            raise mode_errors[0]
+
+        if self._multiple:
+            return {self._output_key: payloads}
+        return {self._output_key: payloads[0]}
 
     def validate_before_node_run(self) -> list[Exception] | None:
         value = self._node.get_parameter_value(self._param_name)
         if value is None or (self._multiple and not value):
             return None
         try:
-            payloads = normalize_to_payloads(value)
+            payloads = self._coerce_to_payloads(value)
         except ValueError as err:
             return [err]
-        if payloads is None:
-            return None
+        return self._validate_payload_modes(payloads)
+
+    def _coerce_to_payloads(self, value: Any) -> list[MediaGenConditioningPayload]:
+        items = value if isinstance(value, list) else [value]
+        payloads: list[MediaGenConditioningPayload] = []
+        for item in items:
+            if isinstance(item, ImageUrlArtifact) and ConditioningMode.IMAGE in self._accepted_modes:
+                payloads.append(self._payload_from_image_url(item))
+                continue
+            if isinstance(item, VideoUrlArtifact) and ConditioningMode.VIDEO in self._accepted_modes:
+                payloads.append(self._payload_from_video_url(item))
+                continue
+            normalized = normalize_to_payloads(item)
+            if normalized is None:
+                continue
+            payloads.extend(normalized)
+        return payloads
+
+    @staticmethod
+    def _payload_from_image_url(image: ImageUrlArtifact) -> MediaGenConditioningPayload:
+        return MediaGenConditioningPayload(
+            mode=ConditioningMode.IMAGE,
+            entries=(
+                ConditioningInputValue(
+                    artifact=image,
+                    frame_index=0,
+                    strength=1.0,
+                    kind="image",
+                ),
+            ),
+        )
+
+    @staticmethod
+    def _payload_from_video_url(video: VideoUrlArtifact) -> MediaGenConditioningPayload:
+        return MediaGenConditioningPayload(
+            mode=ConditioningMode.VIDEO,
+            entries=(
+                ConditioningInputValue(
+                    artifact=video,
+                    frame_index=0,
+                    strength=1.0,
+                    kind="video",
+                ),
+            ),
+        )
+
+    def _validate_payload_modes(self, payloads: list[MediaGenConditioningPayload]) -> list[Exception] | None:
         errors: list[Exception] = []
         accepted = ", ".join(m.value for m in self._accepted_modes)
         for payload in payloads:
