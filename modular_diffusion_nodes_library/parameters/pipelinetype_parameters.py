@@ -21,6 +21,9 @@ from modular_diffusion_nodes_library.standard_parameters.flux2_parameters import
 from modular_diffusion_nodes_library.standard_parameters.flux_fill_parameters import (
     FluxFillPipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.flux_kontext_parameters import (
+    FluxKontextPipelineParameters,
+)
 from modular_diffusion_nodes_library.standard_parameters.flux_parameters import (
     FluxPipelineParameters,
 )
@@ -182,6 +185,7 @@ class LatentFluxPipelineTypeParameters(LatentPipelineTypeParameters):
         return {
             "FluxPipeline": FluxPipelineParameters,
             "FluxFillPipeline": FluxFillPipelineParameters,
+            "FluxKontextPipeline": FluxKontextPipelineParameters,
         }
 
 
