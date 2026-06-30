@@ -19,9 +19,7 @@ class LoadLora(SuccessFailureExecutionMixin, SuccessFailureNode):
             tooltip="Absolute path to a local LoRA file (.safetensors, .sft, .pt, .bin, .json, .lora).",
         )
         self.lora_weight_and_output_params = LoraParameters(self)
-        self.lora_file_path_params.add_input_parameters(
-            doc_url="https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/nodes/load_lora.md"
-        )
+        self.lora_file_path_params.add_input_parameters()
         self.lora_weight_and_output_params.add_input_parameters()
         self.lora_weight_and_output_params.add_output_parameters()
         self.add_parameter(

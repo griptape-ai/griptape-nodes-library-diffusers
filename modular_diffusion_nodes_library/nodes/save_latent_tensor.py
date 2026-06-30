@@ -22,19 +22,15 @@ class SaveLatentTensorNode(DataNode):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-        latent_tensor_param = Parameter(
-            name="latent_tensor",
-            type="LatentArtifact",
-            input_types=["LatentArtifact"],
-            tooltip="Latent artifact to serialise to disk as a torch .pt file.",
-            allowed_modes={ParameterMode.INPUT},
+        self.add_parameter(
+            Parameter(
+                name="latent_tensor",
+                type="LatentArtifact",
+                input_types=["LatentArtifact"],
+                tooltip="Latent artifact to serialise to disk as a torch .pt file.",
+                allowed_modes={ParameterMode.INPUT},
+            )
         )
-        latent_tensor_param.set_badge(
-            variant="docs",
-            title="Node documentation",
-            message="View the [node reference](https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/nodes/save_latent_tensor.md) for this node.",
-        )
-        self.add_parameter(latent_tensor_param)
         self.add_parameter(
             Parameter(
                 name="file_path",

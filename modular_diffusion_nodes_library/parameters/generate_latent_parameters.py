@@ -61,7 +61,9 @@ class DiffusionPipelineGenerateLatentParameters:
             title="Three input modes",
             message=(
                 "What you connect here determines the generation mode:\n\n"
-                "***Empty or Noise Latent*** (from Create Noise Latents or Empty Latents node) — "
+                "***Empty Latent*** (from Empty Latents node) — "
+                "ENABLE 'add_noise' for text-to-image / text-to-video. Denoising starts from pure noise.\n\n"
+                "***Noise Latent*** (from Create Noise Latents) — "
                 "text-to-image / text-to-video. Denoising starts from pure noise.\n\n"
                 "***Already-diffused or encoded LatentArtifact*** (output of a previous Generate node, "
                 "or from a VAE Encode node) — image-to-image or refinement. "
@@ -374,7 +376,7 @@ class DiffusionPipelineGenerateLatentParameters:
         if number_of_steps > 0 and self.start_step > 0:
             return 1.0 - (self.start_step / number_of_steps)
         return 1.0
-    
+
     def get_strength_affected_steps(self) -> int:
         return math.ceil(self.get_num_inference_steps() * self.get_strength())
 

@@ -37,9 +37,7 @@ class DiffusionPipelineGenerateLatentNode(
         super().__init__(**kwargs)
 
         self.pipe_params = ModularDiffusionPipelineParameters(self)
-        self.pipe_params.add_input_parameters(
-            doc_url="https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/nodes/generate_media_latents.md"
-        )
+        self.pipe_params.add_input_parameters()
 
         self.latent_parameter = DiffusionPipelineGenerateLatentParameters(self)  # type: ignore[reportOptionalMemberAccess]
         self.latent_parameter.add_input_parameters()

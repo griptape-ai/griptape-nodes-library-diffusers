@@ -28,18 +28,14 @@ class ControlNetDiffusionPipelineBuilderNode(SuccessFailureExecutionMixin, Succe
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-        pipeline_param = Parameter(
-            name="pipeline",
-            type="Pipeline Config",
-            tooltip="Base 🤗 Diffusion pipeline to wrap with ControlNet conditioning.",
-            allowed_modes={ParameterMode.INPUT},
+        self.add_parameter(
+            Parameter(
+                name="pipeline",
+                type="Pipeline Config",
+                tooltip="Base 🤗 Diffusion pipeline to wrap with ControlNet conditioning.",
+                allowed_modes={ParameterMode.INPUT},
+            )
         )
-        pipeline_param.set_badge(
-            variant="docs",
-            title="Node documentation",
-            message="View the [node reference](https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/nodes/controlnet_pipeline.md) for this node.",
-        )
-        self.add_parameter(pipeline_param)
 
         self.add_parameter(
             Parameter(

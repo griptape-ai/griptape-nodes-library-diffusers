@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, ClassVar, NamedTuple
+from typing import Any, NamedTuple
 
 import cv2  # type: ignore[reportMissingImports]
 import numpy as np
@@ -42,10 +42,6 @@ class DecodeHdrNode(VaeDecodeNode):
     raw EXR sequence can optionally be saved to disk. Standard image and video pipelines
     behave identically to VaeDecodeNode.
     """
-
-    _DOC_URL: ClassVar[str] = (
-        "https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/nodes/decode_hdr_latents.md"
-    )
 
     def _additional_parameters(self) -> None:
         self.add_parameter(
@@ -89,11 +85,11 @@ class DecodeHdrNode(VaeDecodeNode):
             variant="help",
             title="Tone mapping options",
             message=(
-                "Compresses HDR brightness into standard video:\n\n"
-                "- ***clip*** — fastest; brightness above 1 may be limited\n"
-                "- ***reinhard*** — smooth, natural compression\n"
-                "- ***aces_filmic*** — cinematic contrast with film-like highlights (default)\n"
-                "- ***cv2_reinhard*** / ***cv2_mantiuk*** — OpenCV variants; similar to reinhard"
+                "Select an algorithm to compress HDR media for viewing on standard screens:\n\n"
+                "- ***clip*** — Discards values outside the standard 0-1 range\n"
+                "- ***reinhard*** — Provides smooth, natural-looking compression\n"
+                "- ***aces_filmic*** — Offers cinematic contrast with film-like highlights (default)\n"
+                "- ***cv2_reinhard*** / ***cv2_mantiuk*** — OpenCV alternatives similar to reinhard"
             ),
         )
         self.add_parameter(tone_mapping_param)

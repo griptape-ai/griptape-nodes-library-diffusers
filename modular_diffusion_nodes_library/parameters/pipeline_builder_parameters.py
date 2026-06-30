@@ -56,20 +56,16 @@ class LatentDiffusionPipelineBuilderParameters:
         self._node.add_parameter(provider_param)
 
     def add_output_parameters(self) -> None:
-        pipeline_param = Parameter(
-            name="pipeline",
-            output_type="Pipeline Config",
-            default_value=None,
-            tooltip="Built and cached 🤗 Diffusion pipeline. Connect to a Generate Latents, Encode Media, or Decode Latents node etc.",
-            allowed_modes={ParameterMode.OUTPUT},
-            ui_options={"display_name": "pipeline"},
+        self._node.add_parameter(
+            Parameter(
+                name="pipeline",
+                output_type="Pipeline Config",
+                default_value=None,
+                tooltip="Built and cached 🤗 Diffusion pipeline. Connect to a Generate Latents, Encode Media, or Decode Latents node etc.",
+                allowed_modes={ParameterMode.OUTPUT},
+                ui_options={"display_name": "pipeline"},
+            )
         )
-        pipeline_param.set_badge(
-            variant="docs",
-            title="Node documentation",
-            message="View the [node reference](https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/nodes/pipeline_builder.md) for this node.",
-        )
-        self._node.add_parameter(pipeline_param)
 
     def set_pipeline_type_parameters(self, provider: str) -> None:
         if provider not in MODULAR_PIPELINE_TYPE_PROVIDER_MAP:

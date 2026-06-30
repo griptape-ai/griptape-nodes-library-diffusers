@@ -23,29 +23,24 @@ class FilePathParameter:
         self._initial_path = initial_path or str(GriptapeNodes.ConfigManager().workspace_path)
         self._tooltip = tooltip
 
-    def add_input_parameters(self, doc_url: str | None = None) -> None:
-        param = Parameter(
-            name=self._parameter_name,
-            input_types=["str"],
-            type="str",
-            tooltip=self._tooltip,
-            traits={
-                FileSystemPicker(
-                    allow_files=True,
-                    allow_directories=False,
-                    multiple=False,
-                    file_types=self._file_types,
-                    initial_path=self._initial_path,
-                )
-            },
-        )
-        if doc_url is not None:
-            param.set_badge(
-                variant="docs",
-                title="Node documentation",
-                message=f"View the [node reference]({doc_url}) for this node.",
+    def add_input_parameters(self) -> None:
+        self._node.add_parameter(
+            Parameter(
+                name=self._parameter_name,
+                input_types=["str"],
+                type="str",
+                tooltip=self._tooltip,
+                traits={
+                    FileSystemPicker(
+                        allow_files=True,
+                        allow_directories=False,
+                        multiple=False,
+                        file_types=self._file_types,
+                        initial_path=self._initial_path,
+                    )
+                },
             )
-        self._node.add_parameter(param)
+        )
 
     def get_file_path(self) -> Path:
         # Use absolute() rather than resolve() to preserve symlinks.

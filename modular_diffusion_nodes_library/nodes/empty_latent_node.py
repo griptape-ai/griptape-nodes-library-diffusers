@@ -1,4 +1,4 @@
-from typing import ClassVar, override
+from typing import override
 
 import torch  # type: ignore[reportMissingImports]
 
@@ -9,10 +9,6 @@ from modular_diffusion_nodes_library.nodes.noise_latent_node import NoiseLatentN
 
 
 class EmptyLatentNode(NoiseLatentNode):
-    _DOC_URL: ClassVar[str] = (
-        "https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/nodes/empty_latents.md"
-    )
-
     @override
     def add_seed_parameter(self) -> None:
         pass

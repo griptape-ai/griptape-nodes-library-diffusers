@@ -41,20 +41,16 @@ class ControlNetNode(ParameterConnectionPreservationMixin, ControlNode):
         self._controlnet_parameter_type: ControlNetNodesParameterType
         self.did_provider_change = False
 
-        provider_param = Parameter(
-            name="provider",
-            type="str",
-            traits={Options(choices=self.provider_choices)},
-            tooltip="Select the model family this ControlNet targets (must match the pipeline provider).",
-            allowed_modes={ParameterMode.PROPERTY},
-            ui_options={"placeholder_text": "Select Provider"},
+        self.add_parameter(
+            Parameter(
+                name="provider",
+                type="str",
+                traits={Options(choices=self.provider_choices)},
+                tooltip="Select the model family this ControlNet targets (must match the pipeline provider).",
+                allowed_modes={ParameterMode.PROPERTY},
+                ui_options={"placeholder_text": "Select Provider"},
+            )
         )
-        provider_param.set_badge(
-            variant="docs",
-            title="Node documentation",
-            message="View the [node reference](https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/nodes/configure_controlnet.md) for this node.",
-        )
-        self.add_parameter(provider_param)
         self.add_parameter(
             Parameter(
                 name="controlnet_conditioning_scale",

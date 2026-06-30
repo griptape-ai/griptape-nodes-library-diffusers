@@ -29,20 +29,16 @@ class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.upsampler_params: BaseUpsamplerParameters | None = None
         super().__init__(**kwargs)
 
-        provider_param = Parameter(
-            name="provider",
-            default_value="LTX",
-            type="str",
-            traits={Options(choices=list(UPSAMPLER_TYPE_MAP.keys()))},
-            tooltip="Latent upsampler model family (e.g. LTX). Determines which model is loaded.",
-            allowed_modes={ParameterMode.PROPERTY},
+        self.add_parameter(
+            Parameter(
+                name="provider",
+                default_value="LTX",
+                type="str",
+                traits={Options(choices=list(UPSAMPLER_TYPE_MAP.keys()))},
+                tooltip="Latent upsampler model family (e.g. LTX). Determines which model is loaded.",
+                allowed_modes={ParameterMode.PROPERTY},
+            )
         )
-        provider_param.set_badge(
-            variant="docs",
-            title="Node documentation",
-            message="View the [node reference](https://github.com/griptape-ai/griptape-nodes-library-diffusers/blob/main/docs/nodes/latent_upsampler.md) for this node.",
-        )
-        self.add_parameter(provider_param)
 
         self.upsampler_params = LTX2UpsamplerParameters(self)
         self.upsampler_params.add_input_parameters()
