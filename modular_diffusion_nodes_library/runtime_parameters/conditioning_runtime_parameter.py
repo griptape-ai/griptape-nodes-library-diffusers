@@ -6,7 +6,7 @@ from typing import Any, ClassVar
 
 from griptape.artifacts import ImageUrlArtifact
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
-from griptape_nodes.exe_types.core_types import Parameter, ParameterList, ParameterMode
+from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
 
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
@@ -15,7 +15,7 @@ from modular_diffusion_nodes_library.parameters.media_gen_conditioning.condition
     normalize_to_payloads,
 )
 from modular_diffusion_nodes_library.utils.conditioning_utils import ConditioningMode, MediaGenConditioningKey
-from modular_diffusion_nodes_library.utils.connection_utils import delete_parameter_list_child_connections
+from modular_diffusion_nodes_library.utils.fixed_size_parameter_list import FixedSizeParameterList
 
 # Wire type shared by the producing and consuming nodes; must equal MediaGenConditioningKey.OUTPUT on both sides.
 MEDIA_GEN_CONDITIONING_TYPE = MediaGenConditioningKey.OUTPUT
@@ -26,11 +26,12 @@ class MediaGenConditioningRuntimeParameter:
 
     `param_name`: user-visible parameter name on the consuming node.
     `accepted_modes`: accepted ConditioningMode values.
-    `multiple=True`: expose a ParameterList for multiple connections.
+    `multiple=True`: expose a FixedSizeParameterList for multiple connections (max_count slots).
     `badge_message`: optional help badge (`badge_title` defaults to "Conditioning input").
     """
 
     _DEFAULT_BADGE_TITLE = "Conditioning input"
+    _DEFAULT_MAX_COUNT = 4
 
     _MODE_TO_URL_TYPE: ClassVar[dict[ConditioningMode, str]] = {
         ConditioningMode.IMAGE: "ImageUrlArtifact",
@@ -45,6 +46,7 @@ class MediaGenConditioningRuntimeParameter:
         output_key: str | None = None,
         accepted_modes: tuple[ConditioningMode, ...] = (ConditioningMode.IMAGE, ConditioningMode.VIDEO),
         multiple: bool = False,
+        max_count: int = _DEFAULT_MAX_COUNT,
         tooltip: str | None = None,
         badge_title: str | None = None,
         badge_message: str | None = None,
@@ -61,61 +63,112 @@ class MediaGenConditioningRuntimeParameter:
         self._tooltip = tooltip or "Media generation conditioning from a Media Gen Conditioning node."
         self._badge_title = badge_title or self._DEFAULT_BADGE_TITLE
         self._badge_message = badge_message
+        self._fixed_size_list: FixedSizeParameterList | None = None
+        if self._multiple:
+            self._fixed_size_list = FixedSizeParameterList(
+                node,
+                param_name=param_name,
+                max_count=max_count,
+                input_types=list(self._get_input_types()),
+                type=self._param_type,
+                tooltip=self._tooltip,
+                badge_title=self._badge_title,
+                badge_message=badge_message,
+                group_display_name=self._badge_title,
+            )
+
+    def _get_input_types(self) -> list[str]:
+        return [self._param_type, *self._accepted_url_types]
 
     def add_input_parameters(self) -> None:
-        input_types = [self._param_type, *self._accepted_url_types]
         if self._multiple:
-            param: Parameter = ParameterList(
-                name=self._param_name,
-                input_types=input_types,
-                type=self._param_type,
-                default_value=[],
-                allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
-                tooltip=self._tooltip,
-            )
-        else:
-            param = Parameter(
-                name=self._param_name,
-                input_types=input_types,
-                type=self._param_type,
-                default_value=None,
-                allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
-                tooltip=self._tooltip,
-            )
+            assert self._fixed_size_list is not None
+            self._fixed_size_list.add_input_parameters()
+            return
+
+        param = Parameter(
+            name=self._param_name,
+            input_types=self._get_input_types(),
+            type=self._param_type,
+            default_value=None,
+            allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
+            tooltip=self._tooltip,
+        )
         if self._badge_message is not None:
             param.set_badge(variant="help", title=self._badge_title, message=self._badge_message)
         self._node.add_parameter(param)
 
     def remove_input_parameters(self) -> None:
-        # Removing a ParameterList does not delete its child connections, so
-        # delete them first to avoid dangling connections.
-        existing = self._node.get_parameter_by_name(self._param_name)
-        if existing is None:
+        if self._multiple:
+            assert self._fixed_size_list is not None
+            self._fixed_size_list.remove_input_parameters()
             return
-        if isinstance(existing, ParameterList):
-            delete_parameter_list_child_connections(self._node, [existing])
-        self._node.remove_parameter_element_by_name(self._param_name)
+
+        existing = self._node.get_parameter_by_name(self._param_name)
+        if existing is not None:
+            self._node.remove_parameter_element_by_name(self._param_name)
+
+    def show(self) -> None:
+        if self._multiple:
+            assert self._fixed_size_list is not None
+            self._fixed_size_list.show()
+        else:
+            self._node.show_parameter_by_name(self._param_name)
+
+    def hide(self) -> None:
+        if self._multiple:
+            assert self._fixed_size_list is not None
+            self._fixed_size_list.hide()
+        else:
+            self._node.hide_parameter_by_name(self._param_name)
+
+    def on_incoming_connection_added(self, param_name: str) -> None:
+        if self._fixed_size_list is not None:
+            self._fixed_size_list.on_connection_added(param_name)
+
+    def on_incoming_connection_removed(self, param_name: str) -> None:
+        if self._fixed_size_list is not None:
+            self._fixed_size_list.on_connection_removed(param_name)
 
     def get_pipe_kwargs(self) -> dict[str, Any]:
-        value = self._node.get_parameter_value(self._param_name)
-        if value is None or (self._multiple and not value):
-            return {}
+        if self._multiple:
+            assert self._fixed_size_list is not None
+            values = self._fixed_size_list.get_values()
+            if not values:
+                return {}
+            payloads = self._coerce_to_payloads(values)
+            if not payloads:
+                return {}
+            mode_errors = self._validate_payload_modes(payloads)
+            if mode_errors:
+                raise mode_errors[0]
+            return {self._output_key: payloads}
 
+        value = self._node.get_parameter_value(self._param_name)
+        if value is None:
+            return {}
         payloads = self._coerce_to_payloads(value)
         if not payloads:
             return {}
-
         mode_errors = self._validate_payload_modes(payloads)
         if mode_errors:
             raise mode_errors[0]
-
-        if self._multiple:
-            return {self._output_key: payloads}
         return {self._output_key: payloads[0]}
 
     def validate_before_node_run(self) -> list[Exception] | None:
+        if self._multiple:
+            assert self._fixed_size_list is not None
+            values = self._fixed_size_list.get_values()
+            if not values:
+                return None
+            try:
+                payloads = self._coerce_to_payloads(values)
+            except ValueError as err:
+                return [err]
+            return self._validate_payload_modes(payloads)
+
         value = self._node.get_parameter_value(self._param_name)
-        if value is None or (self._multiple and not value):
+        if value is None:
             return None
         try:
             payloads = self._coerce_to_payloads(value)

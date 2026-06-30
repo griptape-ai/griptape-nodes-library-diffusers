@@ -78,5 +78,11 @@ class DiffusionPipelineRuntimeParameters(ABC):
             "num_inference_steps": self.get_num_inference_steps(),
         }
 
+    def on_incoming_connection_added(self, param_name: str) -> None:  # noqa: B027
+        pass
+
+    def on_incoming_connection_removed(self, param_name: str) -> None:  # noqa: B027
+        pass
+
     def validate_before_node_run(self) -> list[Exception] | None:
         return None

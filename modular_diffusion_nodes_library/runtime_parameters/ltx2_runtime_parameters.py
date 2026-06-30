@@ -80,6 +80,14 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             ),
         )
 
+    def on_incoming_connection_added(self, param_name: str) -> None:
+        self._media_gen_conditioning_param.on_incoming_connection_added(param_name)
+        self._reference_conditions_param.on_incoming_connection_added(param_name)
+
+    def on_incoming_connection_removed(self, param_name: str) -> None:
+        self._media_gen_conditioning_param.on_incoming_connection_removed(param_name)
+        self._reference_conditions_param.on_incoming_connection_removed(param_name)
+
     def add_input_parameters(self) -> None:
         self._add_input_parameters()
         self._node.add_parameter(
@@ -192,16 +200,16 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             self._node.show_parameter_by_name("text_embeddings_path")
         else:
             self._node.hide_parameter_by_name("text_embeddings_path")
-        self._reference_conditions_param.add_input_parameters()
-        self._media_gen_conditioning_param.add_input_parameters()
+
         if self._is_ic_lora_active:
-            self._node.show_parameter_by_name("reference_conditions")
+            self._reference_conditions_param.add_input_parameters()
         else:
-            self._node.hide_parameter_by_name("reference_conditions")
+            self._reference_conditions_param.remove_input_parameters()
+
         if not self._is_hdr_lora_active:
-            self._node.show_parameter_by_name("media_conditions")
+            self._media_gen_conditioning_param.add_input_parameters()
         else:
-            self._node.hide_parameter_by_name("media_conditions")
+            self._media_gen_conditioning_param.remove_input_parameters()
 
     @property
     def _is_distilled(self) -> bool:

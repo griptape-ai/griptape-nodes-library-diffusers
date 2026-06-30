@@ -54,6 +54,12 @@ class LTXPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             ),
         )
 
+    def on_incoming_connection_added(self, param_name: str) -> None:
+        self._media_gen_conditioning_param.on_incoming_connection_added(param_name)
+
+    def on_incoming_connection_removed(self, param_name: str) -> None:
+        self._media_gen_conditioning_param.on_incoming_connection_removed(param_name)
+
     def _add_input_parameters(self) -> None:
         self._node.add_parameter(
             Parameter(
