@@ -2,7 +2,7 @@ import logging
 from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
-from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode
+from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.options import Options
@@ -10,6 +10,7 @@ from griptape_nodes.traits.options import Options
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
     LatentArtifact,  # type: ignore[reportMissingImports]
 )
+from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.upsampler_parameter_type import (
     UPSAMPLER_TYPE_MAP,
     BaseUpsamplerParameters,
@@ -20,7 +21,7 @@ from modular_diffusion_nodes_library.parameters.upsampler_parameter_type import 
 logger = logging.getLogger("diffusers_nodes_library")
 
 
-class LatentUpsamplerNode(ControlNode):
+class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     START_PARAMS: ClassVar = ["provider"]
     END_PARAMS: ClassVar = ["input_latent", "output_latent"]
 
@@ -61,6 +62,7 @@ class LatentUpsamplerNode(ControlNode):
                 serializable=False,
             )
         )
+        self._create_status_parameters()
 
     def set_parameter_value(
         self,
@@ -139,9 +141,15 @@ class LatentUpsamplerNode(ControlNode):
         return errors or None
 
     def process(self) -> AsyncResult:
-        yield lambda: self._process()
+        self._clear_execution_status()
+        yield lambda: self._run_with_status(
+            self._upsample,
+            success_msg="Upsampling completed successfully.",
+            failure_log="Latent upsampling failed",
+            logger=logger,
+        )
 
-    def _process(self) -> None:
+    def _upsample(self) -> None:
         if self.upsampler_params is None:
             raise RuntimeError(f"{self.name}: upsampler parameters are not initialized.")
 

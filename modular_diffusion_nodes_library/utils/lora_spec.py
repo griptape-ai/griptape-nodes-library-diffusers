@@ -48,6 +48,9 @@ def normalize_loras(raw_list: list[Any]) -> dict[str, LoraSpec]:
     """
     out: dict[str, LoraSpec] = {}
     for raw in raw_list:
+        # Skip empty placeholders emitted by the UI for unset ParameterList entries.
+        if raw == [] or raw == {}:
+            continue
         spec = LoraSpec.from_raw(raw)
         if not spec.path:
             raise ValueError(f"Attempted to normalise LoRAs. Failed with raw={raw!r} because path is empty.")

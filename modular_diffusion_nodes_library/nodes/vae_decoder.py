@@ -9,20 +9,21 @@ import numpy as np
 from diffusers.pipelines.ltx2.export_utils import encode_hdr_tensor_to_mp4  # type: ignore[reportMissingImports]
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
-from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode
+from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
+from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.pillow_utils import pil_to_image_artifact
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
-class VaeDecodeNode(ControlNode):
+class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def __init__(self, **kwargs) -> None:
         self._initializing = True
         self._current_output_type = "image"
@@ -51,6 +52,7 @@ class VaeDecodeNode(ControlNode):
         )
         self._additional_parameters()
         self._initializing = False
+        self._create_status_parameters()
 
     def _additional_parameters(self) -> None:
         """Hook for subclasses to add additional parameters during __init__.
@@ -224,9 +226,12 @@ class VaeDecodeNode(ControlNode):
         return errors or None
 
     def process(self) -> AsyncResult:
-        yield lambda: self._process()
+        self._clear_execution_status()
+        yield lambda: self._run_with_status(
+            self._decode, success_msg="Decoded successfully.", failure_log="VAE decode failed", logger=logger
+        )
 
-    def _process(self) -> None:
+    def _decode(self) -> None:
         pipe = self.pipe_params.get_pipeline()
         latent_artifact = self.get_parameter_value("latent_tensor")
 

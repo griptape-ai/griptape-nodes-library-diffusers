@@ -3,9 +3,9 @@
 #
 # [tool.griptape-nodes]
 # name = "Image2Image"
-# schema_version = "0.18.0"
+# schema_version = "0.19.0"
 # engine_version_created_with = "0.83.0"
-# node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.1.0"], ["Griptape Nodes Library", "0.78.0"]]
+# node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.1.0"], ["Griptape Nodes Library", "0.79.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Modular Diffusion Nodes Library", "VaeEncodeNode"], ["Griptape Nodes Library", "CompareImages"], ["Griptape Nodes Library", "LoadImage"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
 # description = "I2I workflow using the Modular Diffusion Library Nodes"
 # image = "https://raw.githubusercontent.com/griptape-ai/griptape-nodes-library-diffusers/main/workflows/templates/Image2Image.webp"
@@ -17,8 +17,8 @@
 # ///
 
 import pickle
-from griptape.artifacts.image_url_artifact import ImageUrlArtifact
-from griptape_nodes.node_library.library_registry import IconVariant, NodeDeprecationMetadata, NodeMetadata
+
+from griptape_nodes.node_library.library_registry import NodeMetadata
 from griptape_nodes.retained_mode.events.connection_events import CreateConnectionRequest
 from griptape_nodes.retained_mode.events.flow_events import CreateFlowRequest
 from griptape_nodes.retained_mode.events.library_events import RegisterLibraryFromFileRequest
@@ -29,7 +29,6 @@ from griptape_nodes.retained_mode.events.parameter_events import (
     SetParameterValueRequest,
 )
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
-from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 
 
 async def build_workflow() -> None:
@@ -358,33 +357,6 @@ async def build_workflow() -> None:
                 )
             )
         ).node_name
-        with GriptapeNodes.ContextManager().node(node3_name):
-            await GriptapeNodes.ahandle_request(
-                AddParameterToNodeRequest(
-                    parameter_name="latent_tensor",
-                    tooltip="Latent tensor to decode with the pipeline VAE.",
-                    type="LatentArtifact",
-                    input_types=["LatentArtifact"],
-                    output_type="LatentArtifact",
-                    ui_options={},
-                    mode_allowed_property=False,
-                    mode_allowed_output=False,
-                    initial_setup=True,
-                )
-            )
-            await GriptapeNodes.ahandle_request(
-                AddParameterToNodeRequest(
-                    parameter_name="output_image",
-                    tooltip="Decoded image from the latent tensor.",
-                    type="ImageArtifact",
-                    input_types=["ImageArtifact"],
-                    output_type="ImageArtifact",
-                    ui_options={},
-                    mode_allowed_input=False,
-                    mode_allowed_property=False,
-                    initial_setup=True,
-                )
-            )
         node4_name = (
             await GriptapeNodes.ahandle_request(
                 CreateNodeRequest(

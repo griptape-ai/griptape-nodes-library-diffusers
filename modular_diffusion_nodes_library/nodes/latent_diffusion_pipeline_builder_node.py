@@ -2,7 +2,7 @@ import logging
 from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter
-from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode, NodeResolutionState
+from griptape_nodes.exe_types.node_types import AsyncResult, NodeResolutionState, SuccessFailureNode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
@@ -13,6 +13,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
 from modular_diffusion_nodes_library.mixins.parameter_connection_preservation_mixin import (
     ParameterConnectionPreservationMixin,
 )
+from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.huggingface_pipeline_parameter import HuggingFacePipelineParameter
 from modular_diffusion_nodes_library.parameters.pipeline_builder_parameters import (
     LatentDiffusionPipelineBuilderParameters,
@@ -29,10 +30,12 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 UNION_PRO_2_CONFIG_HASH_POSTFIX = 1  # 0001
 
 
-class LatentDiffusionPipelineBuilderNode(ParameterConnectionPreservationMixin, ControlNode):
+class LatentDiffusionPipelineBuilderNode(
+    ParameterConnectionPreservationMixin, SuccessFailureExecutionMixin, SuccessFailureNode
+):
     STATIC_PARAMS: ClassVar = ["provider", "pipeline"]
     START_PARAMS: ClassVar = ["pipeline", "provider"]
-    END_PARAMS: ClassVar = ["logs"]
+    END_PARAMS: ClassVar = ["Status", "logs"]
 
     def __init__(self, **kwargs) -> None:
         self._initializing = True
@@ -48,6 +51,7 @@ class LatentDiffusionPipelineBuilderNode(ParameterConnectionPreservationMixin, C
         self.loras_params = LorasParameter(self)
         self.loras_params.add_input_parameters()
 
+        self._create_status_parameters()
         self.log_params.add_output_parameters()
 
         self._initializing = False
@@ -219,24 +223,32 @@ class LatentDiffusionPipelineBuilderNode(ParameterConnectionPreservationMixin, C
 
     def process(self) -> AsyncResult:
         self.preprocess()
+        self._clear_execution_status()
         self.log_params.append_to_logs("Building pipeline...\n")
 
+        yield self._build_pipeline
+
+        if self._execution_succeeded:
+            self.log_params.append_to_logs("Pipeline building complete.\n")
+
+    def _build_pipeline(self) -> Any:
         self.set_pipeline_artifact()
-        pipeline_artifact = self.get_pipeline_artifact_or_raise()
+        pipeline_artifact = self.get_parameter_value("pipeline")
 
-        def work() -> Any:
-            try:
-                with self.log_params.append_profile_to_logs("Pipeline building/caching"):
-                    return pipeline_artifact.get_or_build_pipeline(log_params=self.log_params)
-            except Exception:
-                logger.exception("%s: Diffusion Pipeline build failed", self.name)
-                # Remove partial/corrupted pipeline from cache
-                if pipeline_artifact.config_hash is not None:
-                    model_cache.remove_pipeline(pipeline_artifact.config_hash)
-                # Aggressive cleanup on failure
-                cleanup_memory_caches()
-                raise
+        def build() -> Any:
+            with self.log_params.append_profile_to_logs("Pipeline building/caching"):
+                return pipeline_artifact.get_or_build_pipeline(log_params=self.log_params)
 
-        yield work
+        def cleanup() -> None:
+            self.log_params.append_to_logs("Pipeline building failed.\n")
+            if pipeline_artifact.config_hash is not None:
+                model_cache.remove_pipeline(pipeline_artifact.config_hash)
+            cleanup_memory_caches()
 
-        self.log_params.append_to_logs("Pipeline building complete.\n")
+        return self._run_with_status(
+            build,
+            success_msg="Pipeline built successfully.",
+            failure_log="Diffusion Pipeline build failed",
+            logger=logger,
+            on_error=cleanup,
+        )
