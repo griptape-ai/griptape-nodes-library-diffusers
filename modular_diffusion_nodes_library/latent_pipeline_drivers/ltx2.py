@@ -59,7 +59,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     produces_video: ClassVar[bool] = True
 
     _HDR_LORA_ADAPTER_TOKEN: ClassVar[str] = "ic-lora-hdr"
-    _GENERIC_LORA_ADAPTER_TOKEN: ClassVar[str] = "lora"
+    _IC_LORA_REFERENCE_KEY: ClassVar[str] = "ltx2_ic_lora_reference"
     #: Record concrete ``DiffusionPipeline`` class that produced the latent.
     _PIPELINE_CLASS_META_KEY: ClassVar[str] = "pipeline_class"
 
@@ -86,12 +86,6 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         if stamped is not None:
             return stamped == LTX2HDRPipeline.__name__
         return self.is_hdr_lora_active
-
-    @property
-    def is_ic_lora_active(self) -> bool:
-        """Whether any LoRA adapter is currently loaded on the pipeline."""
-        token = self._GENERIC_LORA_ADAPTER_TOKEN
-        return any(token in name.lower() for name in self._get_loaded_adapter_names())
 
     def _get_loaded_adapter_names(self) -> list[str]:
         get_list_adapters = getattr(self.pipe, "get_list_adapters", None)
@@ -405,7 +399,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         if self.is_hdr_lora_active:
             return self._denoise_with_hdr_lora(latent, **kwargs)
 
-        if self.is_ic_lora_active:
+        if self._IC_LORA_REFERENCE_KEY in kwargs:
             return self._denoise_with_ic_lora(latent, **kwargs)
 
         kwargs.pop("text_embeddings_path", None)
@@ -487,38 +481,11 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         self, latent: LatentArtifact | InpaintMaskArtifact, **kwargs: Any
     ) -> LatentArtifact:
         media_gen_conditioning_payloads = normalize_to_payloads(kwargs.pop(MediaGenConditioningKey.OUTPUT))
-        conditions: list[LTX2VideoCondition] = []
-
-        if media_gen_conditioning_payloads is not None:
-            temporal_ratio = getattr(self.pipe.vae, "temporal_compression_ratio", 8)
-            pixel_num_frames = latent.source_shape[-3]
-            for payload in media_gen_conditioning_payloads:
-                if payload.mode is ConditioningMode.VIDEO:
-                    entry = payload.entries[0]
-                    frames = resolve_conditioning_video(entry.artifact)
-                    pixel_frame_index = resolve_frame_index(entry.frame_index, pixel_num_frames)
-                    index = pixel_frame_index_to_latent_index(pixel_frame_index, temporal_ratio, pixel_num_frames)
-                    conditions.append(LTX2VideoCondition(frames=frames, index=index, strength=entry.strength))
-                elif payload.mode is ConditioningMode.IMAGE:
-                    if not payload.entries:
-                        msg = "Failed to build LTX2 video conditioning because the images list is empty."
-                        raise ValueError(msg)
-                    for entry in payload.entries:
-                        pixel_frame_index = resolve_frame_index(entry.frame_index, pixel_num_frames)
-                        latent_index = pixel_frame_index_to_latent_index(
-                            pixel_frame_index, temporal_ratio, pixel_num_frames
-                        )
-                        image = resolve_conditioning_image(entry.artifact)
-                        conditions.append(
-                            LTX2VideoCondition(
-                                frames=image,
-                                index=latent_index,
-                                strength=entry.strength,
-                            )
-                        )
-                else:
-                    msg = f"Failed to build LTX2 video conditioning because mode '{payload.mode.value}' is unsupported."
-                    raise ValueError(msg)
+        temporal_ratio = getattr(self.pipe.vae, "temporal_compression_ratio", 8)
+        pixel_num_frames = latent.source_shape[-3]
+        conditions = self._build_video_conditions_from_payloads(
+            media_gen_conditioning_payloads, pixel_num_frames, temporal_ratio
+        )
 
         if not conditions:
             msg = "Failed to build LTX2 video conditioning because no valid conditioning entries were provided."
@@ -527,13 +494,53 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         kwargs["conditions"] = conditions
         return self._run_denoise_with_pipe_variant(latent, LTX2ConditionPipeline, **kwargs)
 
+    def _build_video_conditions_from_payloads(
+        self,
+        payloads: list[MediaGenConditioningPayload] | None,
+        pixel_num_frames: int,
+        temporal_ratio: int,
+    ) -> list[LTX2VideoCondition]:
+        """Build ``LTX2VideoCondition`` objects from conditioning payloads."""
+        conditions: list[LTX2VideoCondition] = []
+        if payloads is None:
+            return conditions
+        for payload in payloads:
+            if payload.mode is ConditioningMode.VIDEO:
+                entry = payload.entries[0]
+                frames = resolve_conditioning_video(entry.artifact)
+                pixel_frame_index = resolve_frame_index(entry.frame_index, pixel_num_frames)
+                index = pixel_frame_index_to_latent_index(pixel_frame_index, temporal_ratio, pixel_num_frames)
+                conditions.append(LTX2VideoCondition(frames=frames, index=index, strength=entry.strength))
+            elif payload.mode is ConditioningMode.IMAGE:
+                if not payload.entries:
+                    msg = "Failed to build LTX2 video conditioning because the images list is empty."
+                    raise ValueError(msg)
+                for entry in payload.entries:
+                    pixel_frame_index = resolve_frame_index(entry.frame_index, pixel_num_frames)
+                    latent_index = pixel_frame_index_to_latent_index(
+                        pixel_frame_index, temporal_ratio, pixel_num_frames
+                    )
+                    image = resolve_conditioning_image(entry.artifact)
+                    conditions.append(
+                        LTX2VideoCondition(
+                            frames=image,
+                            index=latent_index,
+                            strength=entry.strength,
+                        )
+                    )
+            else:
+                msg = f"Failed to build LTX2 video conditioning because mode '{payload.mode.value}' is unsupported."
+                raise ValueError(msg)
+        return conditions
+
     # ------------------------------------------------------------------
     # HDR IC-LoRA support
     # ------------------------------------------------------------------
 
     def _denoise_with_hdr_lora(self, latent: LatentArtifact | InpaintMaskArtifact, **kwargs: Any) -> LatentArtifact:
         logger.info("LTX2: HDR IC-LoRA path active — denoising with LTX2HDRPipeline.")
-        media_gen_conditioning_payloads = normalize_to_payloads(kwargs.pop(MediaGenConditioningKey.OUTPUT, None))
+        media_gen_conditioning_payloads = normalize_to_payloads(kwargs.pop(self._IC_LORA_REFERENCE_KEY, None))
+        kwargs.pop(MediaGenConditioningKey.OUTPUT, None)
         text_embeddings_path = kwargs.pop("text_embeddings_path", "")
         target_height = latent.source_shape[-2]
         target_width = latent.source_shape[-1]
@@ -623,8 +630,17 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
     def _denoise_with_ic_lora(self, latent: LatentArtifact | InpaintMaskArtifact, **kwargs: Any) -> LatentArtifact:
         logger.info("LTX2: IC-LoRA path active - denoising with LTX2InContextPipeline.")
-        media_gen_conditioning_payloads = normalize_to_payloads(kwargs.pop(MediaGenConditioningKey.OUTPUT, None))
-        reference_conditions = self._build_ic_reference_conditions(media_gen_conditioning_payloads)
+        ref_payloads = normalize_to_payloads(kwargs.pop(self._IC_LORA_REFERENCE_KEY, None))
+        reference_conditions = self._build_ic_reference_conditions(ref_payloads)
+
+        frame_payloads = normalize_to_payloads(kwargs.pop(MediaGenConditioningKey.OUTPUT, None))
+        if frame_payloads is not None:
+            temporal_ratio = getattr(self.pipe.vae, "temporal_compression_ratio", 8)
+            pixel_num_frames = latent.source_shape[-3]
+            conditions = self._build_video_conditions_from_payloads(frame_payloads, pixel_num_frames, temporal_ratio)
+            if conditions:
+                kwargs["conditions"] = conditions
+
         kwargs = self._set_default_kwargs(kwargs)
 
         if reference_conditions:

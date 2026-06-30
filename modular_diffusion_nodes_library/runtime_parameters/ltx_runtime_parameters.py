@@ -41,7 +41,7 @@ class LTXPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             node,
             param_name="media_conditions",
             multiple=True,
-            badge_title="Frame conditions",
+            badge_title="Media conditions",
             badge_message=(
                 "Connect one or more **Media Gen Conditioning** nodes here to insert conditioning frames at "
                 "chosen positions of the generated video. Accepts both **image** and **video** payloads. "
