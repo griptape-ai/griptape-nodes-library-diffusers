@@ -2110,15 +2110,6 @@ async def build_workflow() -> None:
                     is_output=False,
                 )
             )
-            await GriptapeNodes.ahandle_request(
-                SetParameterValueRequest(
-                    parameter_name="num_inference_steps",
-                    node_name=node10_name,
-                    value=top_level_unique_values_dict["9861b1c5-0fe0-4a31-8d69-a770381ad877"],
-                    initial_setup=True,
-                    is_output=False,
-                )
-            )
         with GriptapeNodes.ContextManager().node(node11_name):
             await GriptapeNodes.ahandle_request(
                 SetParameterValueRequest(

@@ -129,7 +129,6 @@ async def build_workflow() -> None:
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='width', node_name=node0_name, value=top_level_unique_values_dict['7cacfa4d-337f-401f-b4c2-ba511a9b49dd'], initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='height', node_name=node0_name, value=top_level_unique_values_dict['c3e9f2f7-fdaf-4a05-916f-397bf7440835'], initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='num_frames', node_name=node0_name, value=top_level_unique_values_dict['8ee00a6a-02b2-4323-b484-107a8a106625'], initial_setup=True, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='num_inference_steps', node_name=node0_name, value=top_level_unique_values_dict['9afd90de-c1f1-4515-a86a-9791c3841822'], initial_setup=True, is_output=False))
         with GriptapeNodes.ContextManager().node(node1_name):
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline', node_name=node1_name, value=top_level_unique_values_dict['9a008d07-5b89-4c7c-863f-0755995130ba'], initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline', node_name=node1_name, value=top_level_unique_values_dict['9a008d07-5b89-4c7c-863f-0755995130ba'], initial_setup=True, is_output=True))
