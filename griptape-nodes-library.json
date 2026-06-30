@@ -297,6 +297,8 @@
     "workflows/templates/Flux2KleinGuidedInpainting.py",
     "workflows/templates/ControlnetInpainting.py",
     "workflows/templates/SuccessFailure.py",
-    "workflows/templates/VideoInpaintingAndOutpaintingWANVace.py"
+    "workflows/templates/VideoInpaintingAndOutpaintingWANVace.py",
+    "workflows/templates/FluxKontextImageEdit.py",
+    "workflows/templates/FluxKontextInpainting.py"
   ]
 }

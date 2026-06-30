@@ -1,7 +1,7 @@
 import logging
 
 from griptape.artifacts import ImageUrlArtifact
-from griptape_nodes.exe_types.core_types import Parameter
+from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
 from PIL.Image import Image
 
@@ -20,15 +20,27 @@ class FluxKontextPipelineRuntimeParameters(FluxPipelineRuntimeParameters):
 
     def _add_input_parameters(self) -> None:
         super()._add_input_parameters()
-        self._node.add_parameter(
-            Parameter(
-                name="image",
-                input_types=["ImageArtifact", "ImageUrlArtifact"],
-                type="ImageArtifact",
-                tooltip="Context image for editing (when using noise input) or reference image for inpainting (when using inpaint mask input). Optional.",
-                ui_options={"hide_property": True},
-            )
+        image_param = Parameter(
+            name="image",
+            input_types=["ImageArtifact", "ImageUrlArtifact"],
+            type="ImageArtifact",
+            tooltip="Context image for editing (when using noise input) or reference image for inpainting (when using inpaint mask input). Optional.",
+            ui_options={"hide_property": True},
+            allowed_modes={ParameterMode.INPUT},
+            user_defined=True,
         )
+        image_param.set_badge(
+            variant="help",
+            title="Dual-purpose image input",
+            message=(
+                "This input serves two roles depending on what else is connected:\n\n"
+                "**Image editing** — connect a context image alongside a noise latent. "
+                "Flux Kontext will use it as a reference to guide edits described in the prompt.\n\n"
+                "**Inpainting** — connect a reference image alongside an inpaint mask. "
+                "Flux Kontext will fill the masked region using the surrounding image context."
+            ),
+        )
+        self._node.add_parameter(image_param)
 
     def _remove_input_parameters(self) -> None:
         self._node.remove_parameter_element_by_name("image")
