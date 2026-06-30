@@ -1,8 +1,8 @@
 import logging
-from typing import Any
+from typing import Any, override
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterList, ParameterMode
-from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
+from griptape_nodes.exe_types.node_types import AsyncResult, BaseNode, SuccessFailureNode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
@@ -120,6 +120,15 @@ class LoraActivationPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNod
         self.log_params.append_to_logs(f"Pipeline configuration hash: {lora_artifact.config_hash}\n")
         self.set_parameter_value("lora_pipeline", lora_artifact)
         self.parameter_output_values["lora_pipeline"] = lora_artifact
+
+    @override
+    def after_incoming_connection_removed(
+        self,
+        source_node: BaseNode,  # noqa: ARG002
+        source_parameter: Parameter,  # noqa: ARG002
+        target_parameter: Parameter,  # noqa: ARG002
+    ) -> None:
+        self.set_lora_pipeline_artifact()
 
     def validate_before_node_run(self) -> list[Exception] | None:
         input_artifact = self._get_input_pipeline_artifact()

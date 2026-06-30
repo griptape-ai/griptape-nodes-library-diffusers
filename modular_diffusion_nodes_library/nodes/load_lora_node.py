@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import SuccessFailureNode
@@ -34,6 +35,36 @@ class LoadLora(SuccessFailureExecutionMixin, SuccessFailureNode):
             )
         )
         self._create_status_parameters()
+
+    def set_parameter_value(
+        self,
+        param_name: str,
+        value: Any,
+        *,
+        initial_setup: bool = False,
+        emit_change: bool = True,
+        skip_before_value_set: bool = False,
+    ) -> None:
+        super().set_parameter_value(
+            param_name,
+            value,
+            initial_setup=initial_setup,
+            emit_change=emit_change,
+            skip_before_value_set=skip_before_value_set,
+        )
+        if param_name != "loras":
+            self._update_loras_output()
+
+    def _update_loras_output(self) -> None:
+        raw_path = self.get_parameter_value("file_path")
+        if not isinstance(raw_path, str) or not raw_path:
+            return
+        lora_path = str(self.lora_file_path_params.get_file_path())
+        lora_weight = self.lora_weight_and_output_params.get_weight()
+        trigger_phrase = self.get_parameter_value("trigger_phrase") or None
+        self.lora_weight_and_output_params.set_output_lora(
+            {"path": lora_path, "weight": lora_weight, "trigger_phrase": trigger_phrase}
+        )
 
     def process(self) -> None:
         self._clear_execution_status()

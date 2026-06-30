@@ -139,6 +139,7 @@ class LoraPipelineRuntimeAdapterStep(PipelineRuntimeAdapterStep):
             adapter_names, adapter_weights = self._build_adapter_lists()
             lora_by_name = self._build_load_payload()
             loaded_adapter_names = adapter_names
+            cleanup_memory_caches()
             _load_missing_lora_adapters(pipe, lora_by_name)
             pipe.set_adapters(adapter_names=adapter_names, adapter_weights=adapter_weights)
             yield pipe
