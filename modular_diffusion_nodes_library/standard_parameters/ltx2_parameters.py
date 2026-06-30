@@ -18,10 +18,7 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
             node,
-            repo_ids=[
-                "dg845/LTX-2.3-Diffusers",
-                "dg845/LTX-2.3-Distilled-Diffusers",
-            ],
+            repo_ids=["dg845/LTX-2.3-Diffusers", "dg845/LTX-2.3-Distilled-Diffusers", "Lightricks/LTX-2"],
             parameter_name="model",
             list_all_models=list_all_models,
         )
