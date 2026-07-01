@@ -19,6 +19,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.stable_diffusion_xl
     StableDiffusionXLLatentPipelineDriver,
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.wan import WanTextToVideoLatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.wan_animate import WanAnimateLatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.wan_i2v import WanImageToVideoLatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.wan_vace import WanVaceLatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.z_image import ZImageLatentPipelineDriver
@@ -39,6 +40,7 @@ _DRIVER_REGISTRY: dict[str, type[LatentPipelineDriver]] = {
     "WanPipeline": WanTextToVideoLatentPipelineDriver,
     "LTXPipeline": LTXLatentPipelineDriver,
     "WanImageToVideoPipeline": WanImageToVideoLatentPipelineDriver,
+    "WanAnimatePipeline": WanAnimateLatentPipelineDriver,
     "WanVACEPipeline": WanVaceLatentPipelineDriver,
 }
 
