@@ -24,14 +24,18 @@ class Flux2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 tooltip="The prompt or prompts to guide the image generation.",
             )
         )
-        self._node.add_parameter(
-            Parameter(
-                name="guidance_scale",
-                default_value=4.0,
-                type="float",
-                tooltip="Higher guidance_scale encourages a model to generate images more aligned with prompt at the expense of lower image quality.",
-            )
+        guidance_scale_param = Parameter(
+            name="guidance_scale",
+            default_value=4.0,
+            type="float",
+            tooltip="Higher guidance_scale encourages a model to generate images more aligned with prompt at the expense of lower image quality.",
         )
+        guidance_scale_param.set_badge(
+            variant="help",
+            title="Guidance scale",
+            message=("For recommended values, reset the node to restore the model author's defaults."),
+        )
+        self._node.add_parameter(guidance_scale_param)
 
     def _remove_input_parameters(self) -> None:
         self._node.remove_parameter_element_by_name("prompt")

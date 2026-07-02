@@ -102,16 +102,25 @@ class LatentPipelineTypeParameters(ABC):
             raise ValueError(msg)
         return self._pipeline_type_pipeline_params
 
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        """Per-provider badge message shown on the pipeline_type parameter. Override in each subclass."""
+        return "Select a pipeline variant. Each variant loads different model weights."
+
     def add_input_parameters(self) -> None:
-        self._node.add_parameter(
-            Parameter(
-                name="pipeline_type",
-                type="str",
-                traits={Options(choices=self.pipeline_types)},
-                tooltip="Specific pipeline variant within the selected provider (e.g. base, Fill, Edit). Determines which checkpoints and runtime parameters are exposed.",
-                allowed_modes={ParameterMode.PROPERTY},
-            )
+        pipeline_type_param = Parameter(
+            name="pipeline_type",
+            type="str",
+            traits={Options(choices=self.pipeline_types)},
+            tooltip="Specific pipeline variant within the selected provider (e.g. base, Fill, Edit). Determines which checkpoints and runtime parameters are exposed.",
+            allowed_modes={ParameterMode.PROPERTY},
         )
+        pipeline_type_param.set_badge(
+            variant="help",
+            title="Pipeline variants",
+            message=self.pipeline_type_badge_message,
+        )
+        self._node.add_parameter(pipeline_type_param)
 
     def remove_input_parameters(self) -> None:
         self._node.remove_parameter_element_by_name("pipeline_type")
@@ -155,6 +164,16 @@ class LatentPipelineTypeParameters(ABC):
 
 
 class LatentFluxPipelineTypeParameters(LatentPipelineTypeParameters):
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        return (
+            "- `FluxPipeline` — Standard text-to-image generation (FLUX.1-schnell or FLUX.1-dev). "
+            "Supports ***ControlNet***, ***inpainting***, and ***ControlNet + inpainting*** via the "
+            "ControlNet Pipeline Builder and VAE Mask Encode nodes.\n"
+            "- `FluxFillPipeline` — Dedicated inpainting pipeline. Requires a separate Fill checkpoint "
+            "(e.g. `FLUX.1-Fill-dev`). Cannot be used with base model weights."
+        )
+
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
@@ -164,6 +183,14 @@ class LatentFluxPipelineTypeParameters(LatentPipelineTypeParameters):
 
 
 class LatentFlux2PipelineTypeParameters(LatentPipelineTypeParameters):
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        return (
+            "- `Flux2Pipeline` — Standard text-to-image generation.\n"
+            "- `Flux2KleinPipeline` — Guided inpainting with reference image conditioning. "
+            "Requires a dedicated Klein checkpoint (4B or 9B). Cannot be used with base Flux2 weights."
+        )
+
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
@@ -173,6 +200,14 @@ class LatentFlux2PipelineTypeParameters(LatentPipelineTypeParameters):
 
 
 class LatentLTX2PipelineTypeParameters(LatentPipelineTypeParameters):
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        return (
+            "- `LTX2Pipeline` — Text-to-video and image-to-video generation (Lightricks LTX-Video 2.x).\n\n"
+            "Supports HDR output via the Decode HDR node. "
+            "Frame count must be a multiple of 8, plus 1 (e.g. 9, 17, 25, 33, 41…)."
+        )
+
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
@@ -181,6 +216,17 @@ class LatentLTX2PipelineTypeParameters(LatentPipelineTypeParameters):
 
 
 class LatentQwenPipelineTypeParameters(LatentPipelineTypeParameters):
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        return (
+            "- `QwenImagePipeline` — Text-to-image generation. "
+            "Supports ***ControlNet***, ***inpainting***, and ***ControlNet + inpainting*** via the "
+            "ControlNet Pipeline Builder and VAE Mask Encode nodes.\n"
+            "- `QwenImageEditPipeline` — Image editing conditioned on an input image and a text instruction. "
+            "Requires a dedicated Edit checkpoint. Cannot be used with base Qwen weights. "
+            "Does not support ControlNet."
+        )
+
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
@@ -190,6 +236,14 @@ class LatentQwenPipelineTypeParameters(LatentPipelineTypeParameters):
 
 
 class LatentStableDiffusionPipelineTypeParameters(LatentPipelineTypeParameters):
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        return (
+            "- `StableDiffusionXLPipeline` — Text-to-image generation.\n\n"
+            "Supports ***ControlNet***, ***inpainting***, and ***ControlNet + inpainting*** via the "
+            "ControlNet Pipeline Builder and VAE Mask Encode nodes."
+        )
+
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
@@ -198,6 +252,14 @@ class LatentStableDiffusionPipelineTypeParameters(LatentPipelineTypeParameters):
 
 
 class LatentStableDiffusion3PipelineTypeParameters(LatentPipelineTypeParameters):
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        return (
+            "- `StableDiffusion3Pipeline` — Text-to-image generation.\n\n"
+            "Supports ***ControlNet***, ***inpainting***, and ***ControlNet + inpainting*** via the "
+            "ControlNet Pipeline Builder and VAE Mask Encode nodes."
+        )
+
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
@@ -206,6 +268,14 @@ class LatentStableDiffusion3PipelineTypeParameters(LatentPipelineTypeParameters)
 
 
 class LatentLTXPipelineTypeParameters(LatentPipelineTypeParameters):
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        return (
+            "- `LTXPipeline` — Text-to-video and image-to-video generation (Lightricks LTX-Video 1.x).\n\n"
+            "Frame count must be a multiple of 8, plus 1 (e.g. 9, 17, 25, 33, 41…). "
+            "For HDR output or the latest model, use the LTX2 provider instead."
+        )
+
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
@@ -214,6 +284,16 @@ class LatentLTXPipelineTypeParameters(LatentPipelineTypeParameters):
 
 
 class LatentWanPipelineTypeParameters(LatentPipelineTypeParameters):
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        return (
+            "- `WanPipeline` — Text-to-video generation (Alibaba WAN).\n"
+            "- `WanImageToVideoPipeline` — Image-to-video. Requires a dedicated I2V checkpoint. "
+            "Cannot be used with base WAN weights.\n\n"
+            "For first/last-frame conditioning, connect a Media Gen Conditioning node to the "
+            "`additional_parameters` input of Generate Media Latents."
+        )
+
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
@@ -223,6 +303,14 @@ class LatentWanPipelineTypeParameters(LatentPipelineTypeParameters):
 
 
 class LatentZImagePipelineTypeParameters(LatentPipelineTypeParameters):
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        return (
+            "- `ZImagePipeline` — Text-to-image generation.\n\n"
+            "Supports ***ControlNet***, ***inpainting***, and ***ControlNet + inpainting*** via the "
+            "ControlNet Pipeline Builder and VAE Mask Encode nodes."
+        )
+
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {

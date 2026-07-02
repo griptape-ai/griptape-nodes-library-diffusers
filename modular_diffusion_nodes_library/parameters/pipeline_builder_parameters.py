@@ -30,16 +30,30 @@ class LatentDiffusionPipelineBuilderParameters:
         self.set_pipeline_type_parameters(self.provider_choices[0])
 
     def add_input_parameters(self) -> None:
-        self._node.add_parameter(
-            Parameter(
-                name="provider",
-                type="str",
-                traits={Options(choices=self.provider_choices)},
-                tooltip="Select the model family (Flux, Qwen, SDXL, WAN, etc.) to build a pipeline for.",
-                allowed_modes={ParameterMode.PROPERTY},
-                ui_options={"placeholder_text": "Select Provider"},
-            )
+        provider_param = Parameter(
+            name="provider",
+            type="str",
+            traits={Options(choices=self.provider_choices)},
+            tooltip="Select the model family (Flux, Qwen, SDXL, WAN, etc.) to build a pipeline for.",
+            allowed_modes={ParameterMode.PROPERTY},
+            ui_options={"placeholder_text": "Select Provider"},
         )
+        provider_param.set_badge(
+            variant="help",
+            title="Choosing a provider",
+            message=(
+                "Each provider maps to a model family from a specific organisation:\n\n"
+                "- ***Flux / Flux2 / Flux Fill*** — Black Forest Labs. Image generation and inpainting.\n"
+                "- ***Qwen / Qwen Edit*** — Alibaba. Image generation and image editing.\n"
+                "- ***Stable Diffusion XL / SD3*** — Stability AI. Image generation.\n"
+                "- ***WAN / WAN I2V*** — Alibaba. Text-to-video and image-to-video.\n"
+                "- ***LTX / LTX2*** — Lightricks. Text-to-video and image-to-video.\n"
+                "- ***ZImage*** — ZImage. Image generation and inpainting.\n\n"
+                "The provider you select determines which pipeline types and model checkpoints "
+                "are available in the fields below."
+            ),
+        )
+        self._node.add_parameter(provider_param)
 
     def add_output_parameters(self) -> None:
         self._node.add_parameter(

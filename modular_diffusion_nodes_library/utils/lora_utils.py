@@ -18,22 +18,37 @@ class LorasParameter:
         self._loras_parameter_name = "loras"
 
     def add_input_parameters(self) -> None:
-        self._node.add_parameter(
-            ParameterList(
-                name="loras",
-                input_types=["loras", "dict"],
-                default_value=[],
-                type="loras",
-                allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
-                tooltip=(
-                    "LoRAs to fuse permanently into the pipeline weights. Fused LoRAs become part of "
-                    "the model's cached identity \u2014 changing them rebuilds the pipeline. Use this for "
-                    "production-stable style/character LoRAs. For dynamic adapters (IC-LoRA, "
-                    "distillation, slider, swap-per-generation), use the LoRA Pipeline node instead, "
-                    "which activates adapters without modifying the cache."
-                ),
-            )
+        loras_param = ParameterList(
+            name="loras",
+            input_types=["loras", "dict"],
+            default_value=[],
+            type="loras",
+            allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
+            tooltip=(
+                "LoRAs to fuse permanently into the pipeline weights. Fused LoRAs become part of "
+                "the model's cached identity \u2014 changing them rebuilds the pipeline. Use this for "
+                "production-stable style/character LoRAs. For dynamic adapters (IC-LoRA, "
+                "distillation, slider, swap-per-generation), use the LoRA Pipeline node instead, "
+                "which activates adapters without modifying the cache."
+            ),
         )
+        loras_param.set_badge(
+            variant="help",
+            title="Fused vs. activation LoRAs",
+            message=(
+                "***Fused (this input)*** — LoRA weights are merged into the pipeline on load and become "
+                "part of its cache identity. This means:\n\n"
+                "- Changing or removing a LoRA evicts the pipeline from cache and triggers a full rebuild.\n"
+                "- Best for a fixed, production-stable style or character LoRA that never changes between runs.\n\n"
+                "***Activation (LoRA Pipeline node)*** — adapters are applied dynamically around each generation "
+                "call and released afterward. The base pipeline is never modified, so:\n\n"
+                "- Swapping LoRAs between runs does ***not*** cause a rebuild.\n"
+                "- Multiple branches can share the same cached pipeline (e.g. one with LoRAs, one without).\n\n"
+                "Prefer activation for IC-LoRAs, distillation/acceleration LoRAs, slider LoRAs, "
+                "or any workflow that swaps adapters between runs."
+            ),
+        )
+        self._node.add_parameter(loras_param)
 
     def to_adapter_name(self, model_path: str) -> str:
         """Returns a unique name for an adapter given its model path."""

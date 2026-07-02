@@ -48,16 +48,32 @@ class DiffusionPipelineGenerateLatentParameters:
         self._node = node
 
     def add_input_parameters(self) -> None:
-        self._node.add_parameter(
-            Parameter(
-                name="input_latent",
-                input_types=["LatentArtifact", "InpaintMaskArtifact"],
-                type="LatentArtifact",
-                tooltip="Input latent tensor. Connect an Encode Inpaint Latent to enable inpainting mode.",
-                allowed_modes={ParameterMode.INPUT},
-                serializable=False,
-            )
+        input_latent_param = Parameter(
+            name="input_latent",
+            input_types=["LatentArtifact", "InpaintMaskArtifact"],
+            type="LatentArtifact",
+            tooltip="Input latent tensor. Connect an Encode Inpaint Latent to enable inpainting mode.",
+            allowed_modes={ParameterMode.INPUT},
+            serializable=False,
         )
+        input_latent_param.set_badge(
+            variant="help",
+            title="Three input modes",
+            message=(
+                "What you connect here determines the generation mode:\n\n"
+                "***Empty Latent*** (from Empty Latents node) — "
+                "ENABLE 'add_noise' for text-to-image / text-to-video. Denoising starts from pure noise.\n\n"
+                "***Noise Latent*** (from Create Noise Latents) — "
+                "text-to-image / text-to-video. Denoising starts from pure noise.\n\n"
+                "***Already-diffused or encoded LatentArtifact*** (output of a previous Generate node, "
+                "or from a VAE Encode node) — image-to-image or refinement. "
+                "Enable `add_noise` to blend the input with noise before denoising.\n\n"
+                "***InpaintMaskArtifact*** (from a VAE Mask Encode node) — inpainting. "
+                "The node automatically switches to the inpaint pipeline and hides `add_noise`. "
+                "Only the masked region is regenerated; the rest of the image is preserved."
+            ),
+        )
+        self._node.add_parameter(input_latent_param)
 
     def add_output_parameters(self) -> None:
         self._node.add_parameter(
@@ -71,24 +87,41 @@ class DiffusionPipelineGenerateLatentParameters:
         )
 
     def add_property_parameters(self) -> None:
-        self._node.add_parameter(
-            Parameter(
-                name="add_noise",
-                default_value=False,
-                type="bool",
-                tooltip="Add noise to the input latent before denoising. Enable for image-to-image/video-to-video/refinement workflows.",
-                allowed_modes={ParameterMode.PROPERTY},
-            )
+        add_noise_param = Parameter(
+            name="add_noise",
+            default_value=False,
+            type="bool",
+            tooltip="Add noise to the input latent before denoising. Enable for image-to-image/video-to-video/refinement workflows.",
+            allowed_modes={ParameterMode.PROPERTY},
         )
-        self._node.add_parameter(
-            Parameter(
-                name="start_step",
-                default_value=0,
-                type="int",
-                tooltip="Denoising step index (0-based) to start from. Use a non-zero value to resume a multi-stage denoise.",
-                allowed_modes={ParameterMode.PROPERTY},
-            )
+        add_noise_param.set_badge(
+            variant="help",
+            title="Image-to-image blending",
+            message=(
+                "When enabled, the input latent is blended with noise before denoising starts. "
+                "The blend amount is controlled by `start_step` relative to `num_inference_steps`: "
+                "a higher `start_step` adds less noise and keeps the output closer to the input. "
+                "A `start_step` of 0 adds maximum noise — effectively ignoring the input content."
+            ),
         )
+        self._node.add_parameter(add_noise_param)
+        start_step_param = Parameter(
+            name="start_step",
+            default_value=0,
+            type="int",
+            tooltip="Denoising step index (0-based) to start from. Use a non-zero value to resume a multi-stage denoise.",
+            allowed_modes={ParameterMode.PROPERTY},
+        )
+        start_step_param.set_badge(
+            variant="help",
+            title="Multi-stage denoising",
+            message=(
+                "Run only a portion of the denoising schedule — useful for multi-stage refinement:\n\n"
+                "- `start_step` — step to begin from (0 = the very start)\n"
+                "- `end_step` — step to stop at (−1 = run to the end of the number of steps)"
+            ),
+        )
+        self._node.add_parameter(start_step_param)
         self._node.add_parameter(
             Parameter(
                 name="end_step",
@@ -343,7 +376,7 @@ class DiffusionPipelineGenerateLatentParameters:
         if number_of_steps > 0 and self.start_step > 0:
             return 1.0 - (self.start_step / number_of_steps)
         return 1.0
-    
+
     def get_strength_affected_steps(self) -> int:
         return math.ceil(self.get_num_inference_steps() * self.get_strength())
 

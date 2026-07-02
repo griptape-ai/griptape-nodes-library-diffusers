@@ -72,17 +72,27 @@ class DecodeHdrNode(VaeDecodeNode):
                 user_defined=True,
             )
         )
-        self.add_parameter(
-            Parameter(
-                name="tone_mapping",
-                default_value=DEFAULT_TONE_MAPPING,
-                type="str",
-                tooltip="Tone mapping function applied to linear HDR frames before encoding to SDR MP4.",
-                allowed_modes={ParameterMode.PROPERTY},
-                user_defined=True,
-                traits={Options(choices=TONE_MAPPING_CHOICES)},
-            )
+        tone_mapping_param = Parameter(
+            name="tone_mapping",
+            default_value=DEFAULT_TONE_MAPPING,
+            type="str",
+            tooltip="Tone mapping function applied to linear HDR frames before encoding to SDR MP4.",
+            allowed_modes={ParameterMode.PROPERTY},
+            user_defined=True,
+            traits={Options(choices=TONE_MAPPING_CHOICES)},
         )
+        tone_mapping_param.set_badge(
+            variant="help",
+            title="Tone mapping options",
+            message=(
+                "Select an algorithm to compress HDR media for viewing on standard screens:\n\n"
+                "- ***clip*** — Discards values outside the standard 0-1 range\n"
+                "- ***reinhard*** — Provides smooth, natural-looking compression\n"
+                "- ***aces_filmic*** — Offers cinematic contrast with film-like highlights (default)\n"
+                "- ***cv2_reinhard*** / ***cv2_mantiuk*** — OpenCV alternatives similar to reinhard"
+            ),
+        )
+        self.add_parameter(tone_mapping_param)
         self.progress_bar_component = ProgressBarComponent(self)
         self.progress_bar_component.add_property_parameters()
         self.log_params = LogParameter(self)

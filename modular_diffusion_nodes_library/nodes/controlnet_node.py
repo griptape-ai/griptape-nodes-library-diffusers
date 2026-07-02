@@ -61,15 +61,23 @@ class ControlNetNode(ParameterConnectionPreservationMixin, ControlNode):
                 ui_options={"slider": {"min_val": 0.0, "max_val": 1.0}, "step": 0.01},
             )
         )
-        self.add_parameter(
-            Parameter(
-                name="control_image",
-                input_types=["ImageArtifact", "ImageUrlArtifact"],
-                type="ImageArtifact",
-                tooltip="Control image used as conditioning (e.g. canny edge map, depth map, pose skeleton).",
-                allowed_modes={ParameterMode.INPUT},
-            )
+        control_image_param = Parameter(
+            name="control_image",
+            input_types=["ImageArtifact", "ImageUrlArtifact"],
+            type="ImageArtifact",
+            tooltip="Control image used as conditioning (e.g. canny edge map, depth map, pose skeleton).",
+            allowed_modes={ParameterMode.INPUT},
         )
+        control_image_param.set_badge(
+            variant="help",
+            title="Image must match the ControlNet type",
+            message=(
+                "The image must match the type of ControlNet model selected.\n\n"
+                "Plugging in an incompatible image to the selected ControlNet model will produce weak or no guidance.\n\n"
+                "e.g. depth maps only work with depth ControlNets, canny edge maps only work with canny ControlNets, etc."
+            ),
+        )
+        self.add_parameter(control_image_param)
         self.add_parameter(
             Parameter(
                 name="control_net",

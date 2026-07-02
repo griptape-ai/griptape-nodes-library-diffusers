@@ -102,14 +102,18 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 tooltip="The prompt or prompts not to guide video generation. Ignored when not using guidance (i.e. when guidance_scale is less than 1).",
             )
         )
-        self._node.add_parameter(
-            Parameter(
-                name="guidance_scale",
-                default_value=1.0 if self._is_distilled else 3.0,
-                type="float",
-                tooltip="Classifier-Free Guidance scale for the video modality. Higher values steer generation more strongly toward the prompt, usually at the expense of visual quality. A separate audio_guidance_scale controls the audio modality. For LTX-2.3 the authors suggest 3.0 for video.",
-            )
+        guidance_scale_param = Parameter(
+            name="guidance_scale",
+            default_value=1.0 if self._is_distilled else 3.0,
+            type="float",
+            tooltip="Classifier-Free Guidance scale for the video modality. Higher values steer generation more strongly toward the prompt, usually at the expense of visual quality. A separate audio_guidance_scale controls the audio modality. For LTX-2.3 the authors suggest 3.0 for video.",
         )
+        guidance_scale_param.set_badge(
+            variant="help",
+            title="Guidance scale",
+            message=("For recommended values, reset the node to restore the model author's defaults."),
+        )
+        self._node.add_parameter(guidance_scale_param)
         self._node.add_parameter(
             Parameter(
                 name="stg_scale",

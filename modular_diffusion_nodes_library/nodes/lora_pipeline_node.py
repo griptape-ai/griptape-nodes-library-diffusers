@@ -65,10 +65,10 @@ class LoraActivationPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNod
             variant="help",
             title="Activation vs. fused LoRAs",
             message=(
-                "**Activation (this node)** \u2014 adapters are loaded and switched on per generation, "
-                "then released. The base pipeline is **not** mutated, so the same cached pipeline can "
+                "***Activation (this node)*** — adapters are loaded and switched on per generation, "
+                "then released. The base pipeline is ***not*** mutated, so the same cached pipeline can "
                 "power multiple branches (e.g. one branch with LoRAs, one without) without rebuilding.\n\n"
-                "**Fused** (the `loras` input on the Modular Diffusion Pipeline Builder) \u2014 adapters "
+                "***Fused*** (the `loras` input on the Modular Diffusion Pipeline Builder) — adapters "
                 "are baked permanently into the cached weights. Changing the LoRA set evicts and "
                 "rebuilds the entire pipeline.\n\n"
                 "Prefer activation for in-context (IC) LoRAs, distillation/acceleration LoRAs, slider "

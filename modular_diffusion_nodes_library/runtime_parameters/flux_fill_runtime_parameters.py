@@ -30,14 +30,18 @@ class FluxFillPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 tooltip="The prompt or prompts to be sent to tokenizer_2 and text_encoder_2. If not defined, prompt is will be used instead",
             )
         )
-        self._node.add_parameter(
-            Parameter(
-                name="guidance_scale",
-                default_value=30.0,
-                type="float",
-                tooltip="Higher guidance_scale encourages a model to generate images more aligned with prompt at the expense of lower image quality.",
-            )
+        guidance_scale_param = Parameter(
+            name="guidance_scale",
+            default_value=30.0,
+            type="float",
+            tooltip="Higher guidance_scale encourages a model to generate images more aligned with prompt at the expense of lower image quality.",
         )
+        guidance_scale_param.set_badge(
+            variant="help",
+            title="Guidance scale",
+            message=("For recommended values, reset the node to restore the model author's defaults."),
+        )
+        self._node.add_parameter(guidance_scale_param)
 
         self._node.hide_parameter_by_name("prompt_2")
 
