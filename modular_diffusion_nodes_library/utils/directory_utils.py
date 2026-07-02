@@ -26,7 +26,9 @@ def check_cleanup_intermediates_directory() -> None:
         to ensure sufficient space is available.
     """
     # Perform cleanup if needed before saving new file
-    cleanup_enabled = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_directory_cleanup")
+    cleanup_enabled = GriptapeNodes.ConfigManager().get_config_value(
+        "modular_diffusion_library.enable_directory_cleanup"
+    )
     if cleanup_enabled:
         static_files_directory = GriptapeNodes.ConfigManager().get_config_value("static_files_directory")
         intermediates_directory = get_intermediates_directory_path()

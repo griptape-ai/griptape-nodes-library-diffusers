@@ -28,6 +28,7 @@ logger = logging.getLogger("diffusers_nodes_library")
 
 class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
     _HDR_LORA_ADAPTER_TOKEN = "ic-lora-hdr"
+    _IC_LORA_REFERENCE_KEY: ClassVar[str] = "ltx2_ic_lora_reference"
 
     CONDITIONING_CONFIG: ClassVar[MediaGenConditioningConfig | None] = MediaGenConditioningConfig(
         image=HybridImageConfig(
@@ -52,16 +53,40 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             node,
             param_name="media_conditions",
             multiple=True,
-            badge_title="Frame conditions",
+            badge_title="Media conditions",
             badge_message=(
                 "Connect one or more **Media Gen Conditioning** nodes here to insert conditioning frames at "
                 "chosen positions of the generated video. Accepts both **image** and **video** payloads. "
                 "Each payload sets a frame index (`first`, `last`, or a keyframe index) and a "
                 "strength in `[0, 1]` \u2014 `1.0` keeps the condition fully clean, intermediate values "
                 "mix it with noise. First-frame conditions overwrite the corresponding tokens; "
-                "non-first-frame conditions are appended as keyframe tokens."
+                "non-first-frame conditions are appended as keyframe tokens.\n\n"
+                "**Tip:** You can also connect an image or video directly — without a Media Gen Conditioning node — "
+                "for quick single-item conditioning at frame index **0** and strength **1.0**."
             ),
         )
+        self._reference_conditions_param = MediaGenConditioningRuntimeParameter(
+            node,
+            param_name="reference_conditions",
+            multiple=True,
+            output_key=self._IC_LORA_REFERENCE_KEY,
+            accepted_modes=(ConditioningMode.VIDEO,),
+            badge_title="IC-LoRA reference conditions",
+            badge_message=(
+                "Connect one or more video clips here as In Context LoRA reference conditions.\n\n"
+                "Each reference video allows the IC-LoRA adapter to condition generation on the content. "
+                "Use **Media conditions** for inserting frames at specific positions; use this input for "
+                "the IC-LoRA style/content reference."
+            ),
+        )
+
+    def on_incoming_connection_added(self, param_name: str) -> None:
+        self._media_gen_conditioning_param.on_incoming_connection_added(param_name)
+        self._reference_conditions_param.on_incoming_connection_added(param_name)
+
+    def on_incoming_connection_removed(self, param_name: str) -> None:
+        self._media_gen_conditioning_param.on_incoming_connection_removed(param_name)
+        self._reference_conditions_param.on_incoming_connection_removed(param_name)
 
     def add_input_parameters(self) -> None:
         self._add_input_parameters()
@@ -175,7 +200,16 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             self._node.show_parameter_by_name("text_embeddings_path")
         else:
             self._node.hide_parameter_by_name("text_embeddings_path")
-        self._media_gen_conditioning_param.add_input_parameters()
+
+        if self._is_ic_lora_active:
+            self._reference_conditions_param.add_input_parameters()
+        else:
+            self._reference_conditions_param.remove_input_parameters()
+
+        if not self._is_hdr_lora_active:
+            self._media_gen_conditioning_param.add_input_parameters()
+        else:
+            self._media_gen_conditioning_param.remove_input_parameters()
 
     @property
     def _is_distilled(self) -> bool:
@@ -194,7 +228,16 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
 
         return False
 
+    @property
+    def _is_ic_lora_active(self) -> bool:
+        """True if any non-HDR LoRA adapter is connected."""
+        for step_metadata in self._pipeline_metadata.get("runtime_adapter_steps", []):
+            if step_metadata.get("kind") == LoraPipelineRuntimeAdapterStep.KIND:
+                return True
+        return False
+
     def _remove_input_parameters(self) -> None:
+        self._reference_conditions_param.remove_input_parameters()
         self._media_gen_conditioning_param.remove_input_parameters()
         if self._is_distilled:
             self._node.remove_parameter_element_by_name("use_stage_2")
@@ -221,6 +264,16 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 self._text_embeddings_path_param.validate_parameter_values()
             except RuntimeError as err:
                 return [err]
+        if self._is_ic_lora_active:
+            try:
+                self._reference_conditions_param.validate_before_node_run()
+            except RuntimeError as err:
+                return [err]
+        if self._is_hdr_lora_active or self._is_ic_lora_active:
+            try:
+                self._media_gen_conditioning_param.validate_before_node_run()
+            except RuntimeError as err:
+                return [err]
         return None
 
     def _get_pipe_kwargs(self) -> dict:
@@ -241,5 +294,8 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             pipe_kwargs["text_embeddings_path"] = str(self._text_embeddings_path_param.get_file_path())
         if self._is_distilled:
             pipe_kwargs["use_stage_2"] = bool(self._node.get_parameter_value("use_stage_2"))
-        pipe_kwargs.update(self._media_gen_conditioning_param.get_pipe_kwargs())
+        if not self._is_hdr_lora_active:
+            pipe_kwargs.update(self._media_gen_conditioning_param.get_pipe_kwargs())
+        if self._is_ic_lora_active:
+            pipe_kwargs.update(self._reference_conditions_param.get_pipe_kwargs())
         return pipe_kwargs

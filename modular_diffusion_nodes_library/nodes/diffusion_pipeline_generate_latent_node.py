@@ -1,7 +1,7 @@
 import logging
-from typing import Any, ClassVar
+from typing import Any, ClassVar, override
 
-from griptape_nodes.exe_types.core_types import Parameter, ParameterList
+from griptape_nodes.exe_types.core_types import Parameter, ParameterGroup, ParameterList
 from griptape_nodes.exe_types.node_types import AsyncResult, BaseNode, SuccessFailureNode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 from griptape_nodes.exe_types.param_components.progress_bar_component import ProgressBarComponent
@@ -19,7 +19,7 @@ from modular_diffusion_nodes_library.parameters.generate_latent_parameters impor
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import (
     ModularDiffusionPipelineParameters,
 )
-from modular_diffusion_nodes_library.utils.connection_utils import delete_parameter_list_child_connections
+from modular_diffusion_nodes_library.utils.connection_utils import delete_container_parameter_childs
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -89,15 +89,16 @@ class DiffusionPipelineGenerateLatentNode(
         saved_incoming = []
         saved_outgoing = []
         if did_pipeline_change:
-            saved_incoming, saved_outgoing = self._save_connections()
-            self.pipe_params.tear_down_runtime_parameters()
-            # Strip user_defined params left from workflow load so the new runtime helper installs correctly.
-            self._remove_user_defined_parameters()
-            self.latent_parameter.add_or_remove_control_net_parameter(current_pipeline, value)
+            if value is not None:
+                saved_incoming, saved_outgoing = self._save_connections()
+                self.pipe_params.tear_down_runtime_parameters()
+                # Strip user_defined params left from workflow load so the new runtime helper installs correctly.
+                self._remove_user_defined_parameters()
+                self.latent_parameter.add_or_remove_control_net_parameter(current_pipeline, value)
 
         self.pipe_params.after_value_set(parameter, value)
 
-        if did_pipeline_change:
+        if did_pipeline_change and value is not None:
             start_params = DiffusionPipelineGenerateLatentNode.START_PARAMS
             end_params = DiffusionPipelineGenerateLatentNode.END_PARAMS
             is_control_net_pipeline = self.latent_parameter._is_control_net_pipeline(value)
@@ -113,7 +114,6 @@ class DiffusionPipelineGenerateLatentNode(
 
             self.reorder_elements(sorted_parameters)
 
-        if did_pipeline_change:
             self._restore_connections(saved_incoming, saved_outgoing)
             self._validate_pipeline(value)
 
@@ -167,14 +167,14 @@ class DiffusionPipelineGenerateLatentNode(
         targets = [
             child
             for child in list(self.root_ui_element._children)
-            if isinstance(child, Parameter)
+            if (isinstance(child, Parameter) or isinstance(child, ParameterGroup))
             and getattr(child, "user_defined", False)
             and child.name not in excluded_user_params
         ]
-        # Parent removal does not cascade to ParameterList child connections; clean them up first.
-        delete_parameter_list_child_connections(
+        # Parent removal does not cascade to ParameterList or ParameterGroup child connections; clean them up first.
+        delete_container_parameter_childs(
             self,
-            [target for target in targets if isinstance(target, ParameterList)],
+            [target for target in targets if isinstance(target, ParameterList) or isinstance(target, ParameterGroup)],
         )
         for target in targets:
             self.remove_parameter_element_by_name(target.name)
@@ -184,6 +184,16 @@ class DiffusionPipelineGenerateLatentNode(
         self.progress_bar_component.reset()
         self.log_params.clear_logs()
 
+    @override
+    def after_incoming_connection(
+        self,
+        source_node: BaseNode,  # noqa: ARG002
+        source_parameter: Parameter,  # noqa: ARG002
+        target_parameter: Parameter,
+    ) -> None:
+        self.pipe_params.runtime_parameters.on_incoming_connection_added(target_parameter.name)
+
+    @override
     def after_incoming_connection_removed(
         self,
         source_node: BaseNode,  # noqa: ARG002
@@ -193,6 +203,8 @@ class DiffusionPipelineGenerateLatentNode(
         if target_parameter.name == "pipeline":
             self.pipe_params.runtime_parameters.remove_input_parameters()
             self.pipe_params.runtime_parameters.remove_output_parameters()
+            return
+        self.pipe_params.runtime_parameters.on_incoming_connection_removed(target_parameter.name)
 
     def validate_before_node_run(self) -> list[Exception] | None:
         result = self.pipe_params.validate_before_node_run()

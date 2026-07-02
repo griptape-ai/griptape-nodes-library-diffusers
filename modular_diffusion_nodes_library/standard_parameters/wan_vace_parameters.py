@@ -1,8 +1,8 @@
 import logging
 from typing import Any
 
+import diffusers  # type: ignore[reportMissingImports]
 import torch  # type: ignore[reportMissingImports]
-from diffusers.pipelines.ltx2.pipeline_ltx2 import LTX2Pipeline  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
@@ -10,15 +10,18 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
     ModularDiffusionPipelineTypePipelineParameters,
 )
 
-logger = logging.getLogger("diffusers_nodes_library")
+logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
-class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-    def __init__(self, node: BaseNode, *, list_all_models: bool = False):  # noqa: ARG002
+class WanVacePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
             node,
-            repo_ids=["dg845/LTX-2.3-Diffusers", "dg845/LTX-2.3-Distilled-Diffusers", "Lightricks/LTX-2"],
+            repo_ids=[
+                "Wan-AI/Wan2.1-VACE-1.3B-diffusers",
+                "Wan-AI/Wan2.1-VACE-14B-diffusers",
+            ],
             parameter_name="model",
             list_all_models=list_all_models,
         )
@@ -36,7 +39,7 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @property
     def pipeline_class(self) -> type:
-        return LTX2Pipeline
+        return diffusers.WanVACEPipeline  # type: ignore[reportAttributeAccessIssue]
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
@@ -47,19 +50,22 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        base_repo_id, base_revision = self._model_repo_parameter.get_repo_revision()
+        repo_id, revision = self._model_repo_parameter.get_repo_revision()
 
         return {
-            "base_repo_id": base_repo_id,
-            "base_revision": base_revision,
-            "is_distilled": "distilled" in base_repo_id.lower(),
+            "repo_id": repo_id,
+            "revision": revision,
         }
 
+    def requires_device_map(self) -> bool:
+        return True
+
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> LTX2Pipeline:
-        return LTX2Pipeline.from_pretrained(
-            pretrained_model_name_or_path=build_data["base_repo_id"],
-            revision=build_data["base_revision"],
+    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.WanVACEPipeline:  # type: ignore[reportAttributeAccessIssue]
+        return diffusers.WanVACEPipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
+            pretrained_model_name_or_path=build_data["repo_id"],
+            revision=build_data["revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,
+            device_map="balanced",
         )

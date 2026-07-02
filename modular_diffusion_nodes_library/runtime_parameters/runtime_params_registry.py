@@ -19,6 +19,9 @@ from modular_diffusion_nodes_library.runtime_parameters.flux2_runtime_parameters
 from modular_diffusion_nodes_library.runtime_parameters.flux_fill_runtime_parameters import (
     FluxFillPipelineRuntimeParameters,
 )
+from modular_diffusion_nodes_library.runtime_parameters.flux_kontext_runtime_parameters import (
+    FluxKontextPipelineRuntimeParameters,
+)
 from modular_diffusion_nodes_library.runtime_parameters.flux_runtime_parameters import (
     FluxPipelineRuntimeParameters,
 )
@@ -49,6 +52,9 @@ from modular_diffusion_nodes_library.runtime_parameters.wan_i2v_runtime_paramete
 from modular_diffusion_nodes_library.runtime_parameters.wan_runtime_parameters import (
     WanPipelineRuntimeParameters,
 )
+from modular_diffusion_nodes_library.runtime_parameters.wan_vace_runtime_parameters import (
+    WanVacePipelineRuntimeParameters,
+)
 from modular_diffusion_nodes_library.runtime_parameters.z_image_runtime_parameters import (
     ZImagePipelineRuntimeParameters,
 )
@@ -56,6 +62,7 @@ from modular_diffusion_nodes_library.runtime_parameters.z_image_runtime_paramete
 _RUNTIME_PARAMS_REGISTRY: dict[str, type[DiffusionPipelineRuntimeParameters]] = {
     "FluxPipeline": FluxPipelineRuntimeParameters,
     "FluxFillPipeline": FluxFillPipelineRuntimeParameters,
+    "FluxKontextPipeline": FluxKontextPipelineRuntimeParameters,
     "Flux2Pipeline": Flux2PipelineRuntimeParameters,
     "Flux2KleinPipeline": Flux2KleinPipelineRuntimeParameters,
     "LTXPipeline": LTXPipelineRuntimeParameters,
@@ -66,6 +73,7 @@ _RUNTIME_PARAMS_REGISTRY: dict[str, type[DiffusionPipelineRuntimeParameters]] = 
     "StableDiffusionXLPipeline": StableDiffusionXLPipelineRuntimeParameters,
     "WanPipeline": WanPipelineRuntimeParameters,
     "WanImageToVideoPipeline": WanImageToVideoPipelineRuntimeParameters,
+    "WanVACEPipeline": WanVacePipelineRuntimeParameters,
     "ZImagePipeline": ZImagePipelineRuntimeParameters,
 }
 

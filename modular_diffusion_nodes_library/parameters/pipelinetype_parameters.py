@@ -21,6 +21,9 @@ from modular_diffusion_nodes_library.standard_parameters.flux2_parameters import
 from modular_diffusion_nodes_library.standard_parameters.flux_fill_parameters import (
     FluxFillPipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.flux_kontext_parameters import (
+    FluxKontextPipelineParameters,
+)
 from modular_diffusion_nodes_library.standard_parameters.flux_parameters import (
     FluxPipelineParameters,
 )
@@ -45,6 +48,9 @@ from modular_diffusion_nodes_library.standard_parameters.wan_i2v_parameters impo
 )
 from modular_diffusion_nodes_library.standard_parameters.wan_parameters import (
     WanPipelineParameters,
+)
+from modular_diffusion_nodes_library.standard_parameters.wan_vace_parameters import (
+    WanVacePipelineParameters,
 )
 from modular_diffusion_nodes_library.standard_parameters.z_image_parameters import (
     ZImagePipelineParameters,
@@ -179,6 +185,7 @@ class LatentFluxPipelineTypeParameters(LatentPipelineTypeParameters):
         return {
             "FluxPipeline": FluxPipelineParameters,
             "FluxFillPipeline": FluxFillPipelineParameters,
+            "FluxKontextPipeline": FluxKontextPipelineParameters,
         }
 
 
@@ -299,6 +306,7 @@ class LatentWanPipelineTypeParameters(LatentPipelineTypeParameters):
         return {
             "WanPipeline": WanPipelineParameters,
             "WanImageToVideoPipeline": WanImageToVideoPipelineParameters,
+            "WanVACEPipeline": WanVacePipelineParameters,
         }
 
 

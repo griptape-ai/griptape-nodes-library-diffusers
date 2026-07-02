@@ -28,7 +28,7 @@
   "metadata": {
     "author": "Griptape, Inc.",
     "description": "Modular Diffusion nodes for Griptape Nodes.",
-    "library_version": "0.2.0",
+    "library_version": "0.3.0",
     "engine_version": "0.77.3",
     "tags": [
       "Griptape",
@@ -296,6 +296,9 @@
     "workflows/templates/Inpainting.py",
     "workflows/templates/Flux2KleinGuidedInpainting.py",
     "workflows/templates/ControlnetInpainting.py",
-    "workflows/templates/SuccessFailure.py"
+    "workflows/templates/SuccessFailure.py",
+    "workflows/templates/VideoInpaintingAndOutpaintingWANVace.py",
+    "workflows/templates/FluxKontextImageEdit.py",
+    "workflows/templates/FluxKontextInpainting.py"
   ]
 }

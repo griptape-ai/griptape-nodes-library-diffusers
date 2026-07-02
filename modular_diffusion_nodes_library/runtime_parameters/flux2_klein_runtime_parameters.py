@@ -45,7 +45,9 @@ class Flux2KleinPipelineRuntimeParameters(Flux2PipelineRuntimeParameters):
             badge_message=(
                 "Connect a **Media Gen Conditioning** node here to supply reference images for **Inpainting** only. "
                 "This allows conditioning the inpainted region on a specific reference image. "
-                "Only **image**-mode payloads are accepted; **video** payloads are not allowed. "
+                "Only **image**-mode payloads are accepted; **video** payloads are not allowed.\n\n"
+                "**Tip:** You can also connect an image directly — without a Media Gen Conditioning node — "
+                "for single-image conditioning."
             ),
         )
 

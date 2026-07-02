@@ -41,16 +41,24 @@ class LTXPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             node,
             param_name="media_conditions",
             multiple=True,
-            badge_title="Frame conditions",
+            badge_title="Media conditions",
             badge_message=(
                 "Connect one or more **Media Gen Conditioning** nodes here to insert conditioning frames at "
                 "chosen positions of the generated video. Accepts both **image** and **video** payloads. "
                 "Each payload sets a frame index (`first`, `last`, or a keyframe index) and a "
                 "strength in `[0, 1]` \u2014 `1.0` keeps the condition fully clean, intermediate values "
                 "mix it with noise. First-frame conditions overwrite the corresponding tokens; "
-                "non-first-frame conditions are appended as keyframe tokens."
+                "non-first-frame conditions are appended as keyframe tokens.\n\n"
+                "**Tip:** You can also connect an image or video directly — without a Media Gen Conditioning node — "
+                "for quick single-item conditioning at frame index **0** and strength **1.0**."
             ),
         )
+
+    def on_incoming_connection_added(self, param_name: str) -> None:
+        self._media_gen_conditioning_param.on_incoming_connection_added(param_name)
+
+    def on_incoming_connection_removed(self, param_name: str) -> None:
+        self._media_gen_conditioning_param.on_incoming_connection_removed(param_name)
 
     def _add_input_parameters(self) -> None:
         self._node.add_parameter(
