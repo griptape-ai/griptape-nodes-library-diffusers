@@ -93,6 +93,8 @@ class DiffusionPipelineArtifact:
         supports_layerwise_casting: bool = True,
         requires_device_map: bool = False,
     ) -> None:
+        if build_data is None:
+            build_data = {}
         self.pipeline_name = pipeline_name
         self.config_hash = config_hash
         self._builder_module = builder_module
