@@ -1,6 +1,6 @@
 [project]
 name = "griptape-nodes-library-modular-diffusion"
-version = "0.2.0"
+version = "0.3.0"
 description = "Modular Diffusion nodes for Griptape Nodes."
 authors = [
     {name = "Griptape, Inc."}
@@ -103,6 +103,7 @@ line-ending = "auto"
 
 [dependency-groups]
 dev = [
+    "pyright>=1.1.396",
     "ruff>=0.8.0",
     "pytest",
 ]

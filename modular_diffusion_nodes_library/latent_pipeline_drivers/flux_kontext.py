@@ -20,7 +20,7 @@ class FluxKontextLatentPipelineDriver(FluxLatentPipelineDriver):
     @override
     def can_make_control_pipe_from_standard(cls, control_net_model_lists: list[str] | str | None) -> bool:
         return False
-  
+
     @override
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
         """FluxFillPipeline expects a PIL image — it handles its own VAE encoding."""

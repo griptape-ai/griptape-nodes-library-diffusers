@@ -3,13 +3,15 @@ from typing import Any
 
 from griptape_nodes.exe_types.node_types import SuccessFailureNode
 
+from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import (
+    SuccessFailureExecutionMixin,
+)
 from modular_diffusion_nodes_library.parameters.conditioning_parameters import (
     ModularDiffusionConditioningParameters,
 )
 
-from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
-
 logger = logging.getLogger("diffusers_nodes_library")
+
 
 class MediaGenConditioningNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     """Conditioning node for media generation pipelines.
@@ -72,4 +74,3 @@ class MediaGenConditioningNode(SuccessFailureExecutionMixin, SuccessFailureNode)
             failure_log="Conditioning build failed",
             logger=logger,
         )
-
