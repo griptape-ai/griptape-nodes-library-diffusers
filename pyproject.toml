@@ -75,6 +75,11 @@ name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
+[tool.pyright]
+# Generated workflow templates are excluded from linting (see ruff extend-exclude);
+# exclude them from type checking too.
+exclude = ["workflows/templates"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py312"
