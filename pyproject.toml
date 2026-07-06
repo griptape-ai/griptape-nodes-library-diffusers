@@ -12,7 +12,7 @@ dependencies = [
     "beautifulsoup4>=4.13.4",
     "controlnet-aux>=0.0.9",
     "static-ffmpeg>=2.8",
-    "diffusers @ git+https://github.com/huggingface/diffusers.git@037efdae1d53ef893e7412e91fba4f31fc3fd537",
+    "diffusers==0.39.0",
     "imageio[ffmpeg]>=2.37.2",
     "ninja>=1.13.0",
     "numpy>=2.2.4",
@@ -26,7 +26,7 @@ dependencies = [
     "torchvision==0.22.0",
     "torchaudio==2.7.0",
     "safetensors>=0.8.0rc0",
-    "transformers @ https://github.com/huggingface/transformers/archive/136c621c00b2536d1f608ed3c6de59b9897afbb8.zip",
+    "transformers==5.13.0",
     "tokenizers>=0.22.0,<0.23",
     "tqdm>=4.67.1",
     "ultralytics>=8.0.0",
@@ -39,9 +39,9 @@ dependencies = [
     "scipy>=1.10.0",
     "matplotlib>=3.10.3",
     "supervision>=0.27.0",
-    "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.8.12",
+    "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
     "openexr>=3.3.0",
-    "griptape-nodes>=0.77.3",
+    "griptape-nodes>=0.77.5",
 ]
 
 [build-system]
