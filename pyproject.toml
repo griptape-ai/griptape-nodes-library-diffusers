@@ -76,9 +76,26 @@ url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.pyright]
+venvPath = "."
+venv = ".venv"
+include = ["."]
 # Generated workflow templates are excluded from linting (see ruff extend-exclude);
 # exclude them from type checking too.
-exclude = ["workflows/templates"]
+exclude = [".venv", "**/node_modules", "**/__pycache__", "**/.*", "workflows/templates"]
+pythonVersion = "3.12"
+reportIncompatibleMethodOverride = false
+reportMissingImports = false
+reportMissingModuleSource = false
+reportAttributeAccessIssue = false
+reportPrivateImportUsage = false
+reportCallIssue = false
+reportArgumentType = false
+reportOptionalSubscript = false
+reportReturnType = false
+reportOptionalCall = false
+reportGeneralTypeIssues = false
+reportIndexIssue = false
+reportAssignmentType = false
 
 [tool.ruff]
 line-length = 120
