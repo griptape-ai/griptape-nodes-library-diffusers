@@ -435,6 +435,9 @@ class LatentPipelineDriver(ABC):
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
         """Map an InpaintMaskArtifact to pipeline call kwargs."""
         device, dtype = self._get_device_and_type()
+        if artifact.source_latent is None:
+            msg = "Attempted to build inpaint kwargs. Failed because the InpaintMaskArtifact has no source_latent."
+            raise ValueError(msg)
         result: dict[str, Any] = {
             "image": artifact.source_latent.to(device=device, dtype=dtype),
             "mask_image": artifact.mask_image,

@@ -165,7 +165,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
             batch_size=1,
             dtype=dtype,
         )
-        latents = output_state.get("latents")
+        latents = output_state["latents"]
         latents = latents.to(device)
         latents = self.unpack_latents(latents, height, width)
         return self._make_latent_artifact(

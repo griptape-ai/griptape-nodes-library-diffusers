@@ -62,7 +62,7 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
 
         unpack_latents = Flux2UnpackLatentsStep()
         latents_state = self._call_block(unpack_latents, latents=packed_latents, latent_ids=latent_ids)
-        latents = latents_state.get("latents")
+        latents = latents_state["latents"]
         latents = latents.to(device)
         return self._make_latent_artifact(
             latents,
