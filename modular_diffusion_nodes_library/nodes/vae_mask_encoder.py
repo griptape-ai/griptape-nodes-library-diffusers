@@ -161,7 +161,7 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         # Ensure mask is same size as image
         if mask_pil.size != image_pil.size:
-            mask_pil = mask_pil.resize(image_pil.size, PILImage.NEAREST)
+            mask_pil = mask_pil.resize(image_pil.size, PILImage.Resampling.NEAREST)
 
         source_shape = (1, 3, image_pil.height, image_pil.width)
         image = ImageMedia(image=image_pil, source_shape=source_shape)

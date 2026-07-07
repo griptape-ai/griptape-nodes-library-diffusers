@@ -73,7 +73,7 @@ class LatentDiffusionPipelineBuilderParameters:
             logger.error(msg)
             raise ValueError(msg)
 
-        provider_class = MODULAR_PIPELINE_TYPE_PROVIDER_MAP[provider]
+        provider_class = MODULAR_PIPELINE_TYPE_PROVIDER_MAP[provider]  # type: ignore[reportArgumentType]
         self._pipeline_type_parameters = provider_class(self._node)
 
     def before_value_set(self, parameter: Parameter, value: Any) -> None:

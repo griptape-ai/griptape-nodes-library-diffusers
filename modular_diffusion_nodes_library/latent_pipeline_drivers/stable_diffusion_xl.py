@@ -1,12 +1,8 @@
 import logging
 from typing import Any, ClassVar, override
 
-from diffusers import (  # type: ignore[reportMissingImports]
-    ControlNetModel,
-    StableDiffusionXLControlNetImg2ImgPipeline,
-    StableDiffusionXLControlNetInpaintPipeline,
-    StableDiffusionXLInpaintPipeline,
-)
+import torch  # type: ignore[reportMissingImports]
+from diffusers.models.controlnets.controlnet import ControlNetModel  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     SequentialPipelineBlocks,
@@ -20,7 +16,16 @@ from diffusers.modular_pipelines.stable_diffusion_xl.before_denoise import (  # 
 from diffusers.modular_pipelines.stable_diffusion_xl.modular_blocks_stable_diffusion_xl import (  # type: ignore[reportMissingImports]
     StableDiffusionXLAutoBlocks,
 )
+from diffusers.pipelines.controlnet.pipeline_controlnet_inpaint_sd_xl import (  # type: ignore[reportMissingImports]
+    StableDiffusionXLControlNetInpaintPipeline,
+)
+from diffusers.pipelines.controlnet.pipeline_controlnet_sd_xl_img2img import (  # type: ignore[reportMissingImports]
+    StableDiffusionXLControlNetImg2ImgPipeline,
+)
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_inpaint import (  # type: ignore[reportMissingImports]
+    StableDiffusionXLInpaintPipeline,
+)
 from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
@@ -53,7 +58,7 @@ _KIND_META_KEY = "kind"
 class _SDXLPrepareNoiseLatentStep(SequentialPipelineBlocks):
     """``set_timesteps`` → ``prepare_latents`` so ``init_noise_sigma`` is valid."""
 
-    model_name = "stable-diffusion-xl"
+    model_name = "stable-diffusion-xl"  # type: ignore[reportIncompatibleMethodOverride]
     block_classes = [StableDiffusionXLSetTimestepsStep, StableDiffusionXLPrepareLatentsStep]
     block_names = ["set_timesteps", "prepare_latents"]
 
@@ -61,7 +66,7 @@ class _SDXLPrepareNoiseLatentStep(SequentialPipelineBlocks):
 class _SDXLAddNoiseStep(SequentialPipelineBlocks):
     """``Img2ImgSetTimesteps`` → ``Img2ImgPrepareLatents`` for img2img noise."""
 
-    model_name = "stable-diffusion-xl"
+    model_name = "stable-diffusion-xl"  # type: ignore[reportIncompatibleMethodOverride]
     block_classes = [
         StableDiffusionXLImg2ImgSetTimestepsStep,
         StableDiffusionXLImg2ImgPrepareLatentsStep,
@@ -188,7 +193,7 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
             generator=generator,
             dtype=dtype,
         )
-        noised = output_state.get("latents")
+        noised = self._get_required(output_state, "latents", torch.Tensor)
         generator_meta = GeneratorState.from_generator(generator).as_meta()
 
         kind = read_driver_meta(latent, _KIND_META_KEY, self.driver_namespace, "")
@@ -266,8 +271,7 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
         latents = latent.to_torch(device=device, dtype=dtype)
         decode_block = self.modular_pipe.blocks.sub_blocks["decode"]
         output_state = self._call_block(decode_block, latents=latents, output_type="pil")
-        images = output_state.get("images")
-        return images[0]
+        return self._get_required(output_state, "images", list)[0]
 
     @override
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
@@ -292,6 +296,6 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
         generator = generator_state.to_generator()
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
         output_state = self._call_block(encode_block, image=media.image, generator=generator)
-        result = output_state.get("image_latents")
+        result = self._get_required(output_state, "image_latents", torch.Tensor)
         meta = {_KIND_META_KEY: "image_latents"}
         return self._make_latent_artifact(result, source_shape=media.source_shape, meta=meta)

@@ -56,7 +56,7 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
     def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
         frames = super().decode_latent(latent)
         source_shape = latent.source_shape
-        output_frames = [frame.resize((source_shape[-1], source_shape[-2]), Resampling.LANCZOS) for frame in frames]
+        output_frames = [frame.resize((source_shape[-1], source_shape[-2]), Resampling.LANCZOS) for frame in frames]  # type: ignore[reportGeneralTypeIssues]
         return output_frames
 
     @override
@@ -70,7 +70,7 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         return super().encode_media(preprocessed, generator_state)
 
     @override
-    def denoise_latent(
+    def denoise_latent(  # type: ignore[reportIncompatibleMethodOverride]
         self,
         latent: LatentArtifact,
         num_inference_steps: int,
@@ -137,7 +137,7 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
 
     def get_resize_dimensions(self, width: int, height: int) -> tuple[int, int]:
         """Calculate the resize dimensions for a given width and height."""
-        repo_id = self.pipe.config._name_or_path
+        repo_id = self.pipe.config._name_or_path  # type: ignore[reportAttributeAccessIssue]
         match repo_id:
             case "Wan-AI/Wan2.1-I2V-14B-480P-Diffusers":
                 max_area = 832 * 480  # I2V 480P model

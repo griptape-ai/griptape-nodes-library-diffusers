@@ -118,7 +118,7 @@ class LTX2UpsamplerParameters(BaseUpsamplerParameters):
             )[0]
 
             upsampled_normalized = LTX2Pipeline._normalize_latents(
-                upsampled_raw,
+                upsampled_raw,  # type: ignore[reportArgumentType]
                 vae.latents_mean,
                 vae.latents_std,
                 vae.config.scaling_factor,  # type: ignore[reportUndefinedVariable]

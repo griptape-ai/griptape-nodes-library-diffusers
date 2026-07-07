@@ -147,7 +147,7 @@ class ApplyOptimizationStep:
             raise RuntimeError("ApplyOptimizationStep requires a pipe.")
         with _profile(log_params, "Applying optimizations"):
             optimize_diffusion_pipeline(
-                pipe=pipe,
+                pipe=pipe,  # type: ignore[reportArgumentType]
                 is_prequantized=self._is_prequantized,
                 supports_layerwise_casting=self._supports_layerwise_casting,
                 requires_device_map=self._requires_device_map,

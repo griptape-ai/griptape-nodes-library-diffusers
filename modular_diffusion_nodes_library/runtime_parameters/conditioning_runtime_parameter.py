@@ -111,14 +111,12 @@ class MediaGenConditioningRuntimeParameter:
     def show(self) -> None:
         if self._multiple:
             assert self._fixed_size_list is not None
-            self._fixed_size_list.show()
         else:
             self._node.show_parameter_by_name(self._param_name)
 
     def hide(self) -> None:
         if self._multiple:
             assert self._fixed_size_list is not None
-            self._fixed_size_list.hide()
         else:
             self._node.hide_parameter_by_name(self._param_name)
 

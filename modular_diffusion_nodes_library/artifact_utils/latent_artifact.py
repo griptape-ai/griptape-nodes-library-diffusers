@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pickle
-from typing import Any
+from typing import Any, NoReturn
 
 import torch  # type: ignore[reportMissingImports]
 from griptape.artifacts.base_artifact import BaseArtifact
@@ -106,7 +106,7 @@ class LatentArtifact(BaseArtifact):
     def to_text(self) -> str:
         return repr(self)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:  # type: ignore[reportIncompatibleMethodOverride]
         tensor = self.to_torch().detach().cpu()
         if tensor.numel() == 0:
             return {
@@ -137,7 +137,7 @@ class LatentArtifact(BaseArtifact):
             "sample": sample,
         }
 
-    def __reduce__(self) -> None:
+    def __reduce__(self) -> NoReturn:
         raise pickle.PicklingError("LatentArtifact is an in-process-only type and should not be serialized.")
 
     def __bool__(self) -> bool:
