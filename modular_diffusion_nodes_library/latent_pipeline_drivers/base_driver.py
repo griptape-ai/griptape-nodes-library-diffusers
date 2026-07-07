@@ -149,7 +149,7 @@ class LatentPipelineDriver(ABC):
         for param in block.inputs:
             if param.name in kwargs:
                 state.set(param.name, kwargs[param.name], param.kwargs_type)
-        _, state = block(self.modular_pipe, state)
+        _, state = block(self.modular_pipe, state)  # type: ignore[reportOperatorIssue]
         return state.values
 
     @staticmethod
@@ -261,7 +261,13 @@ class LatentPipelineDriver(ABC):
     ) -> LatentArtifact:
         """Encode the source image with the masked region zeroed out."""
         image_processor = self.modular_pipe.image_processor
-        source_t = image_processor.preprocess(image.image, height=image.image.height, width=image.image.width)
+        if isinstance(image.image, torch.Tensor):
+            height = image.image.shape[-2]
+            width = image.image.shape[-1]
+        else:
+            height = image.image.height
+            width = image.image.width
+        source_t = image_processor.preprocess(image.image, height=height, width=width)
         mask_t = torch.from_numpy(np.array(mask.mask, dtype="float32") / 255.0)[None, None]
         masked_t = source_t * (mask_t < 0.5)
         return self.encode_media(ImageMedia(image=masked_t, source_shape=image.source_shape), generator_state)
@@ -435,14 +441,12 @@ class LatentPipelineDriver(ABC):
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
         """Map an InpaintMaskArtifact to pipeline call kwargs."""
         device, dtype = self._get_device_and_type()
-        if artifact.source_latent is None:
-            msg = "Attempted to build inpaint kwargs. Failed because the InpaintMaskArtifact has no source_latent."
-            raise ValueError(msg)
         result: dict[str, Any] = {
-            "image": artifact.source_latent.to(device=device, dtype=dtype),
             "mask_image": artifact.mask_image,
             "strength": artifact.strength,
         }
+        if artifact.source_latent is not None:
+            result["image"] = artifact.source_latent.to(device=device, dtype=dtype)
         if artifact.masked_latent is not None:
             result["masked_image_latents"] = artifact.masked_latent.to(device=device, dtype=dtype)
         return result

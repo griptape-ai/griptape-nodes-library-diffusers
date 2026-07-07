@@ -50,9 +50,9 @@ def build_scheduler_with_overrides(
         subfolder=subfolder,
         local_files_only=True,
     )
-    merged_config = dict(base_scheduler.config)
+    merged_config = dict(base_scheduler.config)  # type: ignore[reportAttributeAccessIssue]
     merged_config.update(config_overrides or {})
-    return scheduler_class.from_config(merged_config)
+    return scheduler_class.from_config(merged_config)  # type: ignore[reportAttributeAccessIssue]
 
 
 def detect_offload_method(pipe: DiffusionPipeline) -> str | None:

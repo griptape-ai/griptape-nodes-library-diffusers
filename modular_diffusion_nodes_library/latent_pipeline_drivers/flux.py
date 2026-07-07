@@ -2,13 +2,8 @@ import logging
 from typing import Any, ClassVar, override
 
 import torch  # type: ignore[reportMissingImports]
-from diffusers import (  # type: ignore[reportMissingImports]
-    FluxControlNetInpaintPipeline,
-    FluxControlNetModel,
-    FluxControlNetPipeline,
-    FluxInpaintPipeline,
-)
 from diffusers.models import FluxTransformer2DModel  # type: ignore[reportMissingImports]
+from diffusers.models.controlnets.controlnet_flux import FluxControlNetModel  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.flux.before_denoise import (  # type: ignore[reportMissingImports]
     FluxImg2ImgPrepareLatentsStep,
     FluxImg2ImgSetTimestepsStep,
@@ -25,6 +20,13 @@ from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[repor
 )
 from diffusers.modular_pipelines.modular_pipeline_utils import ComponentSpec  # type: ignore[reportMissingImports]
 from diffusers.pipelines.flux.pipeline_flux import FluxPipeline  # type: ignore[reportMissingImports]
+from diffusers.pipelines.flux.pipeline_flux_controlnet import (
+    FluxControlNetPipeline,  # type: ignore[reportMissingImports]
+)
+from diffusers.pipelines.flux.pipeline_flux_controlnet_inpainting import (
+    FluxControlNetInpaintPipeline,  # type: ignore[reportMissingImports]
+)
+from diffusers.pipelines.flux.pipeline_flux_inpaint import FluxInpaintPipeline  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from PIL.Image import Image
 
@@ -165,7 +167,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
             batch_size=1,
             dtype=dtype,
         )
-        latents = output_state["latents"]
+        latents = self._get_required(output_state, "latents", torch.Tensor)
         latents = latents.to(device)
         latents = self.unpack_latents(latents, height, width)
         return self._make_latent_artifact(
@@ -213,7 +215,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
             image_latents=packed_image_latents,
         )
 
-        noisy_latents = output_state.get("latents")
+        noisy_latents = self._get_required(output_state, "latents", torch.Tensor)
         unpacked = self.unpack_latents(noisy_latents, height, width)
         return self._make_latent_artifact(
             unpacked,
@@ -233,7 +235,8 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
 
         decode_pipeline = self.modular_pipe.blocks.sub_blocks["decode"]
         output_state = self._call_block(decode_pipeline, latents=packed, output_type="pil", width=width, height=height)
-        return output_state.get("images")[0]
+        images = self._get_required(output_state, "images", list)
+        return images[0]
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
@@ -249,7 +252,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         generator = generator_state.to_generator()
         encode_pipeline = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
         output_state = self._call_block(encode_pipeline, image=image, height=height, width=width, generator=generator)
-        latents = output_state.get("image_latents")
+        latents = self._get_required(output_state, "image_latents", torch.Tensor)
         return self._make_latent_artifact(latents, source_shape=media.source_shape)
 
     @override

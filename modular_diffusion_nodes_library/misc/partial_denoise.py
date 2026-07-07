@@ -104,6 +104,8 @@ class PartialDenoiseSchedulerProxy:
             scheduler.set_timesteps(num_inference_steps=num_inference_steps, device=device, **kwargs)
 
         timesteps = scheduler.timesteps
+        if timesteps is None:
+            return
         n = len(timesteps)
 
         if n == 0:
@@ -119,13 +121,13 @@ class PartialDenoiseSchedulerProxy:
         if hasattr(scheduler, "sigmas") and scheduler.sigmas is not None:
             sigmas = scheduler.sigmas
             # Slice from begin to end+1 (to include the sigma for the next step boundary)
-            sigmas_slice = sigmas[begin : min(end + 1, len(sigmas))]
+            sigmas_slice = sigmas[begin : min(end + 1, len(sigmas))]  # type: ignore[reportOptionalSubscript, reportArgumentType]
 
         # Optionally append the final timestep/sigma to ensure a fully denoised output, even when denoise_end < 1.0.
         if return_fully_denoised and timesteps_slice[-1] != timesteps[-1]:
-            timesteps_slice = torch.cat([timesteps_slice, timesteps[-1:]])
+            timesteps_slice = torch.cat([timesteps_slice, timesteps[-1:]])  # type: ignore[reportArgumentType]
             if sigmas_slice is not None:
-                sigmas_slice = torch.cat([sigmas_slice, sigmas[-1:]])
+                sigmas_slice = torch.cat([sigmas_slice, sigmas[-1:]])  # type: ignore[reportArgumentType, reportOptionalSubscript]
 
         m = len(timesteps_slice)
         logger.debug(

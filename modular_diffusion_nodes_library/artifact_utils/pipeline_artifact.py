@@ -107,6 +107,7 @@ class DiffusionPipelineArtifact:
         self._is_prequantized = is_prequantized
         self._supports_layerwise_casting = supports_layerwise_casting
         self._requires_device_map = requires_device_map
+        self._extra_runtime_adapter_steps: list[PipelineRuntimeAdapterStep] = []
 
     @property
     def builder_module(self) -> str | None:
@@ -174,7 +175,7 @@ class DiffusionPipelineArtifact:
 
     def runtime_adapter_steps(self) -> list[PipelineRuntimeAdapterStep]:
         """Per-generation context-managed transformations applied around each generation call."""
-        return list(self._extra_runtime_adapter_steps) if hasattr(self, "_extra_runtime_adapter_steps") else []
+        return list(self._extra_runtime_adapter_steps)
 
     def with_additional_runtime_adapter_steps(
         self, steps: list[PipelineRuntimeAdapterStep]

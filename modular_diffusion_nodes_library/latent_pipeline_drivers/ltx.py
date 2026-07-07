@@ -1,5 +1,5 @@
 import logging
-from typing import Any, ClassVar, override
+from typing import Any, ClassVar, cast, override
 
 import torch  # type: ignore[reportMissingImports]
 from diffusers import LTXConditionPipeline  # type: ignore[reportMissingImports]
@@ -13,13 +13,15 @@ from diffusers.modular_pipelines.ltx.modular_blocks_ltx import (  # type: ignore
     LTXAutoVaeEncoderStep,
 )
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
-    ComponentSpec,
-    InputParam,
     ModularPipeline,
     ModularPipelineBlocks,
-    OutputParam,
     PipelineState,
     SequentialPipelineBlocks,
+)
+from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+    ComponentSpec,
+    InputParam,
+    OutputParam,
 )
 from diffusers.pipelines.ltx.pipeline_ltx_condition import LTXVideoCondition  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
@@ -86,7 +88,7 @@ class LTXSetTimestepsWithStrengthStep(ModularPipelineBlocks):
 
     @torch.no_grad()
     def __call__(self, components, state: PipelineState):
-        block_state = self.get_block_state(state)
+        block_state = cast(Any, self.get_block_state(state))
 
         init_timestep = min(
             block_state.num_inference_steps * block_state.strength,
@@ -131,7 +133,7 @@ class LTXScaleNoiseStep(ModularPipelineBlocks):
 
     @torch.no_grad()
     def __call__(self, components, state: PipelineState):
-        block_state = self.get_block_state(state)
+        block_state = cast(Any, self.get_block_state(state))
 
         latent_timestep = block_state.timesteps[:1].repeat(block_state.latents.shape[0])
         block_state.latents = components.scheduler.scale_noise(
@@ -150,7 +152,7 @@ class LTXAddNoiseStep(SequentialPipelineBlocks):
     then strength slicing, then scale_noise.
     """
 
-    model_name = "ltx"
+    model_name = "ltx"  # type: ignore[reportIncompatibleMethodOverride]
     block_classes = [
         LTXSetTimestepsStep,
         LTXSetTimestepsWithStrengthStep,
@@ -236,7 +238,7 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
             num_videos_per_prompt=1,
             generator=generator,
         )
-        packed_latents = output_state.get("latents")
+        packed_latents = self._get_required(output_state, "latents", torch.Tensor)
         latents = self._unpack_latents(packed_latents, height, width, num_frames)
         return self._make_latent_artifact(
             latents,
@@ -278,7 +280,7 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         )
         noise_generator_state = GeneratorState.from_artifact(noise_artifact) or generator_state
         return self._make_latent_artifact(
-            output_state.get("latents"),
+            self._get_required(output_state, "latents", torch.Tensor),
             source_shape=source_shape,
             upstream=latent,
             meta=noise_generator_state.as_meta(),
@@ -312,8 +314,7 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
             output_type="pil",
             decode_timestep=0.0,
         )
-        videos = output_state.get("videos")
-        return videos[0]
+        return self._get_required(output_state, "videos", list)[0]
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
@@ -321,7 +322,9 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         generator = generator_state.to_generator()
         if isinstance(media, ImageMedia):
             output_state = self._call_block(LTXAutoVaeEncoderStep(), image=media.image, generator=generator)
-            return self._make_latent_artifact(output_state.get("image_latents"), source_shape=media.source_shape)
+            return self._make_latent_artifact(
+                self._get_required(output_state, "image_latents", torch.Tensor), source_shape=media.source_shape
+            )
 
         device, dtype = self._get_device_and_type()
         vae = self.modular_pipe.vae

@@ -146,7 +146,7 @@ def resize_frames_scale_to_fill(
     top = (new_h - target_height) // 2
     resized_frames = []
     for frame in frames:
-        resized = frame.resize((new_w, new_h), PILImage.LANCZOS)
+        resized = frame.resize((new_w, new_h), PILImage.Resampling.LANCZOS)
         cropped = resized.crop((left, top, left + target_width, top + target_height))
         resized_frames.append(cropped)
     return resized_frames

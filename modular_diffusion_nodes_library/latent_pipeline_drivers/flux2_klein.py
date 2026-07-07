@@ -55,7 +55,7 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
         The pipeline will BN-normalize image latent internally, so we must denormalize first.
         """
         device, dtype = self._get_device_and_type()
-        source_latent = self._denormalize_latent(artifact.source_latent).to(device=device, dtype=dtype)
+        source_latent = self._denormalize_latent(artifact.source_latent).to(device=device, dtype=dtype)  # type: ignore[reportArgumentType]
         return {
             "image": source_latent,
             "mask_image": artifact.mask_image,

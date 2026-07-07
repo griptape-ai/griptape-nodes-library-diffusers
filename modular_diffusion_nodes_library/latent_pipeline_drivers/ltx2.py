@@ -283,7 +283,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         """LTX2 pipelines return video frames under ``.frames`` instead of ``.images``."""
         return pipe_output.frames
 
-    def _decode_hdr_to_linear_np(self, video: torch.Tensor) -> np.ndarray:
+    def _decode_hdr_to_linear_np(self, video: torch.Tensor) -> torch.Tensor | np.ndarray:
         """Convert decoded LogC3-compressed VAE output to linear HDR np.ndarray.
 
         Returns shape ``(B, F, H, W, 3)`` float32 with linear HDR values in ``[0, ∞)``.
@@ -328,7 +328,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
         if self._latent_was_produced_for_hdr(latent):
             # HDR IC-LoRA path: return raw linear HDR for encode_hdr_tensor_to_mp4 in vae_decoder.
-            return self._decode_hdr_to_linear_np(video)
+            return self._decode_hdr_to_linear_np(video)  # type: ignore[reportReturnType]
 
         frames = self.pipe.video_processor.postprocess_video(video, output_type="pil")[0]
         return frames

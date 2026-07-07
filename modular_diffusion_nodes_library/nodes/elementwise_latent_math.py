@@ -81,7 +81,7 @@ class ElementwiseBinaryLatentNode(DataNode):
             return exceptions
 
         try:
-            self._apply_operation(left_latent, right_latent)
+            self._apply_operation(left_latent, right_latent)  # type: ignore[reportArgumentType]
         except (TypeError, ValueError, RuntimeError) as error:
             return [error]
 

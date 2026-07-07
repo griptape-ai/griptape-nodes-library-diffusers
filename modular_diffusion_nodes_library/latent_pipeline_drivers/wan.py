@@ -1,5 +1,5 @@
 import logging
-from typing import Any, ClassVar, override
+from typing import Any, ClassVar, cast, override
 
 import torch  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
@@ -58,7 +58,7 @@ class _WanEncodeVideoStep(ModularPipelineBlocks):
     def __call__(
         self, components: WanModularPipeline, state: PipelineState
     ) -> tuple[WanModularPipeline, PipelineState]:
-        block_state = self.get_block_state(state)
+        block_state = cast(Any, self.get_block_state(state))
 
         device = components._execution_device
         vae_dtype = components.vae.dtype
@@ -114,7 +114,7 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
             batch_size=1,
             dtype=dtype,
         )
-        latents = output_state.get("latents")
+        latents = self._get_required(output_state, "latents", torch.Tensor)
         return self._make_latent_artifact(
             latents,
             source_shape=source_shape,
@@ -137,7 +137,7 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
             latents=latents,
             output_type="pil",
         )
-        video_frames = output_state.get("videos")[0]
+        video_frames = self._get_required(output_state, "videos", list)[0]
         return video_frames
 
     @override
