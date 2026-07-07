@@ -9,13 +9,8 @@ The Diffusers Nodes Library is a node library for creators who want more control
 > APIs, node interfaces, workflow templates, and library structure may change at any time without notice or migration support. Pin to a specific commit if you need stability, and expect breakage when updating.
 >
 
-> ## ⚠️ Using alongside the Advanced Media Library
-> The Diffusers Library and the Advanced Media Library share several upstream dependencies (e.g. `diffusers`, `transformers`, `torch`) and may pin them to different versions. Installing both libraries from their default branches can cause dependency mismatches and runtime errors.
->
-> If you need both libraries in the same environment, install the Advanced Media Library from its [`modular-diffusion-library-compatible-branch`](https://github.com/griptape-ai/griptape-nodes-library-advanced-media/compare/main...modular-diffusion-library-compatible-branch) instead of `main`:
-> ```text
-> https://github.com/griptape-ai/griptape-nodes-library-advanced-media@modular-diffusion-library-compatible-branch
-> ```
+> ## Using alongside the Advanced Media Library
+> The Diffusers Library and the Advanced Media Library share several upstream dependencies (e.g. `diffusers`, `transformers`, `torch`). Both libraries pin these to the same versions on their `main` branches, so you can install both from `main` in the same environment.
 
 ![Diffusers Nodes](docs/assets/hero.png)
 
