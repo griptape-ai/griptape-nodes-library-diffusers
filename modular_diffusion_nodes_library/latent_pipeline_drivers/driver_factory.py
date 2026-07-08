@@ -18,6 +18,9 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.stable_diffusion_3 
 from modular_diffusion_nodes_library.latent_pipeline_drivers.stable_diffusion_xl import (
     StableDiffusionXLLatentPipelineDriver,
 )
+from modular_diffusion_nodes_library.latent_pipeline_drivers.hunyuan_video1_5 import HunyuanVideo15TextToVideoLatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.hunyuan_video1_5_i2v import HunyuanVideo15ImageToVideoLatentPipelineDriver
+
 from modular_diffusion_nodes_library.latent_pipeline_drivers.wan import WanTextToVideoLatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.wan_animate import WanAnimateLatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.wan_i2v import WanImageToVideoLatentPipelineDriver
@@ -27,6 +30,8 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.z_image import ZIma
 # Maps pipeline class name prefix to the corresponding driver class.
 _DRIVER_REGISTRY: dict[str, type[LatentPipelineDriver]] = {
     "FluxFillPipeline": FluxFillLatentPipelineDriver,
+    "HunyuanVideo15Pipeline": HunyuanVideo15TextToVideoLatentPipelineDriver,
+    "HunyuanVideo15ImageToVideoPipeline": HunyuanVideo15ImageToVideoLatentPipelineDriver,
     "FluxKontextPipeline": FluxKontextLatentPipelineDriver,
     "FluxPipeline": FluxLatentPipelineDriver,
     "Flux2Pipeline": Flux2LatentPipelineDriver,

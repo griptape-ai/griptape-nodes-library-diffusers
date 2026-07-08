@@ -19,6 +19,12 @@ from modular_diffusion_nodes_library.runtime_parameters.flux2_runtime_parameters
 from modular_diffusion_nodes_library.runtime_parameters.flux_fill_runtime_parameters import (
     FluxFillPipelineRuntimeParameters,
 )
+from modular_diffusion_nodes_library.runtime_parameters.hunyuan_video1_5_i2v_runtime_parameters import (
+    HunyuanVideo15ImageToVideoPipelineRuntimeParameters,
+)
+from modular_diffusion_nodes_library.runtime_parameters.hunyuan_video1_5_runtime_parameters import (
+    HunyuanVideo15PipelineRuntimeParameters,
+)
 from modular_diffusion_nodes_library.runtime_parameters.flux_kontext_runtime_parameters import (
     FluxKontextPipelineRuntimeParameters,
 )
@@ -68,6 +74,8 @@ _RUNTIME_PARAMS_REGISTRY: dict[str, type[DiffusionPipelineRuntimeParameters]] = 
     "FluxKontextPipeline": FluxKontextPipelineRuntimeParameters,
     "Flux2Pipeline": Flux2PipelineRuntimeParameters,
     "Flux2KleinPipeline": Flux2KleinPipelineRuntimeParameters,
+    "HunyuanVideo15Pipeline": HunyuanVideo15PipelineRuntimeParameters,
+    "HunyuanVideo15ImageToVideoPipeline": HunyuanVideo15ImageToVideoPipelineRuntimeParameters,
     "LTXPipeline": LTXPipelineRuntimeParameters,
     "LTX2Pipeline": LTX2PipelineRuntimeParameters,
     "QwenImagePipeline": QwenPipelineRuntimeParameters,

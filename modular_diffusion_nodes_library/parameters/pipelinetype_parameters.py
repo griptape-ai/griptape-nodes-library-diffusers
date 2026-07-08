@@ -27,6 +27,12 @@ from modular_diffusion_nodes_library.standard_parameters.flux_kontext_parameters
 from modular_diffusion_nodes_library.standard_parameters.flux_parameters import (
     FluxPipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.hunyuan_video1_5_i2v_parameters import (
+    HunyuanVideo15ImageToVideoPipelineParameters,
+)
+from modular_diffusion_nodes_library.standard_parameters.hunyuan_video1_5_parameters import (
+    HunyuanVideo15PipelineParameters,
+)
 from modular_diffusion_nodes_library.standard_parameters.ltx2_parameters import LTX2PipelineParameters
 from modular_diffusion_nodes_library.standard_parameters.ltx_parameters import (
     LTXPipelineParameters,
@@ -209,6 +215,24 @@ class LatentFlux2PipelineTypeParameters(LatentPipelineTypeParameters):
         }
 
 
+class LatentHunyuanVideo15PipelineTypeParameters(LatentPipelineTypeParameters):
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        return (
+            "- `HunyuanVideo15Pipeline` — Text-to-video generation (Tencent HunyuanVideo 1.5).\n"
+            "- `HunyuanVideo15ImageToVideoPipeline` — Image-to-video. Requires a dedicated I2V checkpoint. \n\n"
+            "For first-frame conditioning, connect a Media Gen Conditioning node to the "
+            "`additional_parameters` input of Generate Media Latents."
+        )
+
+    @classmethod
+    def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
+        return {
+            "HunyuanVideo15Pipeline": HunyuanVideo15PipelineParameters,
+            "HunyuanVideo15ImageToVideoPipeline": HunyuanVideo15ImageToVideoPipelineParameters,
+        }
+
+
 class LatentLTX2PipelineTypeParameters(LatentPipelineTypeParameters):
     @property
     def pipeline_type_badge_message(self) -> str:
@@ -333,6 +357,7 @@ class LatentZImagePipelineTypeParameters(LatentPipelineTypeParameters):
 MODULAR_PIPELINE_TYPE_PROVIDER_MAP: dict[Provider, type[LatentPipelineTypeParameters]] = {
     Provider.FLUX: LatentFluxPipelineTypeParameters,
     Provider.FLUX2: LatentFlux2PipelineTypeParameters,
+    Provider.HUNYUAN_VIDEO_1_5: LatentHunyuanVideo15PipelineTypeParameters,
     Provider.LTX: LatentLTXPipelineTypeParameters,
     Provider.LTX2: LatentLTX2PipelineTypeParameters,
     Provider.QWEN: LatentQwenPipelineTypeParameters,
