@@ -175,7 +175,7 @@ class DiffusionPipelineArtifact:
 
     def runtime_adapter_steps(self) -> list[PipelineRuntimeAdapterStep]:
         """Per-generation context-managed transformations applied around each generation call."""
-        return list(self._extra_runtime_adapter_steps)
+        return list(getattr(self, "_extra_runtime_adapter_steps", []))
 
     def with_additional_runtime_adapter_steps(
         self, steps: list[PipelineRuntimeAdapterStep]
