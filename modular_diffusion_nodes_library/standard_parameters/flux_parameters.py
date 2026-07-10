@@ -102,20 +102,28 @@ class FluxPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.FluxPipeline:  # type: ignore[reportAttributeAccessIssue]
-        text_encoder = transformers.CLIPTextModel.from_pretrained(
-            pretrained_model_name_or_path=build_data["text_encoder_repo_id"],
-            revision=build_data["text_encoder_revision"],
-            torch_dtype=torch.bfloat16,
-            local_files_only=True,
-        )
+        overrides = cls._materialize_overrides(build_data)
 
-        text_encoder_2 = transformers.T5EncoderModel.from_pretrained(
-            pretrained_model_name_or_path=build_data["text_encoder_2_repo_id"],
-            revision=build_data["text_encoder_2_revision"],
-            torch_dtype=torch.bfloat16,
-            local_files_only=True,
-            use_safetensors=False,  # google/t5-v1_1-xxl only has .bin weights
-        )
+        if "text_encoder" in overrides:
+            text_encoder = overrides.pop("text_encoder")
+        else:
+            text_encoder = transformers.CLIPTextModel.from_pretrained(
+                pretrained_model_name_or_path=build_data["text_encoder_repo_id"],
+                revision=build_data["text_encoder_revision"],
+                torch_dtype=torch.bfloat16,
+                local_files_only=True,
+            )
+
+        if "text_encoder_2" in overrides:
+            text_encoder_2 = overrides.pop("text_encoder_2")
+        else:
+            text_encoder_2 = transformers.T5EncoderModel.from_pretrained(
+                pretrained_model_name_or_path=build_data["text_encoder_2_repo_id"],
+                revision=build_data["text_encoder_2_revision"],
+                torch_dtype=torch.bfloat16,
+                local_files_only=True,
+                use_safetensors=False,  # google/t5-v1_1-xxl only has .bin weights
+            )
 
         return cls._pipeline_cls.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["base_repo_id"],
@@ -124,4 +132,5 @@ class FluxPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
             text_encoder_2=text_encoder_2,
             torch_dtype=torch.bfloat16,
             local_files_only=True,
+            **overrides,
         )
