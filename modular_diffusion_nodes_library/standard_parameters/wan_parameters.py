@@ -69,10 +69,13 @@ class WanPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.WanPipeline:  # type: ignore[reportAttributeAccessIssue]
+        overrides = cls._materialize_overrides(build_data)
+
         return diffusers.WanPipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["repo_id"],
             revision=build_data["revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,
             device_map="balanced",
+            **overrides,
         )

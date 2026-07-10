@@ -35,7 +35,7 @@ class LatentDiffusionPipelineBuilderNode(
 ):
     STATIC_PARAMS: ClassVar = ["provider", "pipeline"]
     START_PARAMS: ClassVar = ["pipeline", "provider"]
-    END_PARAMS: ClassVar = ["Status", "logs"]
+    END_PARAMS: ClassVar = ["component_overrides", "loras", "Status", "logs"]
 
     def __init__(self, **kwargs) -> None:
         self._initializing = True
@@ -55,6 +55,7 @@ class LatentDiffusionPipelineBuilderNode(
         self.log_params.add_output_parameters()
 
         self._initializing = False
+        self.params._refresh_component_override_ports()
         self.set_pipeline_artifact()
 
     @property
@@ -119,6 +120,10 @@ class LatentDiffusionPipelineBuilderNode(
                 f"{self.name}: Failed to collect pipeline build data for "
                 f"pipeline '{pipeline_params.pipeline_name}': {e}"
             )
+
+        component_overrides = self.params.component_override_params.get_component_overrides()
+        if component_overrides:
+            build_data["_component_overrides"] = component_overrides
 
         return DiffusionPipelineArtifact(
             pipeline_name=pipeline_params.pipeline_name,

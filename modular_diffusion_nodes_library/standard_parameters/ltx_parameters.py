@@ -65,10 +65,13 @@ class LTXPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> DiffusionPipeline | Any | None:
+        overrides = cls._materialize_overrides(build_data)
+
         pipeline = LTXPipeline.from_pretrained(
             build_data["base_repo_id"],
             revision=build_data["base_revision"],
             torch_dtype=torch.bfloat16,
+            **overrides,
         )
         pipeline.vae.use_framewise_decoding = True
         return pipeline

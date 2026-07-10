@@ -101,23 +101,29 @@ class QwenPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.QwenImagePipeline:  # type: ignore[reportAttributeAccessIssue]
+        overrides = cls._materialize_overrides(build_data)
+
         scheduler_class = getattr(diffusers, build_data["scheduler_type"])
 
-        text_encoder = transformers.Qwen2_5_VLForConditionalGeneration.from_pretrained(
-            pretrained_model_name_or_path=build_data["text_encoder_repo_id"],
-            revision=build_data["text_encoder_revision"],
-            torch_dtype=torch.bfloat16,
-            local_files_only=True,
-        )
+        if "text_encoder" in overrides:
+            text_encoder = overrides.pop("text_encoder")
+        else:
+            text_encoder = transformers.Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                pretrained_model_name_or_path=build_data["text_encoder_repo_id"],
+                revision=build_data["text_encoder_revision"],
+                torch_dtype=torch.bfloat16,
+                local_files_only=True,
+            )
 
-        # Build the scheduler from the model's shipped scheduler config. Any user-provided
-        # scheduler_config overrides are merged on top.
-        scheduler = build_scheduler_with_overrides(
-            scheduler_class=scheduler_class,
-            base_repo_id=build_data["base_repo_id"],
-            base_revision=build_data["base_revision"],
-            config_overrides=build_data.get("scheduler_config"),
-        )
+        if "scheduler" in overrides:
+            scheduler = overrides.pop("scheduler")
+        else:
+            scheduler = build_scheduler_with_overrides(
+                scheduler_class=scheduler_class,
+                base_repo_id=build_data["base_repo_id"],
+                base_revision=build_data["base_revision"],
+                config_overrides=build_data.get("scheduler_config"),
+            )
 
         return diffusers.QwenImagePipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["base_repo_id"],
@@ -126,4 +132,5 @@ class QwenPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
             scheduler=scheduler,
             torch_dtype=torch.bfloat16,
             local_files_only=True,
+            **overrides,
         )

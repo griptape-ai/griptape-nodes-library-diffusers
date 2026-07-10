@@ -102,20 +102,31 @@ class QwenEditPipelineParameters(ModularDiffusionPipelineTypePipelineParameters)
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.QwenImageEditPipeline:  # type: ignore[reportAttributeAccessIssue]
+        overrides = cls._materialize_overrides(build_data)
+
         scheduler_class = getattr(diffusers, build_data["scheduler_type"])
 
-        text_encoder = transformers.Qwen2_5_VLForConditionalGeneration.from_pretrained(
-            pretrained_model_name_or_path=build_data["text_encoder_repo_id"],
-            revision=build_data["text_encoder_revision"],
-            torch_dtype=torch.bfloat16,
-            local_files_only=True,
-        )
+        if "text_encoder" in overrides:
+            text_encoder = overrides.pop("text_encoder")
+        else:
+            text_encoder = transformers.Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                pretrained_model_name_or_path=build_data["text_encoder_repo_id"],
+                revision=build_data["text_encoder_revision"],
+                torch_dtype=torch.bfloat16,
+                local_files_only=True,
+            )
+
+        if "scheduler" in overrides:
+            scheduler = overrides.pop("scheduler")
+        else:
+            scheduler = scheduler_class.from_config(build_data["scheduler_config"])
 
         return diffusers.QwenImageEditPipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],
             text_encoder=text_encoder,
-            scheduler=scheduler_class.from_config(build_data["scheduler_config"]),
+            scheduler=scheduler,
             torch_dtype=torch.bfloat16,
             local_files_only=True,
+            **overrides,
         )
