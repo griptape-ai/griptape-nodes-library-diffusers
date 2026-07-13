@@ -157,6 +157,25 @@ class ComponentArtifact:
                 kwargs["quantization_config"] = GGUFQuantizationConfig(compute_dtype=getattr(torch, self.torch_dtype))
             return component_cls.from_single_file(**kwargs)
 
+        # Try loading via config_mapping_fn if available (AutoencoderKL, UNet2DConditionModel).
+        # The function reconstructs config from checkpoint key shapes.
+        loadable_entry = SINGLE_FILE_LOADABLE_CLASSES.get(component_cls.__name__, {})
+        if "config_mapping_fn" in loadable_entry:
+            logger.info(
+                "Component '%s': model_type='%s' not registered; loading %s without config= via its config_mapping_fn.",
+                self.load_id,
+                model_type,
+                component_cls.__name__,
+            )
+            kwargs = {
+                "pretrained_model_link_or_path_or_dict": self.file_path,
+                "torch_dtype": getattr(torch, self.torch_dtype),
+                "local_files_only": True,
+            }
+            if self.is_quantized:
+                kwargs["quantization_config"] = GGUFQuantizationConfig(compute_dtype=getattr(torch, self.torch_dtype))
+            return component_cls.from_single_file(**kwargs)
+
         # No fallback available — explicit config required.
         msg = (
             f"Attempted to materialize component '{self.load_id}'. "
