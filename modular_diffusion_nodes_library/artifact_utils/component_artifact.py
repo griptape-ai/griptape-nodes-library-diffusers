@@ -42,7 +42,12 @@ class ComponentArtifact:
     component_class: str | None = None
     torch_dtype: str | None = None
 
-    def materialize(self) -> Any:
+    @property
+    def is_quantized(self) -> bool:
+        """True if the weights use an embedded quantization format (e.g. GGUF)."""
+        return self.file_path is not None and self.file_path.lower().endswith(".gguf")
+
+    def materialize(self, *, pipeline_cls: type) -> Any:
         """Load this component from its descriptor.
 
         Currently supports HF_REPO source type only.

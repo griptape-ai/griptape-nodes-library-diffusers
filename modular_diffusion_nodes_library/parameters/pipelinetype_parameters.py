@@ -7,8 +7,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.traits.options import Options
 
-from modular_diffusion_nodes_library.parameters.pipeline_builder_parameters import ComponentOverrideParameters
-
+from modular_diffusion_nodes_library.parameters.component_override_parameters import ComponentOverrideParameters
 from modular_diffusion_nodes_library.parameters.huggingface_pipeline_parameter import HuggingFacePipelineParameter
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,

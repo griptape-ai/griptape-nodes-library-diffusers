@@ -1,12 +1,13 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar
+from typing import Any
 
 from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.node_types import BaseNode
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact
+from modular_diffusion_nodes_library.component_loading.component_slots import ALLOWED_COMPONENT_SLOTS
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -14,30 +15,6 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class ModularDiffusionPipelineTypePipelineParameters(ABC):
-    EXCLUDED_COMPONENT_SLOTS: ClassVar[set[str]] = {
-        "image_encoder",
-        "feature_extractor",
-        "image_processor",
-        "audio_vae",
-        "connectors",
-        "vocoder",
-        "processor",
-    }
-
-    COMPONENT_SLOT_PRIORITY: ClassVar[list[str]] = [
-        "transformer",
-        "unet",
-        "vae",
-        "text_encoder",
-        "text_encoder_2",
-        "text_encoder_3",
-        "tokenizer",
-        "tokenizer_2",
-        "tokenizer_3",
-        "transformer_2",
-        "scheduler",
-    ]
-
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         self._node = node
         self._list_all_models = list_all_models
@@ -66,29 +43,20 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     def get_component_slots(self) -> list[str]:
         """Return component slot names available for override on this pipeline type.
 
-        Derives slots from the pipeline class's __init__ signature via
-        DiffusionPipeline._get_signature_keys, filtering out slots listed
-        in EXCLUDED_COMPONENT_SLOTS.
+        Intersects the pipeline's __init__ signature (via
+        DiffusionPipeline._get_signature_keys) with ALLOWED_COMPONENT_SLOTS,
+        preserving the priority order defined there.
         """
         pipeline_cls = self.pipeline_class
         all_slots, _ = pipeline_cls._get_signature_keys(pipeline_cls)
-        overridable_slots = set(all_slots) - self.EXCLUDED_COMPONENT_SLOTS
-        return sorted(overridable_slots, key=self._slot_sort_key)
+        all_slots_set = set(all_slots)
+        return [slot for slot in ALLOWED_COMPONENT_SLOTS if slot in all_slots_set]
 
     @classmethod
-    def _slot_sort_key(cls, name: str) -> tuple[int, str]:
-        """Return (priority_index, name) for sorting. Lower index = higher priority."""
-        try:
-            priority = cls.COMPONENT_SLOT_PRIORITY.index(name)
-        except ValueError:
-            priority = len(cls.COMPONENT_SLOT_PRIORITY)
-        return (priority, name)
-
-    @classmethod
-    def _materialize_overrides(cls, build_data: dict[str, Any]) -> dict[str, Any]:
+    def _materialize_overrides(cls, build_data: dict[str, Any], *, pipeline_cls: type) -> dict[str, Any]:
         """Extract and materialize component overrides from build_data."""
         raw: dict[str, ComponentArtifact] = build_data.get("_component_overrides", {})
-        return {slot: artifact.materialize() for slot, artifact in raw.items()}
+        return {slot: artifact.materialize(pipeline_cls=pipeline_cls) for slot, artifact in raw.items()}
 
     @abstractmethod
     def validate_before_node_run(self) -> list[Exception] | None:
