@@ -308,9 +308,9 @@
             "class_name": "LoadComponent",
             "file_path": "./modular_diffusion_nodes_library/nodes/load_component_node.py",
             "metadata": {
-                "category": "ModularDiffusion/Component Loaders",
-                "description": "Load a single-file pipeline component (v1: GGUF transformer for Flux-family pipelines) from a local path and expose it as a lazy `ComponentArtifact`. Wire into a Pipeline Builder override port to inject the component at build time without hitting the network.",
-                "display_name": "Load Component (Single File)",
+                "category": "ModularDiffusion/Pipeline",
+                "description": "Load a single pipeline component (transformer / unet / vae) from a single-file checkpoint, a local diffusers-format folder, or a local HuggingFace repo cache. Wire into a Pipeline Builder override port to inject the component at build time into the pipeline.",
+                "display_name": "Load Pipeline Component",
                 "group": "diffusion"
             }
         }
