@@ -13,9 +13,13 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ComponentArtifact,
     ComponentSourceType,
 )
-from modular_diffusion_nodes_library.component_loading.component_slots import SLOT_DISPLAY_NAMES
+from modular_diffusion_nodes_library.component_loading.component_slots import (
+    SLOT_DISPLAY_NAMES,
+    slot_artifact_type_name,
+)
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.file_path_parameter import FilePathParameter
+from modular_diffusion_nodes_library.utils.connection_utils import drop_outgoing_connections
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -109,10 +113,15 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
         self.add_parameter(config_source_param)
 
+        # Default component is "Transformer", derive its artifact type name
+        default_component_slot = _LOADABLE_COMPONENTS["Transformer"]
+        default_artifact_type = slot_artifact_type_name(default_component_slot)
+
         self.add_parameter(
             Parameter(
                 name="component_output",
-                output_type="ComponentArtifact",
+                type=default_artifact_type,
+                output_type=default_artifact_type,
                 default_value=None,
                 tooltip="ComponentArtifact describing this component. Wire into a Pipeline Builder override port.",
                 allowed_modes={ParameterMode.OUTPUT},
@@ -145,8 +154,38 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         if initial_setup:
             return
 
+        if param_name == "component":
+            self._update_output_type_and_drop_connections()
         if param_name in {"file_path", "config_source", "source_type", "component"}:
             self._rebuild_output()
+
+    def _update_output_type_and_drop_connections(self) -> None:
+        """Update component_output type when component selection changes.
+
+        Also drops any existing outgoing connections from component_output,
+        since the type change would make them silently invalid.
+        """
+        component_display_name = self.get_parameter_value("component")
+        if component_display_name not in _LOADABLE_COMPONENTS:
+            return
+
+        component_slot = _LOADABLE_COMPONENTS[component_display_name]
+        new_artifact_type = slot_artifact_type_name(component_slot)
+
+        output_param = self.get_parameter_by_name("component_output")
+        if output_param is None:
+            return
+
+        # Update both type and output_type for UI consistency
+        output_param.type = new_artifact_type
+        output_param.output_type = new_artifact_type
+
+        # Drop any existing outgoing connections - they're now type-incompatible
+        drop_outgoing_connections(
+            self,
+            "component_output",
+            reason=f"component type changed to {new_artifact_type}",
+        )
 
     # ------------------------------------------------------------------
     # Validation and execution
