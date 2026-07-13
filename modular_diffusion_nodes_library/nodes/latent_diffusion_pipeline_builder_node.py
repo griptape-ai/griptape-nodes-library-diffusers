@@ -55,7 +55,7 @@ class LatentDiffusionPipelineBuilderNode(
         self.log_params.add_output_parameters()
 
         self._initializing = False
-        self.params._refresh_component_override_ports()
+        self.params._refresh_component_override_ports(initial_setup=True)
         self.set_pipeline_artifact()
 
     @property
@@ -122,6 +122,7 @@ class LatentDiffusionPipelineBuilderNode(
             )
 
         component_overrides = self.params.component_override_params.get_component_overrides()
+        override_is_quantized = self.params.component_override_params.has_quantized_overrides
         if component_overrides:
             build_data["_component_overrides"] = component_overrides
 
@@ -134,8 +135,8 @@ class LatentDiffusionPipelineBuilderNode(
             build_data_error=build_data_error,
             loras=self.loras_params.get_loras(),
             optimization_kwargs=self.optimization_kwargs,
-            is_prequantized=pipeline_params.is_prequantized(),
-            supports_layerwise_casting=pipeline_params.supports_layerwise_casting(),
+            is_prequantized=pipeline_params.is_prequantized() or override_is_quantized,
+            supports_layerwise_casting=pipeline_params.supports_layerwise_casting() and not override_is_quantized,
             requires_device_map=pipeline_params.requires_device_map(),
         )
 
@@ -165,7 +166,8 @@ class LatentDiffusionPipelineBuilderNode(
 
         During initialization, parameters are added normally.
         After initialization (dynamic mode), parameters are marked as user-defined
-        for serialization and duplicates are prevented.
+        for serialization and duplicates are prevented — unless the parent group
+        manages its own serialization (see ``_parent_manages_own_serialization``).
         """
         if self._initializing:
             super().add_parameter(param)
@@ -173,12 +175,24 @@ class LatentDiffusionPipelineBuilderNode(
 
         # Dynamic mode: prevent duplicates and mark as user-defined
         if not self.does_name_exist(param.name):
-            param.user_defined = True
+            if not self._parent_manages_own_serialization(param):
+                param.user_defined = True
 
             # Restore cached parameter properties using mixin method
             self.restore_cached_parameter_properties(param)
 
             super().add_parameter(param)
+
+    def _parent_manages_own_serialization(self, param: Parameter) -> bool:
+        """Return True if param's parent group has user_defined=False.
+
+        Such groups reconstruct their children on load, so serializing the children
+        would create duplicates (e.g., component_transformer_1).
+        """
+        if param.parent_element_name is None:
+            return False
+        parent_group = self.get_group_by_name_or_element_id(param.parent_element_name)
+        return parent_group is not None and not parent_group.user_defined
 
     def set_parameter_value(
         self,
