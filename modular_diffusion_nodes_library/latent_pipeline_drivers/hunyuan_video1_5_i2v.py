@@ -1,15 +1,21 @@
 import logging
 from typing import Any, ClassVar, override
 
+import torch  # type: ignore[reportMissingImports]
 from PIL.Image import Image, Resampling
+from diffusers.modular_pipelines.hunyuan_video1_5.encoders import (  # type: ignore[reportMissingImports]
+    HunyuanVideo15VaeEncoderStep,
+)
 
-from modular_diffusion_nodes_library.latent_pipeline_drivers.hunyuan_video1_5 import HunyuanVideo15TextToVideoLatentPipelineDriver
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     DecodeResult,
     GeneratorState,
+    ImageMedia,
+    VideoMedia,
 )
+from modular_diffusion_nodes_library.latent_pipeline_drivers.hunyuan_video1_5 import HunyuanVideo15TextToVideoLatentPipelineDriver
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import normalize_to_payloads
 from modular_diffusion_nodes_library.utils.conditioning_utils import (
     ConditioningMode,
@@ -22,6 +28,24 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 class HunyuanVideo15ImageToVideoLatentPipelineDriver(HunyuanVideo15TextToVideoLatentPipelineDriver):
     # EXAMPLE_DOC_STRING in pipeline_hunyuan_video1_5_image2video.py specifies fps=24
     video_fps: ClassVar[int] = 24
+
+    @override
+    def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        if isinstance(media, VideoMedia):
+            resized_width, resized_height = self.get_resize_dimensions(media.source_shape[-1], media.source_shape[-2])
+            resized_frames = [frame.resize((resized_width, resized_height)) for frame in media.frames]
+            preprocessed = VideoMedia(frames=resized_frames, source_shape=media.source_shape)
+            return super().encode_media(preprocessed, generator_state)
+        output_state = self._call_block(
+            HunyuanVideo15VaeEncoderStep(),
+            image=media.image,
+            height=media.source_shape[-2],
+            width=media.source_shape[-1],
+        )
+        return self._make_latent_artifact(
+            self._get_required(output_state, "image_latents", torch.Tensor),
+            source_shape=media.source_shape,
+        )
 
     @override
     def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:

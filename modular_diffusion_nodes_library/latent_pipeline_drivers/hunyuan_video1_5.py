@@ -7,6 +7,7 @@ from diffusers.modular_pipelines.hunyuan_video1_5 import (  # type: ignore[repor
 )
 from diffusers.modular_pipelines.hunyuan_video1_5.before_denoise import (  # type: ignore[reportMissingImports]
     HunyuanVideo15PrepareLatentsStep,
+    HunyuanVideo15SetTimestepsStep,
 )
 from diffusers.modular_pipelines.hunyuan_video1_5.decoders import (  # type: ignore[reportMissingImports]
     HunyuanVideo15VaeDecoderStep,
@@ -82,10 +83,25 @@ class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
-        raise NotImplementedError(
-            f"Pipeline '{self.pipe.__class__.__name__}' does not support media encoding. "
-            "This is a text-to-video pipeline."
-        )
+        if isinstance(media, ImageMedia):
+            raise NotImplementedError(
+                f"Pipeline '{self.pipe.__class__.__name__}' does not support image encoding. "
+                "Use a video input instead."
+            )
+        device, dtype = self._get_device_and_type()
+        vae = self.pipe.vae
+        frame_tensors = [
+            self.pipe.video_processor.preprocess(frame)
+            for frame in media.frames
+        ]
+        video_tensor = torch.stack([t.squeeze(0) for t in frame_tensors], dim=0)  # [T, C, H, W]
+        video_tensor = video_tensor.permute(1, 0, 2, 3).unsqueeze(0)  # [1, C, T, H, W]
+        video_tensor = video_tensor.to(device=device, dtype=vae.dtype)
+        generator = generator_state.to_generator()
+        with torch.no_grad():
+            latents = vae.encode(video_tensor).latent_dist.sample(generator=generator)
+        latents = latents.to(dtype=dtype) * vae.config.scaling_factor
+        return self._make_latent_artifact(latents, source_shape=media.source_shape)
 
     @override
     def add_noise_to_latent(
@@ -95,8 +111,26 @@ class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
         num_inference_steps: int,
         strength: float,
     ) -> LatentArtifact:
-        raise NotImplementedError(
-            f"Pipeline '{self.pipe.__class__.__name__}' does not support img2img noise injection."
+        device, dtype = self._get_device_and_type()
+        source_shape = latent.source_shape
+        latents = latent.to_torch(device=device, dtype=dtype)
+        timesteps_state = self._call_block(HunyuanVideo15SetTimestepsStep(), num_inference_steps=num_inference_steps)
+        timesteps = timesteps_state.get("timesteps")
+        if timesteps is None or len(timesteps) == 0:
+            raise ValueError("HunyuanVideo15SetTimestepsStep did not return valid timesteps.")
+        noise_artifact = self.create_noise_latent(source_shape, generator_state)
+        noise = noise_artifact.to_torch(device=device, dtype=dtype)
+        noise_generator_state = GeneratorState.from_artifact(noise_artifact) or generator_state
+        init_timestep = min(num_inference_steps * strength, num_inference_steps)
+        t_start = int(max(num_inference_steps - init_timestep, 0))
+        latent_timestep = timesteps[t_start * self.pipe.scheduler.order :][:1]
+        with torch.no_grad():
+            result = self.pipe.scheduler.scale_noise(latents, latent_timestep, noise)
+        return self._make_latent_artifact(
+            result,
+            source_shape=source_shape,
+            upstream=latent,
+            meta=noise_generator_state.as_meta(),
         )
 
     @override
