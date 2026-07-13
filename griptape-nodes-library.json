@@ -69,7 +69,8 @@
                 "matplotlib>=3.10.3",
                 "supervision>=0.27.0",
                 "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
-                "openexr>=3.3.0"
+                "openexr>=3.3.0",
+                "gguf>=0.10.0"
             ],
             "pip_install_flags": [
                 "--preview",
@@ -283,6 +284,16 @@
                 "category": "ModularDiffusion/Pipeline",
                 "description": "Load a LoRA file from a local path and expose it as a `loras` output. Wire to the Modular Diffusion Pipeline Builder to fuse the LoRA into the cached weights, or to a LoRA Pipeline node to activate it dynamically per generation.",
                 "display_name": "Load LoRA",
+                "group": "diffusion"
+            }
+        },
+        {
+            "class_name": "LoadComponent",
+            "file_path": "./modular_diffusion_nodes_library/nodes/load_component_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/Component Loaders",
+                "description": "Load a single-file pipeline component (v1: GGUF transformer for Flux-family pipelines) from a local path and expose it as a lazy `ComponentArtifact`. Wire into a Pipeline Builder override port to inject the component at build time without hitting the network.",
+                "display_name": "Load Component (Single File)",
                 "group": "diffusion"
             }
         }

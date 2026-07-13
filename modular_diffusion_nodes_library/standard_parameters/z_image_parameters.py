@@ -60,7 +60,7 @@ class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.ZImagePipeline:  # type: ignore[reportAttributeAccessIssue]
-        overrides = cls._materialize_overrides(build_data)
+        overrides = cls._materialize_overrides(build_data, pipeline_cls=diffusers.ZImagePipeline)  # type: ignore[reportAttributeAccessIssue]
 
         return diffusers.ZImagePipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["base_repo_id"],

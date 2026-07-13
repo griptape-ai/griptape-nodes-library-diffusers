@@ -101,7 +101,7 @@ class QwenPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.QwenImagePipeline:  # type: ignore[reportAttributeAccessIssue]
-        overrides = cls._materialize_overrides(build_data)
+        overrides = cls._materialize_overrides(build_data, pipeline_cls=diffusers.QwenImagePipeline)  # type: ignore[reportAttributeAccessIssue]
 
         scheduler_class = getattr(diffusers, build_data["scheduler_type"])
 
