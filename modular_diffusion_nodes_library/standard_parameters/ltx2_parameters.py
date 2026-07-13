@@ -57,7 +57,7 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> LTX2Pipeline:
-        overrides = cls._materialize_overrides(build_data)
+        overrides = cls._materialize_overrides(build_data, pipeline_cls=LTX2Pipeline)
 
         return LTX2Pipeline.from_pretrained(
             pretrained_model_name_or_path=build_data["base_repo_id"],

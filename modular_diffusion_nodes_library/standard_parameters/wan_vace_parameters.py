@@ -62,7 +62,7 @@ class WanVacePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.WanVACEPipeline:  # type: ignore[reportAttributeAccessIssue]
-        overrides = cls._materialize_overrides(build_data)
+        overrides = cls._materialize_overrides(build_data, pipeline_cls=diffusers.WanVACEPipeline)  # type: ignore[reportAttributeAccessIssue]
 
         return diffusers.WanVACEPipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["repo_id"],

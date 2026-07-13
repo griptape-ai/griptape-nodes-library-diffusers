@@ -102,7 +102,7 @@ class FluxPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.FluxPipeline:  # type: ignore[reportAttributeAccessIssue]
-        overrides = cls._materialize_overrides(build_data)
+        overrides = cls._materialize_overrides(build_data, pipeline_cls=diffusers.FluxPipeline)  # type: ignore[reportAttributeAccessIssue]
 
         if "text_encoder" in overrides:
             text_encoder = overrides.pop("text_encoder")
