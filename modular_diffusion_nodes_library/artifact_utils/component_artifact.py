@@ -3,16 +3,17 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 import torch  # type: ignore[reportMissingImports]
 from diffusers import GGUFQuantizationConfig  # type: ignore[reportMissingImports]
 from diffusers.loaders.single_file_model import SINGLE_FILE_LOADABLE_CLASSES  # type: ignore[reportMissingImports]
 from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingImports]
-    infer_diffusers_model_type,
     load_single_file_checkpoint,
 )
 
+from modular_diffusion_nodes_library.component_loading.checkpoint_fingerprint import infer_extended_model_type
 from modular_diffusion_nodes_library.component_loading.config_resolver import resolve_config_dir
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import (
     MODEL_TYPE_TO_PIPELINE_TYPE,
@@ -113,7 +114,7 @@ class ComponentArtifact:
 
         checkpoint = load_single_file_checkpoint(self.file_path)
         try:
-            model_type = infer_diffusers_model_type(checkpoint)
+            model_type = infer_extended_model_type(checkpoint)
         finally:
             del checkpoint
 
@@ -180,9 +181,34 @@ class ComponentArtifact:
         )
         raise ValueError(msg)
 
-    def _materialize_local_dir(self, *, pipeline_cls: type) -> Any:  # noqa: ARG002
-        msg = (
-            f"Attempted to materialize component '{self.load_id}'. "
-            f"Failed because LOCAL_DIR source type is not yet implemented."
+    def _materialize_local_dir(self, *, pipeline_cls: type) -> Any:
+        if not self.file_path:
+            msg = (
+                f"Attempted to materialize component '{self.load_id}'. "
+                f"Failed because file_path is required for LOCAL_DIR source type."
+            )
+            raise ValueError(msg)
+
+        folder = Path(self.file_path)
+        if not folder.is_dir():
+            msg = (
+                f"Attempted to materialize component '{self.load_id}'. "
+                f"Failed with file_path='{self.file_path}' because it is not an existing directory."
+            )
+            raise FileNotFoundError(msg)
+
+        if not (folder / "config.json").is_file():
+            msg = (
+                f"Attempted to materialize component '{self.load_id}'. "
+                f"Failed with file_path='{self.file_path}' because it does not contain a 'config.json'. "
+                f"Pick a diffusers-format component folder (e.g. '.../FLUX.1-dev/transformer/')."
+            )
+            raise FileNotFoundError(msg)
+
+        component_cls = get_component_class(pipeline_cls, self.component)
+
+        return component_cls.from_pretrained(
+            self.file_path,
+            torch_dtype=getattr(torch, self.torch_dtype),
+            local_files_only=True,
         )
-        raise NotImplementedError(msg)
