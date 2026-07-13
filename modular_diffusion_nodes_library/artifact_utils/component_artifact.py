@@ -61,11 +61,6 @@ class ComponentArtifact:
         """True if the weights use an embedded quantization format (e.g. GGUF)."""
         return self.file_path is not None and self.file_path.lower().endswith(".gguf")
 
-    @property
-    def is_quantized(self) -> bool:
-        """True if the weights use an embedded quantization format (e.g. GGUF)."""
-        return self.file_path is not None and self.file_path.lower().endswith(".gguf")
-
     def materialize(self, *, pipeline_cls: type) -> Any:
         """Load this component from its descriptor.
 

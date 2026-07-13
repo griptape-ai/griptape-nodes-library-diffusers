@@ -11,6 +11,7 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import Co
 from modular_diffusion_nodes_library.component_loading.component_slots import (
     ALLOWED_COMPONENT_SLOTS,
     SLOT_DISPLAY_NAMES,
+    slot_artifact_type_name,
 )
 
 if TYPE_CHECKING:
@@ -83,11 +84,12 @@ class ComponentOverrideParameters:
             )
 
         for slot in slots:
+            artifact_type = slot_artifact_type_name(slot)
             self._node.add_parameter(
                 Parameter(
                     name=f"component_{slot}",
-                    type="ComponentArtifact",
-                    input_types=["ComponentArtifact"],
+                    type=artifact_type,
+                    input_types=[artifact_type],
                     default_value=None,
                     tooltip=(
                         f"Optional override for the {SLOT_DISPLAY_NAMES[slot]} component."

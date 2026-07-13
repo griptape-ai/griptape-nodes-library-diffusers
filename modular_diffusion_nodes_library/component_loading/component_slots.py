@@ -9,6 +9,8 @@ Slots absent from this list are never exposed as override inputs, regardless of
 what ``DiffusionPipeline._get_signature_keys`` returns for a given pipeline.
 """
 
+import re
+
 ALLOWED_COMPONENT_SLOTS: list[str] = [
     "transformer",
     "unet",
@@ -38,3 +40,41 @@ SLOT_DISPLAY_NAMES: dict[str, str] = {
     "transformer_2": "Transformer 2",
     "scheduler": "Scheduler",
 }
+
+# Import-time invariant: every ALLOWED_COMPONENT_SLOTS entry must have a
+# display name, and no display name may exist without a corresponding slot.
+_missing_display_names = sorted(set(ALLOWED_COMPONENT_SLOTS) - set(SLOT_DISPLAY_NAMES))
+_orphan_display_names = sorted(set(SLOT_DISPLAY_NAMES) - set(ALLOWED_COMPONENT_SLOTS))
+if _missing_display_names or _orphan_display_names:
+    _msg = (
+        f"Attempted to load component_slots module. "
+        f"Failed because ALLOWED_COMPONENT_SLOTS and SLOT_DISPLAY_NAMES are out of sync: "
+        f"missing display names for {_missing_display_names}, "
+        f"orphan display names for {_orphan_display_names}."
+    )
+    raise RuntimeError(_msg)
+
+
+def slot_component_kind(slot: str) -> str:
+    """Strip trailing numeric suffix from slot name to get the component kind.
+
+    Examples:
+        "transformer" → "transformer"
+        "transformer_2" → "transformer"
+        "vae" → "vae"
+    """
+    return re.sub(r"_\d+$", "", slot)
+
+
+def slot_artifact_type_name(slot: str) -> str:
+    """Derive the artifact type name for a given slot.
+
+    Examples:
+        "transformer" → "TransformerComponentArtifact"
+        "transformer_2" → "TransformerComponentArtifact"
+        "vae" → "VaeComponentArtifact"
+    """
+    kind = slot_component_kind(slot)
+    parts = kind.split("_")
+    pascal_name = "".join(part.capitalize() for part in parts)
+    return f"{pascal_name}ComponentArtifact"
