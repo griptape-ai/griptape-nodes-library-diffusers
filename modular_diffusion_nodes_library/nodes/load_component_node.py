@@ -21,7 +21,7 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 # Slot names this node currently supports loading (subset of ALLOWED_COMPONENT_SLOTS).
 # Add entries here as new component types are implemented; order sets the dropdown order.
-_LOADABLE_SLOTS = ["transformer"]
+_LOADABLE_SLOTS = ["transformer", "unet", "vae"]
 _LOADABLE_COMPONENTS: dict[str, str] = {SLOT_DISPLAY_NAMES[slot]: slot for slot in _LOADABLE_SLOTS}
 _COMPONENT_CHOICES = list(_LOADABLE_COMPONENTS.keys())
 _SOURCE_TYPE_CHOICES = ["Single File", "Local Folder (coming soon)", "HuggingFace Repo (coming soon)"]
