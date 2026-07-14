@@ -5,6 +5,7 @@ from typing import Any
 from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.node_types import BaseNode
+from griptape_nodes.exe_types.param_components.huggingface.huggingface_model_parameter import HuggingFaceModelParameter
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact
 from modular_diffusion_nodes_library.component_loading.component_slots import ALLOWED_COMPONENT_SLOTS
@@ -14,10 +15,33 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 # Copied from diffusers_nodes_library/common/parameters/diffusion/pipeline_type_parameters
 
 
+class ModelParamsError(RuntimeError):
+    """Raised when there is an issue resolving model parameters (e.g. no HF
+    model selected).
+    """
+
+
 class ModularDiffusionPipelineTypePipelineParameters(ABC):
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         self._node = node
         self._list_all_models = list_all_models
+
+    def _resolve_repo(self, hf_param: HuggingFaceModelParameter) -> tuple[str, str]:
+        """Return ``(repo_id, revision)`` for ``hf_param``, or raise
+        ``ModelParamsError`` if the user hasn't picked a value yet.
+        """
+        param_name = hf_param._parameter_name  # noqa: SLF001
+        value = self._node.get_parameter_value(param_name)
+        if value is None:
+            msg = f"Required input '{param_name}' on node '{self._node.name}' has no value selected."
+            raise ModelParamsError(msg)
+        if not hf_param.list_repo_revisions():
+            msg = (
+                f"Required input '{param_name}' on node '{self._node.name}' has no models available "
+                f"(nothing cached locally that matches this parameter's filter)."
+            )
+            raise ModelParamsError(msg)
+        return hf_param.get_repo_revision()
 
     @abstractmethod
     def add_input_parameters(self) -> None:

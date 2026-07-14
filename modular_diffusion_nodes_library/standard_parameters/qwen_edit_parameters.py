@@ -83,8 +83,8 @@ class QwenEditPipelineParameters(ModularDiffusionPipelineTypePipelineParameters)
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        base_repo_id, base_revision = self._model_repo_parameter.get_repo_revision()
-        text_encoder_repo_id, text_encoder_revision = self._text_encoder_repo_parameter.get_repo_revision()
+        base_repo_id, base_revision = self._resolve_repo(self._model_repo_parameter)
+        text_encoder_repo_id, text_encoder_revision = self._resolve_repo(self._text_encoder_repo_parameter)
 
         scheduler_type = self._scheduler_parameters.get_scheduler_class().__name__
         if not hasattr(diffusers, scheduler_type):
