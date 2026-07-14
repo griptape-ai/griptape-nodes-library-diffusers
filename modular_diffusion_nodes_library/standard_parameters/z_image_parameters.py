@@ -51,7 +51,7 @@ class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        base_repo_id, base_revision = self._model_repo_parameter.get_repo_revision()
+        base_repo_id, base_revision = self._resolve_repo(self._model_repo_parameter)
 
         return {
             "base_repo_id": base_repo_id,

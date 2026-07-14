@@ -52,7 +52,7 @@ class StableDiffusionXLPipelineParameters(ModularDiffusionPipelineTypePipelinePa
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        repo_id, revision = self._huggingface_repo_parameter.get_repo_revision()
+        repo_id, revision = self._resolve_repo(self._huggingface_repo_parameter)
         return {
             "repo_id": repo_id,
             "revision": revision,

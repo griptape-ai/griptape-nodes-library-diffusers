@@ -30,10 +30,10 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 _BUNDLED_ROOT = Path(__file__).parent / "bundled_configs"
 
-_HF_REPO_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+$")
+HF_REPO_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+$")
 
 
-def _loadable_class_name(component_cls: type) -> str | None:
+def loadable_class_name(component_cls: type) -> str | None:
     """Return the ``SINGLE_FILE_LOADABLE_CLASSES`` key that ``component_cls``
     is a subclass of, or ``None`` if none matches. A subclass of a registered
     loadable (e.g. a project-local subclass of ``FluxTransformer2DModel``)
@@ -64,7 +64,7 @@ def resolve_config_dir(model_type: str, component_cls: type, config_source: str 
     The returned path is passed to ``from_single_file(config=...)``.
     Logs which tier (USER_PATH / USER_REPO / HF_CACHE / BUNDLED) was used.
     """
-    loadable_name = _loadable_class_name(component_cls)
+    loadable_name = loadable_class_name(component_cls)
     if loadable_name is None:
         msg = (
             f"Attempted to resolve config dir. "
@@ -85,11 +85,10 @@ def resolve_config_dir(model_type: str, component_cls: type, config_source: str 
 
     config_filename = f"{subfolder}/config.json"
 
-    # Tier 1 / 2: config_source supplied by caller.
+    # Config_source supplied by caller. An explicit value must resolve.
     if config_source is not None:
         config_path = Path(config_source)
         if config_path.exists():
-            # Local path: file or directory.
             if config_path.is_file():
                 logger.info("Resolved config: source=USER_PATH path=%s", config_path)
                 return config_path.parent
@@ -97,16 +96,34 @@ def resolve_config_dir(model_type: str, component_cls: type, config_source: str 
             if candidate.is_file():
                 logger.info("Resolved config: source=USER_PATH path=%s", candidate)
                 return config_path
-        else:
-            # Treat as HF repo_id and check warm cache.
-            if _HF_REPO_ID_PATTERN.match(config_source):
-                cached = try_to_load_from_cache(config_source, filename=config_filename)
-                if isinstance(cached, str):
-                    cached_dir = Path(cached).parent
-                    logger.info("Resolved config: source=USER_REPO repo=%s path=%s", config_source, cached_dir)
-                    return cached_dir
+            msg = (
+                f"Attempted to resolve config dir. "
+                f"Failed with config_source='{config_source}' because it is a directory "
+                f"that does not contain a 'config.json'."
+            )
+            raise FileNotFoundError(msg)
 
-    # Tier 3: canonical HF cache for this model_type.
+        if HF_REPO_ID_PATTERN.match(config_source):
+            cached = try_to_load_from_cache(config_source, filename=config_filename)
+            if isinstance(cached, str):
+                cached_dir = Path(cached).parent
+                logger.info("Resolved config: source=USER_REPO repo=%s path=%s", config_source, cached_dir)
+                return cached_dir
+            msg = (
+                f"Attempted to resolve config dir. "
+                f"Failed with config_source='{config_source}' because '{config_filename}' "
+                f"is not in the local HuggingFace cache for that repo."
+            )
+            raise FileNotFoundError(msg)
+
+        msg = (
+            f"Attempted to resolve config dir. "
+            f"Failed with config_source='{config_source}' because it is neither an existing "
+            f"local path nor a valid HuggingFace repo id."
+        )
+        raise ValueError(msg)
+
+    # Canonical HF cache for this model_type.
     paths_entry = DIFFUSERS_DEFAULT_PIPELINE_PATHS.get(model_type)
     if paths_entry is not None:
         repo_id = paths_entry["pretrained_model_name_or_path"]
@@ -116,7 +133,7 @@ def resolve_config_dir(model_type: str, component_cls: type, config_source: str 
             logger.info("Resolved config: source=HF_CACHE repo=%s path=%s", repo_id, cached_dir)
             return cached_dir
 
-    # Tier 4: bundled fallback.
+    # Bundled config fallback.
     bundled = _BUNDLED_ROOT / model_type / subfolder / "config.json"
     if bundled.is_file():
         logger.info("Resolved config: source=BUNDLED path=%s", bundled)
@@ -127,8 +144,8 @@ def resolve_config_dir(model_type: str, component_cls: type, config_source: str 
         f"Attempted to resolve config dir. "
         f"Failed with model_type='{model_type}' component='{component_cls.__name__}' "
         f"subfolder='{subfolder}' because no config was found in any tier: "
-        f"USER (config_source={config_source!r}), "
         f"HF_CACHE (repo='{canonical_repo}' file='{config_filename}' not cached), "
-        f"BUNDLED (expected at '{bundled}')."
+        f"BUNDLED (expected at '{bundled}'). "
+        f"Set 'Config Source' to a local config directory or HuggingFace repo_id for this component."
     )
     raise FileNotFoundError(msg)

@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import logging
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
 import torch  # type: ignore[reportMissingImports]
 from diffusers import GGUFQuantizationConfig  # type: ignore[reportMissingImports]
-from diffusers.loaders.single_file_model import SINGLE_FILE_LOADABLE_CLASSES  # type: ignore[reportMissingImports]
 from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingImports]
+    infer_diffusers_model_type,
     load_single_file_checkpoint,
 )
 
-from modular_diffusion_nodes_library.component_loading.checkpoint_fingerprint import infer_extended_model_type
 from modular_diffusion_nodes_library.component_loading.config_resolver import resolve_config_dir
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import (
     MODEL_TYPE_TO_PIPELINE_TYPE,
@@ -21,6 +21,14 @@ from modular_diffusion_nodes_library.component_loading.pipeline_type_registry im
 )
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
+
+
+def _pipeline_default_model_type(pipeline_cls: type) -> str | None:
+    """Return a canonical ``model_type`` string for ``pipeline_cls``, or ``None``."""
+    for model_type, pipeline_type in MODEL_TYPE_TO_PIPELINE_TYPE.items():
+        if pipeline_type == pipeline_cls.__name__:
+            return model_type
+    return None
 
 
 @dataclass(frozen=True)
@@ -37,18 +45,34 @@ class ComponentSourceType(StrEnum):
 
 
 @dataclass(frozen=True)
-class ComponentArtifact:
-    """Lazy descriptor for a single pipeline component.
+class ComponentArtifact(ABC):
+    """Descriptor for a single pipeline component.
 
     Produced by component loader nodes, consumed by the pipeline builder
     at build time. Does not hold the loaded component itself.
+
+    Subclasses specialize by component kind (model weights, tokenizer,
+    text encoder, ...).
     """
 
     load_id: str
-
     source_type: ComponentSourceType
-    component: str  # slot name, e.g. "transformer", "vae"
+    component: str  # slot name, e.g. "transformer", "vae", "tokenizer"
     torch_dtype: str = "bfloat16"
+
+    @property
+    def is_quantized(self) -> bool:
+        """True if the underlying weights use an embedded quantization format."""
+        return False
+
+    @abstractmethod
+    def materialize(self, *, pipeline_cls: type) -> Any:
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class ModelComponentArtifact(ComponentArtifact):
+    """Descriptor for a Transformer, UNet, or VAE component loaded via diffusers."""
 
     # HF_REPO
     repo_ref: HFRepoRef | None = None
@@ -58,10 +82,12 @@ class ComponentArtifact:
     config_source: str | None = None  # local path OR HF repo_id
 
     @property
+    @override
     def is_quantized(self) -> bool:
         """True if the weights use an embedded quantization format (e.g. GGUF)."""
         return self.file_path is not None and self.file_path.lower().endswith(".gguf")
 
+    @override
     def materialize(self, *, pipeline_cls: type) -> Any:
         """Load this component from its descriptor.
 
@@ -69,23 +95,47 @@ class ComponentArtifact:
         used to derive the concrete component class and to validate that the weights
         are compatible with the target pipeline.
         """
-        if self.source_type == ComponentSourceType.HF_REPO:
-            return self._materialize_hf_repo(pipeline_cls=pipeline_cls)
-        if self.source_type == ComponentSourceType.SINGLE_FILE:
-            return self._materialize_single_file(pipeline_cls=pipeline_cls)
-        if self.source_type == ComponentSourceType.LOCAL_DIR:
-            return self._materialize_local_dir(pipeline_cls=pipeline_cls)
+        try:
+            if self.source_type == ComponentSourceType.HF_REPO:
+                return self._materialize_hf_repo(pipeline_cls=pipeline_cls)
+            if self.source_type == ComponentSourceType.SINGLE_FILE:
+                return self._materialize_single_file(pipeline_cls=pipeline_cls)
+            if self.source_type == ComponentSourceType.LOCAL_DIR:
+                return self._materialize_local_dir(pipeline_cls=pipeline_cls)
 
-        msg = (
-            f"Attempted to materialize component '{self.load_id}'. "
-            f"Failed because source type '{self.source_type}' is not supported."
-        )
-        raise NotImplementedError(msg)
+            msg = (
+                f"Attempted to materialize {self.component}. "
+                f"Failed because source type '{self.source_type}' is not supported."
+            )
+            raise NotImplementedError(msg)
+        except Exception as e:
+            # Add component context to any materialization error
+            component_cls = get_component_class(pipeline_cls, self.component)
+            source_info = self._describe_source()
+            msg = (
+                f"Failed to load {self.component} as {component_cls.__name__} from {source_info}. Original error: {e!s}"
+            )
+            raise type(e)(msg) from e
+
+    def _describe_source(self) -> str:
+        """Return a human-readable description of this component's source."""
+        if self.source_type == ComponentSourceType.HF_REPO and self.repo_ref:
+            parts = [f"HF repo '{self.repo_ref.repo_id}'"]
+            if self.repo_ref.subfolder:
+                parts.append(f"subfolder '{self.repo_ref.subfolder}'")
+            if self.repo_ref.revision:
+                parts.append(f"revision '{self.repo_ref.revision}'")
+            return ", ".join(parts)
+        if self.source_type == ComponentSourceType.SINGLE_FILE and self.file_path:
+            return f"single file '{self.file_path}'"
+        if self.source_type == ComponentSourceType.LOCAL_DIR and self.file_path:
+            return f"local directory '{self.file_path}'"
+        return f"{self.source_type} (details unavailable)"
 
     def _materialize_hf_repo(self, *, pipeline_cls: type) -> Any:
         if not self.repo_ref:
             msg = (
-                f"Attempted to materialize component '{self.load_id}'. "
+                f"Attempted to materialize {self.component}. "
                 f"Failed because repo_ref is required for HF_REPO source type."
             )
             raise ValueError(msg)
@@ -96,87 +146,86 @@ class ComponentArtifact:
             "pretrained_model_name_or_path": self.repo_ref.repo_id,
             "local_files_only": True,
         }
-        if self.repo_ref.revision is not None:
+        if self.repo_ref.revision:
             kwargs["revision"] = self.repo_ref.revision
-        if self.repo_ref.subfolder is not None:
+        if self.repo_ref.subfolder:
             kwargs["subfolder"] = self.repo_ref.subfolder
         kwargs["torch_dtype"] = getattr(torch, self.torch_dtype)
 
+        logger.info(
+            "Materializing %s (%s) from HF_REPO repo='%s' subfolder='%s' revision='%s'.",
+            self.component,
+            component_cls.__name__,
+            self.repo_ref.repo_id,
+            self.repo_ref.subfolder,
+            self.repo_ref.revision,
+        )
         return component_cls.from_pretrained(**kwargs)
 
     def _materialize_single_file(self, *, pipeline_cls: type) -> Any:
         if not self.file_path:
             msg = (
-                f"Attempted to materialize component '{self.load_id}'. "
+                f"Attempted to materialize {self.component}. "
                 f"Failed because file_path is required for SINGLE_FILE source type."
             )
             raise ValueError(msg)
 
         checkpoint = load_single_file_checkpoint(self.file_path)
-        try:
-            model_type = infer_extended_model_type(checkpoint)
-        finally:
-            del checkpoint
+        inferred_model_type = infer_diffusers_model_type(checkpoint)
+        component_cls = get_component_class(pipeline_cls, self.component)
+
+        # If the checkpoint fingerprints generically (e.g. a standalone Flux VAE
+        # reports 'v1' because infer_diffusers_model_type only checks pipeline-level
+        # keys), fall back to the target pipeline's canonical model_type so the
+        # config lookup uses the right bundled/cached config.
+        if inferred_model_type in MODEL_TYPE_TO_PIPELINE_TYPE:
+            model_type = inferred_model_type
+        else:
+            model_type = _pipeline_default_model_type(pipeline_cls) or inferred_model_type
 
         logger.info(
-            "Inferred model_type='%s' for component '%s' at materialize time.",
+            "Inferred model_type='%s' (effective='%s') for %s (%s) from single file '%s'.",
+            inferred_model_type,
             model_type,
-            self.load_id,
+            self.component,
+            component_cls.__name__,
+            self.file_path,
         )
 
-        component_cls = get_component_class(pipeline_cls, self.component)
+        kwargs: dict[str, Any] = {
+            "pretrained_model_link_or_path_or_dict": checkpoint,
+            "torch_dtype": getattr(torch, self.torch_dtype),
+            "local_files_only": True,
+        }
+        if self.is_quantized:
+            kwargs["quantization_config"] = GGUFQuantizationConfig(compute_dtype=getattr(torch, self.torch_dtype))
 
         # Load with config if model_type is recognized OR user provided explicit config_source.
         if model_type in MODEL_TYPE_TO_PIPELINE_TYPE or self.config_source:
-            # Validate pipeline compatibility for recognized model types.
-            if model_type in MODEL_TYPE_TO_PIPELINE_TYPE:
-                expected_pipeline_type = MODEL_TYPE_TO_PIPELINE_TYPE[model_type]
-                if expected_pipeline_type != pipeline_cls.__name__:
-                    logger.warning(
-                        "Component '%s': checkpoint model_type='%s' maps to pipeline '%s' "
-                        "but builder requested pipeline_type='%s'. Proceeding with builder's "
-                        "pipeline_type — ensure weights are compatible.",
-                        self.load_id,
-                        model_type,
-                        expected_pipeline_type,
-                        pipeline_cls.__name__,
-                    )
+            expected_pipeline_type = MODEL_TYPE_TO_PIPELINE_TYPE.get(inferred_model_type)
+            if expected_pipeline_type is not None and expected_pipeline_type != pipeline_cls.__name__:
+                logger.warning(
+                    "%s: checkpoint model_type='%s' maps to pipeline '%s' "
+                    "but builder requested pipeline_type='%s'. Proceeding with builder's "
+                    "pipeline_type — ensure weights are compatible.",
+                    self.component,
+                    inferred_model_type,
+                    expected_pipeline_type,
+                    pipeline_cls.__name__,
+                )
 
             config_dir = resolve_config_dir(model_type, component_cls, self.config_source)
-            kwargs: dict[str, Any] = {
-                "pretrained_model_link_or_path_or_dict": self.file_path,
-                "config": str(config_dir),
-                "torch_dtype": getattr(torch, self.torch_dtype),
-                "local_files_only": True,
-            }
-            if self.is_quantized:
-                kwargs["quantization_config"] = GGUFQuantizationConfig(compute_dtype=getattr(torch, self.torch_dtype))
-            return component_cls.from_single_file(**kwargs)
-
-        # Try loading via config_mapping_fn if available (AutoencoderKL, UNet2DConditionModel).
-        # The function reconstructs config from checkpoint key shapes.
-        loadable_entry = SINGLE_FILE_LOADABLE_CLASSES.get(component_cls.__name__, {})
-        if "config_mapping_fn" in loadable_entry:
-            logger.info(
-                "Component '%s': model_type='%s' not registered; loading %s without config= via its config_mapping_fn.",
-                self.load_id,
-                model_type,
-                component_cls.__name__,
-            )
-            kwargs = {
-                "pretrained_model_link_or_path_or_dict": self.file_path,
-                "torch_dtype": getattr(torch, self.torch_dtype),
-                "local_files_only": True,
-            }
-            if self.is_quantized:
-                kwargs["quantization_config"] = GGUFQuantizationConfig(compute_dtype=getattr(torch, self.torch_dtype))
-            return component_cls.from_single_file(**kwargs)
+            component = component_cls.from_single_file(config=str(config_dir), **kwargs)
+            kwargs.pop("pretrained_model_link_or_path_or_dict", None)
+            del checkpoint
+            return component
 
         # No fallback available — explicit config required.
         msg = (
-            f"Attempted to materialize component '{self.load_id}'. "
-            f"Failed with model_type='{model_type}' because it is not registered and "
-            f"'{component_cls.__name__}' cannot reconstruct its config from checkpoint keys alone. "
+            f"Attempted to materialize {self.component}. "
+            f"Failed with model_type='{model_type}' pipeline_cls='{pipeline_cls.__name__}' because "
+            f"the checkpoint's model_type is unregistered and no bundled/cached config could be "
+            f"located for the target pipeline. "
             f"Set 'Config Source' to a local config directory or HuggingFace repo_id for this component."
         )
         raise ValueError(msg)
@@ -184,7 +233,7 @@ class ComponentArtifact:
     def _materialize_local_dir(self, *, pipeline_cls: type) -> Any:
         if not self.file_path:
             msg = (
-                f"Attempted to materialize component '{self.load_id}'. "
+                f"Attempted to materialize {self.component}. "
                 f"Failed because file_path is required for LOCAL_DIR source type."
             )
             raise ValueError(msg)
@@ -192,14 +241,14 @@ class ComponentArtifact:
         folder = Path(self.file_path)
         if not folder.is_dir():
             msg = (
-                f"Attempted to materialize component '{self.load_id}'. "
+                f"Attempted to materialize {self.component}. "
                 f"Failed with file_path='{self.file_path}' because it is not an existing directory."
             )
             raise FileNotFoundError(msg)
 
         if not (folder / "config.json").is_file():
             msg = (
-                f"Attempted to materialize component '{self.load_id}'. "
+                f"Attempted to materialize {self.component}. "
                 f"Failed with file_path='{self.file_path}' because it does not contain a 'config.json'. "
                 f"Pick a diffusers-format component folder (e.g. '.../FLUX.1-dev/transformer/')."
             )
@@ -207,6 +256,12 @@ class ComponentArtifact:
 
         component_cls = get_component_class(pipeline_cls, self.component)
 
+        logger.info(
+            "Materializing %s (%s) from LOCAL_DIR path='%s'.",
+            self.component,
+            component_cls.__name__,
+            self.file_path,
+        )
         return component_cls.from_pretrained(
             self.file_path,
             torch_dtype=getattr(torch, self.torch_dtype),

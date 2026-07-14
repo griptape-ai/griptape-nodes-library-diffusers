@@ -86,7 +86,7 @@ class LatentPipelineTypeParameters(ABC):
     def __init__(self, node: LatentDiffusionPipelineBuilderNode):
         self._node = node
         self.did_pipeline_type_change = False
-        self._pipeline_type_pipeline_params: ModularDiffusionPipelineTypePipelineParameters
+        self._pipeline_type_pipeline_params: ModularDiffusionPipelineTypePipelineParameters | None = None
         self.set_pipeline_type_pipeline_params(self.pipeline_types[0])
 
     @classmethod

@@ -84,9 +84,9 @@ class FluxKontextPipelineParameters(ModularDiffusionPipelineTypePipelineParamete
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        base_repo_id, base_revision = self._model_repo_parameter.get_repo_revision()
-        text_encoder_repo_id, text_encoder_revision = self._text_encoder_repo_parameter.get_repo_revision()
-        text_encoder_2_repo_id, text_encoder_2_revision = self._text_encoder_2_repo_parameter.get_repo_revision()
+        base_repo_id, base_revision = self._resolve_repo(self._model_repo_parameter)
+        text_encoder_repo_id, text_encoder_revision = self._resolve_repo(self._text_encoder_repo_parameter)
+        text_encoder_2_repo_id, text_encoder_2_revision = self._resolve_repo(self._text_encoder_2_repo_parameter)
 
         return {
             "base_repo_id": base_repo_id,
@@ -98,8 +98,8 @@ class FluxKontextPipelineParameters(ModularDiffusionPipelineTypePipelineParamete
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.FluxKontextPipeline:  # type: ignore[reportAttributeAccessIssue]
-        overrides = cls._materialize_overrides(build_data, pipeline_cls=diffusers.FluxKontextPipeline)  # type: ignore[reportAttributeAccessIssue]
+    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.DiffusionPipeline:  # type: ignore[reportAttributeAccessIssue]
+        overrides = cls._materialize_overrides(build_data, pipeline_cls=cls._pipeline_cls)
 
         if "text_encoder" in overrides:
             text_encoder = overrides.pop("text_encoder")
