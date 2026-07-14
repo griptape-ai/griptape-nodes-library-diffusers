@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.traits.options import Options
 
+from modular_diffusion_nodes_library.parameters.pipeline_builder_parameters import ComponentOverrideParameters
+
 from modular_diffusion_nodes_library.parameters.huggingface_pipeline_parameter import HuggingFacePipelineParameter
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
@@ -80,7 +82,7 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 class LatentPipelineTypeParameters(ABC):
     START_PARAMS: ClassVar = ["pipeline", "provider", "pipeline_type"]
-    END_PARAMS: ClassVar = ["loras", "logs"]
+    END_PARAMS: ClassVar = ["loras", "Status", "logs"]
 
     def __init__(self, node: LatentDiffusionPipelineBuilderNode):
         self._node = node
@@ -162,8 +164,14 @@ class LatentPipelineTypeParameters(ABC):
 
         # Build parameter groupings
         hf_param_names = HuggingFacePipelineParameter.get_hf_pipeline_parameter_names()
+
+        overrides_group = (
+            [ComponentOverrideParameters.GROUP_NAME]
+            if ComponentOverrideParameters.GROUP_NAME in all_element_names
+            else []
+        )
         start_params = LatentPipelineTypeParameters.START_PARAMS
-        end_params = [*hf_param_names, *LatentPipelineTypeParameters.END_PARAMS]
+        end_params = [*hf_param_names, *overrides_group, *LatentPipelineTypeParameters.END_PARAMS]
         excluded_params = {*start_params, *end_params}
 
         # Assemble final order: start -> middle -> end

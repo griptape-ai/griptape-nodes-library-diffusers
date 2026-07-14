@@ -60,12 +60,15 @@ class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.ZImagePipeline:  # type: ignore[reportAttributeAccessIssue]
+        overrides = cls._materialize_overrides(build_data)
+
         return diffusers.ZImagePipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],
             torch_dtype=torch.bfloat16,
             low_cpu_mem_usage=False,
             local_files_only=True,
+            **overrides,
         )
 
     def supports_layerwise_casting(self) -> bool:
