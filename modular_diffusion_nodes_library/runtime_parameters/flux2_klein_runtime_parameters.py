@@ -1,9 +1,7 @@
-from typing import Any, ClassVar
+from typing import ClassVar
 
-from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
 
-from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_layout import (
     FlexibleImageConfig,
     MediaGenConditioningConfig,
@@ -43,25 +41,13 @@ class Flux2KleinPipelineRuntimeParameters(Flux2PipelineRuntimeParameters):
             tooltip="Reference images that guide what the inpainted region should look like. Connect a Media Gen Conditioning node.",
             badge_title="Reference images",
             badge_message=(
-                "Connect a **Media Gen Conditioning** node here to supply reference images for **Inpainting** only. "
-                "This allows conditioning the inpainted region on a specific reference image. "
-                "Only **image**-mode payloads are accepted; **video** payloads are not allowed.\n\n"
+                "Connect a **Media Gen Conditioning** node here to supply reference images. "
+                "This allows conditioning the edited or inpainted region on a specific reference image. "
+                "Only **image** payloads are accepted; **video** payloads are not allowed.\n\n"
                 "**Tip:** You can also connect an image directly — without a Media Gen Conditioning node — "
                 "for single-image conditioning."
             ),
         )
-
-    def after_value_set(self, parameter: Parameter, value: Any) -> None:
-        super().after_value_set(parameter, value)
-        if parameter.name == "input_latent":
-            conditioning_images = self._node.get_parameter_by_name("reference_images")
-            if conditioning_images is None:
-                return
-            if value is not None and isinstance(value, InpaintMaskArtifact):
-                conditioning_images.allowed_modes = {ParameterMode.INPUT, ParameterMode.OUTPUT}
-            else:
-                # disable the parameter
-                conditioning_images.allowed_modes = {ParameterMode.OUTPUT}
 
     def _add_input_parameters(self) -> None:
         super()._add_input_parameters()
@@ -71,14 +57,7 @@ class Flux2KleinPipelineRuntimeParameters(Flux2PipelineRuntimeParameters):
         self._media_gen_conditioning_param.remove_input_parameters()
         super()._remove_input_parameters()
 
-    def _requires_conditioning(self) -> bool:
-        """True when an InpaintMaskArtifact is connected to input_latent."""
-        input_latent = self._node.get_parameter_value("input_latent")
-        return isinstance(input_latent, InpaintMaskArtifact)
-
     def _get_pipe_kwargs(self) -> dict:
-        if not self._requires_conditioning():
-            return super()._get_pipe_kwargs()
         return {
             **super()._get_pipe_kwargs(),
             **self._media_gen_conditioning_param.get_pipe_kwargs(),
