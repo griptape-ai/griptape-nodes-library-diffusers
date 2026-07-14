@@ -2,10 +2,10 @@ import logging
 from typing import Any, ClassVar, override
 
 import torch  # type: ignore[reportMissingImports]
-from PIL.Image import Image, Resampling
 from diffusers.modular_pipelines.hunyuan_video1_5.encoders import (  # type: ignore[reportMissingImports]
     HunyuanVideo15VaeEncoderStep,
 )
+from PIL.Image import Image, Resampling
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -15,7 +15,9 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     VideoMedia,
 )
-from modular_diffusion_nodes_library.latent_pipeline_drivers.hunyuan_video1_5 import HunyuanVideo15TextToVideoLatentPipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.hunyuan_video1_5 import (
+    HunyuanVideo15TextToVideoLatentPipelineDriver,
+)
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import normalize_to_payloads
 from modular_diffusion_nodes_library.utils.conditioning_utils import (
     ConditioningMode,
@@ -25,6 +27,8 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
 )
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
+
+
 class HunyuanVideo15ImageToVideoLatentPipelineDriver(HunyuanVideo15TextToVideoLatentPipelineDriver):
     # EXAMPLE_DOC_STRING in pipeline_hunyuan_video1_5_image2video.py specifies fps=24
     video_fps: ClassVar[int] = 24
@@ -127,11 +131,12 @@ class HunyuanVideo15ImageToVideoLatentPipelineDriver(HunyuanVideo15TextToVideoLa
             **update_kwargs,
         )
 
-
     def get_resize_dimensions(self, width: int, height: int) -> tuple[int, int]:
         """Calculate the resize dimensions for a given width and height."""
         target_size = self.pipe.transformer.config.target_size if getattr(self.pipe, "transformer", None) else 640
-        height, width = self.pipe.video_processor.calculate_default_height_width(height=height, width=width, target_size=target_size)
+        height, width = self.pipe.video_processor.calculate_default_height_width(
+            height=height, width=width, target_size=target_size
+        )
         return width, height
 
     def preprocess_image(self, image: Image, width: int, height: int) -> Image:

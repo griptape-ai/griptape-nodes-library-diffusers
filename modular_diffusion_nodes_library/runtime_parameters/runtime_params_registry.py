@@ -19,17 +19,17 @@ from modular_diffusion_nodes_library.runtime_parameters.flux2_runtime_parameters
 from modular_diffusion_nodes_library.runtime_parameters.flux_fill_runtime_parameters import (
     FluxFillPipelineRuntimeParameters,
 )
-from modular_diffusion_nodes_library.runtime_parameters.hunyuan_video1_5_i2v_runtime_parameters import (
-    HunyuanVideo15ImageToVideoPipelineRuntimeParameters,
-)
-from modular_diffusion_nodes_library.runtime_parameters.hunyuan_video1_5_runtime_parameters import (
-    HunyuanVideo15PipelineRuntimeParameters,
-)
 from modular_diffusion_nodes_library.runtime_parameters.flux_kontext_runtime_parameters import (
     FluxKontextPipelineRuntimeParameters,
 )
 from modular_diffusion_nodes_library.runtime_parameters.flux_runtime_parameters import (
     FluxPipelineRuntimeParameters,
+)
+from modular_diffusion_nodes_library.runtime_parameters.hunyuan_video1_5_i2v_runtime_parameters import (
+    HunyuanVideo15ImageToVideoPipelineRuntimeParameters,
+)
+from modular_diffusion_nodes_library.runtime_parameters.hunyuan_video1_5_runtime_parameters import (
+    HunyuanVideo15PipelineRuntimeParameters,
 )
 from modular_diffusion_nodes_library.runtime_parameters.ltx2_runtime_parameters import (
     LTX2PipelineRuntimeParameters,

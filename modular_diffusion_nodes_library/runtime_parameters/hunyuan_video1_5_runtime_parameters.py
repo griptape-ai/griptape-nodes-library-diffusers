@@ -38,13 +38,12 @@ class HunyuanVideo15PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters
             tooltip=(
                 "Controls how strongly the model follows the text prompt. "
                 "Higher values produce videos that more closely match the prompt, usually at the expense of quality. "
-                "Default 7.5 is sourced from the ClassifierFreeGuidance component default."
             ),
         )
         guidance_scale_param.set_badge(
             variant="help",
             title="Guidance scale",
-            message="For recommended values, reset the node to restore the model author's defaults.",
+            message="Controls how closely the output follows your prompt. Higher values = stronger prompt adherence, often at the cost of quality. The model default is 7.5.",
         )
         self._node.add_parameter(guidance_scale_param)
 

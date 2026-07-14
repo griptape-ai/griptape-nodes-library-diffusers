@@ -222,7 +222,7 @@ class LatentHunyuanVideo15PipelineTypeParameters(LatentPipelineTypeParameters):
             "- `HunyuanVideo15Pipeline` — Text-to-video generation (Tencent HunyuanVideo 1.5).\n"
             "- `HunyuanVideo15ImageToVideoPipeline` — Image-to-video. Requires a dedicated I2V checkpoint. \n\n"
             "For first-frame conditioning, connect a Media Gen Conditioning node to the "
-            "`additional_parameters` input of Generate Media Latents."
+            "`conditioning_images` input of Generate Media Latents."
         )
 
     @classmethod
@@ -325,7 +325,7 @@ class LatentWanPipelineTypeParameters(LatentPipelineTypeParameters):
             "- `WanImageToVideoPipeline` — Image-to-video. Requires a dedicated I2V checkpoint. "
             "Cannot be used with base WAN weights.\n\n"
             "For first/last-frame conditioning, connect a Media Gen Conditioning node to the "
-            "`additional_parameters` input of Generate Media Latents."
+            "`conditioning_images` input of Generate Media Latents."
         )
 
     @classmethod
