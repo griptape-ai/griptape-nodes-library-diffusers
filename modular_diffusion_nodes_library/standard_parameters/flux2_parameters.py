@@ -61,9 +61,9 @@ class Flux2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.Flux2Pipeline:  # type: ignore[reportAttributeAccessIssue]
-        overrides = cls._materialize_overrides(build_data, pipeline_cls=diffusers.Flux2Pipeline)  # type: ignore[reportAttributeAccessIssue]
-
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.Flux2Pipeline:  # type: ignore[reportAttributeAccessIssue]
         return diffusers.Flux2Pipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],

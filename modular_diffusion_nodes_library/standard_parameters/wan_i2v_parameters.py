@@ -65,9 +65,9 @@ class WanImageToVideoPipelineParameters(ModularDiffusionPipelineTypePipelinePara
         return True
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.WanImageToVideoPipeline:  # type: ignore[reportAttributeAccessIssue]
-        overrides = cls._materialize_overrides(build_data, pipeline_cls=diffusers.WanImageToVideoPipeline)  # type: ignore[reportAttributeAccessIssue]
-
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.WanImageToVideoPipeline:  # type: ignore[reportAttributeAccessIssue]
         return diffusers.WanImageToVideoPipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["repo_id"],
             revision=build_data["revision"],
