@@ -82,7 +82,9 @@ class LoadPipelineStep:
                 # Extract useful info from build_data
                 repo_info = self._build_data.get("base_repo_id", "unknown")
                 revision_info = self._build_data.get("base_revision")
-                pipeline_type = builder_class.__name__ if "builder_class" in locals() else "unknown"
+                pipeline_type = "unknown"
+                if "builder_class" in locals():
+                    pipeline_type = builder_class.__name__
 
                 msg = f"Failed to build pipeline. Pipeline type: {pipeline_type}, Repo: {repo_info}"
                 if revision_info:

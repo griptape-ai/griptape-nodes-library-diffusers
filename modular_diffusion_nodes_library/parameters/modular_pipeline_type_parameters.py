@@ -22,6 +22,8 @@ class ModelParamsError(RuntimeError):
 
 
 class ModularDiffusionPipelineTypePipelineParameters(ABC):
+    _pipeline_cls: type[DiffusionPipeline] | type[ModularPipeline]
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         self._node = node
         self._list_all_models = list_all_models
@@ -56,13 +58,8 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         raise NotImplementedError
 
     @property
-    @abstractmethod
-    def pipeline_class(self) -> type[DiffusionPipeline] | type[ModularPipeline]:
-        raise NotImplementedError
-
-    @property
     def pipeline_name(self) -> str:
-        return self.pipeline_class.__name__
+        return self._pipeline_cls.__name__
 
     def get_component_slots(self) -> list[str]:
         """Return component slot names available for override on this pipeline type.
@@ -71,8 +68,7 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         DiffusionPipeline._get_signature_keys) with ALLOWED_COMPONENT_SLOTS,
         preserving the priority order defined there.
         """
-        pipeline_cls = self.pipeline_class
-        all_slots, _ = pipeline_cls._get_signature_keys(pipeline_cls)
+        all_slots, _ = self._pipeline_cls._get_signature_keys(self._pipeline_cls)
         all_slots_set = set(all_slots)
         return [slot for slot in ALLOWED_COMPONENT_SLOTS if slot in all_slots_set]
 

@@ -66,10 +66,6 @@ class FluxPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
             "text_encoder_2": self._node.get_parameter_value("text_encoder_2"),
         }
 
-    @property
-    def pipeline_class(self) -> type:
-        return self._pipeline_cls
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
