@@ -374,6 +374,16 @@ MODULAR_PIPELINE_TYPE_PROVIDER_MAP: dict[Provider, type[LatentPipelineTypeParame
     Provider.Z_IMAGE: LatentZImagePipelineTypeParameters,
 }
 
+# Import-time invariant: every registered pipeline class must have all of its
+# truly-required __init__ components in ALLOWED_COMPONENT_SLOTS, so the builder
+# can construct a fully-overridden pipeline without touching a repo.
+for _params_cls in MODULAR_PIPELINE_TYPE_PROVIDER_MAP.values():
+    for _pipeline_type_cls in _params_cls.get_pipeline_type_dict().values():
+        if _pipeline_type_cls.supports_build_from_overrides_only():
+            ModularDiffusionPipelineTypePipelineParameters.verify_overridable_covers_required(
+                _pipeline_type_cls._pipeline_cls
+            )
+
 
 def find_provider_for_pipeline_type(pipeline_type: str) -> str | None:
     for provider, params_cls in MODULAR_PIPELINE_TYPE_PROVIDER_MAP.items():

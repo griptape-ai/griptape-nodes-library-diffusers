@@ -16,6 +16,11 @@ logger = logging.getLogger("diffusers_nodes_library")
 class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls = LTX2Pipeline
 
+    @classmethod
+    def supports_build_from_overrides_only(cls) -> bool:
+        "We don't have support for overriding vocoder and audio vae, so we don't support building from overrides only."
+        return False
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):  # noqa: ARG002
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -54,9 +59,7 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> LTX2Pipeline:
-        overrides = cls._materialize_overrides(build_data, pipeline_cls=LTX2Pipeline)
-
+    def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> LTX2Pipeline:
         return LTX2Pipeline.from_pretrained(
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],

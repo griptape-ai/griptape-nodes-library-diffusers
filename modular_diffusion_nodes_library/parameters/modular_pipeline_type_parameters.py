@@ -1,3 +1,4 @@
+import inspect
 import logging
 from abc import ABC, abstractmethod
 from typing import Any
@@ -13,6 +14,14 @@ from modular_diffusion_nodes_library.component_loading.component_slots import AL
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 # Copied from diffusers_nodes_library/common/parameters/diffusion/pipeline_type_parameters
+
+
+def _required_init_components(pipeline_cls: type) -> set[str]:
+    """Init params with no default (excluding self). These MUST be supplied
+    to build the pipeline, whether via from_pretrained or direct construction.
+    """
+    parameters = inspect.signature(pipeline_cls.__init__).parameters
+    return {name for name, param in parameters.items() if name != "self" and param.default is inspect.Parameter.empty}
 
 
 class ModelParamsError(RuntimeError):
@@ -57,6 +66,10 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     def get_config_kwargs(self) -> dict:
         raise NotImplementedError
 
+    @classmethod
+    def pipeline_cls(cls) -> type[DiffusionPipeline] | type[ModularPipeline]:
+        return cls._pipeline_cls
+
     @property
     def pipeline_name(self) -> str:
         return self._pipeline_cls.__name__
@@ -78,6 +91,28 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         raw: dict[str, ComponentArtifact] = build_data.get("_component_overrides", {})
         return {slot: artifact.materialize(pipeline_cls=pipeline_cls) for slot, artifact in raw.items()}
 
+    @classmethod
+    def supports_build_from_overrides_only(cls) -> bool:
+        """Return False if this pipeline deliberately opts out of being built from component overrides alone."""
+        return True
+
+    @classmethod
+    def verify_overridable_covers_required(cls, pipeline_cls: type) -> None:
+        """Raise if any required init arg of pipeline_cls is not in ALLOWED_COMPONENT_SLOTS."""
+        required = _required_init_components(pipeline_cls)
+        missing = required - set(ALLOWED_COMPONENT_SLOTS)
+        if missing:
+            msg = (
+                f"Attempted to register pipeline class '{pipeline_cls.__name__}'. "
+                f"Failed because these required __init__ components are not in "
+                f"ALLOWED_COMPONENT_SLOTS: {sorted(missing)}. Add them to "
+                f"modular_diffusion_nodes_library/component_loading/component_slots.py "
+                f"(both ALLOWED_COMPONENT_SLOTS and SLOT_DISPLAY_NAMES) so the pipeline "
+                f"can be built from component overrides alone or override "
+                f"supports_build_from_overrides_only() to return False."
+            )
+            raise RuntimeError(msg)
+
     @abstractmethod
     def validate_before_node_run(self) -> list[Exception] | None:
         raise NotImplementedError
@@ -87,9 +122,29 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         raise NotImplementedError
 
     @classmethod
-    @abstractmethod
+    def _build_pipeline_from_overrides_only(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> ModularPipeline | DiffusionPipeline | Any | None:
+        """Build pipeline directly from materialized component overrides."""
+        pipeline_cls = build_data["_pipeline_cls"]
+        return pipeline_cls(**overrides)
+
+    @classmethod
     def build_pipeline_from_build_data(
         cls, build_data: dict[str, Any]
+    ) -> ModularPipeline | DiffusionPipeline | Any | None:
+        """Build pipeline from build_data. Routes to overrides-only or repo path."""
+        pipeline_cls = build_data.get("_pipeline_cls") or cls._pipeline_cls
+        overrides = cls._materialize_overrides(build_data, pipeline_cls=pipeline_cls)
+
+        if build_data.get("_all_overrides"):
+            return cls._build_pipeline_from_overrides_only(build_data, overrides)
+        return cls._build_pipeline_from_repo(build_data, overrides)
+
+    @classmethod
+    @abstractmethod
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> ModularPipeline | DiffusionPipeline | Any | None:
         raise NotImplementedError
 

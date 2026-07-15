@@ -100,22 +100,43 @@ class LatentDiffusionPipelineBuilderNode(
         )
         return identity.cache_key()
 
+    def _build_pipeline_from_component_overrides_only(self) -> bool:
+        """Return True if every visible override port is connected.
+
+        When True, the pipeline can be built directly from component overrides
+        without requiring a HuggingFace model repo.
+        """
+        pipeline_type = self.params.pipeline_type_parameters.pipeline_type_pipeline_params
+        if not pipeline_type.supports_build_from_overrides_only():
+            return False
+        slots = pipeline_type.get_component_slots()
+        overrides = self.params.component_override_params.get_component_overrides()
+        return bool(slots) and set(slots) <= set(overrides.keys())
+
     def _build_pipeline_artifact_strict(self) -> DiffusionPipelineArtifact:
         pipeline_params = self.params.pipeline_type_parameters.pipeline_type_pipeline_params
-        build_data_error: str | None = None
-        try:
-            build_data = pipeline_params.get_build_data()
-        except ModelParamsError as e:
-            build_data = {}
-            build_data_error = (
-                f"{self.name}: Failed to collect pipeline build data for "
-                f"pipeline '{pipeline_params.pipeline_name}': {e}"
-            )
-
         component_overrides = self.params.component_override_params.get_component_overrides()
         override_is_quantized = self.params.component_override_params.has_quantized_overrides
-        if component_overrides:
-            build_data["_component_overrides"] = component_overrides
+
+        build_data_error: str | None = None
+        if self._build_pipeline_from_component_overrides_only():
+            build_data = {
+                "_component_overrides": component_overrides,
+                "_pipeline_cls": pipeline_params.pipeline_cls(),
+                "_all_overrides": True,
+            }
+        else:
+            try:
+                build_data = pipeline_params.get_build_data()
+            except ModelParamsError as e:
+                build_data = {}
+                build_data_error = (
+                    f"{self.name}: Failed to collect pipeline build data for "
+                    f"pipeline '{pipeline_params.pipeline_name}': {e}"
+                )
+
+            if component_overrides:
+                build_data["_component_overrides"] = component_overrides
 
         return DiffusionPipelineArtifact(
             pipeline_name=pipeline_params.pipeline_name,
@@ -217,9 +238,10 @@ class LatentDiffusionPipelineBuilderNode(
             self.set_pipeline_artifact()
 
     def validate_before_node_run(self) -> list[Exception] | None:
-        result = self.params.pipeline_type_parameters.pipeline_type_pipeline_params.validate_before_node_run()
-        if result is not None:
-            return result
+        if not self._build_pipeline_from_component_overrides_only():
+            result = self.params.pipeline_type_parameters.pipeline_type_pipeline_params.validate_before_node_run()
+            if result is not None:
+                return result
 
         try:
             self.get_pipeline_artifact_or_raise()

@@ -94,9 +94,9 @@ class FluxKontextPipelineParameters(ModularDiffusionPipelineTypePipelineParamete
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.DiffusionPipeline:  # type: ignore[reportAttributeAccessIssue]
-        overrides = cls._materialize_overrides(build_data, pipeline_cls=cls._pipeline_cls)
-
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.FluxKontextPipeline:  # type: ignore[reportAttributeAccessIssue]
         if "text_encoder" in overrides:
             text_encoder = overrides.pop("text_encoder")
         else:

@@ -1,8 +1,8 @@
 import logging
 from typing import Any
 
+import diffusers
 import torch  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
@@ -61,10 +61,8 @@ class LTXPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> DiffusionPipeline | Any | None:
-        overrides = cls._materialize_overrides(build_data, pipeline_cls=LTXPipeline)
-
-        pipeline = LTXPipeline.from_pretrained(
+    def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> diffusers.LTXPipeline:  # type: ignore[reportAttributeAccessIssue]
+        pipeline = cls._pipeline_cls.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             build_data["base_repo_id"],
             revision=build_data["base_revision"],
             torch_dtype=torch.bfloat16,
