@@ -40,10 +40,6 @@ class StableDiffusionXLPipelineParameters(ModularDiffusionPipelineTypePipelinePa
         }
 
     @property
-    def pipeline_class(self) -> type:
-        return self._pipeline_cls
-
-    @property
     def pipeline_name(self) -> str:
         return "StableDiffusionXLPipeline"
 

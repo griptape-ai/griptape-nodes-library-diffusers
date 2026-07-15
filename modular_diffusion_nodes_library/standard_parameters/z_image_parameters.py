@@ -18,6 +18,8 @@ Z_IMAGE_REPO_IDS = ["Tongyi-MAI/Z-Image-Turbo"]
 
 
 class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = diffusers.ZImagePipeline  # type: ignore[reportAttributeAccessIssue]
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -37,10 +39,6 @@ class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         return {
             "model": self._node.get_parameter_value("model"),
         }
-
-    @property
-    def pipeline_class(self) -> type:
-        return diffusers.ZImagePipeline  # type: ignore[reportAttributeAccessIssue]
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []

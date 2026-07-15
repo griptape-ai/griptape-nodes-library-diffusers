@@ -2,7 +2,6 @@ import logging
 from typing import Any
 
 import torch  # type: ignore[reportMissingImports]
-from diffusers import LTXPipeline  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
@@ -23,6 +22,8 @@ LTX_REPO_IDS = [
 
 
 class LTXPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = diffusers.LTXPipeline  # type: ignore[reportAttributeAccessIssue]
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -42,10 +43,6 @@ class LTXPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         return {
             "model": self._node.get_parameter_value("model"),
         }
-
-    @property
-    def pipeline_class(self) -> type:
-        return LTXPipeline
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []

@@ -14,6 +14,8 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class WanVacePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = diffusers.WanVACEPipeline  # type: ignore[reportAttributeAccessIssue]
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -36,10 +38,6 @@ class WanVacePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         return {
             "model": self._node.get_parameter_value("model"),
         }
-
-    @property
-    def pipeline_class(self) -> type:
-        return diffusers.WanVACEPipeline  # type: ignore[reportAttributeAccessIssue]
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []

@@ -14,6 +14,8 @@ logger = logging.getLogger("diffusers_nodes_library")
 
 
 class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = LTX2Pipeline
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):  # noqa: ARG002
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -33,10 +35,6 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         return {
             "model": self._node.get_parameter_value("model"),
         }
-
-    @property
-    def pipeline_class(self) -> type:
-        return LTX2Pipeline
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []

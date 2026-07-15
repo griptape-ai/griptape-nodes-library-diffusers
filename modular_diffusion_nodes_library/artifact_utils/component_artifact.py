@@ -174,9 +174,8 @@ class ModelComponentArtifact(ComponentArtifact):
         inferred_model_type = infer_diffusers_model_type(checkpoint)
         component_cls = get_component_class(pipeline_cls, self.component)
 
-        # If the checkpoint fingerprints generically (e.g. a standalone Flux VAE
-        # reports 'v1' because infer_diffusers_model_type only checks pipeline-level
-        # keys), fall back to the target pipeline's canonical model_type so the
+        # If the inferring model type fails to return recognised type
+        # fall back to the target pipeline's canonical model_type so the
         # config lookup uses the right bundled/cached config.
         if inferred_model_type in MODEL_TYPE_TO_PIPELINE_TYPE:
             model_type = inferred_model_type
@@ -220,7 +219,7 @@ class ModelComponentArtifact(ComponentArtifact):
             del checkpoint
             return component
 
-        # No fallback available — explicit config required.
+        # No explicit config provided and none bundled.
         msg = (
             f"Attempted to materialize {self.component}. "
             f"Failed with model_type='{model_type}' pipeline_cls='{pipeline_cls.__name__}' because "

@@ -18,6 +18,8 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class QwenEditPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = diffusers.QwenImageEditPipeline  # type: ignore[reportAttributeAccessIssue]
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -61,10 +63,6 @@ class QwenEditPipelineParameters(ModularDiffusionPipelineTypePipelineParameters)
             "text_encoder": self._node.get_parameter_value("text_encoder"),
             **self._scheduler_parameters.get_config_kwargs(),
         }
-
-    @property
-    def pipeline_class(self) -> type:
-        return diffusers.QwenImageEditPipeline  # type: ignore[reportAttributeAccessIssue]
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
