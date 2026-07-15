@@ -1,3 +1,4 @@
+import inspect
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, TypeVar
 
@@ -338,15 +339,20 @@ class LatentPipelineDriver(ABC):
             latents = self.prepare_input_latent(latents, source_shape)
             kwargs["latents"] = latents
 
-        kwargs.setdefault("height", source_shape[-2])
-        kwargs.setdefault("width", source_shape[-1])
-        generator = kwargs.pop("generator", generator_state.to_generator())
+        # check that the pipeline supports the kwargs we are passing in
+        pipe_call_params = inspect.signature(pipe.__call__).parameters
+        if "height" in pipe_call_params:
+            kwargs.setdefault("height", source_shape[-2])
+        if "width" in pipe_call_params:
+            kwargs.setdefault("width", source_shape[-1])
+        if "callback_on_step_end" in pipe_call_params:
+            kwargs["callback_on_step_end"] = callback
 
+        generator = kwargs.pop("generator", generator_state.to_generator())
         pipe_kwargs: dict[str, Any] = {
             **kwargs,
             "output_type": "latent",
             "num_inference_steps": num_inference_steps,
-            "callback_on_step_end": callback,
             "generator": generator,
         }
 

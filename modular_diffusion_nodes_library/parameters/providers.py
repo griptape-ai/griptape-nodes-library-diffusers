@@ -4,6 +4,7 @@ from enum import StrEnum
 class Provider(StrEnum):
     FLUX = "Flux"
     FLUX2 = "Flux2"
+    HUNYUAN_VIDEO_1_5 = "HunyuanVideo 1.5"
     LTX = "LTX"
     LTX2 = "LTX2"
     QWEN = "Qwen"
