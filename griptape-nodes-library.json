@@ -302,6 +302,8 @@
         "workflows/templates/SuccessFailure.py",
         "workflows/templates/VideoInpaintingAndOutpaintingWANVace.py",
         "workflows/templates/FluxKontextImageEdit.py",
-        "workflows/templates/FluxKontextInpainting.py"
+        "workflows/templates/FluxKontextInpainting.py",
+        "workflows/templates/WanAnimate.py",
+        "workflows/templates/WanReplace.py"
     ]
 }

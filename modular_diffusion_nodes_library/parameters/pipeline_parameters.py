@@ -50,6 +50,7 @@ class ModularDiffusionPipelineParameters:
 
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
         if parameter.name != "pipeline":
+            self._runtime_parameters.after_value_set(parameter, value)
             return
 
         if value is None:

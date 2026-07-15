@@ -43,6 +43,9 @@ from modular_diffusion_nodes_library.standard_parameters.stable_diffusion_3_para
 from modular_diffusion_nodes_library.standard_parameters.stable_diffusion_sdxl_parameters import (
     StableDiffusionXLPipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.wan_animate_parameters import (
+    WanAnimatePipelineParameters,
+)
 from modular_diffusion_nodes_library.standard_parameters.wan_i2v_parameters import (
     WanImageToVideoPipelineParameters,
 )
@@ -305,6 +308,7 @@ class LatentWanPipelineTypeParameters(LatentPipelineTypeParameters):
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
             "WanPipeline": WanPipelineParameters,
+            "WanAnimatePipeline": WanAnimatePipelineParameters,
             "WanImageToVideoPipeline": WanImageToVideoPipelineParameters,
             "WanVACEPipeline": WanVacePipelineParameters,
         }
