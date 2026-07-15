@@ -47,7 +47,7 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        base_repo_id, base_revision = self._model_repo_parameter.get_repo_revision()
+        base_repo_id, base_revision = self._resolve_repo(self._model_repo_parameter)
 
         return {
             "base_repo_id": base_repo_id,
@@ -57,7 +57,7 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> LTX2Pipeline:
-        overrides = cls._materialize_overrides(build_data)
+        overrides = cls._materialize_overrides(build_data, pipeline_cls=LTX2Pipeline)
 
         return LTX2Pipeline.from_pretrained(
             pretrained_model_name_or_path=build_data["base_repo_id"],

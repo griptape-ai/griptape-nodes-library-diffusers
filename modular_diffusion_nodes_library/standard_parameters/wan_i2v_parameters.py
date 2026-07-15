@@ -52,7 +52,7 @@ class WanImageToVideoPipelineParameters(ModularDiffusionPipelineTypePipelinePara
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        repo_id, revision = self._model_repo_parameter.get_repo_revision()
+        repo_id, revision = self._resolve_repo(self._model_repo_parameter)
 
         return {
             "repo_id": repo_id,
@@ -68,7 +68,7 @@ class WanImageToVideoPipelineParameters(ModularDiffusionPipelineTypePipelinePara
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.WanImageToVideoPipeline:  # type: ignore[reportAttributeAccessIssue]
-        overrides = cls._materialize_overrides(build_data)
+        overrides = cls._materialize_overrides(build_data, pipeline_cls=diffusers.WanImageToVideoPipeline)  # type: ignore[reportAttributeAccessIssue]
 
         return diffusers.WanImageToVideoPipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["repo_id"],

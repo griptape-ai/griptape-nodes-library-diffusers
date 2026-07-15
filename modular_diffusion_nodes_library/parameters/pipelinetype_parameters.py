@@ -7,8 +7,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.traits.options import Options
 
-from modular_diffusion_nodes_library.parameters.pipeline_builder_parameters import ComponentOverrideParameters
-
+from modular_diffusion_nodes_library.parameters.component_override_parameters import ComponentOverrideParameters
 from modular_diffusion_nodes_library.parameters.huggingface_pipeline_parameter import HuggingFacePipelineParameter
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
@@ -87,7 +86,7 @@ class LatentPipelineTypeParameters(ABC):
     def __init__(self, node: LatentDiffusionPipelineBuilderNode):
         self._node = node
         self.did_pipeline_type_change = False
-        self._pipeline_type_pipeline_params: ModularDiffusionPipelineTypePipelineParameters
+        self._pipeline_type_pipeline_params: ModularDiffusionPipelineTypePipelineParameters | None = None
         self.set_pipeline_type_pipeline_params(self.pipeline_types[0])
 
     @classmethod

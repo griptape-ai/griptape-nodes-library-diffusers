@@ -53,7 +53,7 @@ class StableDiffusion3PipelineParameters(ModularDiffusionPipelineTypePipelinePar
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        repo_id, revision = self._huggingface_repo_parameter.get_repo_revision()
+        repo_id, revision = self._resolve_repo(self._huggingface_repo_parameter)
         return {
             "repo_id": repo_id,
             "revision": revision,
@@ -61,7 +61,7 @@ class StableDiffusion3PipelineParameters(ModularDiffusionPipelineTypePipelinePar
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> Any:
-        overrides = cls._materialize_overrides(build_data)
+        overrides = cls._materialize_overrides(build_data, pipeline_cls=cls._pipeline_cls)  # type: ignore[reportAttributeAccessIssue]
 
         return cls._pipeline_cls.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["repo_id"],
