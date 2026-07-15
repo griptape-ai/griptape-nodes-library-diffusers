@@ -87,13 +87,12 @@ class Flux2KleinLatentPipelineDriver(Flux2BaseLatentPipelineDriver):
     ) -> LatentArtifact:
         payloads = normalize_to_payloads(kwargs.pop(MediaGenConditioningKey.OUTPUT, None))
         if payloads is not None:
-            # Flux2Klein only routes conditioning into the inpaint variant
-            if not isinstance(latent, InpaintMaskArtifact):
-                msg = "Failed to apply Flux2Klein conditioning because it requires an inpaint mask input."
-                raise ValueError(msg)
             image_reference = self._build_image_reference(payloads)
             if image_reference:
-                kwargs["image_reference"] = image_reference
+                if isinstance(latent, InpaintMaskArtifact):
+                    kwargs["image_reference"] = image_reference
+                else:
+                    kwargs["image"] = image_reference
 
         return super().denoise_latent(
             latent,
