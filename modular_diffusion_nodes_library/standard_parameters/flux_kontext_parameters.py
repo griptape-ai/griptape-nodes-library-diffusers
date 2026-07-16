@@ -63,10 +63,6 @@ class FluxKontextPipelineParameters(ModularDiffusionPipelineTypePipelineParamete
             "text_encoder_2": self._node.get_parameter_value("text_encoder_2"),
         }
 
-    @property
-    def pipeline_class(self) -> type:
-        return self._pipeline_cls
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
@@ -98,9 +94,9 @@ class FluxKontextPipelineParameters(ModularDiffusionPipelineTypePipelineParamete
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.DiffusionPipeline:  # type: ignore[reportAttributeAccessIssue]
-        overrides = cls._materialize_overrides(build_data, pipeline_cls=cls._pipeline_cls)
-
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.FluxKontextPipeline:  # type: ignore[reportAttributeAccessIssue]
         if "text_encoder" in overrides:
             text_encoder = overrides.pop("text_encoder")
         else:

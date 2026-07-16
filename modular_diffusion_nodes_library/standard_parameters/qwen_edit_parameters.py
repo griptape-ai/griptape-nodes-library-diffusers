@@ -18,6 +18,13 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class QwenEditPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = diffusers.QwenImageEditPipeline  # type: ignore[reportAttributeAccessIssue]
+
+    @classmethod
+    def supports_build_from_overrides_only(cls) -> bool:
+        """QwenImageEditPipeline requires 'processor' which is not in ALLOWED_COMPONENT_SLOTS."""
+        return False
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -62,10 +69,6 @@ class QwenEditPipelineParameters(ModularDiffusionPipelineTypePipelineParameters)
             **self._scheduler_parameters.get_config_kwargs(),
         }
 
-    @property
-    def pipeline_class(self) -> type:
-        return diffusers.QwenImageEditPipeline  # type: ignore[reportAttributeAccessIssue]
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
@@ -101,9 +104,9 @@ class QwenEditPipelineParameters(ModularDiffusionPipelineTypePipelineParameters)
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.QwenImageEditPipeline:  # type: ignore[reportAttributeAccessIssue]
-        overrides = cls._materialize_overrides(build_data, pipeline_cls=diffusers.QwenImageEditPipeline)  # type: ignore[reportAttributeAccessIssue]
-
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.QwenImageEditPipeline:  # type: ignore[reportAttributeAccessIssue]
         scheduler_class = getattr(diffusers, build_data["scheduler_type"])
 
         if "text_encoder" in overrides:

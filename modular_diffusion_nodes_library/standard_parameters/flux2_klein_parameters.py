@@ -31,6 +31,8 @@ FLUX_2_KLEIN_REPO_IDS = [
 
 
 class Flux2KleinPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = diffusers.Flux2KleinPipeline  # type: ignore[reportAttributeAccessIssue]
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -51,10 +53,6 @@ class Flux2KleinPipelineParameters(ModularDiffusionPipelineTypePipelineParameter
             "model": self._node.get_parameter_value("model"),
         }
 
-    @property
-    def pipeline_class(self) -> type:
-        return diffusers.Flux2KleinPipeline  # type: ignore[reportAttributeAccessIssue]
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
@@ -72,8 +70,9 @@ class Flux2KleinPipelineParameters(ModularDiffusionPipelineTypePipelineParameter
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.Flux2KleinPipeline:  # type: ignore[reportAttributeAccessIssue]
-        overrides = cls._materialize_overrides(build_data, pipeline_cls=diffusers.Flux2KleinPipeline)  # type: ignore[reportAttributeAccessIssue]
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.Flux2KleinPipeline:  # type: ignore[reportAttributeAccessIssue]
 
         return diffusers.Flux2KleinPipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["base_repo_id"],

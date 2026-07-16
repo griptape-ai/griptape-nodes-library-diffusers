@@ -40,10 +40,6 @@ class StableDiffusionXLPipelineParameters(ModularDiffusionPipelineTypePipelinePa
         }
 
     @property
-    def pipeline_class(self) -> type:
-        return self._pipeline_cls
-
-    @property
     def pipeline_name(self) -> str:
         return "StableDiffusionXLPipeline"
 
@@ -59,9 +55,9 @@ class StableDiffusionXLPipelineParameters(ModularDiffusionPipelineTypePipelinePa
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> Any:
-        overrides = cls._materialize_overrides(build_data, pipeline_cls=cls._pipeline_cls)  # type: ignore[reportAttributeAccessIssue]
-
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.StableDiffusionXLImg2ImgPipeline:  # type: ignore[reportAttributeAccessIssue]
         return cls._pipeline_cls.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["repo_id"],
             revision=build_data["revision"],

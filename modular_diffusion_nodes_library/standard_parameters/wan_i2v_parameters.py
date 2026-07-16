@@ -15,6 +15,8 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class WanImageToVideoPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = diffusers.WanImageToVideoPipeline  # type: ignore[reportAttributeAccessIssue]
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -38,10 +40,6 @@ class WanImageToVideoPipelineParameters(ModularDiffusionPipelineTypePipelinePara
         return {
             "model": self._node.get_parameter_value("model"),
         }
-
-    @property
-    def pipeline_class(self) -> type:
-        return diffusers.WanImageToVideoPipeline  # type: ignore[reportAttributeAccessIssue]
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
@@ -67,9 +65,9 @@ class WanImageToVideoPipelineParameters(ModularDiffusionPipelineTypePipelinePara
         return True
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.WanImageToVideoPipeline:  # type: ignore[reportAttributeAccessIssue]
-        overrides = cls._materialize_overrides(build_data, pipeline_cls=diffusers.WanImageToVideoPipeline)  # type: ignore[reportAttributeAccessIssue]
-
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.WanImageToVideoPipeline:  # type: ignore[reportAttributeAccessIssue]
         return diffusers.WanImageToVideoPipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["repo_id"],
             revision=build_data["revision"],
