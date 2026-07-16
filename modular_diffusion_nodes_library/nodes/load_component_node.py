@@ -19,6 +19,7 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
 from modular_diffusion_nodes_library.component_loading.component_slots import (
     SLOT_DISPLAY_NAMES,
     slot_artifact_type_name,
+    slot_component_kind,
 )
 from modular_diffusion_nodes_library.component_loading.config_resolver import HF_REPO_ID_PATTERN
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
@@ -29,7 +30,7 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 # Slot names this node currently supports loading (subset of ALLOWED_COMPONENT_SLOTS).
 # Add entries here as new component types are implemented; order sets the dropdown order.
-_LOADABLE_SLOTS = ["transformer", "unet", "vae"]
+_LOADABLE_SLOTS = ["transformer", "unet", "vae", "tokenizer", "text_encoder"]
 _LOADABLE_COMPONENTS: dict[str, str] = {SLOT_DISPLAY_NAMES[slot]: slot for slot in _LOADABLE_SLOTS}
 _COMPONENT_CHOICES = list(_LOADABLE_COMPONENTS.keys())
 
@@ -228,7 +229,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             message=(
                 "Path inside the repo that contains the component's `config.json` + weights.\n\n"
                 "Leave blank to auto-derive from the selected **Component** "
-                "(e.g. `transformer`, `unet`, `vae`)."
+                "(e.g. `transformer`, `unet`, `vae`, `tokenizer`, `text_encoder`)."
             ),
         )
         self.add_parameter(subfolder_param)
@@ -277,6 +278,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         if param_name == "component":
             self._update_output_type_and_drop_connections()
+            self._update_source_type_choices(value)
         if param_name == "source_type" and isinstance(value, str):
             self._apply_source_type_visibility(value)
         if param_name != "component_output":
@@ -291,6 +293,29 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             else:
                 for name in param_names:
                     self.hide_parameter_by_name(name)
+
+    def _update_source_type_choices(self, component_display_name: str) -> None:
+        """Restrict source_type choices based on the selected component.
+
+        Tokenizers cannot be loaded from a single file — remove that option
+        and, if it was selected, reset to Local Folder.
+        """
+        source_type_param = self.get_parameter_by_name("source_type")
+        if source_type_param is None:
+            return
+
+        component_slot = _LOADABLE_COMPONENTS.get(component_display_name, "")
+        is_tokenizer = slot_component_kind(component_slot) == "tokenizer"
+
+        new_choices = [_SOURCE_LOCAL_FOLDER, _SOURCE_HF_REPO] if is_tokenizer else _SOURCE_TYPE_CHOICES
+
+        options_trait = next((t for t in source_type_param.traits if isinstance(t, Options)), None)
+        if options_trait is not None:
+            options_trait.choices = new_choices
+
+        current_source = self.get_parameter_value("source_type")
+        if is_tokenizer and current_source == _SOURCE_SINGLE_FILE:
+            self.set_parameter_value("source_type", _SOURCE_LOCAL_FOLDER)
 
     def _update_output_type_and_drop_connections(self) -> None:
         """Update component_output type when component selection changes.
@@ -357,6 +382,17 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
     def _validate_single_file(self) -> list[Exception]:
         errors: list[Exception] = []
+        component_display_name = self.get_parameter_value("component")
+        component_slot = _LOADABLE_COMPONENTS.get(component_display_name, "")
+        if slot_component_kind(component_slot) == "tokenizer":
+            errors.append(
+                ValueError(
+                    "Attempted to run LoadComponent. Failed because Single File mode is not supported "
+                    "for tokenizer components. Use Local Folder or HuggingFace Repo instead."
+                )
+            )
+            return errors
+
         raw_file_path = self.get_parameter_value("file_path")
         if not isinstance(raw_file_path, str) or not raw_file_path:
             errors.append(ValueError("Attempted to run LoadComponent. Failed because file_path is empty."))
@@ -391,15 +427,28 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             )
             return errors
 
-        config_file = folder_path / "config.json"
-        if not config_file.is_file():
-            errors.append(
-                FileNotFoundError(
-                    f"Attempted to run LoadComponent. Failed with folder_path='{folder_path}' "
-                    f"because it does not contain a 'config.json' file. Pick a diffusers-format "
-                    f"component folder (e.g. '.../FLUX.1-dev/transformer/')."
+        component_display_name = self.get_parameter_value("component")
+        component_slot = _LOADABLE_COMPONENTS.get(component_display_name, "")
+        if slot_component_kind(component_slot) == "tokenizer":
+            config_file = folder_path / "tokenizer_config.json"
+            if not config_file.is_file():
+                errors.append(
+                    FileNotFoundError(
+                        f"Attempted to run LoadComponent. Failed with folder_path='{folder_path}' "
+                        f"because it does not contain a 'tokenizer_config.json' file. Pick a "
+                        f"diffusers-format tokenizer folder (e.g. '.../FLUX.1-dev/tokenizer/')."
+                    )
                 )
-            )
+        else:
+            config_file = folder_path / "config.json"
+            if not config_file.is_file():
+                errors.append(
+                    FileNotFoundError(
+                        f"Attempted to run LoadComponent. Failed with folder_path='{folder_path}' "
+                        f"because it does not contain a 'config.json' file. Pick a diffusers-format "
+                        f"component folder (e.g. '.../FLUX.1-dev/transformer/')."
+                    )
+                )
         return errors
 
     def _validate_hf_repo(self) -> list[Exception]:

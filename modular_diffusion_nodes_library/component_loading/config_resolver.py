@@ -12,7 +12,7 @@ Resolution order:
    ``bundled_configs/<model_type>/<subfolder>/config.json``.
 
 The ``subfolder`` is derived from ``SINGLE_FILE_LOADABLE_CLASSES`` so this
-function works for any loadable component (transformer, vae, unet, …).
+function works for any loadable model component (transformer, vae, unet, text_encoder, …).
 """
 
 from __future__ import annotations

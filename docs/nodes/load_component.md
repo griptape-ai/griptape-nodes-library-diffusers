@@ -1,6 +1,6 @@
 # Load Pipeline Component
 
-**Load a single pipeline component (transformer / unet / vae) from disk or the local HuggingFace cache.**
+**Load a single pipeline component (transformer / unet / vae / tokenizer / text encoder) from disk or the local HuggingFace cache.**
 
 Category: `ModularDiffusion/Pipeline`
 
@@ -8,7 +8,7 @@ Category: `ModularDiffusion/Pipeline`
 - Emits a `ComponentArtifact` describing where the weights live; the weights themselves are loaded lazily by the pipeline builder at build time.
 - Three source modes: a single-file checkpoint (`.gguf` / `.safetensors` / …), a diffusers-format component folder, or a HuggingFace repo id already in your local cache.
 - All modes run with local files in the cache only, nothing is downloaded. Use the model manager UI to download models & repo you might need.
-- Wire the output into a Pipeline Builder override port matching the selected component (Transformer / UNet / VAE).
+- Wire the output into a Pipeline Builder override port matching the selected component (Transformer / UNet / VAE / Tokenizer / Text Encoder).
 
 ## Typical workflow position
 ```text
@@ -35,8 +35,8 @@ _None. All fields are node properties._
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `component` | `Transformer \| UNet \| VAE` | `Transformer` | Which pipeline slot this loader targets. Changing this updates the output artifact type and drops any outgoing connections. |
-| `source_type` | `Single File \| Local Folder \| HuggingFace Repo` | `Single File` | Selects which of the parameter groups below is active. The other groups are hidden. |
+| `component` | `Transformer \| UNet \| VAE \| Tokenizer \| Text Encoder` | `Transformer` | Which pipeline slot this loader targets. Changing this updates the output artifact type and drops any outgoing connections. |
+| `source_type` | `Single File \| Local Folder \| HuggingFace Repo` | `Single File` | Selects which of the parameter groups below is active. The other groups are hidden. **Note:** Single File is not supported for Tokenizer — use Local Folder or HuggingFace Repo instead. |
 
 ### Single File
 
@@ -49,7 +49,7 @@ _None. All fields are node properties._
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `folder_path` | `str` (dir) | `""` | Absolute path to a diffusers-format component folder — the one that directly contains `config.json` plus its weight file(s), e.g. `.../FLUX.1-dev/transformer/`. |
+| `folder_path` | `str` (dir) | `""` | Absolute path to a diffusers-format component folder. For model components (Transformer, UNet, VAE, Text Encoder) this folder must contain `config.json` plus weight file(s), e.g. `.../FLUX.1-dev/transformer/`. For Tokenizer components it must contain `tokenizer_config.json`, e.g. `.../FLUX.1-dev/tokenizer/`. |
 
 ### HuggingFace Repo
 
@@ -57,15 +57,16 @@ _None. All fields are node properties._
 | --- | --- | --- | --- |
 | `repo_id` | `str` | `""` | HuggingFace repo id in `repo/id` form, e.g. `black-forest-labs/FLUX.1-dev`. Must already be in the local HF cache. |
 | `revision` | `str` | `"main"` | Repo revision i.e. branch, tag, or commit hash. |
-| `subfolder` | `str` | `""` | Subfolder inside the repo containing the component. Blank means auto-derived from the selected `component` (`transformer`, `unet`, `vae`). Note that, in some cases you might want the second transformer folder i.e. `transformer_2`, you will have to specify this manually. |
+| `subfolder` | `str` | `""` | Subfolder inside the repo containing the component. Blank means auto-derived from the selected `component` (`transformer`, `unet`, `vae`, `tokenizer`, `text_encoder`). Note that, in some cases you might want a numbered variant (e.g. `transformer_2`, `tokenizer_2`), you will have to specify this manually. |
 
 ## Tips & pitfalls
 
-- **Pick the component folder, not the pipeline root.** For Local Folder, `.../FLUX.1-dev/` is wrong; `.../FLUX.1-dev/transformer/` is right. The validator checks for `config.json` at the folder root.
+- **Pick the component folder, not the pipeline root.** For Local Folder, `.../FLUX.1-dev/` is wrong; `.../FLUX.1-dev/transformer/` is right. For model components the validator checks for `config.json`; for Tokenizer it checks for `tokenizer_config.json`.
 - **Use pre-downloaded models for fastest setup.** The HuggingFace Repo mode reads from your local cache without any downloads, so you can work offline once the model is cached.
 - **Rebuild cleanly by changing any field.** This node computes a hash that includes every visible parameter (including `revision` and `subfolder`), so updating any value automatically triggers a fresh pipeline build.
 - **Output type follows your component selection.** When you switch `component`, the output artifact type updates to match, and you can wire it to the corresponding override slot on the Pipeline Builder.
-- **Smart subfolder defaults.** The `subfolder` field auto-fills with the component name (`transformer` / `unet` / `vae`), which works for standard repo layouts. Override it manually for non-standard structures.
+- **Smart subfolder defaults.** The `subfolder` field auto-fills with the component name (`transformer` / `unet` / `vae` / `tokenizer` / `text_encoder`), which works for standard repo layouts. Override it manually for non-standard structures (e.g. `tokenizer_2`, `text_encoder_2`).
+- **Tokenizer doesn't support Single File.** Tokenizer components are vocabulary/config files, not weight checkpoints. Single File mode will be rejected at validation — use Local Folder or HuggingFace Repo for tokenizers.
 
 ## See also
 
