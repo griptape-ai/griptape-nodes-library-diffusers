@@ -325,6 +325,7 @@
         "workflows/templates/FluxKontextImageEdit.py",
         "workflows/templates/FluxKontextInpainting.py",
         "workflows/templates/WanAnimate.py",
-        "workflows/templates/WanReplace.py"
+        "workflows/templates/WanReplace.py",
+        "workflows/templates/CustomPipelineText2Image.py"
     ]
 }
