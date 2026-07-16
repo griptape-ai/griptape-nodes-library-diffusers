@@ -53,6 +53,7 @@ MODEL_TYPE_TO_PIPELINE_TYPE: dict[str, str] = {
     "wan-t2v-1.3B": "WanPipeline",
     "wan-t2v-14B": "WanPipeline",
     "wan-i2v-14B": "WanImageToVideoPipeline",
+    "wan-animate-14B": "WanAnimatePipeline",
     "wan-vace-1.3B": "WanVACEPipeline",
     "wan-vace-14B": "WanVACEPipeline",
 }

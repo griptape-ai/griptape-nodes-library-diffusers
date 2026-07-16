@@ -97,18 +97,32 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         return True
 
     @classmethod
-    def verify_overridable_covers_required(cls, pipeline_cls: type) -> None:
-        """Raise if any required init arg of pipeline_cls is not in ALLOWED_COMPONENT_SLOTS."""
+    def get_auto_supplied_components(cls) -> set[str]:
+        """Return the set of required __init__ components this class supplies itself.
+
+        Subclasses that override ``_build_pipeline_from_overrides_only`` to inject
+        components not in ``ALLOWED_COMPONENT_SLOTS`` (e.g. a default-constructed
+        guider) must list those component names here so
+        ``verify_overridable_covers_required`` accepts the class.
+        """
+        return set()
+
+    @classmethod
+    def verify_overridable_covers_required(cls) -> None:
+        """Raise if any required init arg of ``cls._pipeline_cls`` is not covered."""
+        pipeline_cls = cls._pipeline_cls
         required = _required_init_components(pipeline_cls)
-        missing = required - set(ALLOWED_COMPONENT_SLOTS)
+        missing = required - set(ALLOWED_COMPONENT_SLOTS) - cls.get_auto_supplied_components()
         if missing:
             msg = (
                 f"Attempted to register pipeline class '{pipeline_cls.__name__}'. "
                 f"Failed because these required __init__ components are not in "
-                f"ALLOWED_COMPONENT_SLOTS: {sorted(missing)}. Add them to "
-                f"modular_diffusion_nodes_library/component_loading/component_slots.py "
-                f"(both ALLOWED_COMPONENT_SLOTS and SLOT_DISPLAY_NAMES) so the pipeline "
-                f"can be built from component overrides alone or override "
+                f"ALLOWED_COMPONENT_SLOTS and not declared in "
+                f"{cls.__name__}.get_auto_supplied_components(): {sorted(missing)}. "
+                f"Add them to modular_diffusion_nodes_library/component_loading/component_slots.py "
+                f"(both ALLOWED_COMPONENT_SLOTS and SLOT_DISPLAY_NAMES) so a user can supply "
+                f"them via an override port, list them in get_auto_supplied_components() if "
+                f"{cls.__name__} injects them itself, or override "
                 f"supports_build_from_overrides_only() to return False."
             )
             raise RuntimeError(msg)
