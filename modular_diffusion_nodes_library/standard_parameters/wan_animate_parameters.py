@@ -14,6 +14,8 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class WanAnimatePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = diffusers.WanAnimatePipeline  # type: ignore[reportAttributeAccessIssue]
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -25,6 +27,13 @@ class WanAnimatePipelineParameters(ModularDiffusionPipelineTypePipelineParameter
             list_all_models=list_all_models,
         )
 
+    @classmethod
+    def supports_build_from_overrides_only(cls) -> bool:
+        # WanAnimatePipeline requires image_processor and image_encoder components
+        # that are not in ALLOWED_COMPONENT_SLOTS, so it cannot be built from
+        # component overrides alone.
+        return False
+
     def add_input_parameters(self) -> None:
         self._model_repo_parameter.add_input_parameters()
 
@@ -35,10 +44,6 @@ class WanAnimatePipelineParameters(ModularDiffusionPipelineTypePipelineParameter
         return {
             "model": self._node.get_parameter_value("model"),
         }
-
-    @property
-    def pipeline_class(self) -> type:
-        return diffusers.WanAnimatePipeline  # type: ignore[reportAttributeAccessIssue]
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
@@ -61,11 +66,14 @@ class WanAnimatePipelineParameters(ModularDiffusionPipelineTypePipelineParameter
         return True
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.WanAnimatePipeline:  # type: ignore[reportAttributeAccessIssue]
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.WanAnimatePipeline:  # type: ignore[reportAttributeAccessIssue]
         return diffusers.WanAnimatePipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["repo_id"],
             revision=build_data["revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,
             device_map="balanced",
+            **overrides,
         )
