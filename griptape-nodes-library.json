@@ -343,6 +343,7 @@
         "workflows/templates/FluxKontextInpainting.py",
         "workflows/templates/WanAnimate.py",
         "workflows/templates/WanReplace.py",
-        "workflows/templates/Multi-ViewPromptBatcher.py"
+        "workflows/templates/Multi-ViewPromptBatcher.py",
+        "workflows/templates/CustomPipelineText2Image.py"
     ]
 }

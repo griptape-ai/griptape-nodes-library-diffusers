@@ -28,6 +28,7 @@ from modular_diffusion_nodes_library.parameters.user_specified_hf_repo_parameter
     UserSpecifiedHuggingFaceRepoParameter,
 )
 from modular_diffusion_nodes_library.utils.connection_utils import drop_outgoing_connections
+from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -406,7 +407,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             errors.append(ValueError("Attempted to run LoadComponent. Failed because folder_path is empty."))
             return errors
 
-        folder_path = Path(raw_folder_path).absolute()
+        folder_path = Path(expand_path_macros(raw_folder_path)).absolute()
         if not folder_path.exists():
             errors.append(
                 FileNotFoundError(
@@ -502,7 +503,10 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         file_path = self._file_path_param.get_file_path()
         raw_config_source = self.get_parameter_value("config_source")
-        config_source = raw_config_source if isinstance(raw_config_source, str) and raw_config_source else None
+        if isinstance(raw_config_source, str) and raw_config_source:
+            config_source = expand_path_macros(raw_config_source)
+        else:
+            config_source = None
 
         load_id = _compute_load_id(
             source_type=_SOURCE_SINGLE_FILE,
@@ -527,7 +531,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         if not isinstance(raw_folder_path, str) or not raw_folder_path:
             return None
 
-        folder_path = str(Path(raw_folder_path).absolute())
+        folder_path = str(Path(expand_path_macros(raw_folder_path)).absolute())
 
         load_id = _compute_load_id(
             source_type=_SOURCE_LOCAL_FOLDER,
