@@ -14,6 +14,7 @@ from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingI
     load_single_file_checkpoint,
 )
 
+from modular_diffusion_nodes_library.component_loading.component_slots import slot_component_kind
 from modular_diffusion_nodes_library.component_loading.config_resolver import resolve_config_dir
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import (
     MODEL_TYPE_TO_PIPELINE_TYPE,
@@ -72,7 +73,7 @@ class ComponentArtifact(ABC):
 
 @dataclass(frozen=True)
 class ModelComponentArtifact(ComponentArtifact):
-    """Descriptor for a Transformer, UNet, or VAE component loaded via diffusers."""
+    """Descriptor for a model component (Transformer, UNet, VAE, Text Encoder) loaded via diffusers."""
 
     # HF_REPO
     repo_ref: HFRepoRef | None = None
@@ -150,7 +151,9 @@ class ModelComponentArtifact(ComponentArtifact):
             kwargs["revision"] = self.repo_ref.revision
         if self.repo_ref.subfolder:
             kwargs["subfolder"] = self.repo_ref.subfolder
-        kwargs["torch_dtype"] = getattr(torch, self.torch_dtype)
+        # Tokenizer classes do not accept torch_dtype in from_pretrained.
+        if slot_component_kind(self.component) != "tokenizer":
+            kwargs["torch_dtype"] = getattr(torch, self.torch_dtype)
 
         logger.info(
             "Materializing %s (%s) from HF_REPO repo='%s' subfolder='%s' revision='%s'.",
@@ -245,13 +248,25 @@ class ModelComponentArtifact(ComponentArtifact):
             )
             raise FileNotFoundError(msg)
 
-        if not (folder / "config.json").is_file():
-            msg = (
-                f"Attempted to materialize {self.component}. "
-                f"Failed with file_path='{self.file_path}' because it does not contain a 'config.json'. "
-                f"Pick a diffusers-format component folder (e.g. '.../FLUX.1-dev/transformer/')."
-            )
-            raise FileNotFoundError(msg)
+        is_tokenizer = slot_component_kind(self.component) == "tokenizer"
+        # Tokenizer folders use tokenizer_config.json; model component folders use config.json.
+        if is_tokenizer:
+            if not (folder / "tokenizer_config.json").is_file():
+                msg = (
+                    f"Attempted to materialize {self.component}. "
+                    f"Failed with file_path='{self.file_path}' because it does not contain a "
+                    f"'tokenizer_config.json'. Pick a diffusers-format tokenizer folder "
+                    f"(e.g. '.../FLUX.1-dev/tokenizer/')."
+                )
+                raise FileNotFoundError(msg)
+        else:
+            if not (folder / "config.json").is_file():
+                msg = (
+                    f"Attempted to materialize {self.component}. "
+                    f"Failed with file_path='{self.file_path}' because it does not contain a 'config.json'. "
+                    f"Pick a diffusers-format component folder (e.g. '.../FLUX.1-dev/transformer/')."
+                )
+                raise FileNotFoundError(msg)
 
         component_cls = get_component_class(pipeline_cls, self.component)
 
@@ -261,8 +276,8 @@ class ModelComponentArtifact(ComponentArtifact):
             component_cls.__name__,
             self.file_path,
         )
-        return component_cls.from_pretrained(
-            self.file_path,
-            torch_dtype=getattr(torch, self.torch_dtype),
-            local_files_only=True,
-        )
+        kwargs: dict[str, Any] = {"local_files_only": True}
+        # Tokenizer classes do not accept torch_dtype in from_pretrained.
+        if not is_tokenizer:
+            kwargs["torch_dtype"] = getattr(torch, self.torch_dtype)
+        return component_cls.from_pretrained(self.file_path, **kwargs)
