@@ -15,7 +15,7 @@ from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingI
 )
 
 from modular_diffusion_nodes_library.component_loading.component_slots import slot_component_kind
-from modular_diffusion_nodes_library.component_loading.config_resolver import resolve_config_dir
+from modular_diffusion_nodes_library.component_loading.config_resolver import loadable_class_name, resolve_config_dir
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import (
     MODEL_TYPE_TO_PIPELINE_TYPE,
     get_component_class,
@@ -173,11 +173,18 @@ class ModelComponentArtifact(ComponentArtifact):
             )
             raise ValueError(msg)
 
-        checkpoint = load_single_file_checkpoint(self.file_path)
-        inferred_model_type = infer_diffusers_model_type(checkpoint)
         component_cls = get_component_class(pipeline_cls, self.component)
 
-        # If the inferring model type fails to return recognised type
+        # Non-diffusers components (e.g. Qwen2_5_VLForConditionalGeneration) are absent from
+        # SINGLE_FILE_LOADABLE_CLASSES and cannot use diffusers' from_single_file path.
+        # Route them through from_pretrained with the gguf_file kwarg instead.
+        if loadable_class_name(component_cls) is None:
+            return self._materialize_transformers_from_gguf(component_cls)
+
+        checkpoint = load_single_file_checkpoint(self.file_path)
+        inferred_model_type = infer_diffusers_model_type(checkpoint)
+
+        # If inferring model type fails to return a recognised type
         # fall back to the target pipeline's canonical model_type so the
         # config lookup uses the right bundled/cached config.
         if inferred_model_type in MODEL_TYPE_TO_PIPELINE_TYPE:
@@ -231,6 +238,37 @@ class ModelComponentArtifact(ComponentArtifact):
             f"Set 'Config Source' to a local config directory or HuggingFace repo_id for this component."
         )
         raise ValueError(msg)
+
+    def _materialize_transformers_from_gguf(self, component_cls: type) -> Any:
+        """Load a non-diffusers component (e.g. Qwen2_5_VLForConditionalGeneration) from a GGUF file.
+
+        Called when the component class is not registered in SINGLE_FILE_LOADABLE_CLASSES.
+        """
+        file_path = Path(self.file_path)
+        if not file_path.is_file():
+            msg = (
+                f"Attempted to materialize {self.component} as {component_cls.__name__}. "
+                f"Failed with file_path='{self.file_path}' because it is not a file. "
+                f"Provide the path to the GGUF file directly (e.g. /path/to/model-Q4_K_M.gguf); "
+                f"its parent directory must contain a config.json."
+            )
+            raise FileNotFoundError(msg)
+
+        if not self.is_quantized:
+            msg = (
+                f"Attempted to materialize {self.component} as {component_cls.__name__}. "
+                f"Failed because {component_cls.__name__} is not a diffusers model and does not "
+                f"support single-file loading for non-GGUF files. "
+                f"Use a .gguf file, or switch to Local Folder or HuggingFace Repo source type."
+            )
+            raise ValueError(msg)
+
+        kwargs: dict[str, Any] = {
+            "gguf_file": file_path.name,
+            "local_files_only": True,
+            "torch_dtype": getattr(torch, self.torch_dtype),
+        }
+        return component_cls.from_pretrained(str(file_path.parent), **kwargs)
 
     def _materialize_local_dir(self, *, pipeline_cls: type) -> Any:
         if not self.file_path:
