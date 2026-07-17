@@ -309,13 +309,15 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         new_choices = [_SOURCE_LOCAL_FOLDER, _SOURCE_HF_REPO] if is_tokenizer else _SOURCE_TYPE_CHOICES
 
-        options_trait = next((t for t in source_type_param.traits if isinstance(t, Options)), None)
+        options_trait = next(iter(source_type_param.find_elements_by_type(Options)), None)
         if options_trait is not None:
             options_trait.choices = new_choices
 
         current_source = self.get_parameter_value("source_type")
         if is_tokenizer and current_source == _SOURCE_SINGLE_FILE:
             self.set_parameter_value("source_type", _SOURCE_LOCAL_FOLDER)
+        else:
+            self.set_parameter_value("source_type", current_source)
 
     def _update_output_type_and_drop_connections(self) -> None:
         """Update component_output type when component selection changes.
