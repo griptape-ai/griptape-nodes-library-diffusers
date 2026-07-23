@@ -104,7 +104,7 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     def _materialize_overrides(cls, build_data: dict[str, Any], *, pipeline_cls: type) -> dict[str, Any]:
         """Extract and materialize component overrides from build_data."""
         raw: dict[str, ComponentArtifact] = build_data.get("_component_overrides", {})
-        return {slot: artifact.materialize(pipeline_cls=pipeline_cls) for slot, artifact in raw.items()}
+        return {slot: artifact.materialize(pipeline_cls=pipeline_cls, slot=slot) for slot, artifact in raw.items()}
 
     @classmethod
     def supports_build_from_overrides_only(cls) -> bool:

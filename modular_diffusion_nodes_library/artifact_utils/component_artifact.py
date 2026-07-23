@@ -67,7 +67,7 @@ class ComponentArtifact(ABC):
         return False
 
     @abstractmethod
-    def materialize(self, *, pipeline_cls: type) -> Any:
+    def materialize(self, *, pipeline_cls: type, slot: str | None = None) -> Any:
         raise NotImplementedError
 
 
@@ -89,20 +89,26 @@ class ModelComponentArtifact(ComponentArtifact):
         return self.file_path is not None and self.file_path.lower().endswith(".gguf")
 
     @override
-    def materialize(self, *, pipeline_cls: type) -> Any:
+    def materialize(self, *, pipeline_cls: type, slot: str | None = None) -> Any:
         """Load this component from its descriptor.
 
         ``pipeline_cls`` is the diffusers pipeline class (e.g. ``FluxPipeline``)
         used to derive the concrete component class and to validate that the weights
         are compatible with the target pipeline.
+
+        ``slot`` is the actual pipeline slot being filled (e.g. ``"text_encoder_2"``).
+        When provided it takes precedence over ``self.component`` for class lookup,
+        so an artifact created for one slot can be correctly loaded into another
+        (e.g. a generic text-encoder artifact wired to the ``text_encoder_2`` port).
         """
+        effective_slot = slot if slot is not None else self.component
         try:
             if self.source_type == ComponentSourceType.HF_REPO:
-                return self._materialize_hf_repo(pipeline_cls=pipeline_cls)
+                return self._materialize_hf_repo(pipeline_cls=pipeline_cls, effective_slot=effective_slot)
             if self.source_type == ComponentSourceType.SINGLE_FILE:
-                return self._materialize_single_file(pipeline_cls=pipeline_cls)
+                return self._materialize_single_file(pipeline_cls=pipeline_cls, effective_slot=effective_slot)
             if self.source_type == ComponentSourceType.LOCAL_DIR:
-                return self._materialize_local_dir(pipeline_cls=pipeline_cls)
+                return self._materialize_local_dir(pipeline_cls=pipeline_cls, effective_slot=effective_slot)
 
             msg = (
                 f"Attempted to materialize {self.component}. "
@@ -111,7 +117,7 @@ class ModelComponentArtifact(ComponentArtifact):
             raise NotImplementedError(msg)
         except Exception as e:
             # Add component context to any materialization error
-            component_cls = get_component_class(pipeline_cls, self.component)
+            component_cls = get_component_class(pipeline_cls, effective_slot)
             source_info = self._describe_source()
             msg = (
                 f"Failed to load {self.component} as {component_cls.__name__} from {source_info}. Original error: {e!s}"
@@ -133,7 +139,7 @@ class ModelComponentArtifact(ComponentArtifact):
             return f"local directory '{self.file_path}'"
         return f"{self.source_type} (details unavailable)"
 
-    def _materialize_hf_repo(self, *, pipeline_cls: type) -> Any:
+    def _materialize_hf_repo(self, *, pipeline_cls: type, effective_slot: str) -> Any:
         if not self.repo_ref:
             msg = (
                 f"Attempted to materialize {self.component}. "
@@ -141,7 +147,7 @@ class ModelComponentArtifact(ComponentArtifact):
             )
             raise ValueError(msg)
 
-        component_cls = get_component_class(pipeline_cls, self.component)
+        component_cls = get_component_class(pipeline_cls, effective_slot)
 
         kwargs: dict[str, Any] = {
             "pretrained_model_name_or_path": self.repo_ref.repo_id,
@@ -152,7 +158,7 @@ class ModelComponentArtifact(ComponentArtifact):
         if self.repo_ref.subfolder:
             kwargs["subfolder"] = self.repo_ref.subfolder
         # Tokenizer classes do not accept torch_dtype in from_pretrained.
-        if slot_component_kind(self.component) != "tokenizer":
+        if slot_component_kind(effective_slot) != "tokenizer":
             kwargs["torch_dtype"] = getattr(torch, self.torch_dtype)
 
         logger.info(
@@ -165,7 +171,7 @@ class ModelComponentArtifact(ComponentArtifact):
         )
         return component_cls.from_pretrained(**kwargs)
 
-    def _materialize_single_file(self, *, pipeline_cls: type) -> Any:
+    def _materialize_single_file(self, *, pipeline_cls: type, effective_slot: str) -> Any:
         if not self.file_path:
             msg = (
                 f"Attempted to materialize {self.component}. "
@@ -173,7 +179,7 @@ class ModelComponentArtifact(ComponentArtifact):
             )
             raise ValueError(msg)
 
-        component_cls = get_component_class(pipeline_cls, self.component)
+        component_cls = get_component_class(pipeline_cls, effective_slot)
 
         # Non-diffusers components (e.g. Qwen2_5_VLForConditionalGeneration) are absent from
         # SINGLE_FILE_LOADABLE_CLASSES and cannot use diffusers' from_single_file path.
@@ -270,7 +276,7 @@ class ModelComponentArtifact(ComponentArtifact):
         }
         return component_cls.from_pretrained(str(file_path.parent), **kwargs)
 
-    def _materialize_local_dir(self, *, pipeline_cls: type) -> Any:
+    def _materialize_local_dir(self, *, pipeline_cls: type, effective_slot: str) -> Any:
         if not self.file_path:
             msg = (
                 f"Attempted to materialize {self.component}. "
@@ -286,7 +292,7 @@ class ModelComponentArtifact(ComponentArtifact):
             )
             raise FileNotFoundError(msg)
 
-        is_tokenizer = slot_component_kind(self.component) == "tokenizer"
+        is_tokenizer = slot_component_kind(effective_slot) == "tokenizer"
         # Tokenizer folders use tokenizer_config.json; model component folders use config.json.
         if is_tokenizer:
             if not (folder / "tokenizer_config.json").is_file():
@@ -306,7 +312,7 @@ class ModelComponentArtifact(ComponentArtifact):
                 )
                 raise FileNotFoundError(msg)
 
-        component_cls = get_component_class(pipeline_cls, self.component)
+        component_cls = get_component_class(pipeline_cls, effective_slot)
 
         logger.info(
             "Materializing %s (%s) from LOCAL_DIR path='%s'.",
