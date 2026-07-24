@@ -4,6 +4,7 @@ from typing import Any
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode
 from griptape_nodes.exe_types.param_components.seed_parameter import SeedParameter
+from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
     LatentArtifact,  # type: ignore[reportMissingImports]
@@ -130,6 +131,18 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         if result is not None:
             return result
 
+        pipe = self.pipe_params.get_pipeline()
+        if pipe is not None:
+            latent_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
+            num_frames = self.get_parameter_value("num_frames") or 1
+            height = self.get_parameter_value("height") or 1
+            width = self.get_parameter_value("width") or 1
+            auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
+            if not auto_resize:
+                messages = latent_pipeline_driver.validate_dimensions(height, width, num_frames=num_frames)
+                if messages:
+                    return [ValueError(msg) for msg in messages]
+
         return None
 
     def preprocess(self) -> None:
@@ -162,6 +175,25 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         generator_state = GeneratorState.from_seed(seed)
         if latent_pipeline_driver.produces_video:
             num_frames = self.get_parameter_value("num_frames") or 1
+            auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
+            if auto_resize:
+                aligned_h, aligned_w, aligned_frames_val = latent_pipeline_driver.align_dimensions(
+                    height, width, num_frames
+                )
+                aligned_frames = aligned_frames_val if aligned_frames_val is not None else num_frames
+                if aligned_h != height or aligned_w != width or aligned_frames != num_frames:
+                    logger.warning(
+                        "%s: Dimensions not compatible with this pipeline; automatically adjusted to nearest valid values. "
+                        "height: %d → %d, width: %d → %d, num_frames: %d → %d.",
+                        self.name,
+                        height,
+                        aligned_h,
+                        width,
+                        aligned_w,
+                        num_frames,
+                        aligned_frames,
+                    )
+                    height, width, num_frames = aligned_h, aligned_w, aligned_frames
             latents_source_shape = (1, 3, num_frames, height, width)
         else:
             latents_source_shape = (1, 3, height, width)

@@ -36,7 +36,7 @@ class HunyuanVideo15ImageToVideoLatentPipelineDriver(HunyuanVideo15TextToVideoLa
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         if isinstance(media, VideoMedia):
-            resized_width, resized_height = self.get_resize_dimensions(media.source_shape[-1], media.source_shape[-2])
+            resized_height, resized_width = self._get_resize_dimensions(media.source_shape[-2], media.source_shape[-1])
             resized_frames = [frame.resize((resized_width, resized_height)) for frame in media.frames]
             preprocessed = VideoMedia(frames=resized_frames, source_shape=media.source_shape)
             return super().encode_media(preprocessed, generator_state)
@@ -53,7 +53,7 @@ class HunyuanVideo15ImageToVideoLatentPipelineDriver(HunyuanVideo15TextToVideoLa
 
     @override
     def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
-        width, height = self.get_resize_dimensions(source_shape[-1], source_shape[-2])
+        height, width = self._get_resize_dimensions(source_shape[-2], source_shape[-1])
         resized_source_shape = (*source_shape[:-2], height, width)
         resized_output = super().create_noise_latent(resized_source_shape, generator_state)
         return self._make_latent_artifact(
@@ -131,17 +131,46 @@ class HunyuanVideo15ImageToVideoLatentPipelineDriver(HunyuanVideo15TextToVideoLa
             **update_kwargs,
         )
 
-    def get_resize_dimensions(self, width: int, height: int) -> tuple[int, int]:
-        """Calculate the resize dimensions for a given width and height."""
+    @override
+    def validate_dimensions(self, height: int, width: int, num_frames: int | None = None) -> list[str]:
+        messages: list[str] = []
+        temporal_alignment = self._get_temporal_alignment()
+        if num_frames is not None and temporal_alignment is not None:
+            suggested_frames = self._ceil_frames(num_frames, temporal_alignment)
+            if suggested_frames != num_frames:
+                messages.append(
+                    f"num_frames={num_frames} is invalid: (num_frames - 1) must be divisible by {temporal_alignment}. "
+                    f"Suggested value: {suggested_frames}."
+                )
+        aligned_h, aligned_w = self._get_resize_dimensions(height, width)
+        if aligned_h != height or aligned_w != width:
+            messages.append(
+                f"height={height}, width={width} are not valid for this pipeline. "
+                f"Suggested values: height={aligned_h}, width={aligned_w}."
+            )
+        return messages
+
+    @override
+    def align_dimensions(self, height: int, width: int, num_frames: int | None = None) -> tuple[int, int, int | None]:
+        aligned_h, aligned_w = self._get_resize_dimensions(height, width)
+        aligned_frames = num_frames
+        if num_frames is not None:
+            temporal_alignment = self._get_temporal_alignment()
+            if temporal_alignment is not None:
+                aligned_frames = self._ceil_frames(num_frames, temporal_alignment)
+        return aligned_h, aligned_w, aligned_frames
+
+    def _get_resize_dimensions(self, height: int, width: int) -> tuple[int, int]:
+        """Calculate the aligned dimensions for a given height and width."""
         target_size = self.pipe.transformer.config.target_size if getattr(self.pipe, "transformer", None) else 640
         height, width = self.pipe.video_processor.calculate_default_height_width(
             height=height, width=width, target_size=target_size
         )
-        return width, height
+        return height, width
 
     def preprocess_image(self, image: Image, width: int, height: int) -> Image:
         """Preprocess a PIL image for WAN i2v encoding."""
         # Automatically resize image based on model capabilities
-        resized_width, resized_height = self.get_resize_dimensions(width, height)
+        resized_height, resized_width = self._get_resize_dimensions(height, width)
         image = image.resize((resized_width, resized_height))
         return image

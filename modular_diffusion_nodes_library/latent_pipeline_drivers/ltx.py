@@ -184,6 +184,14 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         super().__init__(pipe)
 
     @override
+    def _get_temporal_alignment(self) -> int | None:
+        return self.pipe.vae.temporal_compression_ratio
+
+    @override
+    def _get_spatial_alignment(self) -> int:
+        return self.pipe.vae.spatial_compression_ratio
+
+    @override
     def _create_modular_pipe(self) -> ModularPipeline:
         return LTXAutoBlocks().init_pipeline()
 

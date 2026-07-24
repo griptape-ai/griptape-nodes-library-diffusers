@@ -23,6 +23,13 @@
             "contents": {
                 "enable_image_preview_intermediates": false
             }
+        },
+        {
+            "description": "Configuration settings for auto resize. Enabling this will automatically resize images and videos to the appropriate resolution as supported by the selected diffusion pipeline.",
+            "category": "modular_diffusion_library",
+            "contents": {
+                "enable_auto_resize": false
+            }
         }
     ],
     "metadata": {

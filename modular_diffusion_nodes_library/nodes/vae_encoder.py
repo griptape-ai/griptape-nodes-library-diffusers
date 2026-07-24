@@ -214,13 +214,37 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             raise ValueError(msg)
 
         frames_rgb = [f.convert("RGB") for f in frames]
-
-        # Build 5-D source shape [B, C, T, H, W] so downstream nodes recover height/width correctly.
-        sample_tensor = pipe.video_processor.preprocess(frames_rgb[0])
-
         num_frames = len(frames_rgb)
-        b, c, h, w = sample_tensor.shape
-        source_shape = (b, c, num_frames, h, w)
+        h, w = frames_rgb[0].height, frames_rgb[0].width
+
+        auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
+        if auto_resize:
+            aligned_h, aligned_w, _ = latents_pipeline_driver.align_dimensions(h, w)
+            aligned_frames = latents_pipeline_driver.snap_frames_for_encoding(num_frames)
+            if aligned_h != h or aligned_w != w or aligned_frames != num_frames:
+                logger.warning(
+                    "%s: Video dimensions not compatible with this pipeline; automatically resizing. "
+                    "height: %d → %d, width: %d → %d, num_frames: %d → %d.",
+                    self.name,
+                    h,
+                    aligned_h,
+                    w,
+                    aligned_w,
+                    num_frames,
+                    aligned_frames,
+                )
+            if aligned_h != h or aligned_w != w:
+                frames_rgb = [f.resize((aligned_w, aligned_h)) for f in frames_rgb]
+                h, w = aligned_h, aligned_w
+        else:
+            dimension_errors = latents_pipeline_driver.validate_dimensions(h, w, num_frames=num_frames)
+            if dimension_errors:
+                raise ValueError(
+                    "Attempted to encode video. Input video dimensions are invalid for this pipeline: "
+                    + " ".join(dimension_errors)
+                )
+
+        source_shape = (1, 3, num_frames, h, w)
 
         generator_state = GeneratorState.from_seed(42)
         latent_artifact = latents_pipeline_driver.encode_media(
