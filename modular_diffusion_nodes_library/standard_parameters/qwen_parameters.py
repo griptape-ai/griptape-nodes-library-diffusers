@@ -56,14 +56,18 @@ class QwenPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     def get_build_data(self) -> dict[str, Any]:
         base_repo_id, base_revision = self._resolve_repo(self._model_repo_parameter)
-        text_encoder_repo_id, text_encoder_revision = self._resolve_fixed_repo(self._text_encoder_repo_parameter)
 
-        return {
+        build_data: dict[str, Any] = {
             "base_repo_id": base_repo_id,
             "base_revision": base_revision,
-            "text_encoder_repo_id": text_encoder_repo_id,
-            "text_encoder_revision": text_encoder_revision,
         }
+
+        if self._node.get_parameter_value("component_text_encoder") is None:
+            text_encoder_repo_id, text_encoder_revision = self._resolve_fixed_repo(self._text_encoder_repo_parameter)
+            build_data["text_encoder_repo_id"] = text_encoder_repo_id
+            build_data["text_encoder_revision"] = text_encoder_revision
+
+        return build_data
 
     @classmethod
     def _build_pipeline_from_repo(
