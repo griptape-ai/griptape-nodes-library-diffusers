@@ -313,6 +313,16 @@
                 "display_name": "Load Pipeline Component",
                 "group": "diffusion"
             }
+        },
+        {
+            "class_name": "LoadSchedulerComponent",
+            "file_path": "./modular_diffusion_nodes_library/nodes/load_scheduler_component_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/Pipeline",
+                "description": "Configure a scheduler by choosing a scheduler class and a scheduler_config.json source (local file/folder or a local HuggingFace repo cache). Wire into a Pipeline Builder scheduler override port to replace the pipeline's scheduler at build time.",
+                "display_name": "Load Scheduler",
+                "group": "diffusion"
+            }
         }
     ],
     "workflows": [
