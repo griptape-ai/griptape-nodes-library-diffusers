@@ -14,7 +14,6 @@ from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin impo
 from modular_diffusion_nodes_library.parameters.upsampler_parameter_type import (
     UPSAMPLER_TYPE_MAP,
     BaseUpsamplerParameters,
-    LTX2UpsamplerParameters,
     create_upsampler_params,
 )
 
@@ -40,7 +39,8 @@ class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             )
         )
 
-        self.upsampler_params = LTX2UpsamplerParameters(self)
+        default_provider = self.get_parameter_value("provider")
+        self.upsampler_params = create_upsampler_params(default_provider, self)
         self.upsampler_params.add_input_parameters()
 
         self.add_parameter(
@@ -109,7 +109,7 @@ class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.reorder_elements(sorted_parameters)
 
     def add_parameter(self, param: Parameter) -> None:
-        if "upsampler_model" in param.name:
+        if param.name == "upsampler_model":
             param.user_defined = True
             if self.does_name_exist("upsampler_model"):
                 return
