@@ -56,7 +56,10 @@ async def setup_test_library(griptape_nodes: Engine) -> AsyncGenerator[None, Any
     # Set this library for testing
     config_manager.set_config_value(
         key=LIBRARIES_TO_REGISTER_KEY,
-        value=[str(LIBRARY_ROOT / "griptape_nodes_library.json")],
+        value=[
+            str(LIBRARY_ROOT / "griptape-nodes-library.json"),
+            str(LIBRARY_ROOT.parent / "griptape-nodes-library-standard" / "griptape_nodes_library.json"),
+        ],
     )
 
     yield  # Run all tests
@@ -85,8 +88,8 @@ async def clear_state_before_each_test(griptape_nodes: Engine) -> AsyncGenerator
 
 # TODO: https://github.com/griptape-ai/griptape-nodes-library-advanced-media/issues/4
 #       Workflows in this library perform CUDA checks that fail on standard CI runners.
-# @pytest.mark.parametrize("workflow_path", get_workflows())
-# @pytest.mark.asyncio
-# async def test_workflow_runs(workflow_path: str, workflow_executor: LocalWorkflowExecutor) -> None:
-#     """Simple test to check if the workflow runs without errors."""
-#     await workflow_executor.arun(workflow_name="main", flow_input={}, workflow_path=workflow_path)
+@pytest.mark.parametrize("workflow_path", get_workflows())
+@pytest.mark.asyncio
+async def test_workflow_runs(workflow_path: str, workflow_executor: LocalWorkflowExecutor) -> None:
+    """Simple test to check if the workflow runs without errors."""
+    await workflow_executor.arun(workflow_name="main", flow_input={}, workflow_path=workflow_path)
