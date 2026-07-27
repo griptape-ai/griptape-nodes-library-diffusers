@@ -29,6 +29,7 @@ _SCHEDULER_SLOT = "scheduler"
 _FLOW_MATCHING_CHOICES = [
     "FlowMatchEulerDiscreteScheduler",
     "FlowMatchHeunDiscreteScheduler",
+    "LTXEulerAncestralRFScheduler",
 ]
 _CLASSIC_CHOICES = [
     "EulerDiscreteScheduler",
@@ -53,7 +54,6 @@ _FLOW_MATCHING_SCHEDULERS = {
     *_FLOW_MATCHING_CHOICES,
     "FlowMatchLCMScheduler",
     "FlowMapEulerDiscreteScheduler",
-    "LTXEulerAncestralRFScheduler",
 }
 
 _FAMILY_GUIDANCE = (
@@ -283,9 +283,6 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
     # Validation and execution
     # ------------------------------------------------------------------
     def validate_before_node_run(self) -> list[Exception]:
-        # An unreadable/missing scheduler_config.json is surfaced as a non-blocking
-        # warning in _rebuild_output (no override is emitted), not raised here. Only
-        # guard the chosen class, which the dropdown already constrains.
         scheduler_class = self.get_parameter_value("scheduler_class")
         if scheduler_class not in _SCHEDULER_CHOICES:
             return [
@@ -294,6 +291,25 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                     f"because it is not one of the supported schedulers: {_SCHEDULER_CHOICES}."
                 )
             ]
+
+        try:
+            result = self._resolve_artifact_config()
+        except Exception as e:  # noqa: BLE001
+            return [
+                ValueError(
+                    f"Attempted to run LoadSchedulerComponent. "
+                    f"Failed because the selected source does not contain a readable 'scheduler_config.json': {e}"
+                )
+            ]
+        if result is None:
+            return [
+                ValueError(
+                    "Attempted to run LoadSchedulerComponent. "
+                    "Failed because no scheduler config source is configured. "
+                    "Set a local path or HuggingFace repo id pointing to a scheduler_config.json."
+                )
+            ]
+
         return []
 
     def process(self) -> None:
@@ -308,28 +324,30 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
     # ------------------------------------------------------------------
     # Output construction
     # ------------------------------------------------------------------
-    def _rebuild_output(self) -> None:
+    def _resolve_artifact_config(self) -> tuple[SchedulerComponentArtifact, dict[str, Any]] | None:
+        """Build the artifact and read its config."""
         artifact = self._build_artifact()
         if artifact is None:
-            # Nothing configured yet — no override, no message.
+            return None
+
+        config = artifact.read_config()
+        return artifact, config
+
+    def _rebuild_output(self) -> None:
+        try:
+            result = self._resolve_artifact_config()
+        except Exception as e:  # noqa: BLE001
+            self.set_parameter_value("component_output", None)
+            self._show_warning(
+                f"The selected source does not contain a readable 'scheduler_config.json' ({e}). "
+            )
+            return
+        if result is None:
             self.set_parameter_value("component_output", None)
             self._hide_message()
             return
 
-        # _build_artifact() only describes a candidate source; read_config() is
-        # where scheduler_config.json is actually resolved and validated.
-        try:
-            config = artifact.read_config()
-        except Exception as e:  # noqa: BLE001 - any read failure becomes a non-blocking warning
-            # The selected folder/repo has no readable scheduler_config.json. Warn and
-            # emit no override rather than blocking the flow.
-            self.set_parameter_value("component_output", None)
-            self._show_warning(
-                f"The selected source does not contain a readable 'scheduler_config.json' ({e}). "
-                "No scheduler override will be applied — the pipeline's own scheduler is used."
-            )
-            return
-
+        artifact, config = result
         self.set_parameter_value("component_output", artifact)
         self._update_family_message(config.get("_class_name"))
 
