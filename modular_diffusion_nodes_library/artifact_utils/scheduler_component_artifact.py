@@ -30,7 +30,7 @@ class SchedulerComponentArtifact(ComponentArtifact):
     repo_ref: HFRepoRef | None = None  # HF_REPO
 
     @override
-    def materialize(self, *, pipeline_cls: type) -> Any:  # noqa: ARG002 - class is explicit; pipeline_cls unused
+    def materialize(self, *, pipeline_cls: type, slot: str | None = None) -> Any:  # noqa: ARG002
         scheduler_cls = self._resolve_scheduler_class()
         config = self._read_config_for_scheduler_class(scheduler_cls)
         return scheduler_cls.from_config(config)
