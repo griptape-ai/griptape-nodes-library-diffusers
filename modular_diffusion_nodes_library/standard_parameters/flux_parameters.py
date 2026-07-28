@@ -3,7 +3,6 @@ from typing import Any
 
 import diffusers  # type: ignore[reportMissingImports]
 import torch  # type: ignore[reportMissingImports]
-import transformers  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
@@ -30,19 +29,6 @@ class FluxPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
             list_all_models=list_all_models,
         )
 
-        self._text_encoder_repo_parameter = HuggingFaceRepoParameter(
-            node,
-            repo_ids=["openai/clip-vit-large-patch14"],
-            parameter_name="text_encoder",
-            list_all_models=list_all_models,
-        )
-        self._text_encoder_2_repo_parameter = HuggingFaceRepoParameter(
-            node,
-            repo_ids=["google/t5-v1_1-xxl"],
-            parameter_name="text_encoder_2",
-            list_all_models=list_all_models,
-        )
-
     def add_input_parameters(self) -> None:
         self._model_repo_parameter.add_input_parameters()
 
@@ -55,63 +41,21 @@ class FluxPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         }
 
     def validate_before_node_run(self) -> list[Exception] | None:
-        errors = []
-        model_errors = self._model_repo_parameter.validate_before_node_run()
-        if model_errors:
-            errors.extend(model_errors)
-
+        errors = self._model_repo_parameter.validate_before_node_run()
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
         base_repo_id, base_revision = self._resolve_repo(self._model_repo_parameter)
-
-        build_data: dict[str, Any] = {
+        return {
             "base_repo_id": base_repo_id,
             "base_revision": base_revision,
         }
 
-        if self._node.get_parameter_value("component_text_encoder") is None:
-            text_encoder_repo_id, text_encoder_revision = self._resolve_fixed_repo(self._text_encoder_repo_parameter)
-            build_data["text_encoder_repo_id"] = text_encoder_repo_id
-            build_data["text_encoder_revision"] = text_encoder_revision
-
-        if self._node.get_parameter_value("component_text_encoder_2") is None:
-            text_encoder_2_repo_id, text_encoder_2_revision = self._resolve_fixed_repo(
-                self._text_encoder_2_repo_parameter
-            )
-            build_data["text_encoder_2_repo_id"] = text_encoder_2_repo_id
-            build_data["text_encoder_2_revision"] = text_encoder_2_revision
-
-        return build_data
-
     @classmethod
     def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> diffusers.FluxPipeline:  # type: ignore[reportAttributeAccessIssue]
-        if "text_encoder" in overrides:
-            text_encoder = overrides.pop("text_encoder")
-        else:
-            text_encoder = transformers.CLIPTextModel.from_pretrained(
-                pretrained_model_name_or_path=build_data["text_encoder_repo_id"],
-                revision=build_data["text_encoder_revision"],
-                torch_dtype=torch.bfloat16,
-                local_files_only=True,
-            )
-
-        if "text_encoder_2" in overrides:
-            text_encoder_2 = overrides.pop("text_encoder_2")
-        else:
-            text_encoder_2 = transformers.T5EncoderModel.from_pretrained(
-                pretrained_model_name_or_path=build_data["text_encoder_2_repo_id"],
-                revision=build_data["text_encoder_2_revision"],
-                torch_dtype=torch.bfloat16,
-                local_files_only=True,
-                use_safetensors=False,
-            )
-
         return cls._pipeline_cls.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],
-            text_encoder=text_encoder,
-            text_encoder_2=text_encoder_2,
             torch_dtype=torch.bfloat16,
             local_files_only=True,
             **overrides,
