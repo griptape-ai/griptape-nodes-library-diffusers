@@ -10,6 +10,7 @@ from griptape_nodes.exe_types.node_types import SuccessFailureNode
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
 from griptape_nodes.traits.options import Options
+from huggingface_hub import try_to_load_from_cache
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ComponentSourceType,
@@ -561,7 +562,11 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         repo_id = raw_repo_id.strip()
         revision = (self.get_parameter_value("revision") or "main").strip()
-        subfolder = (self.get_parameter_value("subfolder") or component_slot).strip()
+        subfolder = (self.get_parameter_value("subfolder") or "").strip()
+        if not subfolder:
+            candidate = f"{component_slot}/config.json"
+            if try_to_load_from_cache(repo_id, candidate, revision=revision) is not None:
+                subfolder = component_slot
 
         load_id = _compute_load_id(
             source_type=_SOURCE_HF_REPO,
