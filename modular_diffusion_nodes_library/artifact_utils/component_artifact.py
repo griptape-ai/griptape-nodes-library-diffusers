@@ -15,7 +15,7 @@ from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingI
 )
 
 from modular_diffusion_nodes_library.component_loading.component_slots import slot_component_kind
-from modular_diffusion_nodes_library.component_loading.config_resolver import loadable_class_name, resolve_config_dir
+from modular_diffusion_nodes_library.component_loading.config_resolver import loadable_class_name, resolve_config_path
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import (
     MODEL_TYPE_TO_PIPELINE_TYPE,
     get_component_class,
@@ -229,8 +229,8 @@ class ModelComponentArtifact(ComponentArtifact):
                     pipeline_cls.__name__,
                 )
 
-            config_dir = resolve_config_dir(model_type, component_cls, self.config_source)
-            component = component_cls.from_single_file(config=str(config_dir), **kwargs)
+            config_path = resolve_config_path(model_type, component_cls, self.config_source)
+            component = component_cls.from_single_file(config=str(config_path), **kwargs)
             kwargs.pop("pretrained_model_link_or_path_or_dict", None)
             del checkpoint
             return component
