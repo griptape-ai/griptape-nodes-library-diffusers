@@ -39,6 +39,7 @@ Load Image → [Encode Media Latent] → Generate Media Latents → Decode Media
 
 - **The input slot adapts to the connected pipeline.** Image pipelines (Flux, SD3, etc.) show an `image` input; video pipelines (LTX, LTX2, WAN, etc.) show `input_video` instead. Switching pipeline types replaces the slot — rewire the input after switching.
 - **For fresh text-to-image or text-to-video, use [Create Noise Latents](create-noise-latents.md) instead.** This node encodes an existing image or video into latent space for Image-to-Image or Video-to-Video workflows, not for generation from scratch.
+- **Video input dimensions must satisfy the pipeline's alignment constraints.** For most video pipelines this means height/width divisible by `vae_scale_factor_spatial × patch_size` and `(num_frames − 1)` divisible by `vae_scale_factor_temporal`. Some pipelines (HunyuanVideo I2V) use aspect-ratio bucketing and will resize the input automatically. Set `modular_diffusion_library.enable_auto_resize = true` in `griptape_nodes_library.json` to silently resize and re-frame misaligned inputs, or fix the source media to match the pipeline's valid dimensions before connecting.
 
 ## See also
 

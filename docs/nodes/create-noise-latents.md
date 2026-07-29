@@ -43,7 +43,7 @@ Pipeline Builder → [Create Noise Latents] → Generate Media Latents → Decod
 
 ## Tips & pitfalls
 
-- **`width` / `height` must respect VAE divisibility.** Most VAEs require multiples of 8 or 16. Pick standard dimensions (512, 768, 1024, …) to keep shapes valid.
+- **`width` / `height` / `num_frames` must satisfy the pipeline's alignment constraints.** Most image pipelines require multiples of 8 or 16. Video pipelines additionally require `(num_frames - 1)` to be divisible by the VAE temporal compression ratio. Some pipelines (HunyuanVideo I2V) use aspect-ratio bucketing — valid dimensions are not simply multiples of a constant. By default the node validates dimensions before running and surfaces an error with suggested values. Set `modular_diffusion_library.enable_auto_resize = true` in `griptape_nodes_library.json` (under `config`) to silently snap misaligned values to the nearest valid ones instead, with a warning logged.
 - **Same seed across pipelines ≠ same image.** Latent shape and VAE space differ per model; the seed is only meaningful within one pipeline type.
 - **For Image-to-Image or rediffusion, use [Encode Media Latent](encode_media_latent.md) instead.** Encoding an existing image gives you a conditioned starting point; optionally feed it through Generate Media Latents with `add_noise=True`.
 
