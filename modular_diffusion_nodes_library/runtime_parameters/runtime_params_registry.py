@@ -10,11 +10,11 @@ asserts the two key sets stay aligned.
 from __future__ import annotations
 
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import _DRIVER_REGISTRY
+from modular_diffusion_nodes_library.runtime_parameters.flux2_dev_runtime_parameters import (
+    Flux2DevPipelineRuntimeParameters,
+)
 from modular_diffusion_nodes_library.runtime_parameters.flux2_klein_runtime_parameters import (
     Flux2KleinPipelineRuntimeParameters,
-)
-from modular_diffusion_nodes_library.runtime_parameters.flux2_runtime_parameters import (
-    Flux2PipelineRuntimeParameters,
 )
 from modular_diffusion_nodes_library.runtime_parameters.flux_fill_runtime_parameters import (
     FluxFillPipelineRuntimeParameters,
@@ -72,7 +72,7 @@ _RUNTIME_PARAMS_REGISTRY: dict[str, type[DiffusionPipelineRuntimeParameters]] = 
     "FluxPipeline": FluxPipelineRuntimeParameters,
     "FluxFillPipeline": FluxFillPipelineRuntimeParameters,
     "FluxKontextPipeline": FluxKontextPipelineRuntimeParameters,
-    "Flux2Pipeline": Flux2PipelineRuntimeParameters,
+    "Flux2Pipeline": Flux2DevPipelineRuntimeParameters,
     "Flux2KleinPipeline": Flux2KleinPipelineRuntimeParameters,
     "HunyuanVideo15Pipeline": HunyuanVideo15PipelineRuntimeParameters,
     "HunyuanVideo15ImageToVideoPipeline": HunyuanVideo15ImageToVideoPipelineRuntimeParameters,
