@@ -17,6 +17,9 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
 from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact import SchedulerComponentArtifact
 from modular_diffusion_nodes_library.component_loading.component_slots import slot_artifact_type_name
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
+from modular_diffusion_nodes_library.parameters.user_specified_hf_repo_parameter import (
+    UserSpecifiedHuggingFaceRepoParameter,
+)
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -71,7 +74,7 @@ _SOURCE_TYPE_CHOICES = [_SOURCE_LOCAL_PATH, _SOURCE_HF_REPO]
 # Parameters owned by each config-source branch (for show/hide toggling).
 _SOURCE_TYPE_PARAM_GROUPS: dict[str, tuple[str, ...]] = {
     _SOURCE_LOCAL_PATH: ("config_path",),
-    _SOURCE_HF_REPO: ("repo_id", "revision", "subfolder"),
+    _SOURCE_HF_REPO: ("repo_id", "repo_id_download", "revision", "subfolder"),
 }
 
 
@@ -172,26 +175,8 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         # ------------------------------------------------------------------
         # HuggingFace Repo branch
         # ------------------------------------------------------------------
-        repo_id_param = Parameter(
-            name="repo_id",
-            type="str",
-            default_value="",
-            tooltip="HuggingFace repo id, e.g. 'black-forest-labs/FLUX.1-dev'. Must be in your local HF cache.",
-            allowed_modes={ParameterMode.PROPERTY},
-            ui_options={
-                "display_name": "Repo ID",
-                "placeholder_text": "e.g. black-forest-labs/FLUX.1-dev",
-            },
-        )
-        repo_id_param.set_badge(
-            variant="help",
-            title="HuggingFace Repo ID",
-            message=(
-                "The repo must already be in your local HuggingFace cache — no downloads are triggered. "
-                "Its scheduler config is read from the subfolder below."
-            ),
-        )
-        self.add_parameter(repo_id_param)
+        self._repo_param = UserSpecifiedHuggingFaceRepoParameter(self, "repo_id")
+        self._repo_param.add_input_parameters()
 
         self.add_parameter(
             Parameter(
@@ -278,6 +263,8 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             else:
                 for name in param_names:
                     self.hide_parameter_by_name(name)
+        if source_type == _SOURCE_HF_REPO:
+            self._repo_param.refresh_parameters()
 
     # ------------------------------------------------------------------
     # Validation and execution
@@ -292,25 +279,35 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 )
             ]
 
+        errors: list[Exception] = []
+        source_type = self.get_parameter_value("config_source_type")
+        if source_type == _SOURCE_HF_REPO:
+            cache_errors = self._repo_param.validate_before_node_run()
+            if cache_errors:
+                errors.extend(cache_errors)
+                return errors
+
         try:
             result = self._resolve_artifact_config()
         except Exception as e:  # noqa: BLE001
-            return [
+            errors.append(
                 ValueError(
                     f"Attempted to run LoadSchedulerComponent. "
                     f"Failed because the selected source does not contain a readable 'scheduler_config.json': {e}"
                 )
-            ]
+            )
+            return errors
         if result is None:
-            return [
+            errors.append(
                 ValueError(
                     "Attempted to run LoadSchedulerComponent. "
                     "Failed because no scheduler config source is configured. "
                     "Set a local path or HuggingFace repo id pointing to a scheduler_config.json."
                 )
-            ]
+            )
+            return errors
 
-        return []
+        return errors
 
     def process(self) -> None:
         self._clear_execution_status()
@@ -338,9 +335,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             result = self._resolve_artifact_config()
         except Exception as e:  # noqa: BLE001
             self.set_parameter_value("component_output", None)
-            self._show_warning(
-                f"The selected source does not contain a readable 'scheduler_config.json' ({e}). "
-            )
+            self._show_warning(f"The selected source does not contain a readable 'scheduler_config.json' ({e}). ")
             return
         if result is None:
             self.set_parameter_value("component_output", None)

@@ -48,7 +48,7 @@ _None. All fields are node properties._
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `repo_id` | `str` | `""` | HuggingFace repo id, e.g. `black-forest-labs/FLUX.1-dev`. Must already be in the local HF cache; no downloads are triggered. |
+| `repo_id` | `str` | `""` | HuggingFace repo id, e.g. `black-forest-labs/FLUX.1-dev`. Must already be in the local HF cache; no downloads are triggered. A refresh (↺) button next to the field re-checks the local cache. If the repo is not in the local cache, an **Open Model Manager to Download** button appears below the field — clicking it opens Model Management pre-filtered to that repo. Run-time validation fails if the repo is not cached. |
 | `revision` | `str` | `"main"` | Repo revision (branch, tag, or commit hash). |
 | `subfolder` | `str` | `""` | Subfolder within the repo containing `scheduler_config.json`. Blank defaults to `scheduler`. |
 
@@ -56,6 +56,7 @@ _None. All fields are node properties._
 
 - **Match the scheduler family to your pipeline.** Flow-matching schedulers (`FlowMatch*`) are for Flux, SD3, Qwen, Wan, and LTX. Classic schedulers (`Euler`, `DDIM`, `DPMSolver`, `UniPC`, etc.) are for SDXL. A cross-family scheduler will produce wrong output or error at generation time.
 - **Point at the scheduler subfolder, not the pipeline root.** For Local Path, `.../FLUX.1-dev/` is wrong; `.../FLUX.1-dev/scheduler/` (or its `scheduler_config.json`) is right.
+- **HuggingFace Repo mode is cache-only.** If the repo id you enter is not in your local HF cache, use the **Open Model Manager to Download** button that appears below the field, or click the refresh (↺) button after downloading to re-check.
 
 ## See also
 
