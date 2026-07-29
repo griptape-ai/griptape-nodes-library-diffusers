@@ -24,6 +24,9 @@ from modular_diffusion_nodes_library.component_loading.component_slots import (
 from modular_diffusion_nodes_library.component_loading.config_resolver import HF_REPO_ID_PATTERN
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.file_path_parameter import FilePathParameter
+from modular_diffusion_nodes_library.parameters.user_specified_hf_repo_parameter import (
+    UserSpecifiedHuggingFaceRepoParameter,
+)
 from modular_diffusion_nodes_library.utils.connection_utils import drop_outgoing_connections
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -45,7 +48,7 @@ _SOURCE_TYPE_CHOICES = [_SOURCE_SINGLE_FILE, _SOURCE_LOCAL_FOLDER, _SOURCE_HF_RE
 _SOURCE_TYPE_PARAM_GROUPS: dict[str, tuple[str, ...]] = {
     _SOURCE_SINGLE_FILE: ("file_path", "config_source"),
     _SOURCE_LOCAL_FOLDER: ("folder_path",),
-    _SOURCE_HF_REPO: ("repo_id", "revision", "subfolder"),
+    _SOURCE_HF_REPO: ("repo_id", "repo_id_download", "revision", "subfolder"),
 }
 
 
@@ -180,26 +183,8 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         # ------------------------------------------------------------------
         # HuggingFace Repo branch
         # ------------------------------------------------------------------
-        repo_id_param = Parameter(
-            name="repo_id",
-            type="str",
-            default_value="",
-            tooltip="HuggingFace repo id, e.g. 'black-forest-labs/FLUX.1-dev'.",
-            allowed_modes={ParameterMode.PROPERTY},
-            ui_options={
-                "display_name": "Repo ID",
-                "placeholder_text": "e.g. black-forest-labs/FLUX.1-dev",
-            },
-        )
-        repo_id_param.set_badge(
-            variant="help",
-            title="HuggingFace Repo ID",
-            message=(
-                "The repo must already be in your local HuggingFace cache, "
-                "only local weights are supported, download via the model management UI."
-            ),
-        )
-        self.add_parameter(repo_id_param)
+        self._repo_param = UserSpecifiedHuggingFaceRepoParameter(self, "repo_id")
+        self._repo_param.add_input_parameters()
 
         self.add_parameter(
             Parameter(
@@ -293,6 +278,8 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             else:
                 for name in param_names:
                     self.hide_parameter_by_name(name)
+        if source_type == _SOURCE_HF_REPO:
+            self._repo_param.refresh_parameters()
 
     def _update_source_type_choices(self, component_display_name: str) -> None:
         """Restrict source_type choices based on the selected component.
@@ -372,6 +359,11 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             return errors
         if source_type == _SOURCE_HF_REPO:
             errors.extend(self._validate_hf_repo())
+            if errors:
+                return errors
+            cache_errors = self._repo_param.validate_before_node_run()
+            if cache_errors:
+                errors.extend(cache_errors)
             return errors
 
         errors.append(
