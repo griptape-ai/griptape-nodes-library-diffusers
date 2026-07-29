@@ -13,6 +13,7 @@ from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingI
     infer_diffusers_model_type,
     load_single_file_checkpoint,
 )
+from huggingface_hub import try_to_load_from_cache
 
 from modular_diffusion_nodes_library.component_loading.component_slots import slot_component_kind
 from modular_diffusion_nodes_library.component_loading.config_resolver import loadable_class_name, resolve_config_path
@@ -149,14 +150,20 @@ class ModelComponentArtifact(ComponentArtifact):
 
         component_cls = get_component_class(pipeline_cls, effective_slot)
 
+        subfolder = self.repo_ref.subfolder
+        if not subfolder:
+            candidate = f"{effective_slot}/config.json"
+            if try_to_load_from_cache(self.repo_ref.repo_id, candidate, revision=self.repo_ref.revision) is not None:
+                subfolder = effective_slot
+
         kwargs: dict[str, Any] = {
             "pretrained_model_name_or_path": self.repo_ref.repo_id,
             "local_files_only": True,
         }
         if self.repo_ref.revision:
             kwargs["revision"] = self.repo_ref.revision
-        if self.repo_ref.subfolder:
-            kwargs["subfolder"] = self.repo_ref.subfolder
+        if subfolder:
+            kwargs["subfolder"] = subfolder
         # Tokenizer classes do not accept torch_dtype in from_pretrained.
         if slot_component_kind(effective_slot) != "tokenizer":
             kwargs["torch_dtype"] = getattr(torch, self.torch_dtype)
@@ -166,7 +173,7 @@ class ModelComponentArtifact(ComponentArtifact):
             self.component,
             component_cls.__name__,
             self.repo_ref.repo_id,
-            self.repo_ref.subfolder,
+            subfolder,
             self.repo_ref.revision,
         )
         return component_cls.from_pretrained(**kwargs)
