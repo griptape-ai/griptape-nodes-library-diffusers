@@ -52,7 +52,11 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
                 f"(nothing cached locally that matches this parameter's filter)."
             )
             raise ModelParamsError(msg)
-        return hf_param.get_repo_revision()
+        try:
+            return hf_param.get_repo_revision()
+        except RuntimeError as e:
+            msg = f"Failed to resolve repo for parameter '{param_name}' on node '{self._node.name}': {e}"
+            raise ModelParamsError(msg) from e
 
     def _resolve_fixed_repo(self, hf_param: HuggingFaceModelParameter) -> tuple[str, str]:
         """Return ``(repo_id, revision)`` for a parameter not shown in the UI.
