@@ -553,7 +553,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         repo_id = raw_repo_id.strip()
         revision = (self.get_parameter_value("revision") or "main").strip()
-        subfolder = (self.get_parameter_value("subfolder") or component_slot).strip()
+        subfolder = (self.get_parameter_value("subfolder") or "").strip()
 
         load_id = _compute_load_id(
             source_type=_SOURCE_HF_REPO,

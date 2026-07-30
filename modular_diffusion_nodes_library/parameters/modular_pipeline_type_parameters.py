@@ -58,21 +58,6 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
             msg = f"Failed to resolve repo for parameter '{param_name}' on node '{self._node.name}': {e}"
             raise ModelParamsError(msg) from e
 
-    def _resolve_fixed_repo(self, hf_param: HuggingFaceModelParameter) -> tuple[str, str]:
-        """Return ``(repo_id, revision)`` for a parameter not shown in the UI.
-        Unlike ``_resolve_repo``, this does not require the parameter to be
-        registered on the node.  It scans the HF cache directly.
-        """
-        revisions = hf_param.fetch_repo_revisions()
-        if not revisions:
-            param_name = hf_param._parameter_name  # noqa: SLF001
-            msg = (
-                f"Required model '{param_name}' on node '{self._node.name}' "
-                f"has no models available (nothing cached locally)."
-            )
-            raise ModelParamsError(msg)
-        return revisions[0]
-
     @abstractmethod
     def add_input_parameters(self) -> None:
         raise NotImplementedError
