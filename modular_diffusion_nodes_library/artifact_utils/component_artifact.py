@@ -150,11 +150,18 @@ class ModelComponentArtifact(ComponentArtifact):
 
         component_cls = get_component_class(pipeline_cls, effective_slot)
 
+        # Resolve subfolder when not explicitly set: try effective_slot first
+        # (e.g. "text_encoder_2"), then fall back to self.component (e.g.
+        # "text_encoder") since the repo may store weights under the base name.
         subfolder = self.repo_ref.subfolder
         if not subfolder:
             candidate = f"{effective_slot}/config.json"
             if try_to_load_from_cache(self.repo_ref.repo_id, candidate, revision=self.repo_ref.revision) is not None:
                 subfolder = effective_slot
+            elif effective_slot != self.component:
+                candidate = f"{self.component}/config.json"
+                if try_to_load_from_cache(self.repo_ref.repo_id, candidate, revision=self.repo_ref.revision) is not None:
+                    subfolder = self.component
 
         kwargs: dict[str, Any] = {
             "pretrained_model_name_or_path": self.repo_ref.repo_id,
