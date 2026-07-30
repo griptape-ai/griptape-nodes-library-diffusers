@@ -117,9 +117,10 @@ class LatentDiffusionPipelineBuilderNode(
         pipeline_params = self.params.pipeline_type_parameters.pipeline_type_pipeline_params
         component_overrides = self.params.component_override_params.get_component_overrides()
         override_is_quantized = self.params.component_override_params.has_quantized_overrides
+        build_from_overrides_only = self._build_pipeline_from_component_overrides_only()
 
         build_data_error: str | None = None
-        if self._build_pipeline_from_component_overrides_only():
+        if build_from_overrides_only:
             build_data = {
                 "_component_overrides": component_overrides,
                 "_pipeline_cls": pipeline_params.pipeline_cls(),
@@ -138,6 +139,13 @@ class LatentDiffusionPipelineBuilderNode(
             if component_overrides:
                 build_data["_component_overrides"] = component_overrides
 
+        if build_from_overrides_only:
+            is_prequantized = override_is_quantized
+            supports_layerwise_casting = not override_is_quantized
+        else:
+            is_prequantized = pipeline_params.is_prequantized() or override_is_quantized
+            supports_layerwise_casting = pipeline_params.supports_layerwise_casting() and not override_is_quantized
+
         return DiffusionPipelineArtifact(
             pipeline_name=pipeline_params.pipeline_name,
             config_hash=self._config_hash,
@@ -147,8 +155,8 @@ class LatentDiffusionPipelineBuilderNode(
             build_data_error=build_data_error,
             loras=self.loras_params.get_loras(),
             optimization_kwargs=self.optimization_kwargs,
-            is_prequantized=pipeline_params.is_prequantized() or override_is_quantized,
-            supports_layerwise_casting=pipeline_params.supports_layerwise_casting() and not override_is_quantized,
+            is_prequantized=is_prequantized,
+            supports_layerwise_casting=supports_layerwise_casting,
             requires_device_map=pipeline_params.requires_device_map(),
         )
 
