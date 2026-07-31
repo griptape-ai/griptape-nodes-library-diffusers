@@ -113,17 +113,19 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             traits={Options(choices=_SCHEDULER_CHOICES, show_search=True)},
             tooltip="Scheduler class to instantiate. Must match your pipeline's family (see the badge).",
             allowed_modes={ParameterMode.PROPERTY},
+            ui_options={"display_name": "Scheduler Class"},
         )
         scheduler_class_param.set_badge(variant="help", title="Scheduler compatibility", message=_FAMILY_GUIDANCE)
         self.add_parameter(scheduler_class_param)
 
         source_type_param = Parameter(
-            name="config_source_type",
+            name="source_type",
             type="str",
             default_value=_SOURCE_LOCAL_PATH,
             traits={Options(choices=_SOURCE_TYPE_CHOICES)},
             tooltip="Where the scheduler_config.json comes from.",
             allowed_modes={ParameterMode.PROPERTY},
+            ui_options={"display_name": "Source Type"},
         )
         source_type_param.set_badge(
             variant="help",
@@ -249,7 +251,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         if initial_setup:
             return
 
-        if param_name == "config_source_type" and isinstance(value, str):
+        if param_name == "source_type" and isinstance(value, str):
             self._apply_source_type_visibility(value)
         if param_name != "component_output":
             self._rebuild_output()
@@ -280,7 +282,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             ]
 
         errors: list[Exception] = []
-        source_type = self.get_parameter_value("config_source_type")
+        source_type = self.get_parameter_value("source_type")
         if source_type == _SOURCE_HF_REPO:
             cache_errors = self._repo_param.validate_before_node_run()
             if cache_errors:
@@ -351,7 +353,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         if scheduler_class not in _SCHEDULER_CHOICES:
             return None
 
-        source_type = self.get_parameter_value("config_source_type")
+        source_type = self.get_parameter_value("source_type")
         if source_type == _SOURCE_LOCAL_PATH:
             return self._build_local_scheduler_artifact(scheduler_class)
 

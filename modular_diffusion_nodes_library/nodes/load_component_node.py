@@ -71,6 +71,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 traits={Options(choices=_COMPONENT_CHOICES)},
                 tooltip="Which pipeline component slot this loader targets.",
                 allowed_modes={ParameterMode.PROPERTY},
+                ui_options={"display_name": "Component"},
             )
         )
 
@@ -81,6 +82,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             traits={Options(choices=_SOURCE_TYPE_CHOICES)},
             tooltip="Weight source format.",
             allowed_modes={ParameterMode.PROPERTY},
+            ui_options={"display_name": "Source Type"},
         )
         source_type_param.set_badge(
             variant="help",
@@ -109,7 +111,10 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         file_path_param = self.get_parameter_by_name("file_path")
         if file_path_param is not None:
-            file_path_param.ui_options = {"placeholder_text": "e.g. /path/to/models/flux1-dev-Q8_0.gguf"}
+            file_path_param.ui_options = {
+                    "placeholder_text": "e.g. /path/to/models/flux1-dev-Q8_0.gguf",
+                    "display_name": "File Path"
+                }
 
         config_source_param = Parameter(
             name="config_source",
