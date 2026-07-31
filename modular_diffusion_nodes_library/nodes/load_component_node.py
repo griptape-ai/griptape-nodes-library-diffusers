@@ -16,6 +16,8 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     HFRepoRef,
     ModelComponentArtifact,
 )
+from modular_diffusion_nodes_library.artifact_utils.text_encoder_component_artifact import TextEncoderComponentArtifact
+from modular_diffusion_nodes_library.artifact_utils.tokenizer_component_artifact import TokenizerComponentArtifact
 from modular_diffusion_nodes_library.component_loading.component_slots import (
     SLOT_DISPLAY_NAMES,
     slot_artifact_type_name,
@@ -43,6 +45,10 @@ _SOURCE_SINGLE_FILE = "Single File"
 _SOURCE_LOCAL_FOLDER = "Local Folder"
 _SOURCE_HF_REPO = "HuggingFace Repo"
 _SOURCE_TYPE_CHOICES = [_SOURCE_SINGLE_FILE, _SOURCE_LOCAL_FOLDER, _SOURCE_HF_REPO]
+
+# File types for different source types.
+_SINGLE_FILE_TYPES = [".gguf", ".safetensors", ".ckpt", ".pt", ".pth", ".bin"]
+_TEXT_ENCODER_FILE_TYPES = [".gguf"]
 
 # Parameters that only apply to a given source-type branch. Used
 # to hide/show the right sub-parameters.
@@ -265,6 +271,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         if param_name == "component":
             self._update_output_type_and_drop_connections()
             self._update_source_type_choices(value)
+            self._update_file_types_for_component(value)
         if param_name == "source_type" and isinstance(value, str):
             self._apply_source_type_visibility(value)
         if param_name != "component_output":
@@ -306,6 +313,11 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             self.set_parameter_value("source_type", _SOURCE_LOCAL_FOLDER)
         else:
             self.set_parameter_value("source_type", current_source)
+
+    def _update_file_types_for_component(self, component_display_name: str) -> None:
+        component_slot = _LOADABLE_COMPONENTS.get(component_display_name, "")
+        is_text_encoder = slot_component_kind(component_slot) == "text_encoder"
+        self._file_path_param.set_file_types(_TEXT_ENCODER_FILE_TYPES if is_text_encoder else _SINGLE_FILE_TYPES)
 
     def _update_output_type_and_drop_connections(self) -> None:
         """Update component_output type when component selection changes.
@@ -496,6 +508,14 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         self.set_parameter_value("component_output", artifact)
 
+    def _get_artifact_class(self, component_slot: str) -> type[ModelComponentArtifact]:
+        kind = slot_component_kind(component_slot)
+        if kind == "tokenizer":
+            return TokenizerComponentArtifact
+        if kind == "text_encoder":
+            return TextEncoderComponentArtifact
+        return ModelComponentArtifact
+
     def _build_single_file_artifact(self, component_slot: str) -> ModelComponentArtifact | None:
         raw_file_path = self.get_parameter_value("file_path")
         if not isinstance(raw_file_path, str) or not raw_file_path:
@@ -518,7 +538,8 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             subfolder="",
         )
 
-        return ModelComponentArtifact(
+        artifact_cls = self._get_artifact_class(component_slot)
+        return artifact_cls(
             load_id=load_id,
             source_type=ComponentSourceType.SINGLE_FILE,
             file_path=str(file_path),
@@ -543,7 +564,8 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             subfolder="",
         )
 
-        return ModelComponentArtifact(
+        artifact_cls = self._get_artifact_class(component_slot)
+        return artifact_cls(
             load_id=load_id,
             source_type=ComponentSourceType.LOCAL_DIR,
             file_path=folder_path,
@@ -569,7 +591,8 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             subfolder=subfolder,
         )
 
-        return ModelComponentArtifact(
+        artifact_cls = self._get_artifact_class(component_slot)
+        return artifact_cls(
             load_id=load_id,
             source_type=ComponentSourceType.HF_REPO,
             component=component_slot,
