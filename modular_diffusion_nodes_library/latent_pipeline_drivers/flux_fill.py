@@ -53,7 +53,7 @@ class FluxFillLatentPipelineDriver(FluxLatentPipelineDriver):
         if not isinstance(latent, InpaintMaskArtifact):
             raise NotImplementedError(
                 "FluxFillPipeline only supports inpainting. "
-                "Connect a 'Encode Inpaint Latent' node to the input_latent input."
+                "Connect a 'Encode Masked Media' node to the input_latent input."
             )
         # Override height/width using the actual source image dims so that
         # the pipeline and unpack/decode use the inpainted image size rather than

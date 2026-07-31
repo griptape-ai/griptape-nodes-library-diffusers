@@ -34,6 +34,7 @@ from modular_diffusion_nodes_library.misc.partial_denoise import (
     PartialDenoisePipelineRunner,
     PartialDenoiseSchedulerProxy,
 )
+from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
 
 _T = TypeVar("_T")
@@ -136,35 +137,30 @@ class LatentPipelineDriver(ABC):
         ``num_frames=None`` to skip the temporal check (image pipelines).
         """
         messages: list[str] = []
+        aligned = self.align_dimensions(height, width, num_frames)
         temporal_alignment = self._get_temporal_alignment()
-        if num_frames is not None and temporal_alignment is not None:
-            suggested_frames = self._ceil_frames(num_frames, temporal_alignment)
-            if suggested_frames != num_frames:
-                messages.append(
-                    f"num_frames={num_frames} is invalid: (num_frames - 1) must be divisible by {temporal_alignment}. "
-                    f"Suggested value: {suggested_frames}."
-                )
-        spatial_alignment = self._get_spatial_alignment()
-        if height % spatial_alignment != 0:
-            suggested_h = self._ceil_to_alignment(height, spatial_alignment)
+        if num_frames is not None and num_frames != aligned.num_frames:
             messages.append(
-                f"height={height} is invalid: must be divisible by {spatial_alignment}. Suggested value: {suggested_h}."
+                f"num_frames={num_frames} is invalid: (num_frames - 1) must be divisible by {temporal_alignment}. "
+                f"Suggested value: {aligned.num_frames}."
             )
-        if width % spatial_alignment != 0:
-            suggested_w = self._ceil_to_alignment(width, spatial_alignment)
+        spatial_alignment = self._get_spatial_alignment()
+        if height != aligned.height:
             messages.append(
-                f"width={width} is invalid: must be divisible by {spatial_alignment}. Suggested value: {suggested_w}."
+                f"height={height} is invalid: must be divisible by {spatial_alignment}. Suggested value: {aligned.height}."
+            )
+        if width != aligned.width:
+            messages.append(
+                f"width={width} is invalid: must be divisible by {spatial_alignment}. Suggested value: {aligned.width}."
             )
         return messages
 
-    def align_dimensions(self, height: int, width: int, num_frames: int | None = None) -> tuple[int, int, int | None]:
-        """Return (aligned_h, aligned_w, aligned_frames) adjusted to the nearest valid values at or above input.
+    def align_dimensions(self, height: int, width: int, num_frames: int | None = None) -> DimensionAlignmentResult:
+        """Return aligned dimension values adjusted to the nearest valid values at or above input.
 
         Returns the inputs unchanged if they are already valid.
         Override in drivers with model-specific spatial constraints (e.g. area-bounded resize).
         """
-        aligned_h = height
-        aligned_w = width
         spatial_alignment = self._get_spatial_alignment()
         aligned_h = self._ceil_to_alignment(height, spatial_alignment)
         aligned_w = self._ceil_to_alignment(width, spatial_alignment)
@@ -173,9 +169,9 @@ class LatentPipelineDriver(ABC):
         if num_frames is not None:
             temporal_alignment = self._get_temporal_alignment()
             if temporal_alignment is not None:
-                aligned_frames = self._ceil_frames(num_frames, temporal_alignment)
+                aligned_frames = self._ceil_to_alignment(num_frames - 1, temporal_alignment) + 1
 
-        return aligned_h, aligned_w, aligned_frames
+        return DimensionAlignmentResult(aligned_h, aligned_w, aligned_frames, None)
 
     def snap_frames_for_encoding(self, num_frames: int) -> int:
         """Return the nearest valid num_frames at or above the input (ceiling snap).
@@ -185,24 +181,12 @@ class LatentPipelineDriver(ABC):
         temporal_alignment = self._get_temporal_alignment()
         if temporal_alignment is None:
             return num_frames
-        return self._ceil_frames(num_frames, temporal_alignment)
+        return self._ceil_to_alignment(num_frames - 1, temporal_alignment) + 1
 
     @staticmethod
     def _ceil_to_alignment(value: int, alignment: int) -> int:
         """Return the smallest multiple of alignment that is >= value."""
         return ((value + alignment - 1) // alignment) * alignment
-
-    @staticmethod
-    def _ceil_frames(num_frames: int, temporal_alignment: int) -> int:
-        """Return the smallest valid num_frames >= num_frames where (n - 1) % temporal_alignment == 0.
-
-        Returns num_frames unchanged if already valid.
-        Valid frame counts follow the pattern k * temporal_alignment + 1 (i.e. 1, 5, 9, ...),
-        so the result is the next multiple of temporal_alignment ceiling-snapped to num_frames + 1.
-        """
-        if (num_frames - 1) % temporal_alignment == 0:
-            return num_frames
-        return LatentPipelineDriver._ceil_to_alignment(num_frames, temporal_alignment) + 1
 
     # ------------------------------------------------------------------
     # Public driver surface — cross-driver signature contract

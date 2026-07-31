@@ -2,11 +2,11 @@ import logging
 from typing import Any
 
 from griptape.artifacts import ImageUrlArtifact
-from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
+from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
-from PIL.Image import Image
+from PIL.Image import Image, Resampling
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
@@ -17,6 +17,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
 )
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
+from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
 from modular_diffusion_nodes_library.utils.video_utils import load_video_frames_from_url_artifact
@@ -52,6 +53,14 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 serializable=False,
             )
         )
+        self._dimensionality_warning = ParameterMessage(
+            name="dimensionality_warning",
+            variant="warning",
+            title="Dimensionality Warnings",
+            value="",
+            hide=True,
+        )
+        self.add_node_element(self._dimensionality_warning)
         self._initializing = False
         self._create_status_parameters()
 
@@ -155,6 +164,7 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors: list[Exception] = []
+        self._set_compatibility_message("")
 
         pipeline_errors = self.pipe_params.validate_before_node_run()
         if pipeline_errors is not None:
@@ -166,6 +176,18 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         else:
             if self.get_parameter_value("image") is None:
                 errors.append(ValueError("Missing required 'image' input."))
+            else:
+                pipe = self.pipe_params.get_pipeline()
+                if pipe is not None:
+                    auto_resize = GriptapeNodes.ConfigManager().get_config_value(
+                        "modular_diffusion_library.enable_auto_resize"
+                    )
+                    if not auto_resize:
+                        image = self.get_input_image()
+                        driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
+                        result = snap_dimensions(driver, image.height, image.width)
+                        if result.message:
+                            errors.append(ValueError(result.message))
 
         return errors or None
 
@@ -186,6 +208,17 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         image = self.get_input_image()
 
         latents_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
+
+        auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
+        result = snap_dimensions(latents_pipeline_driver, image.height, image.width)
+        self._set_compatibility_message(result.message)
+        if result.message:
+            if auto_resize:
+                logger.warning(result.message)
+                image = image.resize((result.width, result.height), Resampling.LANCZOS)
+            else:
+                raise ValueError(result.message)
+
         image_tensor = pipe.image_processor.preprocess(image)
         if isinstance(image_tensor, (list, tuple)):
             image_tensor = image_tensor[0]
@@ -218,31 +251,15 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         h, w = frames_rgb[0].height, frames_rgb[0].width
 
         auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
-        if auto_resize:
-            aligned_h, aligned_w, _ = latents_pipeline_driver.align_dimensions(h, w)
-            aligned_frames = latents_pipeline_driver.snap_frames_for_encoding(num_frames)
-            if aligned_h != h or aligned_w != w or aligned_frames != num_frames:
-                logger.warning(
-                    "%s: Video dimensions not compatible with this pipeline; automatically resizing. "
-                    "height: %d → %d, width: %d → %d, num_frames: %d → %d.",
-                    self.name,
-                    h,
-                    aligned_h,
-                    w,
-                    aligned_w,
-                    num_frames,
-                    aligned_frames,
-                )
-            if aligned_h != h or aligned_w != w:
-                frames_rgb = [f.resize((aligned_w, aligned_h)) for f in frames_rgb]
-                h, w = aligned_h, aligned_w
-        else:
-            dimension_errors = latents_pipeline_driver.validate_dimensions(h, w, num_frames=num_frames)
-            if dimension_errors:
-                raise ValueError(
-                    "Attempted to encode video. Input video dimensions are invalid for this pipeline: "
-                    + " ".join(dimension_errors)
-                )
+        result = snap_dimensions(latents_pipeline_driver, h, w, num_frames)
+        self._set_compatibility_message(result.message)
+        if result.message:
+            if auto_resize:
+                logger.warning(result.message)
+                frames_rgb = [f.resize((result.width, result.height)) for f in frames_rgb]
+                h, w = result.height, result.width
+            else:
+                raise ValueError(result.message)
 
         source_shape = (1, 3, num_frames, h, w)
 
@@ -263,3 +280,11 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             image_artifact = load_image_from_url_artifact(image_artifact)
 
         return image_artifact_to_pil(image_artifact).convert("RGB")
+
+    def _set_compatibility_message(self, message_str: str | None) -> None:
+        if message_str:
+            self._dimensionality_warning.value = message_str
+            self._dimensionality_warning.hide = False
+        else:
+            self._dimensionality_warning.value = ""
+            self._dimensionality_warning.hide = True

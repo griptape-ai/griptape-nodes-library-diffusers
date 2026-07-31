@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from griptape_nodes.exe_types.core_types import Parameter
+from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage
 from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode
 from griptape_nodes.exe_types.param_components.seed_parameter import SeedParameter
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
@@ -21,6 +21,7 @@ from modular_diffusion_nodes_library.parameters.generate_latent_parameters impor
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import (
     ModularDiffusionPipelineParameters,
 )
+from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -59,6 +60,15 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
                 tooltip="Number of video frames to generate for. Ignored for image pipelines.",
             )
         )
+
+        self._dimensionality_warning = ParameterMessage(
+            name="dimensionality_warning",
+            variant="warning",
+            title="Dimensionality Warnings",
+            value="",
+            hide=True,
+        )
+        self.add_node_element(self._dimensionality_warning)
         self.latent_parameter = DiffusionPipelineGenerateLatentParameters(self)  # type: ignore[reportOptionalMemberAccess]
         self.latent_parameter.add_output_parameters()
         self._reorder_trailing_parameters()
@@ -127,6 +137,7 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         super().add_parameter(param)
 
     def validate_before_node_run(self) -> list[Exception] | None:
+        self._set_compatibility_message("")
         result = self.pipe_params.validate_before_node_run()
         if result is not None:
             return result
@@ -139,11 +150,19 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
             width = self.get_parameter_value("width") or 1
             auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
             if not auto_resize:
-                messages = latent_pipeline_driver.validate_dimensions(height, width, num_frames=num_frames)
-                if messages:
-                    return [ValueError(msg) for msg in messages]
+                result = snap_dimensions(latent_pipeline_driver, height, width, num_frames)
+                if result.message:
+                    return [ValueError(result.message)]
 
         return None
+
+    def _set_compatibility_message(self, message_str: str | None) -> None:
+        if message_str:
+            self._dimensionality_warning.value = message_str
+            self._dimensionality_warning.hide = False
+        else:
+            self._dimensionality_warning.value = ""
+            self._dimensionality_warning.hide = True
 
     def preprocess(self) -> None:
         pass
@@ -173,27 +192,19 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         width = self.get_parameter_value("width")
         seed = self.get_parameter_value("seed") or 0
         generator_state = GeneratorState.from_seed(seed)
-        if latent_pipeline_driver.produces_video:
-            num_frames = self.get_parameter_value("num_frames") or 1
-            auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
-            if auto_resize:
-                aligned_h, aligned_w, aligned_frames_val = latent_pipeline_driver.align_dimensions(
-                    height, width, num_frames
-                )
-                aligned_frames = aligned_frames_val if aligned_frames_val is not None else num_frames
-                if aligned_h != height or aligned_w != width or aligned_frames != num_frames:
-                    logger.warning(
-                        "%s: Dimensions not compatible with this pipeline; automatically adjusted to nearest valid values. "
-                        "height: %d → %d, width: %d → %d, num_frames: %d → %d.",
-                        self.name,
-                        height,
-                        aligned_h,
-                        width,
-                        aligned_w,
-                        num_frames,
-                        aligned_frames,
-                    )
-                    height, width, num_frames = aligned_h, aligned_w, aligned_frames
+        num_frames = self.get_parameter_value("num_frames") or None
+
+        auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
+        if auto_resize:
+            result = snap_dimensions(latent_pipeline_driver, height, width, num_frames)
+            self._set_compatibility_message(result.message)
+            if result.message:
+                logger.warning(result.message)
+            height = result.height
+            width = result.width
+            num_frames = result.num_frames
+
+        if num_frames is not None:
             latents_source_shape = (1, 3, num_frames, height, width)
         else:
             latents_source_shape = (1, 3, height, width)

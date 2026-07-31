@@ -25,6 +25,7 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     resolve_conditioning_image,
     resolve_frame_index,
 )
+from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -134,31 +135,29 @@ class HunyuanVideo15ImageToVideoLatentPipelineDriver(HunyuanVideo15TextToVideoLa
     @override
     def validate_dimensions(self, height: int, width: int, num_frames: int | None = None) -> list[str]:
         messages: list[str] = []
+        aligned = self.align_dimensions(height, width, num_frames)
         temporal_alignment = self._get_temporal_alignment()
-        if num_frames is not None and temporal_alignment is not None:
-            suggested_frames = self._ceil_frames(num_frames, temporal_alignment)
-            if suggested_frames != num_frames:
-                messages.append(
-                    f"num_frames={num_frames} is invalid: (num_frames - 1) must be divisible by {temporal_alignment}. "
-                    f"Suggested value: {suggested_frames}."
-                )
-        aligned_h, aligned_w = self._get_resize_dimensions(height, width)
-        if aligned_h != height or aligned_w != width:
+        if num_frames is not None and aligned.num_frames != num_frames:
+            messages.append(
+                f"num_frames={num_frames} is invalid: (num_frames - 1) must be divisible by {temporal_alignment}. "
+                f"Suggested value: {aligned.num_frames}."
+            )
+        if aligned.height != height or aligned.width != width:
             messages.append(
                 f"height={height}, width={width} are not valid for this pipeline. "
-                f"Suggested values: height={aligned_h}, width={aligned_w}."
+                f"Suggested values: height={aligned.height}, width={aligned.width}."
             )
         return messages
 
     @override
-    def align_dimensions(self, height: int, width: int, num_frames: int | None = None) -> tuple[int, int, int | None]:
+    def align_dimensions(self, height: int, width: int, num_frames: int | None = None) -> DimensionAlignmentResult:
         aligned_h, aligned_w = self._get_resize_dimensions(height, width)
         aligned_frames = num_frames
         if num_frames is not None:
             temporal_alignment = self._get_temporal_alignment()
             if temporal_alignment is not None:
-                aligned_frames = self._ceil_frames(num_frames, temporal_alignment)
-        return aligned_h, aligned_w, aligned_frames
+                aligned_frames = self._ceil_to_alignment(num_frames - 1, temporal_alignment) + 1
+        return DimensionAlignmentResult(aligned_h, aligned_w, aligned_frames, None)
 
     def _get_resize_dimensions(self, height: int, width: int) -> tuple[int, int]:
         """Calculate the aligned dimensions for a given height and width."""

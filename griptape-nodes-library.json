@@ -25,7 +25,7 @@
             }
         },
         {
-            "description": "Configuration settings for auto resize. Enabling this will automatically resize images and videos to the appropriate resolution as supported by the selected diffusion pipeline.",
+            "description": "Configuration settings for auto resize. Enabling this will automatically resize images and videos to the appropriate resolution and number of frames (video pipelines) as supported by the selected diffusion pipeline.",
             "category": "modular_diffusion_library",
             "contents": {
                 "enable_auto_resize": false

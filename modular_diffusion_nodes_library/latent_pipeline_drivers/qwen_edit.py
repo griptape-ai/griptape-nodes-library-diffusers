@@ -27,6 +27,7 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     MediaGenConditioningKey,
     resolve_conditioning_image,
 )
+from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -42,42 +43,22 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
     def can_make_control_pipe_from_standard(cls, control_net_model_lists: list[str] | str | None) -> bool:
         return False
 
-    @staticmethod
-    def _calculate_edit_latent_dims(height: int, width: int) -> tuple[int, int]:
-        """Calculate the latent spatial dimensions for a given input image size.
-        QwenImageEditResizeStep (e.g. used in encode block) resizes the input image to a fixed target_area of
-        1024*1024 while preserving aspect ratio. We must use the same dims in other operations (such as create_noise)
-        so that the latents from all operations share the same spatial resolution.
-        """
+    @override
+    def align_dimensions(self, height: int, width: int, num_frames: int | None = None) -> DimensionAlignmentResult:
         calc_width, calc_height, _ = calculate_dimensions(_QWEN_EDIT_TARGET_AREA, width / height)
-        return int(calc_height), int(calc_width)
+        return DimensionAlignmentResult(int(calc_height), int(calc_width), None, None)
 
-    @classmethod
-    def _snap_source_shape(cls, source_shape: tuple[int, ...]) -> tuple[int, ...]:
-        height, width = cls._calculate_edit_latent_dims(source_shape[-2], source_shape[-1])
-        return (*source_shape[:-2], height, width)
-
-    def _with_snapped_source_shape(self, latent: LatentArtifact) -> LatentArtifact:
-        """Return a copy of ``latent`` whose ``source_shape`` is snapped to QwenEdit's target area."""
-        snapped = self._snap_source_shape(latent.source_shape)
-        if snapped == latent.source_shape:
-            return latent
-        device, dtype = self._get_device_and_type()
-        return LatentArtifact.from_torch(
-            latent.to_torch(device=device, dtype=dtype), source_shape=snapped, meta=latent.meta
-        )
-
-    def _with_original_source_shape(
-        self, snapped_output: LatentArtifact, original_source_shape: tuple[int, ...]
-    ) -> LatentArtifact:
-        """Return a copy of ``snapped_output`` whose ``source_shape`` is restored to the caller's original shape."""
-        if snapped_output.source_shape == original_source_shape:
-            return snapped_output
-        return self._make_latent_artifact(
-            snapped_output.to_torch(),
-            source_shape=original_source_shape,
-            upstream=snapped_output,
-        )
+    @override
+    def validate_dimensions(self, height: int, width: int, num_frames: int | None = None) -> list[str]:
+        messages: list[str] = []
+        aligned = self.align_dimensions(height, width)
+        if aligned.height != height or aligned.width != width:
+            messages.append(
+                f"height={height}, width={width} do not fill the required target area of "
+                f"{_QWEN_EDIT_TARGET_AREA} px. "
+                f"Suggested values: height={aligned.height}, width={aligned.width}."
+            )
+        return messages
 
     @staticmethod
     def _images_from_conditioning(payload: Any) -> list[Image.Image]:
@@ -91,37 +72,14 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
         return images
 
     @override
-    def prepare_output_latent(
-        self, latents_from_pipe: torch.Tensor, latents_source_shape: tuple[int, ...]
-    ) -> torch.Tensor:
-        return super().prepare_output_latent(latents_from_pipe, self._snap_source_shape(latents_source_shape))
-
-    @override
-    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
-        snapped_output = super().create_noise_latent(self._snap_source_shape(source_shape), generator_state)
-        return self._with_original_source_shape(snapped_output, source_shape)
-
-    @override
-    def decode_latent(self, latent: LatentArtifact) -> Image.Image:
-        # The pipeline snaps input dims to a fixed target_area (e.g. 512×512 → 1024×1024),
-        # so the decoded image may be larger than what the user requested.
-        # Resize back to the originally-requested dimensions.
-        height, width = latent.source_shape[-2], latent.source_shape[-1]
-        decoded = super().decode_latent(self._with_snapped_source_shape(latent))
-        if decoded.height != height or decoded.width != width:
-            decoded = decoded.resize((width, height), Image.Resampling.LANCZOS)
-        return decoded
-
-    @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         image = media.image
         if isinstance(image, torch.Tensor):
-            img_h, img_w = image.shape[-2], image.shape[-1]
+            height, width = image.shape[-2], image.shape[-1]
         else:
-            img_h, img_w = image.height, image.width
-        height, width = self._calculate_edit_latent_dims(img_h, img_w)
+            height, width = image.height, image.width
         encode_pipeline = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
 
         generator = generator_state.to_generator()
@@ -134,19 +92,6 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
             raise ValueError(f"Expected Tensor for image_latents, got {type(latents).__name__}.")
         latents = latents.squeeze(2)
         return self._make_latent_artifact(latents, source_shape=media.source_shape)
-
-    @override
-    def add_noise_to_latent(
-        self,
-        latent: LatentArtifact,
-        generator_state: GeneratorState,
-        num_inference_steps: int,
-        strength: float,
-    ) -> LatentArtifact:
-        snapped_output = super().add_noise_to_latent(
-            self._with_snapped_source_shape(latent), generator_state, num_inference_steps, strength
-        )
-        return self._with_original_source_shape(snapped_output, latent.source_shape)
 
     @override
     def encode_prompt(self, prompt: str, negative_prompt: str, **kwargs: Any) -> TextEncodings:
@@ -200,11 +145,8 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
             elif images:
                 kwargs["image"] = images[0]
 
-        original_source_shape = latent.source_shape
-        if isinstance(latent, LatentArtifact):
-            latent = self._with_snapped_source_shape(latent)
         try:
-            snapped_output = super().denoise_latent(
+            result = super().denoise_latent(
                 latent,
                 num_inference_steps,
                 generator_state=generator_state,
@@ -217,4 +159,4 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
         finally:
             self._pipe = original_pipe
 
-        return self._with_original_source_shape(snapped_output, original_source_shape)
+        return result
