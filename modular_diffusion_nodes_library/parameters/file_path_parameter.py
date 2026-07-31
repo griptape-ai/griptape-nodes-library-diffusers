@@ -48,6 +48,20 @@ class FilePathParameter:
         expanded_value = expand_path_macros(raw_value) if isinstance(raw_value, str) else raw_value
         return Path(expanded_value).absolute()
 
+    def set_file_types(self, file_types: list[str]) -> None:
+        self._file_types = file_types
+        param = self._node.get_parameter_by_name(self._parameter_name)
+        if param is None:
+            return
+        picker = next(iter(param.find_elements_by_type(FileSystemPicker)), None)
+        if picker is None:
+            return
+        picker.file_types = file_types
+        # _ui_options overrides traits in the ui_options property, so both stores must stay in sync.
+        existing = {k: v for k, v in param.ui_options.items() if k != "fileSystemPicker"}
+        existing["fileSystemPicker"] = picker.ui_options_for_trait()["fileSystemPicker"]
+        param.ui_options = existing
+
     def validate_parameter_values(self) -> None:
         file_path = self.get_file_path()
         if not file_path.exists():

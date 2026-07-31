@@ -13,10 +13,8 @@ from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingI
     infer_diffusers_model_type,
     load_single_file_checkpoint,
 )
-from huggingface_hub import try_to_load_from_cache
 
-from modular_diffusion_nodes_library.component_loading.component_slots import slot_component_kind
-from modular_diffusion_nodes_library.component_loading.config_resolver import loadable_class_name, resolve_config_path
+from modular_diffusion_nodes_library.component_loading.config_resolver import loadable_class_name, resolve_config_path, resolve_hf_repo_config_subfolder
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import (
     MODEL_TYPE_TO_PIPELINE_TYPE,
     get_component_class,
@@ -74,7 +72,7 @@ class ComponentArtifact(ABC):
 
 @dataclass(frozen=True)
 class ModelComponentArtifact(ComponentArtifact):
-    """Descriptor for a model component (Transformer, UNet, VAE, Text Encoder) loaded via diffusers."""
+    """Descriptor for a Transformer, UNet, or VAE component loaded via diffusers."""
 
     # HF_REPO
     repo_ref: HFRepoRef | None = None
@@ -150,18 +148,12 @@ class ModelComponentArtifact(ComponentArtifact):
 
         component_cls = get_component_class(pipeline_cls, effective_slot)
 
-        # Resolve subfolder when not explicitly set: try effective_slot first
-        # (e.g. "text_encoder_2"), then fall back to self.component (e.g.
-        # "text_encoder") since the repo may store weights under the base name.
-        subfolder = self.repo_ref.subfolder
+        subfolder = self.repo_ref.subfolder or ""
         if not subfolder:
-            candidate = f"{effective_slot}/config.json"
-            if try_to_load_from_cache(self.repo_ref.repo_id, candidate, revision=self.repo_ref.revision) is not None:
-                subfolder = effective_slot
-            elif effective_slot != self.component:
-                candidate = f"{self.component}/config.json"
-                if try_to_load_from_cache(self.repo_ref.repo_id, candidate, revision=self.repo_ref.revision) is not None:
-                    subfolder = self.component
+            subfolder = resolve_hf_repo_config_subfolder(
+                self.repo_ref.repo_id, effective_slot, self.component,
+                revision=self.repo_ref.revision,
+            ) or ""
 
         kwargs: dict[str, Any] = {
             "pretrained_model_name_or_path": self.repo_ref.repo_id,
@@ -171,9 +163,7 @@ class ModelComponentArtifact(ComponentArtifact):
             kwargs["revision"] = self.repo_ref.revision
         if subfolder:
             kwargs["subfolder"] = subfolder
-        # Tokenizer classes do not accept torch_dtype in from_pretrained.
-        if slot_component_kind(effective_slot) != "tokenizer":
-            kwargs["torch_dtype"] = getattr(torch, self.torch_dtype)
+        kwargs["torch_dtype"] = getattr(torch, self.torch_dtype)
 
         logger.info(
             "Materializing %s (%s) from HF_REPO repo='%s' subfolder='%s' revision='%s'.",
@@ -195,11 +185,14 @@ class ModelComponentArtifact(ComponentArtifact):
 
         component_cls = get_component_class(pipeline_cls, effective_slot)
 
-        # Non-diffusers components (e.g. Qwen2_5_VLForConditionalGeneration) are absent from
-        # SINGLE_FILE_LOADABLE_CLASSES and cannot use diffusers' from_single_file path.
-        # Route them through from_pretrained with the gguf_file kwarg instead.
+        # Cannot use diffusers' from_single_file path.
         if loadable_class_name(component_cls) is None:
-            return self._materialize_transformers_from_gguf(component_cls)
+            msg = (
+                f"Attempted to materialize {self.component}. "
+                f"Failed with component_cls='{component_cls.__name__}' pipeline_cls='{pipeline_cls.__name__}' because "
+                f"none of its base classes are registered in SINGLE_FILE_LOADABLE_CLASSES."
+            )
+            raise ValueError(msg)
 
         checkpoint = load_single_file_checkpoint(self.file_path)
         inferred_model_type = infer_diffusers_model_type(checkpoint)
@@ -259,37 +252,6 @@ class ModelComponentArtifact(ComponentArtifact):
         )
         raise ValueError(msg)
 
-    def _materialize_transformers_from_gguf(self, component_cls: type) -> Any:
-        """Load a non-diffusers component (e.g. Qwen2_5_VLForConditionalGeneration) from a GGUF file.
-
-        Called when the component class is not registered in SINGLE_FILE_LOADABLE_CLASSES.
-        """
-        file_path = Path(self.file_path)
-        if not file_path.is_file():
-            msg = (
-                f"Attempted to materialize {self.component} as {component_cls.__name__}. "
-                f"Failed with file_path='{self.file_path}' because it is not a file. "
-                f"Provide the path to the GGUF file directly (e.g. /path/to/model-Q4_K_M.gguf); "
-                f"its parent directory must contain a config.json."
-            )
-            raise FileNotFoundError(msg)
-
-        if not self.is_quantized:
-            msg = (
-                f"Attempted to materialize {self.component} as {component_cls.__name__}. "
-                f"Failed because {component_cls.__name__} is not a diffusers model and does not "
-                f"support single-file loading for non-GGUF files. "
-                f"Use a .gguf file, or switch to Local Folder or HuggingFace Repo source type."
-            )
-            raise ValueError(msg)
-
-        kwargs: dict[str, Any] = {
-            "gguf_file": file_path.name,
-            "local_files_only": True,
-            "torch_dtype": getattr(torch, self.torch_dtype),
-        }
-        return component_cls.from_pretrained(str(file_path.parent), **kwargs)
-
     def _materialize_local_dir(self, *, pipeline_cls: type, effective_slot: str) -> Any:
         if not self.file_path:
             msg = (
@@ -306,25 +268,13 @@ class ModelComponentArtifact(ComponentArtifact):
             )
             raise FileNotFoundError(msg)
 
-        is_tokenizer = slot_component_kind(effective_slot) == "tokenizer"
-        # Tokenizer folders use tokenizer_config.json; model component folders use config.json.
-        if is_tokenizer:
-            if not (folder / "tokenizer_config.json").is_file():
-                msg = (
-                    f"Attempted to materialize {self.component}. "
-                    f"Failed with file_path='{self.file_path}' because it does not contain a "
-                    f"'tokenizer_config.json'. Pick a diffusers-format tokenizer folder "
-                    f"(e.g. '.../FLUX.1-dev/tokenizer/')."
-                )
-                raise FileNotFoundError(msg)
-        else:
-            if not (folder / "config.json").is_file():
-                msg = (
-                    f"Attempted to materialize {self.component}. "
-                    f"Failed with file_path='{self.file_path}' because it does not contain a 'config.json'. "
-                    f"Pick a diffusers-format component folder (e.g. '.../FLUX.1-dev/transformer/')."
-                )
-                raise FileNotFoundError(msg)
+        if not (folder / "config.json").is_file():
+            msg = (
+                f"Attempted to materialize {self.component}. "
+                f"Failed with file_path='{self.file_path}' because it does not contain a 'config.json'. "
+                f"Pick a diffusers-format component folder (e.g. '.../FLUX.1-dev/transformer/')."
+            )
+            raise FileNotFoundError(msg)
 
         component_cls = get_component_class(pipeline_cls, effective_slot)
 
@@ -334,8 +284,8 @@ class ModelComponentArtifact(ComponentArtifact):
             component_cls.__name__,
             self.file_path,
         )
-        kwargs: dict[str, Any] = {"local_files_only": True}
-        # Tokenizer classes do not accept torch_dtype in from_pretrained.
-        if not is_tokenizer:
-            kwargs["torch_dtype"] = getattr(torch, self.torch_dtype)
-        return component_cls.from_pretrained(self.file_path, **kwargs)
+        return component_cls.from_pretrained(
+            self.file_path,
+            torch_dtype=getattr(torch, self.torch_dtype),
+            local_files_only=True,
+        )
