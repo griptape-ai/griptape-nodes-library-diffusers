@@ -55,7 +55,6 @@ from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore
     InputParam,
     OutputParam,
 )
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from diffusers.utils.torch_utils import randn_tensor  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
@@ -323,13 +322,6 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
     # MiniMax-H3 generates at a fixed 24 fps; any other rate desynchronises the soundtrack.
     video_fps: ClassVar[int] = MINIMAX_H3_FPS
 
-    def __init__(self, pipe: DiffusionPipeline):
-        super().__init__(pipe)
-        # Set by decode_latent, read by the VAE Decode node in the same _decode call so the
-        # soundtrack can be muxed into the video that decode_latent returns.
-        self.last_audio: torch.Tensor | None = None
-        self.last_sampling_rate: int | None = None
-
     @property
     @override
     def modular_pipe(self) -> ModularPipeline:
@@ -392,10 +384,11 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         never enforced at all.
         """
         for name, value in (("height", height), ("width", width)):
-            if value % MINIMAX_H3_CANVAS_MULTIPLE:
+            if value <= 0 or value % MINIMAX_H3_CANVAS_MULTIPLE:
                 raise ValueError(
                     f"{self.driver_namespace}: Attempted to size a MiniMax-H3 request. Failed with "
-                    f"{name}={value} because it must be a multiple of {MINIMAX_H3_CANVAS_MULTIPLE}."
+                    f"{name}={value} because it must be a positive multiple of "
+                    f"{MINIMAX_H3_CANVAS_MULTIPLE}."
                 )
 
         # Aspect ratio first: an extreme ratio usually also blows the pixel budget, and naming the
@@ -414,6 +407,32 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
                 f"{width}x{height} ({height * width} pixels) because MiniMax-H3 generates at most "
                 f"{MINIMAX_H3_MAX_PIXELS} pixels. Try 1344x768 (16:9) or 960x544 for faster steps."
             )
+
+    def _read_paired_audio_latents(
+        self, latent: LatentArtifact, video_latents: torch.Tensor, *, action: str
+    ) -> torch.Tensor | None:
+        """Return the artifact's audio latent, or ``None`` when it carries none.
+
+        Raises when an audio latent is present but was paired with a *different* video latent. That
+        is the dangerous case: latent math shallow-merges meta left-operand-wins, so a summed video
+        latent keeps the left operand's unsummed audio. Both the denoise and the decode entry points
+        check this, so a stale pairing cannot be laundered by passing through a second denoise.
+        """
+        audio_latents = read_driver_meta(latent, AUDIO_LATENTS_META_KEY, self.driver_namespace)
+        if audio_latents is None:
+            return None
+
+        paired_with = read_driver_meta(latent, AUDIO_PAIRED_WITH_META_KEY, self.driver_namespace)
+        if not _fingerprints_match(paired_with, _video_fingerprint(video_latents)):
+            raise ValueError(
+                f"{self.driver_namespace}: Attempted to {action} a MiniMax-H3 latent. Failed "
+                f"because its audio latent belongs to a different video latent, so the soundtrack "
+                f"would not match the picture. MiniMax-H3 generates video and audio jointly and the "
+                f"audio travels in the latent's metadata, which latent math, composite and upsampler "
+                f"nodes do not recompute. Connect Generate Media Latents directly to Decode Media "
+                f"Latent."
+            )
+        return audio_latents
 
     def _run_blocks(self, blocks: Any, **kwargs: Any) -> PipelineState:
         """Run ``blocks`` over one shared ``PipelineState`` and return it.
@@ -472,24 +491,9 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         latents = latent.to_torch(device=device, dtype=torch.float32)
         video_rows = patchify_video_latents(latents, pipe.patch_size)
 
-        audio_latents = read_driver_meta(latent, AUDIO_LATENTS_META_KEY, self.driver_namespace)
         self.last_audio = None
         self.last_sampling_rate = None
-
-        # A present-but-stale audio latent is the dangerous case: latent math sums the video latent
-        # while carrying the left operand's unsummed audio, so the soundtrack would no longer match
-        # the picture. Refuse instead of muxing a desynchronised track.
-        if audio_latents is not None:
-            paired_with = read_driver_meta(latent, AUDIO_PAIRED_WITH_META_KEY, self.driver_namespace)
-            if not _fingerprints_match(paired_with, _video_fingerprint(latents)):
-                raise ValueError(
-                    f"{self.driver_namespace}: Attempted to decode a MiniMax-H3 latent. Failed "
-                    f"because its audio latent belongs to a different video latent, so the "
-                    f"soundtrack would not match the picture. MiniMax-H3 generates video and audio "
-                    f"jointly and the audio travels in the latent's metadata, which latent math, "
-                    f"composite and upsampler nodes do not recompute. Connect Generate Media "
-                    f"Latents directly to Decode Media Latent."
-                )
+        audio_latents = self._read_paired_audio_latents(latent, latents, action="decode")
 
         video_state = self._run_blocks(
             pipe.blocks.sub_blocks["decode"].sub_blocks["video"],
@@ -502,9 +506,10 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         video_frames = self._get_required(video_state.values, "videos", list)[0]
 
         # The live-preview path decodes a latent it rebuilt without meta, so a missing soundtrack is
-        # normal there and must not raise. Callers that need the audio check `last_audio`.
+        # normal there and must not raise. Debug rather than warning because that path decodes once
+        # per denoise step. Callers that need the audio check `last_audio`.
         if audio_latents is None:
-            logger.warning(
+            logger.debug(
                 "%s: decoding video only because the latent carries no audio latents in driver meta.",
                 self.driver_namespace,
             )
@@ -621,11 +626,12 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         self._resolve_keyframes(update_kwargs, geometry["num_frames"])
 
         generator = update_kwargs.pop("generator", generator_state.to_generator())
-        audio_latents = read_driver_meta(latent, AUDIO_LATENTS_META_KEY, self.driver_namespace)
+        video_latents_in = latent.to_torch(device=device, dtype=torch.float32)
+        audio_latents = self._read_paired_audio_latents(latent, video_latents_in, action="denoise")
         if audio_latents is None and start_step > 0:
             # Upstream draws fresh audio noise when none is supplied, but with a begin index set
             # both schedulers would step that pure noise as if it were already partly denoised,
-            # yielding a garbled soundtrack that the output fingerprint would then certify as valid.
+            # yielding a garbled soundtrack that this run would then stamp as validly paired.
             raise ValueError(
                 f"{self.driver_namespace}: Attempted to resume a MiniMax-H3 denoise at step "
                 f"{start_step}. Failed because the input latent carries no audio latent, so the "
@@ -651,7 +657,7 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         try:
             state = self._run_blocks(
                 blocks,
-                latents=latent.to_torch(device=device, dtype=torch.float32),
+                latents=video_latents_in,
                 audio_latents=audio_latents,
                 num_inference_steps=num_inference_steps,
                 generator=generator,

@@ -118,6 +118,13 @@ class LatentPipelineDriver(ABC):
         self._pipe = pipe
         self._modular_pipe: ModularPipeline | None = None
 
+        # Soundtrack published by ``decode_latent`` for models that generate audio jointly with the
+        # video, read by the VAE Decode node in the same call so it can be muxed into the output
+        # file. ``decode_latent`` owns these: it must set them on every call, clearing them when the
+        # decode produced no audio. Drivers for silent models leave them ``None``.
+        self.last_audio: torch.Tensor | None = None
+        self.last_sampling_rate: int | None = None
+
     @property
     def pipe(self) -> DiffusionPipeline:
         return self._pipe
