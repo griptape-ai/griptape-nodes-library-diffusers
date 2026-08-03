@@ -31,7 +31,13 @@ from diffusers.modular_pipelines.minimax_h3.modular_pipeline import (  # type: i
 )
 from diffusers.modular_pipelines.minimax_h3.packing import (  # type: ignore[reportMissingImports]
     MINIMAX_H3_AUDIO_CHANNELS,
+    MINIMAX_H3_CANVAS_MULTIPLE,
     MINIMAX_H3_FPS,
+    MINIMAX_H3_MAX_ASPECT_RATIO,
+    MINIMAX_H3_MAX_DURATION,
+    MINIMAX_H3_MAX_PIXELS,
+    MINIMAX_H3_MIN_ASPECT_RATIO,
+    MINIMAX_H3_MIN_DURATION,
     align_num_frames,
     audio_latent_num_frames,
     patchify_video_latents,
@@ -77,6 +83,14 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 #: Key under which the audio latent rides in this driver's namespaced ``meta`` sub-bag.
 AUDIO_LATENTS_META_KEY = "audio_latents"
 
+#: Frame counts a user can request. ``num_frames`` is snapped up to the next ``17 * n + 5`` the
+#: video VAE can decode, and the resulting duration must land in MiniMax-H3's 5-15 s window. That
+#: makes 108 the smallest usable count (snaps to 124 frames, 5.167 s) and 345 the largest
+#: (14.375 s); 346 would snap to 362, i.e. 15.083 s, which upstream rejects.
+MIN_REQUESTABLE_NUM_FRAMES = 108
+MAX_REQUESTABLE_NUM_FRAMES = 345
+DEFAULT_NUM_FRAMES = 124
+
 #: Fingerprint of the video latent the audio latent was denoised with. Latent math merges meta
 #: left-operand-wins over a *shallow* copy, so a summed video latent keeps the left operand's
 #: unsummed audio: the audio is still present but no longer corresponds to the video. Comparing
@@ -103,6 +117,30 @@ def _fingerprints_match(
         return False
     return math.isclose(left[1], right[1], rel_tol=1e-9, abs_tol=1e-6) and math.isclose(
         left[2], right[2], rel_tol=1e-9, abs_tol=1e-6
+    )
+
+
+def _unpack_video_rows(
+    rows: torch.Tensor,
+    components: MiniMaxH3ModularPipeline,
+    *,
+    num_condition_video_rows: int,
+    num_latent_frames: int,
+    latent_height: int,
+    latent_width: int,
+) -> torch.Tensor:
+    """Turn denoised video rows back into an unpacked 5-D latent, dropping conditioning rows.
+
+    Used both for the final output and for the step-end preview, which must hand the framework a
+    latent in the public shape rather than the loop's internal row layout.
+    """
+    return unpatchify_video_tokens(
+        rows[num_condition_video_rows:],
+        num_latent_frames,
+        latent_height,
+        latent_width,
+        components.vae_latent_channels,
+        components.patch_size,
     )
 
 
@@ -199,6 +237,17 @@ class _MiniMaxH3CallbackDenoiseStep(MiniMaxH3DenoiseLoopWrapper):
             "callback and cancellation support."
         )
 
+    @property
+    def loop_inputs(self) -> list[InputParam]:
+        # The video geometry is not part of upstream's loop contract, but the step-end preview needs
+        # it to unpack the in-flight rows into the public latent shape.
+        return [
+            *super().loop_inputs,
+            InputParam("num_latent_frames", required=True),
+            InputParam("latent_height", required=True),
+            InputParam("latent_width", required=True),
+        ]
+
     def _resolve_window(self, num_steps: int) -> tuple[int, int]:
         """Clamp the requested step window against the schedule's real length.
 
@@ -250,9 +299,19 @@ class _MiniMaxH3CallbackDenoiseStep(MiniMaxH3DenoiseLoopWrapper):
                 components, block_state = self.loop_step(components, block_state, i=i, t=t)
                 progress_bar.update()
                 if self.callback is not None:
-                    # The return value is deliberately discarded: the framework's callback returns
-                    # {} on its normal path, and merging that would clobber the loop's latents.
-                    self.callback(components, i, t, {"latents": block_state.latents})
+                    # The loop works in packed rows, but the framework feeds this straight back into
+                    # decode_latent for the live preview, which expects the public 5-D shape.
+                    # The return value is deliberately discarded: the callback returns {} on its
+                    # normal path, and merging that would clobber the loop's latents.
+                    preview_latents = _unpack_video_rows(
+                        block_state.latents,
+                        components,
+                        num_condition_video_rows=block_state.num_condition_video_rows,
+                        num_latent_frames=block_state.num_latent_frames,
+                        latent_height=block_state.latent_height,
+                        latent_width=block_state.latent_width,
+                    )
+                    self.callback(components, i, t, {"latents": preview_latents})
                 if getattr(components, "_interrupt", False):
                     break
         self.set_block_state(state, block_state)
@@ -294,24 +353,77 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
     # ------------------------------------------------------------------
 
     def _latent_geometry(self, source_shape: tuple[int, ...]) -> dict[str, int]:
-        """Latent-space dimensions for a pixel-space ``source_shape`` of (..., T, H, W)."""
+        """Latent-space dimensions for a pixel-space ``source_shape`` of (..., T, H, W).
+
+        ``source_shape`` comes from the latent, which is the single source of truth for what gets
+        denoised, so it is validated here rather than in the runtime parameters: the Create Noise
+        Latents node owns these dimensions and has no MiniMax-H3-specific validation hook.
+        """
         pipe = cast(MiniMaxH3ModularPipeline, self.modular_pipe)
+        height, width = source_shape[-2], source_shape[-1]
+        self._validate_canvas(height, width)
+
         num_frames = align_num_frames(source_shape[-3])
+        duration = num_frames / MINIMAX_H3_FPS
+        if not MINIMAX_H3_MIN_DURATION <= duration <= MINIMAX_H3_MAX_DURATION:
+            raise ValueError(
+                f"{self.driver_namespace}: Attempted to size a MiniMax-H3 request. Failed with "
+                f"num_frames={source_shape[-3]} because it snaps up to {num_frames} frames "
+                f"({duration:.3f} s at {MINIMAX_H3_FPS} fps), outside the "
+                f"{MINIMAX_H3_MIN_DURATION:g}-{MINIMAX_H3_MAX_DURATION:g} s window MiniMax-H3 "
+                f"generates. Set num_frames between {MIN_REQUESTABLE_NUM_FRAMES} and "
+                f"{MAX_REQUESTABLE_NUM_FRAMES} on the node that created this latent."
+            )
+
         compression = pipe.vae_spatial_compression_ratio
         return {
             "num_frames": num_frames,
             "num_latent_frames": video_latent_num_frames(num_frames),
-            "latent_height": source_shape[-2] // compression,
-            "latent_width": source_shape[-1] // compression,
+            "latent_height": height // compression,
+            "latent_width": width // compression,
             "num_audio_latents": audio_latent_num_frames(num_frames),
         }
+
+    def _validate_canvas(self, height: int, width: int) -> None:
+        """Reject a canvas MiniMax-H3 cannot express.
+
+        Upstream treats an explicit ``height``/``width`` as a canvas override and skips its own
+        ``resolve_canvas_size`` checks, so these constraints have to be enforced here or they are
+        never enforced at all.
+        """
+        for name, value in (("height", height), ("width", width)):
+            if value % MINIMAX_H3_CANVAS_MULTIPLE:
+                raise ValueError(
+                    f"{self.driver_namespace}: Attempted to size a MiniMax-H3 request. Failed with "
+                    f"{name}={value} because it must be a multiple of {MINIMAX_H3_CANVAS_MULTIPLE}."
+                )
+
+        # Aspect ratio first: an extreme ratio usually also blows the pixel budget, and naming the
+        # ratio is the more actionable of the two messages.
+        ratio = width / height
+        if not MINIMAX_H3_MIN_ASPECT_RATIO <= ratio <= MINIMAX_H3_MAX_ASPECT_RATIO:
+            raise ValueError(
+                f"{self.driver_namespace}: Attempted to size a MiniMax-H3 request. Failed with "
+                f"{width}x{height} (ratio {ratio:g}) because MiniMax-H3 supports aspect ratios from "
+                f"1:4 to 4:1."
+            )
+
+        if height * width > MINIMAX_H3_MAX_PIXELS:
+            raise ValueError(
+                f"{self.driver_namespace}: Attempted to size a MiniMax-H3 request. Failed with "
+                f"{width}x{height} ({height * width} pixels) because MiniMax-H3 generates at most "
+                f"{MINIMAX_H3_MAX_PIXELS} pixels. Try 1344x768 (16:9) or 960x544 for faster steps."
+            )
 
     def _run_blocks(self, blocks: Any, **kwargs: Any) -> PipelineState:
         """Run ``blocks`` over one shared ``PipelineState`` and return it.
 
-        Deliberately not ``_call_block``: that builds a fresh state per call (so a multi-block
-        prefix would lose every intermediate) and runs under ``inference_mode``, whose tensors
-        cannot be mutated in place — which the scheduler step does.
+        Deliberately not ``_call_block``, for two reasons. It builds a fresh state per call, so a
+        multi-block prefix would lose every intermediate. And it runs under ``inference_mode``,
+        which mints inference tensors: legal to mutate in place *within* that scope, but the
+        scheduler step mutates ``latents`` in a later call than the one that created them, and
+        in-place mutation of an inference tensor outside ``inference_mode`` raises. ``no_grad``
+        produces ordinary tensors and avoids the whole class of problem.
         """
         state = PipelineState()
         for param in blocks.inputs:
@@ -499,22 +611,27 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         geometry = self._latent_geometry(source_shape)
 
         update_kwargs = kwargs.copy()
-        requested_num_frames = update_kwargs.pop("num_frames", None)
-        if requested_num_frames is not None and align_num_frames(int(requested_num_frames)) != geometry["num_frames"]:
-            logger.warning(
-                "%s: ignoring num_frames=%s because the input latent holds %d frames.",
-                self.driver_namespace,
-                requested_num_frames,
-                geometry["num_frames"],
-            )
-        # The latent's own shape is what gets denoised, so source_shape is the single source of truth.
+        # The latent's own shape is what gets denoised, so it dictates the geometry outright. These
+        # are assigned rather than merged: a layout built for different dimensions than the latent
+        # tensor either crashes deep in attention or, when the row counts happen to collide,
+        # silently produces garbage. Nothing upstream of here is allowed to disagree.
         update_kwargs["num_frames"] = geometry["num_frames"]
-        update_kwargs.setdefault("height", source_shape[-2])
-        update_kwargs.setdefault("width", source_shape[-1])
+        update_kwargs["height"] = source_shape[-2]
+        update_kwargs["width"] = source_shape[-1]
         self._resolve_keyframes(update_kwargs, geometry["num_frames"])
 
         generator = update_kwargs.pop("generator", generator_state.to_generator())
         audio_latents = read_driver_meta(latent, AUDIO_LATENTS_META_KEY, self.driver_namespace)
+        if audio_latents is None and start_step > 0:
+            # Upstream draws fresh audio noise when none is supplied, but with a begin index set
+            # both schedulers would step that pure noise as if it were already partly denoised,
+            # yielding a garbled soundtrack that the output fingerprint would then certify as valid.
+            raise ValueError(
+                f"{self.driver_namespace}: Attempted to resume a MiniMax-H3 denoise at step "
+                f"{start_step}. Failed because the input latent carries no audio latent, so the "
+                f"soundtrack would restart from pure noise mid-schedule. Chain partial denoise "
+                f"directly from a previous Generate Media Latents run."
+            )
         if audio_latents is not None:
             audio_latents = audio_latents.to(device=device, dtype=torch.float32)
 
@@ -548,13 +665,13 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         num_condition_video_rows = state.values.get("num_condition_video_rows", 0)
         num_condition_audio_rows = state.values.get("num_condition_audio_rows", 0)
 
-        video_latents = unpatchify_video_tokens(
-            denoised_video_rows[num_condition_video_rows:],
-            geometry["num_latent_frames"],
-            geometry["latent_height"],
-            geometry["latent_width"],
-            pipe.vae_latent_channels,
-            pipe.patch_size,
+        video_latents = _unpack_video_rows(
+            denoised_video_rows,
+            pipe,
+            num_condition_video_rows=num_condition_video_rows,
+            num_latent_frames=geometry["num_latent_frames"],
+            latent_height=geometry["latent_height"],
+            latent_width=geometry["latent_width"],
         )
         audio_out = unpack_audio_tokens(denoised_audio_rows[num_condition_audio_rows:], geometry["num_audio_latents"])
 
