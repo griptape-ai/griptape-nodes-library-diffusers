@@ -37,6 +37,9 @@ from modular_diffusion_nodes_library.standard_parameters.ltx2_parameters import 
 from modular_diffusion_nodes_library.standard_parameters.ltx_parameters import (
     LTXPipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.minimax_h3_parameters import (
+    MiniMaxH3PipelineParameters,
+)
 from modular_diffusion_nodes_library.standard_parameters.qwen_edit_parameters import (
     QwenEditPipelineParameters,
 )
@@ -249,6 +252,30 @@ class LatentLTX2PipelineTypeParameters(LatentPipelineTypeParameters):
         }
 
 
+class LatentMiniMaxH3PipelineTypeParameters(LatentPipelineTypeParameters):
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        return (
+            "- `MiniMaxH3ModularPipeline` — Text-to-video and keyframe-to-video generation with a "
+            "**jointly generated soundtrack** (MiniMax-H3).\n\n"
+            "Video and audio come out of one denoising loop, and the Decode Media Latent node muxes "
+            "them into a single MP4. The audio latent travels in the latent's metadata, so connect "
+            "Generate Media Latents **directly** to Decode Media Latent — latent math, composite, "
+            "upsampler and save/load nodes drop it.\n\n"
+            "Fixed 24 fps, 5 to 15 seconds. Frame count is snapped up to the next `17 * n + 5` "
+            "(124, 141, 158, … 345). Height and width must be multiples of 32 and default to "
+            "MiniMax-H3's own canvas. Guidance is baked into the weights, so there is no "
+            "`guidance_scale` and no `negative_prompt`. Image-to-video, video-to-video, ControlNet "
+            "and inpainting are not supported."
+        )
+
+    @classmethod
+    def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
+        return {
+            "MiniMaxH3ModularPipeline": MiniMaxH3PipelineParameters,
+        }
+
+
 class LatentQwenPipelineTypeParameters(LatentPipelineTypeParameters):
     @property
     def pipeline_type_badge_message(self) -> str:
@@ -360,6 +387,7 @@ MODULAR_PIPELINE_TYPE_PROVIDER_MAP: dict[Provider, type[LatentPipelineTypeParame
     Provider.HUNYUAN_VIDEO_1_5: LatentHunyuanVideo15PipelineTypeParameters,
     Provider.LTX: LatentLTXPipelineTypeParameters,
     Provider.LTX2: LatentLTX2PipelineTypeParameters,
+    Provider.MINIMAX_H3: LatentMiniMaxH3PipelineTypeParameters,
     Provider.QWEN: LatentQwenPipelineTypeParameters,
     Provider.STABLE_DIFFUSION: LatentStableDiffusionPipelineTypeParameters,
     Provider.STABLE_DIFFUSION_3: LatentStableDiffusion3PipelineTypeParameters,

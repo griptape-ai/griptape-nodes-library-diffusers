@@ -37,6 +37,9 @@ from modular_diffusion_nodes_library.runtime_parameters.ltx2_runtime_parameters 
 from modular_diffusion_nodes_library.runtime_parameters.ltx_runtime_parameters import (
     LTXPipelineRuntimeParameters,
 )
+from modular_diffusion_nodes_library.runtime_parameters.minimax_h3_runtime_parameters import (
+    MiniMaxH3PipelineRuntimeParameters,
+)
 from modular_diffusion_nodes_library.runtime_parameters.qwen_edit_runtime_parameters import (
     QwenEditPipelineRuntimeParameters,
 )
@@ -78,6 +81,7 @@ _RUNTIME_PARAMS_REGISTRY: dict[str, type[DiffusionPipelineRuntimeParameters]] = 
     "HunyuanVideo15ImageToVideoPipeline": HunyuanVideo15ImageToVideoPipelineRuntimeParameters,
     "LTXPipeline": LTXPipelineRuntimeParameters,
     "LTX2Pipeline": LTX2PipelineRuntimeParameters,
+    "MiniMaxH3ModularPipeline": MiniMaxH3PipelineRuntimeParameters,
     "QwenImagePipeline": QwenPipelineRuntimeParameters,
     "QwenImageEditPipeline": QwenEditPipelineRuntimeParameters,
     "StableDiffusion3Pipeline": StableDiffusion3PipelineRuntimeParameters,

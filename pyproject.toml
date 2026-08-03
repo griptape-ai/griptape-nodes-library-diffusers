@@ -12,7 +12,9 @@ dependencies = [
     "beautifulsoup4>=4.13.4",
     "controlnet-aux>=0.0.9",
     "static-ffmpeg>=2.8",
-    "diffusers==0.39.0",
+    # TODO(diffusers-pin): temporary dev pin to the MiniMax-H3 branch (PR #14355, still an open
+    # draft). Revert to a tagged release once that PR merges; our own change cannot land before it.
+    "diffusers @ git+https://github.com/huggingface/diffusers.git@abc5e9bf71fd38f53cd471bc3acaa84bc5ecbfdc",
     "imageio[ffmpeg]>=2.37.2",
     "ninja>=1.13.0",
     "numpy>=2.2.4",
