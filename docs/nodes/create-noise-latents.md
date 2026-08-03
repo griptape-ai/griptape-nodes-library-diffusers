@@ -41,6 +41,12 @@ Pipeline Builder → [Create Noise Latents] → Generate Media Latents → Decod
 | `seed` | int | random | Reproducibility. |
 | `num_inference_steps` | int | `20` | **Only shown for SDXL** — used by SDXL to scale the initial noise. Other pipelines ignore this. |
 
+## Provider / model behavior
+
+| Provider | Behavior |
+| --- | --- |
+| MiniMax-H3 | This node's `width`, `height` and `num_frames` are authoritative — [Generate Media Latents](generate_media_latents.md) takes its dimensions from the latent and warns if its own `num_frames` disagrees. `width` and `height` must be multiples of **32**; MiniMax-H3's trained canvas is a 768-pixel short edge (e.g. 1344x768, or 960x544 for roughly 2.3x faster steps). `num_frames` is snapped up to the next `17 * n + 5` (124, 141, 158, … 345) and the result must land between 5 and 15 seconds at the fixed 24 fps. The noise latent also carries the audio noise for the jointly generated soundtrack. |
+
 ## Tips & pitfalls
 
 - **`width` / `height` / `num_frames` must satisfy the pipeline's alignment constraints.** All pipelines (image and video) enforce spatial alignment — most require width and height to be multiples of 8 or 16. Video pipelines additionally require `(num_frames - 1)` to be divisible by the VAE temporal compression ratio. Some pipelines (HunyuanVideo I2V) use aspect-ratio bucketing — valid dimensions are not simply multiples of a constant. By default the node validates dimensions before running and surfaces an error with suggested values. Set `modular_diffusion_library.enable_auto_resize = true` in `griptape_nodes_library.json` (under `config`) to silently snap misaligned values to the nearest valid ones for both image and video pipelines, with a warning logged.

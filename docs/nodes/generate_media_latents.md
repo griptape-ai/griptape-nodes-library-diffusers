@@ -63,6 +63,7 @@ The exact list depends on the connected pipeline. Common parameters:
 
 - **ControlNet:** when `pipeline` is a `ControlNetDiffusionPipelineArtifact`, the `controlnet_parameters` input is added automatically.
 - **Inpainting:** when `input_latent` is an `InpaintMaskArtifact` (from [Encode Masked Media Latent](encode_masked_media_latent.md)), the node automatically routes through the inpaint pipeline class and uses the artifact's `strength`.
+- **MiniMax-H3:** generates the video **and its soundtrack** in one denoising loop. There is no `guidance_scale` and no `negative_prompt` — the checkpoint is guidance-distilled, so guidance is baked into the weights and every step runs a single forward pass. Keyframes are optional: leave `conditioning_images` unconnected for text-only generation, or connect a [Media Gen Conditioning](media_gen_conditioning.md) node for a first and/or last frame. The output latent carries the audio in its metadata, so wire this node **directly** to [Decode Media Latent](decode_media_latent.md). `return_fully_denoised` is not supported. Inpainting, ControlNet, image-to-video and video-to-video are unavailable.
 
 ## Tips & pitfalls
 
