@@ -146,8 +146,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 "(use the picker, or type directly)\n"
                 "- **HF repo_id** — e.g. `black-forest-labs/FLUX.1-dev` "
                 "(the HuggingFace cache is checked, no download triggered)\n\n"
-                "Leave blank to auto-resolve: warm HF cache for the detected model → "
-                "bundled fallback shipped with this library."
+                "Leave blank to auto-resolve via the warm HF cache for the detected model type."
             ),
         )
         self.add_parameter(config_source_param)
