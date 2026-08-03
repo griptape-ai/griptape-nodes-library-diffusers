@@ -136,9 +136,8 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             self.remove_parameter_element_by_name("output_image")
             # Add FPS parameter for video output (before output to appear above it in GUI)
             if not self.get_parameter_by_name("fps"):
-                # Default to the driver's own rate. Models that generate audio alongside the video
-                # (MiniMax-H3) only stay in sync at their trained rate, so a generic default would
-                # silently drift the soundtrack.
+                # Default to the driver's own rate rather than a generic one, so playback speed is
+                # right out of the box.
                 self.add_parameter(
                     Parameter(
                         name="fps",
@@ -247,10 +246,21 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 temp_path = Path(temp_file_obj.name)
             try:
                 fps = int(self.get_parameter_value("fps") or latents_pipeline_driver.video_fps)
-                # Drivers whose model generates a soundtrack alongside the video expose it here so
-                # it can be muxed into the same file (MiniMax-H3).
-                audio = getattr(latents_pipeline_driver, "last_audio", None)
-                audio_sample_rate = getattr(latents_pipeline_driver, "last_sampling_rate", None)
+                # Drivers whose model generates a soundtrack alongside the video publish it here so
+                # it can be muxed into the same file.
+                audio = latents_pipeline_driver.last_audio
+                audio_sample_rate = latents_pipeline_driver.last_sampling_rate
+                if audio is not None and fps != latents_pipeline_driver.video_fps:
+                    # A jointly generated soundtrack is muxed at its own true sample rate, so any
+                    # frame rate other than the one the model generated at drifts the two apart.
+                    logger.warning(
+                        "Encoding at the model's native %d fps instead of %d: %s generates audio "
+                        "and video together, and another rate would desynchronise them.",
+                        latents_pipeline_driver.video_fps,
+                        fps,
+                        type(latents_pipeline_driver).__name__,
+                    )
+                    fps = latents_pipeline_driver.video_fps
                 self._encode_video_output(output, temp_path, fps, audio=audio, audio_sample_rate=audio_sample_rate)
                 self._publish_output_video(temp_path)
             finally:
