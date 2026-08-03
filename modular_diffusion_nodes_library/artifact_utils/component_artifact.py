@@ -14,7 +14,11 @@ from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingI
     load_single_file_checkpoint,
 )
 
-from modular_diffusion_nodes_library.component_loading.config_resolver import loadable_class_name, resolve_config_path, resolve_hf_repo_config_subfolder
+from modular_diffusion_nodes_library.component_loading.config_resolver import (
+    loadable_class_name,
+    resolve_config_path,
+    resolve_hf_repo_config_subfolder,
+)
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import (
     MODEL_TYPE_TO_PIPELINE_TYPE,
     get_component_class,
@@ -150,10 +154,15 @@ class ModelComponentArtifact(ComponentArtifact):
 
         subfolder = self.repo_ref.subfolder or ""
         if not subfolder:
-            subfolder = resolve_hf_repo_config_subfolder(
-                self.repo_ref.repo_id, effective_slot, self.component,
-                revision=self.repo_ref.revision,
-            ) or ""
+            subfolder = (
+                resolve_hf_repo_config_subfolder(
+                    self.repo_ref.repo_id,
+                    effective_slot,
+                    self.component,
+                    revision=self.repo_ref.revision,
+                )
+                or ""
+            )
 
         kwargs: dict[str, Any] = {
             "pretrained_model_name_or_path": self.repo_ref.repo_id,
@@ -199,7 +208,7 @@ class ModelComponentArtifact(ComponentArtifact):
 
         # If inferring model type fails to return a recognised type
         # fall back to the target pipeline's canonical model_type so the
-        # config lookup uses the right bundled/cached config.
+        # config lookup uses the right cached config.
         if inferred_model_type in MODEL_TYPE_TO_PIPELINE_TYPE:
             model_type = inferred_model_type
         else:
@@ -242,11 +251,11 @@ class ModelComponentArtifact(ComponentArtifact):
             del checkpoint
             return component
 
-        # No explicit config provided and none bundled.
+        # No explicit config provided.
         msg = (
             f"Attempted to materialize {self.component}. "
             f"Failed with model_type='{model_type}' pipeline_cls='{pipeline_cls.__name__}' because "
-            f"the checkpoint's model_type is unregistered and no bundled/cached config could be "
+            f"the checkpoint's model_type is unregistered and no cached config could be "
             f"located for the target pipeline. "
             f"Set 'Config Source' to a local config directory or HuggingFace repo_id for this component."
         )

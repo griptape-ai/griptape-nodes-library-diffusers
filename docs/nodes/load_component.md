@@ -43,7 +43,7 @@ _None. All fields are node properties._
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `file_path` | `str` (file) | `""` | Absolute path to a single-file weight (`.gguf`, `.safetensors`, `.ckpt`, `.pt`, `.pth`, `.bin`). |
-| `config_source` | `str` (dir or repo id) | `""` | Optional. Local directory containing a `config.json`, or a HuggingFace repo id in the local cache that should be consulted. Blank mean auto-resolve using the detected model type, then the bundled fallback shipped with this library. Note that auto-resolve is not guaranteed to succeed. |
+| `config_source` | `str` (dir or repo id) | `""` | Optional. Local directory containing a `config.json`, or a HuggingFace repo id in the local cache that should be consulted. Blank means auto-resolve using the warm HF cache for the detected model type. Note that auto-resolve is not guaranteed to succeed. |
 
 ### Local Folder
 
