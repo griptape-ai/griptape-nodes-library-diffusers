@@ -1,11 +1,12 @@
 from pathlib import Path
+from typing import Any
 
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
 
-from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
+from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros, resolve_path_to_macro
 
 
 class FilePathParameter:
@@ -61,6 +62,15 @@ class FilePathParameter:
         existing = {k: v for k, v in param.ui_options.items() if k != "fileSystemPicker"}
         existing["fileSystemPicker"] = picker.ui_options_for_trait()["fileSystemPicker"]
         param.ui_options = existing
+
+    def on_after_value_set(self, parameter: Parameter, value: Any) -> None:
+        if parameter.name != self._parameter_name:
+            return
+        if not isinstance(value, str) or not value:
+            return
+        resolved = resolve_path_to_macro(value)
+        if resolved != value:
+            self._node.set_parameter_value(self._parameter_name, resolved)
 
     def validate_parameter_values(self) -> None:
         file_path = self.get_file_path()

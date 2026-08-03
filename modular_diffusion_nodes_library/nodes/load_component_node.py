@@ -112,9 +112,9 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         file_path_param = self.get_parameter_by_name("file_path")
         if file_path_param is not None:
             file_path_param.ui_options = {
-                    "placeholder_text": "e.g. /path/to/models/flux1-dev-Q8_0.gguf",
-                    "display_name": "File Path"
-                }
+                "placeholder_text": "e.g. /path/to/models/flux1-dev-Q8_0.gguf",
+                "display_name": "File Path",
+            }
 
         config_source_param = Parameter(
             name="config_source",
@@ -253,6 +253,9 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
     # ------------------------------------------------------------------
     # Value change handling
     # ------------------------------------------------------------------
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        self._file_path_param.on_after_value_set(parameter, value)
+
     def set_parameter_value(
         self,
         param_name: str,
