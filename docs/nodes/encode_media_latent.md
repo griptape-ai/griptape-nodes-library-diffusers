@@ -35,6 +35,12 @@ Load Image → [Encode Media Latent] → Generate Media Latents → Decode Media
 | --- | --- | --- |
 | `latent_tensor` | `LatentArtifact` | Encoded latent in the pipeline's canonical latent space. |
 
+## Provider / model behavior
+
+| Provider | Behavior |
+| --- | --- |
+| MiniMax-H3 | **Not supported.** MiniMax-H3 has no general VAE-encode path — its only encoder is keyframe-specific and produces conditioning rows rather than a reusable latent. This node raises an error. For keyframe conditioning, connect a [Media Gen Conditioning](media_gen_conditioning.md) node to `conditioning_images` on [Generate Media Latents](generate_media_latents.md) instead. |
+
 ## Tips & pitfalls
 
 - **The input slot adapts to the connected pipeline.** Image pipelines (Flux, SD3, etc.) show an `image` input; video pipelines (LTX, LTX2, WAN, etc.) show `input_video` instead. Switching pipeline types replaces the slot — rewire the input after switching.

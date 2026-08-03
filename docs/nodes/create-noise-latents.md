@@ -41,6 +41,12 @@ Pipeline Builder → [Create Noise Latents] → Generate Media Latents → Decod
 | `seed` | int | random | Reproducibility. |
 | `num_inference_steps` | int | `20` | **Only shown for SDXL** — used by SDXL to scale the initial noise. Other pipelines ignore this. |
 
+## Provider / model behavior
+
+| Provider | Behavior |
+| --- | --- |
+| MiniMax-H3 | This node's `width`, `height` and `num_frames` are authoritative — [Generate Media Latents](generate_media_latents.md) takes its dimensions from the latent and warns if its own `num_frames` disagrees. `width` and `height` must be multiples of **32**; MiniMax-H3's trained canvas is a 768-pixel short edge (e.g. 1344x768, or 960x544 for roughly 2.3x faster steps). `num_frames` is snapped up to the next `17 * n + 5` (124, 141, 158, … 345) and the result must land between 5 and 15 seconds at the fixed 24 fps. The noise latent also carries the audio noise for the jointly generated soundtrack. |
+
 ## Tips & pitfalls
 
 - **`width` / `height` must respect VAE divisibility.** Most VAEs require multiples of 8 or 16. Pick standard dimensions (512, 768, 1024, …) to keep shapes valid.
