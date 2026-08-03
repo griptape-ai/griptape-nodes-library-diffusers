@@ -57,6 +57,8 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 class LTX2PipelineDriver(LatentPipelineDriver):
     produces_video: ClassVar[bool] = True
+    # frame_rate defaults to 24.0 in LTX2Pipeline.__call__ and its EXAMPLE_DOC_STRING.
+    video_fps: ClassVar[int] = 24
 
     _HDR_LORA_ADAPTER_TOKEN: ClassVar[str] = "ic-lora-hdr"
     _IC_LORA_REFERENCE_KEY: ClassVar[str] = "ltx2_ic_lora_reference"
