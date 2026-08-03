@@ -36,7 +36,7 @@ Generate Media Latents → [Decode Media Latent] → Save Image / Save Video
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `fps` | int (1–120) | `25` | Output frame rate. **Only shown for video pipelines.** |
+| `fps` | int (1–120) | model's native rate | Output frame rate. **Only shown for video pipelines.** Defaults to the rate the selected model generates at (LTX 25, MiniMax-H3 24, WAN 16, HunyuanVideo 1.5 15), so leaving it alone plays back at the correct speed. |
 
 ## Provider / model behavior
 
@@ -44,7 +44,7 @@ Generate Media Latents → [Decode Media Latent] → Save Image / Save Video
 | --- | --- |
 | Image pipelines | `output_image` as an `ImageArtifact`. |
 | LTX, LTX2, WAN, HunyuanVideo 1.5 | `output_video` as a silent MP4 at `fps`. |
-| MiniMax-H3 | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. Leave `fps` at `24` — MiniMax-H3 generates at a fixed 24 fps, and any other value desynchronises the soundtrack. |
+| MiniMax-H3 | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. `fps` defaults to the model's fixed **24** — changing it desynchronises the soundtrack, since the audio is muxed at its own true sample rate. |
 
 ### MiniMax-H3: keep the edge direct
 

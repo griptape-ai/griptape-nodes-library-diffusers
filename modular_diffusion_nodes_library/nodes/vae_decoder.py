@@ -136,10 +136,13 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             self.remove_parameter_element_by_name("output_image")
             # Add FPS parameter for video output (before output to appear above it in GUI)
             if not self.get_parameter_by_name("fps"):
+                # Default to the driver's own rate. Models that generate audio alongside the video
+                # (MiniMax-H3) only stay in sync at their trained rate, so a generic default would
+                # silently drift the soundtrack.
                 self.add_parameter(
                     Parameter(
                         name="fps",
-                        default_value=25,
+                        default_value=driver_cls.video_fps,
                         type="int",
                         tooltip="Frames per second for video output.",
                         allowed_modes={ParameterMode.PROPERTY},
