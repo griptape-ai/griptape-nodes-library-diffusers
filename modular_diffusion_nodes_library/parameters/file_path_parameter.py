@@ -17,20 +17,27 @@ class FilePathParameter:
         file_types: list[str] | None = None,
         initial_path: str | None = None,
         tooltip: str = "Path to a local file",
+        display_name: str | None = None,
     ):
         self._node = node
         self._parameter_name = parameter_name
         self._file_types = file_types
         self._initial_path = initial_path or str(GriptapeNodes.ConfigManager().workspace_path)
         self._tooltip = tooltip
+        self._display_name = display_name
 
     def add_input_parameters(self) -> None:
+        if self._display_name:
+            ui_options = {"display_name": self._display_name}
+        else:
+            ui_options = {}
         self._node.add_parameter(
             Parameter(
                 name=self._parameter_name,
                 input_types=["str"],
                 type="str",
                 tooltip=self._tooltip,
+                ui_options=ui_options,
                 traits={
                     FileSystemPicker(
                         allow_files=True,
@@ -70,7 +77,7 @@ class FilePathParameter:
             return
         resolved = resolve_path_to_macro(value)
         if resolved != value:
-            self._node.set_parameter_value(self._parameter_name, resolved)
+            self._node.set_parameter_value(self._parameter_name, resolved, emit_change=False)
 
     def validate_parameter_values(self) -> None:
         file_path = self.get_file_path()
