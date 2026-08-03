@@ -304,6 +304,7 @@
         "workflows/templates/FluxKontextImageEdit.py",
         "workflows/templates/FluxKontextInpainting.py",
         "workflows/templates/WanAnimate.py",
-        "workflows/templates/WanReplace.py"
+        "workflows/templates/WanReplace.py",
+        "workflows/templates/Multi-ViewPromptBatcher.py"
     ]
 }
