@@ -7,6 +7,7 @@ from typing import Any
 import diffusers  # type: ignore[reportMissingImports]
 import numpy as np
 from diffusers.pipelines.ltx2.export_utils import encode_hdr_tensor_to_mp4  # type: ignore[reportMissingImports]
+from diffusers.utils.export_utils import encode_video  # type: ignore[reportMissingImports]
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
@@ -243,7 +244,11 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 temp_path = Path(temp_file_obj.name)
             try:
                 fps = int(self.get_parameter_value("fps") or latents_pipeline_driver.video_fps)
-                self._encode_video_output(output, temp_path, fps)
+                # Drivers whose model generates a soundtrack alongside the video expose it here so
+                # it can be muxed into the same file (MiniMax-H3).
+                audio = getattr(latents_pipeline_driver, "last_audio", None)
+                audio_sample_rate = getattr(latents_pipeline_driver, "last_sampling_rate", None)
+                self._encode_video_output(output, temp_path, fps, audio=audio, audio_sample_rate=audio_sample_rate)
                 self._publish_output_video(temp_path)
             finally:
                 if temp_path.exists():
@@ -251,10 +256,27 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         else:
             self._handle_image_output(output)
 
-    def _encode_video_output(self, output: Any, dest_path: Path, fps: int) -> None:
+    def _encode_video_output(
+        self,
+        output: Any,
+        dest_path: Path,
+        fps: int,
+        *,
+        audio: Any = None,
+        audio_sample_rate: int | None = None,
+    ) -> None:
         """Encode a video output to ``dest_path``. Override to customize HDR/tone-mapping."""
         if isinstance(output, np.ndarray):
             encode_hdr_tensor_to_mp4(output[0], str(dest_path), frame_rate=fps)
+        elif audio is not None and audio_sample_rate is not None:
+            # The soundtrack arrives batched as (1, 2, num_samples); encode_video wants (2, N).
+            encode_video(
+                output,
+                fps,
+                str(dest_path),
+                audio=audio[0],
+                audio_sample_rate=audio_sample_rate,
+            )
         else:
             diffusers.utils.export_to_video(output, str(dest_path), fps=fps)  # type: ignore[attr-defined]
 
