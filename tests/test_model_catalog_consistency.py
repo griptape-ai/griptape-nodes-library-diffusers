@@ -138,9 +138,34 @@ def test_manifest_passes_engine_validation() -> None:
 
 
 def test_schema_and_engine_versions_meet_the_declaration_baseline() -> None:
+    """Pin the two version floors this library's declarations depend on.
+
+    `library_schema_version` 0.10.0 is what makes the `model_catalog` and `model_usage`
+    declarations parseable at all.
+
+    `engine_version` is the stricter of two requirements. Declarations alone only need 0.92.0
+    (the epic baseline), but license *enforcement* on the HuggingFace repo dropdowns needs the
+    gating in `HuggingFaceModelParameter`, which ships in 0.95.1. Declaring only 0.92.0 would let
+    the library load on an engine that validates the catalog but silently offers denied models --
+    a fail-open. `IncompatibleEngineVersionCheck` marks the library UNUSABLE on older PyPI
+    engines instead, which is the intended fail-closed behavior.
+    """
     schema = _schema()
     assert schema.library_schema_version == "0.10.0"
-    assert schema.metadata.engine_version == "0.92.0"
+    assert schema.metadata.engine_version == ENGINE_VERSION_FLOOR
+
+
+def test_manifest_and_pyproject_engine_floors_agree() -> None:
+    """The manifest gate and the installed-package floor must not drift apart.
+
+    The manifest's `engine_version` is what the engine checks at load time; the pyproject
+    dependency is what actually gets installed. If only one is bumped, the library either loads
+    without the code it needs or refuses to load on an engine that would have worked. Note the
+    dependency is on `griptape-nodes-engine`, which provides the `griptape_nodes` package --
+    not `griptape-nodes`, which provides `griptape_nodes_app`.
+    """
+    pyproject = (Path(__file__).parents[1] / "pyproject.toml").read_text()
+    assert f'"griptape-nodes-engine>={ENGINE_VERSION_FLOOR}"' in pyproject
 
 
 def test_every_catalog_model_is_used_by_some_node() -> None:
