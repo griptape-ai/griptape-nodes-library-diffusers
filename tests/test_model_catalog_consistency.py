@@ -36,7 +36,7 @@ LIBRARY_JSON = Path(__file__).parents[1] / "griptape-nodes-library.json"
 
 # The engine release that carries HuggingFace dropdown gating. Declarations parse from 0.92.0,
 # but enforcement needs this, so it is the floor in both the manifest and pyproject.
-ENGINE_VERSION_FLOOR = "0.95.1"
+ENGINE_VERSION_FLOOR = "0.96.0"
 
 # Node class name -> the Python source its repo choices come from. Mirrors the three node types
 # that host a HuggingFaceRepoParameter; every other node in the library reaches no model.
@@ -149,7 +149,7 @@ def test_schema_and_engine_versions_meet_the_declaration_baseline() -> None:
 
     `engine_version` is the stricter of two requirements. Declarations alone only need 0.92.0
     (the epic baseline), but license *enforcement* on the HuggingFace repo dropdowns needs the
-    gating in `HuggingFaceModelParameter`, which ships in 0.95.1. Declaring only 0.92.0 would let
+    gating in `HuggingFaceModelParameter`, which ships in 0.96.0. Declaring only 0.92.0 would let
     the library load on an engine that validates the catalog but silently offers denied models --
     a fail-open. `IncompatibleEngineVersionCheck` marks the library UNUSABLE on older PyPI
     engines instead, which is the intended fail-closed behavior.
