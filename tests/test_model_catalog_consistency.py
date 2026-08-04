@@ -34,6 +34,10 @@ from modular_diffusion_nodes_library.parameters.upsampler_parameter_type import 
 
 LIBRARY_JSON = Path(__file__).parents[1] / "griptape-nodes-library.json"
 
+# The engine release that carries HuggingFace dropdown gating. Declarations parse from 0.92.0,
+# but enforcement needs this, so it is the floor in both the manifest and pyproject.
+ENGINE_VERSION_FLOOR = "0.95.1"
+
 # Node class name -> the Python source its repo choices come from. Mirrors the three node types
 # that host a HuggingFaceRepoParameter; every other node in the library reaches no model.
 BUILDER_NODE = "LatentDiffusionPipelineBuilderNode"
