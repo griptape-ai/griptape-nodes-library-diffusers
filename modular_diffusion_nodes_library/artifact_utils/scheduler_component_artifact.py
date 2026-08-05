@@ -28,11 +28,12 @@ class SchedulerComponentArtifact(ComponentArtifact):
     scheduler_class: str = ""
     config_source: str | None = None  # LOCAL_DIR: path to scheduler_config.json or its folder
     repo_ref: HFRepoRef | None = None  # HF_REPO
+    text_config: dict[str, Any] | None = None  # RAW_CONFIG: inline dict supplied directly
 
     @override
     def materialize(self, *, pipeline_cls: type, slot: str | None = None) -> Any:  # noqa: ARG002
         scheduler_cls = self._resolve_scheduler_class()
-        config = self._read_config_for_scheduler_class(scheduler_cls)
+        config = self._load_config_dict(scheduler_cls)
         return scheduler_cls.from_config(config)
 
     def read_config(self) -> dict[str, Any]:
@@ -43,9 +44,6 @@ class SchedulerComponentArtifact(ComponentArtifact):
         and ``ValueError`` for an unknown scheduler class.
         """
         scheduler_cls = self._resolve_scheduler_class()
-        return self._read_config_for_scheduler_class(scheduler_cls)
-
-    def _read_config_for_scheduler_class(self, scheduler_cls: type) -> dict[str, Any]:
         return self._load_config_dict(scheduler_cls)
 
     def read_config_class_name(self) -> str | None:
@@ -73,8 +71,13 @@ class SchedulerComponentArtifact(ComponentArtifact):
             return self._load_local_config()
         if self.source_type == ComponentSourceType.HF_REPO:
             return self._load_hf_config(scheduler_cls)
+        if self.source_type == ComponentSourceType.RAW_CONFIG:
+            return self._load_text_config()
         msg = f"Unsupported scheduler source type '{self.source_type}' for config loading."
         raise NotImplementedError(msg)
+
+    def _load_text_config(self) -> dict[str, Any]:
+        return self.text_config or {}
 
     def _load_local_config(self) -> dict[str, Any]:
         if not self.config_source:

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
+import json
 import logging
 from typing import Any
 
+import diffusers  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage, ParameterMode
 from griptape_nodes.exe_types.node_types import SuccessFailureNode
 from griptape_nodes.traits.options import Options
@@ -19,6 +22,7 @@ from modular_diffusion_nodes_library.parameters.file_path_parameter import FileP
 from modular_diffusion_nodes_library.parameters.user_specified_hf_repo_parameter import (
     UserSpecifiedHuggingFaceRepoParameter,
 )
+from modular_diffusion_nodes_library.utils.json_utils import parse_json_to_dict
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -68,12 +72,14 @@ _FAMILY_GUIDANCE = (
 # Config-source dropdown values.
 _SOURCE_LOCAL_PATH = "Local Path"
 _SOURCE_HF_REPO = "HuggingFace Repo"
-_SOURCE_TYPE_CHOICES = [_SOURCE_LOCAL_PATH, _SOURCE_HF_REPO]
+_SOURCE_TEXT_CONFIG = "Text Config"
+_SOURCE_TYPE_CHOICES = [_SOURCE_LOCAL_PATH, _SOURCE_HF_REPO, _SOURCE_TEXT_CONFIG]
 
 # Parameters owned by each config-source branch (for show/hide toggling).
 _SOURCE_TYPE_PARAM_GROUPS: dict[str, tuple[str, ...]] = {
     _SOURCE_LOCAL_PATH: ("config_path",),
     _SOURCE_HF_REPO: ("repo_id", "repo_id_download", "revision", "subfolder"),
+    _SOURCE_TEXT_CONFIG: ("text_config",),
 }
 
 
@@ -102,6 +108,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             title="Scheduler compatibility",
             value="",
             hide=True,
+            markdown=True,
         )
         self.add_node_element(self._compat_message)
 
@@ -134,7 +141,10 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 "**Local Path** — a `scheduler_config.json` file, or a folder containing one "
                 "(e.g. `.../FLUX.1-dev/scheduler/`).\n\n"
                 "**HuggingFace Repo** — a repo id already in your local HF cache; its `scheduler` "
-                "subfolder is read. No downloads are triggered."
+                "subfolder is read. No downloads are triggered.\n\n"
+                "**Text Config** — paste JSON-formatted scheduler config directly into the text box, "
+                "or wire in a dict from a **JSON Input**, **Create Dictionary**, or **Merge Key Value Pairs** node. "
+                "Leave the field empty to use the scheduler class's built-in defaults."
             ),
         )
         self.add_parameter(source_type_param)
@@ -198,6 +208,37 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
         self.add_parameter(subfolder_param)
 
+        # ------------------------------------------------------------------
+        # Manual Config branch
+        # ------------------------------------------------------------------
+        text_config_param = Parameter(
+            name="text_config",
+            input_types=["json", "str", "dict"],
+            type="json",
+            default_value=None,
+            tooltip=(
+                "Paste the contents of a scheduler_config.json here, or wire from a JSON Input / "
+                "Create Dictionary node. Leave empty to use the scheduler class defaults."
+            ),
+            allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
+            ui_options={
+                "display_name": "Scheduler Config",
+                "multiline": True,
+                "placeholder_text": '{\n  "shift": 3.0\n}',
+            },
+        )
+        text_config_param.set_badge(
+            variant="help",
+            title="Manual Scheduler Config",
+            message=(
+                "Paste a `scheduler_config.json` directly, or wire from a **JSON Input**, "
+                "**Create Dictionary**, or **Merge Key Value Pairs** node.\n\n"
+                "Leave empty to instantiate the chosen scheduler class with its built-in defaults. "
+                "The value is auto-formatted to pretty-printed JSON when you change it."
+            ),
+        )
+        self.add_parameter(text_config_param)
+
         artifact_type = slot_artifact_type_name(_SCHEDULER_SLOT)
         self.add_parameter(
             Parameter(
@@ -219,6 +260,8 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
     # ------------------------------------------------------------------
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
         self._config_path_param.on_after_value_set(parameter, value)
+        if parameter.name == "text_config":
+            self._auto_format_text_config(value)
 
     def set_parameter_value(
         self,
@@ -284,7 +327,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             errors.append(
                 ValueError(
                     f"Attempted to run LoadSchedulerComponent. "
-                    f"Failed because the selected source does not contain a readable 'scheduler_config.json': {e}"
+                    f"Failed because the selected source could not be read: {e}"
                 )
             )
             return errors
@@ -293,7 +336,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 ValueError(
                     "Attempted to run LoadSchedulerComponent. "
                     "Failed because no scheduler config source is configured. "
-                    "Set a local path or HuggingFace repo id pointing to a scheduler_config.json."
+                    "Set a local path, HuggingFace repo id, or paste a JSON config in Text Config mode."
                 )
             )
             return errors
@@ -326,7 +369,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             result = self._resolve_artifact_config()
         except Exception as e:  # noqa: BLE001
             self.set_parameter_value("component_output", None)
-            self._show_warning(f"The selected source does not contain a readable 'scheduler_config.json' ({e}). ")
+            self._show_warning(f"The selected source could not be read ({e}).")
             return
         if result is None:
             self.set_parameter_value("component_output", None)
@@ -335,7 +378,11 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         artifact, config = result
         self.set_parameter_value("component_output", artifact)
-        self._update_family_message(config.get("_class_name"))
+        source_type = self.get_parameter_value("source_type")
+        if source_type == _SOURCE_TEXT_CONFIG:
+            self._check_unknown_config_keys(config, artifact.scheduler_class)
+        else:
+            self._update_family_message(config.get("_class_name"))
 
     def _build_artifact(self) -> SchedulerComponentArtifact | None:
         scheduler_class = self.get_parameter_value("scheduler_class")
@@ -349,11 +396,14 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         if source_type == _SOURCE_HF_REPO:
             return self._build_hf_scheduler_artifact(scheduler_class)
 
+        if source_type == _SOURCE_TEXT_CONFIG:
+            return self._build_text_scheduler_artifact(scheduler_class)
+
         return None
 
     def _build_local_scheduler_artifact(self, scheduler_class: str) -> SchedulerComponentArtifact | None:
-        raw = self.get_parameter_value("config_path")
-        if not isinstance(raw, str) or not raw:
+        raw_path = self.get_parameter_value("config_path")
+        if not isinstance(raw_path, str) or not raw_path:
             return None
 
         config_source = str(self._config_path_param.get_file_path())
@@ -397,11 +447,48 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             repo_ref=HFRepoRef(repo_id=repo_id, revision=revision, subfolder=subfolder),
         )
 
-    def _update_family_message(self, config_class_name: str | None) -> None:
-        """Warn when the config's scheduler family differs from the chosen class; else hide."""
+    def _build_text_scheduler_artifact(self, scheduler_class: str) -> SchedulerComponentArtifact:
+        raw_text_config = self.get_parameter_value("text_config")
+        config_dict = parse_json_to_dict(raw_text_config)
+        load_id = _compute_load_id(
+            source_type=_SOURCE_TEXT_CONFIG,
+            scheduler_class=scheduler_class,
+            config_source="",
+            repo_id="",
+            revision="",
+            subfolder="",
+            text_config=json.dumps(config_dict, sort_keys=True),
+        )
+        if not config_dict:
+            config_dict = None
+        return SchedulerComponentArtifact(
+            load_id=load_id,
+            source_type=ComponentSourceType.RAW_CONFIG,
+            component=_SCHEDULER_SLOT,
+            scheduler_class=scheduler_class,
+            text_config=config_dict,
+        )
+
+    def _auto_format_text_config(self, value: Any) -> None:
+        if value is None or value == "":
+            return
+        try:
+            config_dict = parse_json_to_dict(value)
+        except ValueError:
+            return
+        formatted = json.dumps(config_dict, indent=2)
+        if formatted == value:
+            return
+        self.set_parameter_value("text_config", formatted, emit_change=False)
+
+    def _update_family_message(self, config_class_name: str | None) -> bool:
+        """Warn when the config's scheduler family differs from the chosen class; else hide. Returns True if warning was shown."""
+        if not isinstance(config_class_name, str):
+            self._hide_message()
+            return False
         scheduler_class = self.get_parameter_value("scheduler_class")
         chosen_family = _scheduler_family(scheduler_class)
-        config_family = _scheduler_family(config_class_name if isinstance(config_class_name, str) else None)
+        config_family = _scheduler_family(config_class_name)
 
         if chosen_family is not None and config_family is not None and chosen_family != config_family:
             self._show_warning(
@@ -409,8 +496,41 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 f"a {config_family}-family scheduler ('{config_class_name}'). The chosen class will be used, but its "
                 "settings may not transfer correctly. Make sure the class matches your pipeline."
             )
-        else:
+            return True
+        self._hide_message()
+        return False
+
+    def _check_unknown_config_keys(self, config: dict[str, Any], scheduler_class_name: str) -> None:
+        config_class_name = config.get("_class_name")
+        if isinstance(config_class_name, str) and self._update_family_message(config_class_name):
+            return
+
+        scheduler_cls = getattr(diffusers, scheduler_class_name, None)
+        if not isinstance(scheduler_cls, type):
             self._hide_message()
+            return
+
+        try:
+            valid_params = set(inspect.signature(scheduler_cls.__init__).parameters.keys()) - {"self"}
+        except (ValueError, TypeError):
+            self._hide_message()
+            return
+
+        # Skip _class_name / _diffusers_version etc.
+        unknown_keys = sorted(k for k in config if not k.startswith("_") and k not in valid_params)
+        if not unknown_keys:
+            self._hide_message()
+            return
+
+        keys_list = "\n".join(f"- `{k}`" for k in unknown_keys)
+        if len(unknown_keys) == 1:
+            this_or_these = "this config key"
+        else:
+            this_or_these = "these config keys"
+        self._show_warning(
+            f"**{scheduler_class_name}** does not recognise {this_or_these}:\n{keys_list}\n\n"
+            f"They will be silently ignored by diffusers."
+        )
 
     def _show_warning(self, message: str) -> None:
         self._compat_message.value = message
@@ -430,7 +550,10 @@ def _compute_load_id(
     repo_id: str,
     revision: str,
     subfolder: str,
+    text_config: str = "",
 ) -> str:
     """Stable hash for cache-invalidation on the pipeline builder side."""
-    payload = "|".join([source_type, _SCHEDULER_SLOT, scheduler_class, config_source, repo_id, revision, subfolder])
+    payload = "|".join(
+        [source_type, _SCHEDULER_SLOT, scheduler_class, config_source, repo_id, revision, subfolder, text_config]
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]

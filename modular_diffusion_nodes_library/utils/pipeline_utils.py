@@ -2,7 +2,6 @@ import contextlib
 import gc
 import logging
 
-import diffusers  # type: ignore[reportMissingImports]
 import torch  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
@@ -34,25 +33,6 @@ def _remove_pipeline_hooks(pipe: DiffusionPipeline) -> None:
     for attr_name in ("_all_hooks", "final_offload_hook", "_offload_gpu_id", "_offload_device", "hf_device_map"):
         if hasattr(pipe, attr_name):
             setattr(pipe, attr_name, None)
-
-
-def build_scheduler_with_overrides(
-    scheduler_class: type[diffusers.SchedulerMixin],  # type: ignore[reportAttributeAccessIssue]
-    base_repo_id: str,
-    base_revision: str | None,
-    config_overrides: dict | None,
-    subfolder: str = "scheduler",
-) -> diffusers.SchedulerMixin:  # type: ignore[reportAttributeAccessIssue]
-    """Load the model's shipped scheduler config and merge user overrides on top."""
-    base_scheduler = scheduler_class.from_pretrained(
-        pretrained_model_name_or_path=base_repo_id,
-        revision=base_revision,
-        subfolder=subfolder,
-        local_files_only=True,
-    )
-    merged_config = dict(base_scheduler.config)  # type: ignore[reportAttributeAccessIssue]
-    merged_config.update(config_overrides or {})
-    return scheduler_class.from_config(merged_config)  # type: ignore[reportAttributeAccessIssue]
 
 
 def detect_offload_method(pipe: DiffusionPipeline) -> str | None:

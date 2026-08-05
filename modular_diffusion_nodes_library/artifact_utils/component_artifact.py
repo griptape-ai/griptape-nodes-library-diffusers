@@ -46,6 +46,7 @@ class ComponentSourceType(StrEnum):
     HF_REPO = "hf_repo"
     SINGLE_FILE = "single_file"
     LOCAL_DIR = "local_dir"
+    RAW_CONFIG = "raw_config"
 
 
 @dataclass(frozen=True)
