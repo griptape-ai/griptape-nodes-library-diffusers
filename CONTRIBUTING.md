@@ -60,6 +60,38 @@ Top-level layout of this repository:
     make test/workflows
     ```
 
+### Workflow Test Commands (Nox)
+
+For workflow templates under `tests/workflows`, run these commands from the repository root:
+
+```shell
+uv run --group dev nox -s workflow_collect
+uv run --group dev nox -s workflow_tests
+uv run --group dev nox -s workflow_tests_strict
+uv run --group dev nox -s workflow_tests -- --no-cleanup
+uv run --group dev nox -s workflow_single -- Text2Image.py
+uv run --group dev nox -s workflow_single -- workflows/templates/Text2Image.py
+```
+
+Notes:
+
+- `workflow_collect` runs pytest in collect-only mode and still applies preflight deselection.
+- `workflow_tests` runs the full workflow test set with automatic per-run folder cleanup.
+- `workflow_tests_strict` fails fast when any required model repo is not present in local cache.
+- Add `-- --no-cleanup` to preserve per-run folders for debugging.
+- `workflow_single` runs only one parametrized workflow test, selected by template filename or path.
+
+Strict vs default behavior:
+
+- Default mode (`workflow_tests`) deselects workflows that miss required cached repos and runs the rest.
+- Strict mode (`workflow_tests_strict`) aborts immediately with a missing-repos summary.
+
+Passing extra pytest arguments:
+
+- Use `--` after the Nox session name to forward flags to pytest.
+- Example: `uv run --group dev nox -s workflow_tests -- -k Text2Image --maxfail=1`
+- Example: `uv run --group dev nox -s workflow_tests_strict -- --collect-only`
+
 1. **Check code quality:**
 
     ```shell
