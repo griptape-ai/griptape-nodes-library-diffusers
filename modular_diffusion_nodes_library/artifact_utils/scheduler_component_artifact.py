@@ -61,7 +61,7 @@ class SchedulerComponentArtifact(ComponentArtifact):
 
     def _resolve_scheduler_class(self) -> type:
         scheduler_cls = getattr(diffusers, self.scheduler_class, None)
-        if not (isinstance(scheduler_cls, type) and issubclass(scheduler_cls, diffusers.SchedulerMixin)):
+        if not (isinstance(scheduler_cls, type) and issubclass(scheduler_cls, diffusers.SchedulerMixin)):  # type: ignore[reportPrivateImportUsage]
             msg = f"Failed to resolve scheduler class '{self.scheduler_class}' as a diffusers scheduler class."
             raise ValueError(msg)
         return scheduler_cls

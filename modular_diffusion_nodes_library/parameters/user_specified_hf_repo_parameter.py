@@ -32,6 +32,10 @@ class UserSpecifiedHuggingFaceRepoParameter(HuggingFaceModelParameter):
     this creates a plain text input that accepts any repo ID.
     """
 
+    @property
+    def _download_param_name(self) -> str:
+        return f"{self._parameter_name}_download"
+
     @override
     def fetch_repo_revisions(self) -> list[tuple[str, str]]:
         repo_id = self._node.get_parameter_value(self._parameter_name)

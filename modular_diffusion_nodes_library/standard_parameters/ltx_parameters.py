@@ -69,4 +69,4 @@ class LTXPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
             **overrides,
         )
         pipeline.vae.use_framewise_decoding = True
-        return pipeline
+        return pipeline  # type: ignore[reportReturnType]

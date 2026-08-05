@@ -160,7 +160,9 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             display_name="Config Path",
         )
         self._config_path_param.add_input_parameters()
-        self.get_parameter_by_name("config_path").set_badge(
+        config_path_param = self.get_parameter_by_name("config_path")
+        assert config_path_param is not None
+        config_path_param.set_badge(
             variant="help",
             title="Config Path",
             message=(
