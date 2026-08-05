@@ -16,7 +16,9 @@ model's terms must be keyed to the base authority or a provider-scoped rule woul
 
 from __future__ import annotations
 
+import inspect
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -116,9 +118,6 @@ def _repo_ids_from_source(cls: type) -> set[str]:
     their repo lists in module-level constants (e.g. `FLUX_2_REPO_IDS` in flux2_parameters.py)
     that the class then splats in.
     """
-    import inspect
-    import re
-
     try:
         source = inspect.getsource(inspect.getmodule(cls))
     except (OSError, TypeError):
