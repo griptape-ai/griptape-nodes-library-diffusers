@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from pathlib import Path
 from typing import Any
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage, ParameterMode
 from griptape_nodes.exe_types.node_types import SuccessFailureNode
-from griptape_nodes.traits.file_system_picker import FileSystemPicker
 from griptape_nodes.traits.options import Options
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
@@ -17,6 +15,7 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
 from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact import SchedulerComponentArtifact
 from modular_diffusion_nodes_library.component_loading.component_slots import slot_artifact_type_name
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
+from modular_diffusion_nodes_library.parameters.file_path_parameter import FilePathParameter
 from modular_diffusion_nodes_library.parameters.user_specified_hf_repo_parameter import (
     UserSpecifiedHuggingFaceRepoParameter,
 )
@@ -113,17 +112,19 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             traits={Options(choices=_SCHEDULER_CHOICES, show_search=True)},
             tooltip="Scheduler class to instantiate. Must match your pipeline's family (see the badge).",
             allowed_modes={ParameterMode.PROPERTY},
+            ui_options={"display_name": "Scheduler Class"},
         )
         scheduler_class_param.set_badge(variant="help", title="Scheduler compatibility", message=_FAMILY_GUIDANCE)
         self.add_parameter(scheduler_class_param)
 
         source_type_param = Parameter(
-            name="config_source_type",
+            name="source_type",
             type="str",
             default_value=_SOURCE_LOCAL_PATH,
             traits={Options(choices=_SOURCE_TYPE_CHOICES)},
             tooltip="Where the scheduler_config.json comes from.",
             allowed_modes={ParameterMode.PROPERTY},
+            ui_options={"display_name": "Source Type"},
         )
         source_type_param.set_badge(
             variant="help",
@@ -141,36 +142,23 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         # ------------------------------------------------------------------
         # Local Path branch
         # ------------------------------------------------------------------
-        config_path_param = Parameter(
-            name="config_path",
-            type="str",
-            default_value="",
-            tooltip="Path to a scheduler_config.json file, or a folder containing one.",
-            allowed_modes={ParameterMode.PROPERTY},
-            traits={
-                FileSystemPicker(
-                    allow_files=True,
-                    allow_directories=True,
-                    multiple=False,
-                )
-            },
-            ui_options={
-                "display_name": "Config Path",
-                "placeholder_text": "e.g. /path/to/FLUX.1-dev/scheduler  or  .../scheduler_config.json",
-            },
+        self._config_path_param = FilePathParameter(
+            self,
+            parameter_name="config_path",
+            file_types=[".json"],
+            tooltip="Path to a scheduler_config.json file. The selected scheduler class is instantiated from these settings.",
+            display_name="Config Path",
         )
-        config_path_param.set_badge(
+        self._config_path_param.add_input_parameters()
+        self.get_parameter_by_name("config_path").set_badge(
             variant="help",
             title="Config Path",
             message=(
-                "Where to read the scheduler settings from:\n"
-                "- a `scheduler_config.json` **file**, or\n"
-                "- a **folder** containing one (e.g. `.../FLUX.1-dev/scheduler/`).\n\n"
-                "The selected scheduler class is instantiated from these settings; the config's own "
-                "`_class_name` is ignored."
+                "Path to a `scheduler_config.json` file.\n\n"
+                "The selected scheduler class is instantiated from these settings; "
+                "the config's own `_class_name` is ignored."
             ),
         )
-        self.add_parameter(config_path_param)
 
         # ------------------------------------------------------------------
         # HuggingFace Repo branch
@@ -229,6 +217,9 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
     # ------------------------------------------------------------------
     # Value change handling
     # ------------------------------------------------------------------
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        self._config_path_param.on_after_value_set(parameter, value)
+
     def set_parameter_value(
         self,
         param_name: str,
@@ -249,9 +240,9 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         if initial_setup:
             return
 
-        if param_name == "config_source_type" and isinstance(value, str):
+        if param_name == "source_type" and isinstance(value, str):
             self._apply_source_type_visibility(value)
-        if param_name != "component_output":
+        if param_name != "component_output" and emit_change:
             self._rebuild_output()
 
     def _apply_source_type_visibility(self, source_type: str) -> None:
@@ -280,7 +271,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             ]
 
         errors: list[Exception] = []
-        source_type = self.get_parameter_value("config_source_type")
+        source_type = self.get_parameter_value("source_type")
         if source_type == _SOURCE_HF_REPO:
             cache_errors = self._repo_param.validate_before_node_run()
             if cache_errors:
@@ -351,7 +342,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         if scheduler_class not in _SCHEDULER_CHOICES:
             return None
 
-        source_type = self.get_parameter_value("config_source_type")
+        source_type = self.get_parameter_value("source_type")
         if source_type == _SOURCE_LOCAL_PATH:
             return self._build_local_scheduler_artifact(scheduler_class)
 
@@ -365,7 +356,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         if not isinstance(raw, str) or not raw:
             return None
 
-        config_source = str(Path(raw).absolute())
+        config_source = str(self._config_path_param.get_file_path())
         load_id = _compute_load_id(
             source_type=_SOURCE_LOCAL_PATH,
             scheduler_class=scheduler_class,

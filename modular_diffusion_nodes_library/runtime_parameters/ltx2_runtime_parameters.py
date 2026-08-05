@@ -88,6 +88,10 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         self._media_gen_conditioning_param.on_incoming_connection_removed(param_name)
         self._reference_conditions_param.on_incoming_connection_removed(param_name)
 
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        super().after_value_set(parameter, value)
+        self._text_embeddings_path_param.on_after_value_set(parameter, value)
+
     def add_input_parameters(self) -> None:
         self._add_input_parameters()
         self._node.add_parameter(

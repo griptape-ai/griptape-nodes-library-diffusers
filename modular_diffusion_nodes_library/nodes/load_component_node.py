@@ -16,6 +16,8 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     HFRepoRef,
     ModelComponentArtifact,
 )
+from modular_diffusion_nodes_library.artifact_utils.text_encoder_component_artifact import TextEncoderComponentArtifact
+from modular_diffusion_nodes_library.artifact_utils.tokenizer_component_artifact import TokenizerComponentArtifact
 from modular_diffusion_nodes_library.component_loading.component_slots import (
     SLOT_DISPLAY_NAMES,
     slot_artifact_type_name,
@@ -28,6 +30,7 @@ from modular_diffusion_nodes_library.parameters.user_specified_hf_repo_parameter
     UserSpecifiedHuggingFaceRepoParameter,
 )
 from modular_diffusion_nodes_library.utils.connection_utils import drop_outgoing_connections
+from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -42,6 +45,10 @@ _SOURCE_SINGLE_FILE = "Single File"
 _SOURCE_LOCAL_FOLDER = "Local Folder"
 _SOURCE_HF_REPO = "HuggingFace Repo"
 _SOURCE_TYPE_CHOICES = [_SOURCE_SINGLE_FILE, _SOURCE_LOCAL_FOLDER, _SOURCE_HF_REPO]
+
+# File types for different source types.
+_SINGLE_FILE_TYPES = [".gguf", ".safetensors", ".ckpt", ".pt", ".pth", ".bin"]
+_TEXT_ENCODER_FILE_TYPES = [".gguf"]
 
 # Parameters that only apply to a given source-type branch. Used
 # to hide/show the right sub-parameters.
@@ -64,6 +71,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 traits={Options(choices=_COMPONENT_CHOICES)},
                 tooltip="Which pipeline component slot this loader targets.",
                 allowed_modes={ParameterMode.PROPERTY},
+                ui_options={"display_name": "Component"},
             )
         )
 
@@ -74,6 +82,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             traits={Options(choices=_SOURCE_TYPE_CHOICES)},
             tooltip="Weight source format.",
             allowed_modes={ParameterMode.PROPERTY},
+            ui_options={"display_name": "Source Type"},
         )
         source_type_param.set_badge(
             variant="help",
@@ -102,7 +111,10 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         file_path_param = self.get_parameter_by_name("file_path")
         if file_path_param is not None:
-            file_path_param.ui_options = {"placeholder_text": "e.g. /path/to/models/flux1-dev-Q8_0.gguf"}
+            file_path_param.ui_options = {
+                "placeholder_text": "e.g. /path/to/models/flux1-dev-Q8_0.gguf",
+                "display_name": "File Path",
+            }
 
         config_source_param = Parameter(
             name="config_source",
@@ -134,8 +146,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 "(use the picker, or type directly)\n"
                 "- **HF repo_id** — e.g. `black-forest-labs/FLUX.1-dev` "
                 "(the HuggingFace cache is checked, no download triggered)\n\n"
-                "Leave blank to auto-resolve: warm HF cache for the detected model → "
-                "bundled fallback shipped with this library."
+                "Leave blank to auto-resolve via the warm HF cache for the detected model type."
             ),
         )
         self.add_parameter(config_source_param)
@@ -241,6 +252,9 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
     # ------------------------------------------------------------------
     # Value change handling
     # ------------------------------------------------------------------
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        self._file_path_param.on_after_value_set(parameter, value)
+
     def set_parameter_value(
         self,
         param_name: str,
@@ -264,6 +278,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         if param_name == "component":
             self._update_output_type_and_drop_connections()
             self._update_source_type_choices(value)
+            self._update_file_types_for_component(value)
         if param_name == "source_type" and isinstance(value, str):
             self._apply_source_type_visibility(value)
         if param_name != "component_output":
@@ -305,6 +320,11 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             self.set_parameter_value("source_type", _SOURCE_LOCAL_FOLDER)
         else:
             self.set_parameter_value("source_type", current_source)
+
+    def _update_file_types_for_component(self, component_display_name: str) -> None:
+        component_slot = _LOADABLE_COMPONENTS.get(component_display_name, "")
+        is_text_encoder = slot_component_kind(component_slot) == "text_encoder"
+        self._file_path_param.set_file_types(_TEXT_ENCODER_FILE_TYPES if is_text_encoder else _SINGLE_FILE_TYPES)
 
     def _update_output_type_and_drop_connections(self) -> None:
         """Update component_output type when component selection changes.
@@ -406,7 +426,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             errors.append(ValueError("Attempted to run LoadComponent. Failed because folder_path is empty."))
             return errors
 
-        folder_path = Path(raw_folder_path).absolute()
+        folder_path = Path(expand_path_macros(raw_folder_path)).absolute()
         if not folder_path.exists():
             errors.append(
                 FileNotFoundError(
@@ -495,6 +515,14 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         self.set_parameter_value("component_output", artifact)
 
+    def _get_artifact_class(self, component_slot: str) -> type[ModelComponentArtifact]:
+        kind = slot_component_kind(component_slot)
+        if kind == "tokenizer":
+            return TokenizerComponentArtifact
+        if kind == "text_encoder":
+            return TextEncoderComponentArtifact
+        return ModelComponentArtifact
+
     def _build_single_file_artifact(self, component_slot: str) -> ModelComponentArtifact | None:
         raw_file_path = self.get_parameter_value("file_path")
         if not isinstance(raw_file_path, str) or not raw_file_path:
@@ -502,7 +530,10 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         file_path = self._file_path_param.get_file_path()
         raw_config_source = self.get_parameter_value("config_source")
-        config_source = raw_config_source if isinstance(raw_config_source, str) and raw_config_source else None
+        if isinstance(raw_config_source, str) and raw_config_source:
+            config_source = expand_path_macros(raw_config_source)
+        else:
+            config_source = None
 
         load_id = _compute_load_id(
             source_type=_SOURCE_SINGLE_FILE,
@@ -514,7 +545,8 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             subfolder="",
         )
 
-        return ModelComponentArtifact(
+        artifact_cls = self._get_artifact_class(component_slot)
+        return artifact_cls(
             load_id=load_id,
             source_type=ComponentSourceType.SINGLE_FILE,
             file_path=str(file_path),
@@ -527,7 +559,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         if not isinstance(raw_folder_path, str) or not raw_folder_path:
             return None
 
-        folder_path = str(Path(raw_folder_path).absolute())
+        folder_path = str(Path(expand_path_macros(raw_folder_path)).absolute())
 
         load_id = _compute_load_id(
             source_type=_SOURCE_LOCAL_FOLDER,
@@ -539,7 +571,8 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             subfolder="",
         )
 
-        return ModelComponentArtifact(
+        artifact_cls = self._get_artifact_class(component_slot)
+        return artifact_cls(
             load_id=load_id,
             source_type=ComponentSourceType.LOCAL_DIR,
             file_path=folder_path,
@@ -565,7 +598,8 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             subfolder=subfolder,
         )
 
-        return ModelComponentArtifact(
+        artifact_cls = self._get_artifact_class(component_slot)
+        return artifact_cls(
             load_id=load_id,
             source_type=ComponentSourceType.HF_REPO,
             component=component_slot,
