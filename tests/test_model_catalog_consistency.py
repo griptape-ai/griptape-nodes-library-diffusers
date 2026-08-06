@@ -242,6 +242,28 @@ def test_independently_licensed_weights_keep_their_own_authority() -> None:
         assert provider_id == expected_provider, f"{repo} is keyed to {provider_id}"
 
 
+def test_shared_vendors_reuse_the_standard_library_provider_ids() -> None:
+    """A vendor present in both libraries must use ONE provider id across them.
+
+    `provider_id` is the only hierarchical handle in the policy language, so two spellings for one
+    vendor means `forbid ... resource in ModelProvider::"<id>"` silently covers only half its
+    models. Lightricks is the trap: the standard library keys its hosted API `ltx`, so these local
+    weights must too, not `lightricks`.
+    """
+    catalog = find_model_catalog(_schema().metadata.declarations)
+    assert catalog is not None
+    provider_ids = set(catalog.providers)
+    for vendor, expected in (
+        ("Lightricks", "ltx"),
+        ("Black Forest Labs", "black_forest_labs"),
+        ("Alibaba (Qwen / Wan / Z-Image)", "dashscope"),
+    ):
+        assert expected in provider_ids, f"{vendor} should be keyed '{expected}'"
+    # The rejected spellings must not reappear alongside the canonical ones.
+    for rejected in ("lightricks", "qwen", "wan_ai", "bfl"):
+        assert rejected not in provider_ids, f"'{rejected}' duplicates a canonical provider id"
+
+
 def test_gated_repos_require_a_customer_key() -> None:
     """Repos behind an HF license gate must declare REQUIRES_CUSTOMER_KEY.
 
