@@ -277,6 +277,16 @@
             }
         },
         {
+            "class_name": "ClearPipelineCacheNode",
+            "file_path": "./modular_diffusion_nodes_library/nodes/clear_pipeline_cache_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/Pipeline",
+                "description": "Forcefully evicts all cached diffusion pipelines from GPU/CPU memory. Use this node when diagnosing out-of-memory errors or when you need a clean slate before loading a different model.",
+                "display_name": "Clear Pipeline Cache",
+                "group": "diffusion"
+            }
+        },
+        {
             "class_name": "LoadLora",
             "file_path": "./modular_diffusion_nodes_library/nodes/load_lora_node.py",
             "metadata": {
