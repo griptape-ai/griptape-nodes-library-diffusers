@@ -103,8 +103,8 @@
                                 "display_name": "FLUX.1 [schnell]",
                                 "provider_model_id": "black-forest-labs/FLUX.1-schnell",
                                 "family": "FLUX",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0; freely downloadable and commercially usable."
+                                "key_support": "REQUIRES_CUSTOMER_KEY",
+                                "notes": "Apache-2.0 weights, but the repo is gated on HuggingFace (anonymous download returns 401), so fetching it requires an HF token with the terms accepted."
                             },
                             "md_flux_1_dev": {
                                 "display_name": "FLUX.1 [dev]",
@@ -167,56 +167,56 @@
                                 "provider_model_id": "black-forest-labs/FLUX.2-klein-4B",
                                 "family": "FLUX.2",
                                 "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0 klein release."
+                                "notes": "Apache-2.0 and ungated. Only the 4B klein tier is permissive; the 9B tier is non-commercial and gated."
                             },
                             "md_flux_2_klein_4b_fp8": {
                                 "display_name": "FLUX.2 [klein] 4B FP8",
                                 "provider_model_id": "black-forest-labs/FLUX.2-klein-4B-fp8",
                                 "family": "FLUX.2",
                                 "key_support": "NO_KEY_REQUIRED",
-                                "notes": "FP8 quantization of the Apache-2.0 klein release."
+                                "notes": "Apache-2.0 and ungated. Only the 4B klein tier is permissive; the 9B tier is non-commercial and gated."
                             },
                             "md_flux_2_klein_4b_nvfp4": {
                                 "display_name": "FLUX.2 [klein] 4B NVFP4",
                                 "provider_model_id": "black-forest-labs/FLUX.2-klein-4B-nvfp4",
                                 "family": "FLUX.2",
                                 "key_support": "NO_KEY_REQUIRED",
-                                "notes": "NVFP4 quantization of the Apache-2.0 klein release."
+                                "notes": "Apache-2.0 and ungated. Only the 4B klein tier is permissive; the 9B tier is non-commercial and gated."
                             },
                             "md_flux_2_klein_9b": {
                                 "display_name": "FLUX.2 [klein] 9B",
                                 "provider_model_id": "black-forest-labs/FLUX.2-klein-9B",
                                 "family": "FLUX.2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0 klein release."
+                                "key_support": "REQUIRES_CUSTOMER_KEY",
+                                "notes": "Gated repo under the FLUX.2 Non-Commercial License (HuggingFace reports license_name=flux-non-commercial-license and gated). The klein line splits by size tier: the 4B releases are Apache-2.0 and ungated, the 9B releases are neither."
                             },
                             "md_flux_2_klein_9b_fp8": {
                                 "display_name": "FLUX.2 [klein] 9B FP8",
                                 "provider_model_id": "black-forest-labs/FLUX.2-klein-9B-fp8",
                                 "family": "FLUX.2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "FP8 quantization of the Apache-2.0 klein release."
+                                "key_support": "REQUIRES_CUSTOMER_KEY",
+                                "notes": "Gated repo under the FLUX.2 Non-Commercial License (HuggingFace reports license_name=flux-non-commercial-license and gated). The klein line splits by size tier: the 4B releases are Apache-2.0 and ungated, the 9B releases are neither."
                             },
                             "md_flux_2_klein_9b_nvfp4": {
                                 "display_name": "FLUX.2 [klein] 9B NVFP4",
                                 "provider_model_id": "black-forest-labs/FLUX.2-klein-9B-nvfp4",
                                 "family": "FLUX.2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "NVFP4 quantization of the Apache-2.0 klein release."
+                                "key_support": "REQUIRES_CUSTOMER_KEY",
+                                "notes": "Gated repo under the FLUX.2 Non-Commercial License (HuggingFace reports license_name=flux-non-commercial-license and gated). The klein line splits by size tier: the 4B releases are Apache-2.0 and ungated, the 9B releases are neither."
                             },
                             "md_flux_2_klein_base_4b": {
                                 "display_name": "FLUX.2 [klein] base 4B",
                                 "provider_model_id": "black-forest-labs/FLUX.2-klein-base-4B",
                                 "family": "FLUX.2",
                                 "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0 klein base release."
+                                "notes": "Apache-2.0 and ungated. Only the 4B klein tier is permissive; the 9B tier is non-commercial and gated."
                             },
                             "md_flux_2_klein_base_9b": {
                                 "display_name": "FLUX.2 [klein] base 9B",
                                 "provider_model_id": "black-forest-labs/FLUX.2-klein-base-9B",
                                 "family": "FLUX.2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0 klein base release."
+                                "key_support": "REQUIRES_CUSTOMER_KEY",
+                                "notes": "Gated repo under the FLUX.2 Non-Commercial License (HuggingFace reports license_name=flux-non-commercial-license and gated). The klein line splits by size tier: the 4B releases are Apache-2.0 and ungated, the 9B releases are neither."
                             },
                             "md_flux_1_dev_controlnet_union_instantx": {
                                 "display_name": "FLUX.1 [dev] ControlNet Union (InstantX)",
@@ -293,6 +293,20 @@
                                 "family": "Stable Diffusion 3",
                                 "key_support": "REQUIRES_CUSTOMER_KEY",
                                 "notes": "Gated repo under the Stability Community License."
+                            },
+                            "md_sd3_5m_controlnet_depth": {
+                                "display_name": "SD3.5M ControlNet Depth",
+                                "provider_model_id": "tensorart/SD3.5M-Controlnet-Depth",
+                                "family": "SD3 ControlNet",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "Published by Tensor.Art but released under the Stability AI Community License as a stable-diffusion-3.5-medium derivative, so it is keyed to stability and a Stability-scoped rule covers it."
+                            },
+                            "md_sd3_5m_controlnet_canny": {
+                                "display_name": "SD3.5M ControlNet Canny",
+                                "provider_model_id": "tensorart/SD3.5M-Controlnet-Canny",
+                                "family": "SD3 ControlNet",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "Published by Tensor.Art but released under the Stability AI Community License as a stable-diffusion-3.5-medium derivative, so it is keyed to stability and a Stability-scoped rule covers it."
                             }
                         }
                     },
@@ -551,28 +565,28 @@
                     "instantx": {
                         "display_name": "InstantX",
                         "terms_url": "https://huggingface.co/InstantX",
-                        "notes": "Independently licensed (Apache-2.0) SD3 ControlNets. The InstantX FLUX and Qwen ControlNets are keyed to their base authority instead, because those inherit the base model's terms.",
+                        "notes": "SD3 ControlNets published by InstantX. Only SD3-Controlnet-Depth declares Apache-2.0; the others declare no license and their terms are unverified. The InstantX FLUX and Qwen ControlNets are keyed to their base authority instead, because those inherit the base terms.",
                         "models": {
                             "md_sd3_controlnet_canny": {
                                 "display_name": "SD3 ControlNet Canny",
                                 "provider_model_id": "InstantX/SD3-Controlnet-Canny",
                                 "family": "SD3 ControlNet",
                                 "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
+                                "notes": "This repo declares no license on HuggingFace, so its terms are unverified. Kept under its publisher rather than assumed permissive; if it is later confirmed to follow Stable Diffusion 3's terms it should be re-keyed to stability."
                             },
                             "md_sd3_controlnet_pose": {
                                 "display_name": "SD3 ControlNet Pose",
                                 "provider_model_id": "InstantX/SD3-Controlnet-Pose",
                                 "family": "SD3 ControlNet",
                                 "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
+                                "notes": "This repo declares no license on HuggingFace, so its terms are unverified. Kept under its publisher rather than assumed permissive; if it is later confirmed to follow Stable Diffusion 3's terms it should be re-keyed to stability."
                             },
                             "md_sd3_controlnet_tile": {
                                 "display_name": "SD3 ControlNet Tile",
                                 "provider_model_id": "InstantX/SD3-Controlnet-Tile",
                                 "family": "SD3 ControlNet",
                                 "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
+                                "notes": "This repo declares no license on HuggingFace, so its terms are unverified. Kept under its publisher rather than assumed permissive; if it is later confirmed to follow Stable Diffusion 3's terms it should be re-keyed to stability."
                             },
                             "md_sd3_controlnet_depth": {
                                 "display_name": "SD3 ControlNet Depth",
@@ -580,26 +594,6 @@
                                 "family": "SD3 ControlNet",
                                 "key_support": "NO_KEY_REQUIRED",
                                 "notes": "Apache-2.0."
-                            }
-                        }
-                    },
-                    "tensorart": {
-                        "display_name": "Tensor.Art",
-                        "terms_url": "https://huggingface.co/tensorart",
-                        "models": {
-                            "md_sd3_5m_controlnet_depth": {
-                                "display_name": "SD3.5M ControlNet Depth",
-                                "provider_model_id": "tensorart/SD3.5M-Controlnet-Depth",
-                                "family": "SD3 ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Independently published SD3.5 Medium ControlNet."
-                            },
-                            "md_sd3_5m_controlnet_canny": {
-                                "display_name": "SD3.5M ControlNet Canny",
-                                "provider_model_id": "tensorart/SD3.5M-Controlnet-Canny",
-                                "family": "SD3 ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Independently published SD3.5 Medium ControlNet."
                             }
                         }
                     },
@@ -612,9 +606,10 @@
                                 "provider_model_id": "alimama-creative/SD3-Controlnet-Inpainting",
                                 "family": "SD3 ControlNet",
                                 "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Independently published SD3 inpainting ControlNet."
+                                "notes": "This repo declares no license on HuggingFace, so its terms are unverified. Kept under its publisher rather than assumed permissive; if it is later confirmed to follow Stable Diffusion 3's terms it should be re-keyed to stability."
                             }
-                        }
+                        },
+                        "notes": "Declares license 'other' with no named license; terms unverified."
                     },
                     "openai": {
                         "display_name": "OpenAI",
@@ -694,7 +689,7 @@
                                 "provider_model_id": "dg845/LTX-2.3-Diffusers",
                                 "family": "LTX-2",
                                 "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 weights; keyed to lightricks because it inherits the LTX-Video Open Weights License."
+                                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 weights; keyed to ltx because it inherits the LTX-Video Open Weights License."
                             },
                             "md_ltx_2_3_distilled_diffusers": {
                                 "display_name": "LTX 2.3 Distilled (Diffusers)",

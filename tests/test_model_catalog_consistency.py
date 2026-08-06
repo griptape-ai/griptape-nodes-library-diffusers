@@ -133,6 +133,35 @@ def _repo_ids_from_source(cls: type) -> set[str]:
     return found
 
 
+def test_no_undeclared_node_hosts_a_model_dropdown() -> None:
+    """The set of nodes with a model dropdown must be exactly the set carrying `model_usage`.
+
+    The three constants above are an assertion, not an assumption. A fourth node that constructs a
+    HuggingFace parameter without a `model_usage` declaration loads cleanly and presents a dropdown
+    that no policy can see -- an ungateable hole, and silent. This discovers the hosting set from
+    the source instead of trusting the list.
+    """
+    package = Path(__file__).parents[1] / "modular_diffusion_nodes_library"
+    constructors = re.compile(r"HuggingFace(?:Repo|RepoFile|RepoVariant)Parameter\s*\(")
+    hosting_modules = sorted(
+        path.relative_to(package).as_posix() for path in package.rglob("*.py") if constructors.search(path.read_text())
+    )
+    # Every construction site must live in a module reachable from one of the three declared hosts:
+    # the per-provider pipeline params (builder), the ControlNet param types, or the upsampler.
+    allowed_prefixes = (
+        "standard_parameters/",
+        "parameters/controlnet_node_parameter_types.py",
+        "parameters/upsampler_parameter_type.py",
+        "latent_pipeline_drivers/",
+    )
+    unexpected = [m for m in hosting_modules if not m.startswith(allowed_prefixes)]
+    assert unexpected == [], (
+        f"These modules construct a HuggingFace model dropdown but are not reachable from the three "
+        f"node types that declare model_usage: {unexpected}. Either route them through an existing "
+        f"host or add a model_usage declaration for the owning node."
+    )
+
+
 def test_manifest_passes_engine_validation() -> None:
     """The manifest must survive exactly what the engine runs at library load."""
     library = _load_library()
@@ -232,14 +261,30 @@ def test_independently_licensed_weights_keep_their_own_authority() -> None:
     """
     catalog = _catalog_by_provider_model_id()
     for repo, expected_provider in (
+        # Apache-2.0 SDXL ControlNets, licensed independently of SDXL itself.
         ("xinsir/controlnet-canny-sdxl-1.0", "xinsir"),
+        # Declares no license on HuggingFace, so it is kept under its publisher rather than
+        # assumed to follow SD3's terms.
         ("InstantX/SD3-Controlnet-Canny", "instantx"),
-        ("tensorart/SD3.5M-Controlnet-Canny", "tensorart"),
         ("openai/clip-vit-large-patch14", "openai"),
         ("google/t5-v1_1-xxl", "google"),
     ):
         provider_id, _ = catalog[repo]
         assert provider_id == expected_provider, f"{repo} is keyed to {provider_id}"
+
+
+def test_stability_derivatives_key_to_stability() -> None:
+    """A ControlNet released under Stability's Community License inherits Stability's authority.
+
+    HuggingFace reports `license_name: stabilityai-ai-community` and
+    `base_model: stabilityai/stable-diffusion-3.5-medium` for the Tensor.Art ControlNets, so the
+    same rule that sends the FLUX derivatives to `black_forest_labs` sends these to `stability`.
+    Keying them to their publisher would let them escape a Stability-scoped rule.
+    """
+    catalog = _catalog_by_provider_model_id()
+    for repo in ("tensorart/SD3.5M-Controlnet-Canny", "tensorart/SD3.5M-Controlnet-Depth"):
+        provider_id, _ = catalog[repo]
+        assert provider_id == "stability", f"{repo} is keyed to {provider_id}"
 
 
 def test_shared_vendors_reuse_the_standard_library_provider_ids() -> None:
@@ -265,10 +310,12 @@ def test_shared_vendors_reuse_the_standard_library_provider_ids() -> None:
 
 
 def test_gated_repos_require_a_customer_key() -> None:
-    """Repos behind an HF license gate must declare REQUIRES_CUSTOMER_KEY.
+    """A repo behind an HF gate must declare REQUIRES_CUSTOMER_KEY -- it cannot be fetched without
+    a token whose owner accepted the terms.
 
-    This is the signal that separates commercially encumbered weights (FLUX.1-dev, SD3) from
-    freely usable ones (FLUX.1-schnell, the klein releases), which is why the catalog exists.
+    `key_support` tracks GATING, not commercial encumbrance. The two usually coincide but not
+    always: FLUX.1-schnell is Apache-2.0 yet gated, so it needs a token despite being permissive.
+    Encumbrance is expressed through `provider_id` (the policy-enforceable handle) and `notes`.
     """
     catalog = find_model_catalog(_schema().metadata.declarations)
     assert catalog is not None
@@ -282,11 +329,35 @@ def test_gated_repos_require_a_customer_key() -> None:
         "black-forest-labs/FLUX.1-Kontext-dev",
         "black-forest-labs/FLUX.2-dev",
         "stabilityai/stable-diffusion-3.5-large",
+        # Apache-2.0 but gated on HuggingFace, so a token is still required.
+        "black-forest-labs/FLUX.1-schnell",
     ):
         assert key_support_by_repo[repo] == "REQUIRES_CUSTOMER_KEY", repo
     for repo in (
-        "black-forest-labs/FLUX.1-schnell",
-        "black-forest-labs/FLUX.2-klein-9B",
+        "black-forest-labs/FLUX.2-klein-4B",
         "Qwen/Qwen-Image",
     ):
         assert key_support_by_repo[repo] == "NO_KEY_REQUIRED", repo
+
+
+def test_the_flux_klein_tiers_are_not_flattened() -> None:
+    """FLUX.2 klein splits by SIZE: 4B is Apache-2.0 and ungated, 9B is non-commercial and gated.
+
+    Declaring the 9B tier permissive would advertise four non-commercial models as freely usable --
+    exactly the escape the catalog exists to close. Verified against the HuggingFace API:
+    every 9B klein repo reports `license_name: flux-non-commercial-license` and `gated: auto`,
+    while every 4B repo reports `license: apache-2.0` and `gated: false`.
+    """
+    catalog = find_model_catalog(_schema().metadata.declarations)
+    assert catalog is not None
+    key_support_by_repo = {
+        resolved.model.provider_model_id: resolved.model.key_support for resolved in iter_catalog_models(catalog)
+    }
+    nine_b = [repo for repo in key_support_by_repo if "klein" in repo and "9B" in repo]
+    four_b = [repo for repo in key_support_by_repo if "klein" in repo and "4B" in repo]
+    assert len(nine_b) == 4, nine_b
+    assert len(four_b) == 4, four_b
+    for repo in nine_b:
+        assert key_support_by_repo[repo] == "REQUIRES_CUSTOMER_KEY", f"{repo} is non-commercial and gated"
+    for repo in four_b:
+        assert key_support_by_repo[repo] == "NO_KEY_REQUIRED", f"{repo} is Apache-2.0 and ungated"
