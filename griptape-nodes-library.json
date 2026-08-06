@@ -436,76 +436,6 @@
                             }
                         }
                     },
-                    "lightricks": {
-                        "display_name": "Lightricks",
-                        "terms_url": "https://huggingface.co/Lightricks",
-                        "notes": "LTX-Video weights are released under the LTX-Video Open Weights License, which carries use restrictions beyond a permissive OSS license.",
-                        "models": {
-                            "md_ltx_video": {
-                                "display_name": "LTX-Video",
-                                "provider_model_id": "Lightricks/LTX-Video",
-                                "family": "LTX",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "LTX-Video Open Weights License."
-                            },
-                            "md_ltx_video_0_9_7_dev": {
-                                "display_name": "LTX-Video 0.9.7 dev",
-                                "provider_model_id": "Lightricks/LTX-Video-0.9.7-dev",
-                                "family": "LTX",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "LTX-Video Open Weights License."
-                            },
-                            "md_ltx_video_0_9_7_distilled": {
-                                "display_name": "LTX-Video 0.9.7 distilled",
-                                "provider_model_id": "Lightricks/LTX-Video-0.9.7-distilled",
-                                "family": "LTX",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "LTX-Video Open Weights License."
-                            },
-                            "md_ltx_video_0_9_8_13b_distilled": {
-                                "display_name": "LTX-Video 0.9.8 13B distilled",
-                                "provider_model_id": "Lightricks/LTX-Video-0.9.8-13B-distilled",
-                                "family": "LTX",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "LTX-Video Open Weights License."
-                            },
-                            "md_ltxv_spatial_upscaler_0_9_7": {
-                                "display_name": "LTX-Video Spatial Upscaler 0.9.7",
-                                "provider_model_id": "Lightricks/ltxv-spatial-upscaler-0.9.7",
-                                "family": "LTX",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "LTX-Video Open Weights License."
-                            },
-                            "md_ltx_2": {
-                                "display_name": "LTX-2",
-                                "provider_model_id": "Lightricks/LTX-2",
-                                "family": "LTX-2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "LTX-Video Open Weights License."
-                            },
-                            "md_ltx_2_3_diffusers": {
-                                "display_name": "LTX 2.3 (Diffusers)",
-                                "provider_model_id": "dg845/LTX-2.3-Diffusers",
-                                "family": "LTX-2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 weights; keyed to lightricks because it inherits the LTX-Video Open Weights License."
-                            },
-                            "md_ltx_2_3_distilled_diffusers": {
-                                "display_name": "LTX 2.3 Distilled (Diffusers)",
-                                "provider_model_id": "dg845/LTX-2.3-Distilled-Diffusers",
-                                "family": "LTX-2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 distilled weights; inherits the LTX-Video Open Weights License."
-                            },
-                            "md_ltx_2_3_spatial_upsampler_diffusers": {
-                                "display_name": "LTX 2.3 Spatial Upsampler (Diffusers)",
-                                "provider_model_id": "dg845/LTX-2.3-Spatial-Upsampler-Diffusers",
-                                "family": "LTX-2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 spatial upsampler; inherits the LTX-Video Open Weights License."
-                            }
-                        }
-                    },
                     "tencent": {
                         "display_name": "Tencent Hunyuan",
                         "terms_url": "https://huggingface.co/tencent",
@@ -709,6 +639,76 @@
                                 "family": "T5",
                                 "key_support": "NO_KEY_REQUIRED",
                                 "notes": "Apache-2.0. Secondary text encoder for the FLUX.1 pipelines. Distributed as .bin only, so it is loaded with use_safetensors=False."
+                            }
+                        }
+                    },
+                    "ltx": {
+                        "display_name": "LTX Studio",
+                        "terms_url": "https://huggingface.co/Lightricks",
+                        "notes": "Keyed to match the standard library's provider id for Lightricks so one admin rule covers both the hosted LTX API and these local weights. LTX-Video weights are released under the LTX-Video Open Weights License, which carries use restrictions beyond a permissive OSS license.",
+                        "models": {
+                            "md_ltx_video": {
+                                "display_name": "LTX-Video",
+                                "provider_model_id": "Lightricks/LTX-Video",
+                                "family": "LTX",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "LTX-Video Open Weights License."
+                            },
+                            "md_ltx_video_0_9_7_dev": {
+                                "display_name": "LTX-Video 0.9.7 dev",
+                                "provider_model_id": "Lightricks/LTX-Video-0.9.7-dev",
+                                "family": "LTX",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "LTX-Video Open Weights License."
+                            },
+                            "md_ltx_video_0_9_7_distilled": {
+                                "display_name": "LTX-Video 0.9.7 distilled",
+                                "provider_model_id": "Lightricks/LTX-Video-0.9.7-distilled",
+                                "family": "LTX",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "LTX-Video Open Weights License."
+                            },
+                            "md_ltx_video_0_9_8_13b_distilled": {
+                                "display_name": "LTX-Video 0.9.8 13B distilled",
+                                "provider_model_id": "Lightricks/LTX-Video-0.9.8-13B-distilled",
+                                "family": "LTX",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "LTX-Video Open Weights License."
+                            },
+                            "md_ltxv_spatial_upscaler_0_9_7": {
+                                "display_name": "LTX-Video Spatial Upscaler 0.9.7",
+                                "provider_model_id": "Lightricks/ltxv-spatial-upscaler-0.9.7",
+                                "family": "LTX",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "LTX-Video Open Weights License."
+                            },
+                            "md_ltx_2": {
+                                "display_name": "LTX-2",
+                                "provider_model_id": "Lightricks/LTX-2",
+                                "family": "LTX-2",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "LTX-Video Open Weights License."
+                            },
+                            "md_ltx_2_3_diffusers": {
+                                "display_name": "LTX 2.3 (Diffusers)",
+                                "provider_model_id": "dg845/LTX-2.3-Diffusers",
+                                "family": "LTX-2",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 weights; keyed to lightricks because it inherits the LTX-Video Open Weights License."
+                            },
+                            "md_ltx_2_3_distilled_diffusers": {
+                                "display_name": "LTX 2.3 Distilled (Diffusers)",
+                                "provider_model_id": "dg845/LTX-2.3-Distilled-Diffusers",
+                                "family": "LTX-2",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 distilled weights; inherits the LTX-Video Open Weights License."
+                            },
+                            "md_ltx_2_3_spatial_upsampler_diffusers": {
+                                "display_name": "LTX 2.3 Spatial Upsampler (Diffusers)",
+                                "provider_model_id": "dg845/LTX-2.3-Spatial-Upsampler-Diffusers",
+                                "family": "LTX-2",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 spatial upsampler; inherits the LTX-Video Open Weights License."
                             }
                         }
                     }
