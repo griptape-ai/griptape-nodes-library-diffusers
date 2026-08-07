@@ -351,13 +351,6 @@
                                 "key_support": "NO_KEY_REQUIRED",
                                 "notes": "Apache-2.0."
                             },
-                            "md_qwen2_5_vl_7b_instruct": {
-                                "display_name": "Qwen2.5-VL 7B Instruct",
-                                "provider_model_id": "Qwen/Qwen2.5-VL-7B-Instruct",
-                                "family": "Qwen",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0. Text/vision encoder component for the Qwen-Image pipelines."
-                            },
                             "md_qwen_image_controlnet_union": {
                                 "display_name": "Qwen-Image ControlNet Union (InstantX)",
                                 "provider_model_id": "InstantX/Qwen-Image-ControlNet-Union",
@@ -619,32 +612,6 @@
                         },
                         "notes": "Declares license 'other' with no named license; terms unverified."
                     },
-                    "openai": {
-                        "display_name": "OpenAI",
-                        "terms_url": "https://huggingface.co/openai",
-                        "models": {
-                            "md_clip_vit_large_patch14": {
-                                "display_name": "CLIP ViT-Large/14",
-                                "provider_model_id": "openai/clip-vit-large-patch14",
-                                "family": "CLIP",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "MIT. Text encoder component for the FLUX.1 pipelines."
-                            }
-                        }
-                    },
-                    "google": {
-                        "display_name": "Google",
-                        "terms_url": "https://huggingface.co/google",
-                        "models": {
-                            "md_t5_v1_1_xxl": {
-                                "display_name": "T5 v1.1 XXL",
-                                "provider_model_id": "google/t5-v1_1-xxl",
-                                "family": "T5",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0. Secondary text encoder for the FLUX.1 pipelines. Distributed as .bin only, so it is loaded with use_safetensors=False."
-                            }
-                        }
-                    },
                     "ltx": {
                         "display_name": "LTX Studio",
                         "terms_url": "https://huggingface.co/Lightricks",
@@ -733,7 +700,6 @@
                     {
                         "type": "model_usage",
                         "model_ids": [
-                            "md_clip_vit_large_patch14",
                             "md_flux_1_dev",
                             "md_flux_1_fill_dev",
                             "md_flux_1_kontext_dev",
@@ -766,7 +732,6 @@
                             "md_ltx_video_0_9_7_dev",
                             "md_ltx_video_0_9_7_distilled",
                             "md_ltx_video_0_9_8_13b_distilled",
-                            "md_qwen2_5_vl_7b_instruct",
                             "md_qwen_image",
                             "md_qwen_image_edit",
                             "md_qwen_image_edit_2509",
@@ -778,7 +743,6 @@
                             "md_sdxl_base_1_0",
                             "md_sdxl_inpainting_0_1",
                             "md_sdxl_refiner_1_0",
-                            "md_t5_v1_1_xxl",
                             "md_wan_2_1_i2v_14b_480p",
                             "md_wan_2_1_i2v_14b_720p",
                             "md_wan_2_1_t2v_14b",

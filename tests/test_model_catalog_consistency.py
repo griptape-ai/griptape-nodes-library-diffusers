@@ -16,6 +16,7 @@ model's terms must be keyed to the base authority or a provider-scoped rule woul
 
 from __future__ import annotations
 
+import ast
 import inspect
 import json
 import re
@@ -78,6 +79,11 @@ def _declared_model_ids(class_name: str) -> set[str]:
     pytest.fail(f"{class_name} is not registered in the manifest")
 
 
+def _has_model_usage(node: dict[str, Any]) -> bool:
+    """Whether a manifest node entry carries a `model_usage` declaration."""
+    return any(d.get("type") == "model_usage" for d in node["metadata"].get("declarations", []))
+
+
 def _all_subclasses(cls: type) -> set[type]:
     found: set[type] = set()
     for subclass in cls.__subclasses__():
@@ -133,6 +139,35 @@ def _repo_ids_from_source(cls: type) -> set[str]:
     return found
 
 
+#: Engine parameter classes that render a *dropdown* of cached repos, which is the surface license
+#: policy decorates. `UserSpecifiedHuggingFaceRepoParameter` is deliberately excluded: it is a
+#: free-text field, tracked by `test_free_text_repo_parameters_are_gated` instead.
+DROPDOWN_PARAMETER_CLASSES = frozenset(
+    {"HuggingFaceRepoParameter", "HuggingFaceRepoFileParameter", "HuggingFaceRepoVariantParameter"}
+)
+
+
+def _constructs_dropdown_parameter(path: Path) -> bool:
+    """Whether ``path`` actually CALLS one of the dropdown parameter constructors.
+
+    Uses the AST rather than a regex so a class name appearing in a docstring, a comment, or a
+    subclass declaration is not mistaken for a construction site -- a substring match reports the
+    module that merely *documents* `HuggingFaceRepoParameter` in prose.
+    """
+    try:
+        tree = ast.parse(path.read_text())
+    except SyntaxError:
+        return False
+    return any(
+        isinstance(node, ast.Call)
+        and (
+            (isinstance(node.func, ast.Name) and node.func.id in DROPDOWN_PARAMETER_CLASSES)
+            or (isinstance(node.func, ast.Attribute) and node.func.attr in DROPDOWN_PARAMETER_CLASSES)
+        )
+        for node in ast.walk(tree)
+    )
+
+
 def test_no_undeclared_node_hosts_a_model_dropdown() -> None:
     """The set of nodes with a model dropdown must be exactly the set carrying `model_usage`.
 
@@ -142,9 +177,8 @@ def test_no_undeclared_node_hosts_a_model_dropdown() -> None:
     the source instead of trusting the list.
     """
     package = Path(__file__).parents[1] / "modular_diffusion_nodes_library"
-    constructors = re.compile(r"HuggingFace(?:Repo|RepoFile|RepoVariant)Parameter\s*\(")
     hosting_modules = sorted(
-        path.relative_to(package).as_posix() for path in package.rglob("*.py") if constructors.search(path.read_text())
+        path.relative_to(package).as_posix() for path in package.rglob("*.py") if _constructs_dropdown_parameter(path)
     )
     # Every construction site must live in a module reachable from one of the three declared hosts:
     # the per-provider pipeline params (builder), the ControlNet param types, or the upsampler.
@@ -152,7 +186,6 @@ def test_no_undeclared_node_hosts_a_model_dropdown() -> None:
         "standard_parameters/",
         "parameters/controlnet_node_parameter_types.py",
         "parameters/upsampler_parameter_type.py",
-        "latent_pipeline_drivers/",
     )
     unexpected = [m for m in hosting_modules if not m.startswith(allowed_prefixes)]
     assert unexpected == [], (
@@ -160,6 +193,33 @@ def test_no_undeclared_node_hosts_a_model_dropdown() -> None:
         f"node types that declare model_usage: {unexpected}. Either route them through an existing "
         f"host or add a model_usage declaration for the owning node."
     )
+
+
+@pytest.mark.xfail(
+    reason=(
+        "LoadComponent and LoadSchedulerComponent accept a free-text repo id via "
+        "UserSpecifiedHuggingFaceRepoParameter, which overrides both refresh_parameters and "
+        "validate_before_node_run and so bypasses license gating entirely. They declare no "
+        "model_usage, so an artist can type a denied repo (e.g. black-forest-labs/FLUX.1-dev) and "
+        "load its weights. Out of scope for the catalog PR that added this file; tracked separately."
+    ),
+    strict=True,
+)
+def test_free_text_repo_parameters_are_gated() -> None:
+    """A free-text repo field is a model surface and must be policy-visible.
+
+    Declared xfail(strict) rather than deleted so the hole stays recorded and the day it is fixed
+    this test fails loudly, prompting its removal.
+    """
+    package = Path(__file__).parents[1] / "modular_diffusion_nodes_library"
+    free_text = re.compile(r"\bUserSpecifiedHuggingFaceRepoParameter\s*\(")
+    hosting_modules = sorted(
+        path.relative_to(package).as_posix()
+        for path in package.rglob("*.py")
+        if free_text.search(path.read_text()) and "user_specified_hf_repo_parameter" not in path.name
+    )
+    declared_nodes = {node["class_name"] for node in _load_library()["nodes"] if _has_model_usage(node)}
+    assert hosting_modules == [] or {"LoadComponent", "LoadSchedulerComponent"} <= declared_nodes
 
 
 def test_manifest_passes_engine_validation() -> None:
@@ -266,8 +326,6 @@ def test_independently_licensed_weights_keep_their_own_authority() -> None:
         # Declares no license on HuggingFace, so it is kept under its publisher rather than
         # assumed to follow SD3's terms.
         ("InstantX/SD3-Controlnet-Canny", "instantx"),
-        ("openai/clip-vit-large-patch14", "openai"),
-        ("google/t5-v1_1-xxl", "google"),
     ):
         provider_id, _ = catalog[repo]
         assert provider_id == expected_provider, f"{repo} is keyed to {provider_id}"
