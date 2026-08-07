@@ -74,9 +74,25 @@ class LoadPipelineStep:
 
         _append_log(log_params, "Creating new pipeline instance...\n")
         with _profile(log_params, "Loading pipeline"):
-            module = import_module(self._builder_module)
-            builder_class = getattr(module, self._builder_class_name)
-            return builder_class.build_pipeline_from_build_data(self._build_data)
+            builder_class = None
+            try:
+                module = import_module(self._builder_module)
+                builder_class = getattr(module, self._builder_class_name)
+                return builder_class.build_pipeline_from_build_data(self._build_data)
+            except Exception as e:
+                # Extract useful info from build_data
+                repo_info = self._build_data.get("base_repo_id", "unknown")
+                revision_info = self._build_data.get("base_revision")
+                pipeline_type = "unknown"
+                if builder_class is not None:
+                    pipeline_type = builder_class.__name__
+
+                msg = f"Failed to build pipeline. Pipeline type: {pipeline_type}, Repo: {repo_info}"
+                if revision_info:
+                    msg += f", Revision: {revision_info}"
+                msg += f". Original error: {e!s}"
+
+                raise RuntimeError(msg) from e
 
 
 class FuseLorasStep:

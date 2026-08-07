@@ -22,6 +22,8 @@ FLUX_2_REPO_IDS = [*QUANTIZED_FLUX_2_REPO_IDS, "black-forest-labs/FLUX.2-dev", "
 
 
 class Flux2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = diffusers.Flux2Pipeline  # type: ignore[reportAttributeAccessIssue]
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -42,10 +44,6 @@ class Flux2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
             "model": self._node.get_parameter_value("model"),
         }
 
-    @property
-    def pipeline_class(self) -> type:
-        return diffusers.Flux2Pipeline  # type: ignore[reportAttributeAccessIssue]
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
@@ -55,7 +53,7 @@ class Flux2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        base_repo_id, base_revision = self._model_repo_parameter.get_repo_revision()
+        base_repo_id, base_revision = self._resolve_repo(self._model_repo_parameter)
 
         return {
             "base_repo_id": base_repo_id,
@@ -63,12 +61,15 @@ class Flux2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.Flux2Pipeline:  # type: ignore[reportAttributeAccessIssue]
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.Flux2Pipeline:  # type: ignore[reportAttributeAccessIssue]
         return diffusers.Flux2Pipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,
+            **overrides,
         )
 
     def is_prequantized(self) -> bool:

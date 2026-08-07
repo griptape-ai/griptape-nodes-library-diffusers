@@ -14,6 +14,13 @@ logger = logging.getLogger("diffusers_nodes_library")
 
 
 class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = LTX2Pipeline
+
+    @classmethod
+    def supports_build_from_overrides_only(cls) -> bool:
+        "We don't have support for overriding vocoder and audio vae, so we don't support building from overrides only."
+        return False
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):  # noqa: ARG002
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -34,10 +41,6 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
             "model": self._node.get_parameter_value("model"),
         }
 
-    @property
-    def pipeline_class(self) -> type:
-        return LTX2Pipeline
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
@@ -47,7 +50,7 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        base_repo_id, base_revision = self._model_repo_parameter.get_repo_revision()
+        base_repo_id, base_revision = self._resolve_repo(self._model_repo_parameter)
 
         return {
             "base_repo_id": base_repo_id,
@@ -56,10 +59,11 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> LTX2Pipeline:
+    def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> LTX2Pipeline:
         return LTX2Pipeline.from_pretrained(
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,
+            **overrides,
         )

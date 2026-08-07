@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.traits.options import Options
 
+from modular_diffusion_nodes_library.parameters.component_override_parameters import ComponentOverrideParameters
 from modular_diffusion_nodes_library.parameters.huggingface_pipeline_parameter import HuggingFacePipelineParameter
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
@@ -80,12 +81,12 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 class LatentPipelineTypeParameters(ABC):
     START_PARAMS: ClassVar = ["pipeline", "provider", "pipeline_type"]
-    END_PARAMS: ClassVar = ["loras", "logs"]
+    END_PARAMS: ClassVar = ["loras", "Status", "logs"]
 
     def __init__(self, node: LatentDiffusionPipelineBuilderNode):
         self._node = node
         self.did_pipeline_type_change = False
-        self._pipeline_type_pipeline_params: ModularDiffusionPipelineTypePipelineParameters
+        self._pipeline_type_pipeline_params: ModularDiffusionPipelineTypePipelineParameters | None = None
         self.set_pipeline_type_pipeline_params(self.pipeline_types[0])
 
     @classmethod
@@ -162,8 +163,14 @@ class LatentPipelineTypeParameters(ABC):
 
         # Build parameter groupings
         hf_param_names = HuggingFacePipelineParameter.get_hf_pipeline_parameter_names()
+
+        overrides_group = (
+            [ComponentOverrideParameters.GROUP_NAME]
+            if ComponentOverrideParameters.GROUP_NAME in all_element_names
+            else []
+        )
         start_params = LatentPipelineTypeParameters.START_PARAMS
-        end_params = [*hf_param_names, *LatentPipelineTypeParameters.END_PARAMS]
+        end_params = [*hf_param_names, *overrides_group, *LatentPipelineTypeParameters.END_PARAMS]
         excluded_params = {*start_params, *end_params}
 
         # Assemble final order: start -> middle -> end
@@ -366,6 +373,16 @@ MODULAR_PIPELINE_TYPE_PROVIDER_MAP: dict[Provider, type[LatentPipelineTypeParame
     Provider.WAN: LatentWanPipelineTypeParameters,
     Provider.Z_IMAGE: LatentZImagePipelineTypeParameters,
 }
+
+# Import-time invariant: every registered pipeline class must have all of its
+# truly-required __init__ components either exposed as override ports
+# (ALLOWED_COMPONENT_SLOTS) or auto-supplied by the params class
+# (get_auto_supplied_components()), so the builder can construct a
+# fully-overridden pipeline without touching a repo.
+for _params_cls in MODULAR_PIPELINE_TYPE_PROVIDER_MAP.values():
+    for _pipeline_type_cls in _params_cls.get_pipeline_type_dict().values():
+        if _pipeline_type_cls.supports_build_from_overrides_only():
+            _pipeline_type_cls.verify_overridable_covers_required()
 
 
 def find_provider_for_pipeline_type(pipeline_type: str) -> str | None:

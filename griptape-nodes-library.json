@@ -23,12 +23,19 @@
             "contents": {
                 "enable_image_preview_intermediates": false
             }
+        },
+        {
+            "description": "Configuration settings for auto resize. Enabling this will automatically resize images and videos to the appropriate resolution and number of frames (video pipelines) as supported by the selected diffusion pipeline.",
+            "category": "modular_diffusion_library",
+            "contents": {
+                "enable_auto_resize": false
+            }
         }
     ],
     "metadata": {
         "author": "Griptape, Inc.",
         "description": "Modular Diffusion nodes for Griptape Nodes.",
-        "library_version": "0.4.0",
+        "library_version": "0.6.0",
         "engine_version": "0.96.0",
         "tags": [
             "Griptape",
@@ -69,7 +76,8 @@
                 "matplotlib>=3.10.3",
                 "supervision>=0.27.0",
                 "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
-                "openexr>=3.3.0"
+                "openexr>=3.3.0",
+                "gguf>=0.10.0"
             ],
             "pip_install_flags": [
                 "--preview",
@@ -993,12 +1001,42 @@
             }
         },
         {
+            "class_name": "ClearPipelineCacheNode",
+            "file_path": "./modular_diffusion_nodes_library/nodes/clear_pipeline_cache_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/Pipeline",
+                "description": "Forcefully evicts all cached diffusion pipelines from GPU/CPU memory. Use this node when diagnosing out-of-memory errors or when you need a clean slate before loading a different model.",
+                "display_name": "Clear Pipeline Cache",
+                "group": "diffusion"
+            }
+        },
+        {
             "class_name": "LoadLora",
             "file_path": "./modular_diffusion_nodes_library/nodes/load_lora_node.py",
             "metadata": {
                 "category": "ModularDiffusion/Pipeline",
                 "description": "Load a LoRA file from a local path and expose it as a `loras` output. Wire to the Modular Diffusion Pipeline Builder to fuse the LoRA into the cached weights, or to a LoRA Pipeline node to activate it dynamically per generation.",
                 "display_name": "Load LoRA",
+                "group": "diffusion"
+            }
+        },
+        {
+            "class_name": "LoadComponent",
+            "file_path": "./modular_diffusion_nodes_library/nodes/load_component_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/Pipeline",
+                "description": "Load a single pipeline component (transformer / unet / vae / tokenizer / text_encoder) from a single-file checkpoint, a local diffusers-format folder, or a local HuggingFace repo cache. Wire into a Pipeline Builder override port to inject the component at build time into the pipeline.",
+                "display_name": "Load Pipeline Component",
+                "group": "diffusion"
+            }
+        },
+        {
+            "class_name": "LoadSchedulerComponent",
+            "file_path": "./modular_diffusion_nodes_library/nodes/load_scheduler_component_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/Pipeline",
+                "description": "Configure a scheduler by choosing a scheduler class and a scheduler_config.json source (local file/folder or a local HuggingFace repo cache). Wire into a Pipeline Builder scheduler override port to replace the pipeline's scheduler at build time.",
+                "display_name": "Load Scheduler",
                 "group": "diffusion"
             }
         }
@@ -1020,6 +1058,8 @@
         "workflows/templates/FluxKontextImageEdit.py",
         "workflows/templates/FluxKontextInpainting.py",
         "workflows/templates/WanAnimate.py",
-        "workflows/templates/WanReplace.py"
+        "workflows/templates/WanReplace.py",
+        "workflows/templates/Multi-ViewPromptBatcher.py",
+        "workflows/templates/CustomPipelineText2Image.py"
     ]
 }

@@ -186,6 +186,7 @@ State the verification check **before** making each change.
 
 1. **Apply the variant pattern verbatim** from the reference (Pattern A / B / C) → verify: the new code matches the reference shape; for Pattern C, the `finally` block restores `self._pipe`; `make check` passes. **Surgical-edits check**: diff the driver and confirm only the variant-related lines changed — no reformatted methods, no reordered code, no "improved" sibling code.
 2. **Smoke test in UI** → verify with the user: (Pattern A) wire a controlnet input on the builder node and confirm the wrapped pipe builds; (Pattern B) supply an inpaint mask and confirm the inpaint pipeline class is used at denoise time; (Pattern C) confirm the trigger kwarg activates the variant pipeline and `self._pipe` is restored on success and on error.
+3. **Single-file loader metadata** → if the variant pipeline class is a fresh entry in `_DRIVER_REGISTRY` and users may load its transformer from a single `.gguf`/`.safetensors` file, add the relevant `model_type` → variant-pipeline-class-name entries to [`component_loading/pipeline_type_registry.py`](../../../modular_diffusion_nodes_library/component_loading/pipeline_type_registry.py) `MODEL_TYPE_TO_PIPELINE_TYPE`. Skip this step for pure runtime pipe-swaps that share the base pipeline's transformer weights.
 
 ---
 

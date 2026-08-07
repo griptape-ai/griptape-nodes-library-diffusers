@@ -23,11 +23,11 @@ class FluxKontextLatentPipelineDriver(FluxLatentPipelineDriver):
 
     @override
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
-        """FluxFillPipeline expects a PIL image — it handles its own VAE encoding."""
+        """FluxKontextPipeline expects a PIL image — it handles its own VAE encoding."""
         source_pil = artifact.source_image_pil()
         if source_pil is None:
             raise ValueError(
-                "Attempted to run FluxFill inpainting failed because no source image was provided. "
+                "Attempted to run FluxKontext inpainting failed because no source image was provided. "
                 "Connect an 'Encode Masked Media' node with a latent input."
             )
         return {
@@ -52,11 +52,15 @@ class FluxKontextLatentPipelineDriver(FluxLatentPipelineDriver):
         context_image = kwargs.pop("image", None)
 
         if isinstance(latent, InpaintMaskArtifact):
-            # Inpaint mode: route context image as image_reference for FluxKontextInpaintPipeline.
+            # Prevent _auto_resize from snapping image to PREFERRED_KONTEXT_RESOLUTIONS, which overwrites
+            # height/width and causes _unpack_latents to mismatch the pre-computed latent patch count.
+            kwargs["_auto_resize"] = False
             if context_image is not None:
                 kwargs["image_reference"] = context_image
         else:
-            # Editing mode: route context image as image for FluxKontextPipeline.
+            # max_area (default 1024²) unconditionally rescales height/width making latent_ids
+            # diverge from the pre-packed latent's patch count → RoPE crash; H*W makes the rescaling a no-op.
+            kwargs["max_area"] = latent.source_shape[-2] * latent.source_shape[-1]
             if context_image is not None:
                 kwargs["image"] = context_image
 

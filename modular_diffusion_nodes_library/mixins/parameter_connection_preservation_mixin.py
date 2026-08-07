@@ -2,11 +2,14 @@
 
 import logging
 import re
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterList
 from griptape_nodes.retained_mode.events.connection_events import (
     CreateConnectionRequest,
+    DeleteConnectionRequest,
     IncomingConnection,
     ListConnectionsForNodeRequest,
     ListConnectionsForNodeResultSuccess,
@@ -61,6 +64,26 @@ class ParameterConnectionPreservationMixin:
     def clear_parameter_cache(self) -> None:
         """Clear the parameter cache."""
         self.parameter_cache.clear()
+
+    @contextmanager
+    def preserve_connections(self) -> Generator[None, None, None]:
+        """Context manager that snapshots this node's connections on enter and restores them on exit.
+
+        Wraps :meth:`_save_connections` and :meth:`_restore_connections` so callers that
+        dynamically add/remove parameters do not have to plumb the saved lists through by
+        hand. Restoration runs even if the ``with`` body raises.
+
+        Example::
+
+            with self.preserve_connections():
+                self.remove_parameter_with_connection_cleanup("component_transformer")
+                self.add_parameter(Parameter(name="component_transformer", ...))
+        """
+        saved_incoming, saved_outgoing = self._save_connections()
+        try:
+            yield
+        finally:
+            self._restore_connections(saved_incoming, saved_outgoing)
 
     def restore_cached_parameter_properties(self, parameter: Parameter) -> None:
         """Restore cached properties for a parameter if available.
@@ -184,3 +207,52 @@ class ParameterConnectionPreservationMixin:
         sorted_parameters = [*self.START_PARAMS, *middle_elements, *self.END_PARAMS]
 
         self.reorder_elements(sorted_parameters)  # type: ignore[attr-defined]
+
+    def remove_parameter_with_connection_cleanup(self, element_name: str) -> None:
+        """Remove a parameter/group and manually delete its connections first.
+
+        Bypasses the retained-mode ``RemoveParameterFromNodeRequest`` (which rejects
+        non-user-defined params) so dynamically-managed parameters can stay
+        ``user_defined=False`` — keeping them out of workflow serialization while
+        still cleaning up connections in the flow-manager's global connection store.
+
+        For a ``ParameterGroup``, connections are cleaned for every ``Parameter``
+        descendant before the group itself is removed.
+        """
+        element = self.get_element_by_name_and_type(element_name)  # type: ignore[attr-defined]
+        if element is None:
+            return
+
+        if isinstance(element, Parameter):
+            params_to_clean = [element]
+        else:
+            params_to_clean = element.find_elements_by_type(Parameter)
+
+        if params_to_clean:
+            list_conn_result = GriptapeNodes.handle_request(
+                ListConnectionsForNodeRequest(node_name=self.name)  # type: ignore[attr-defined]
+            )
+            if isinstance(list_conn_result, ListConnectionsForNodeResultSuccess):
+                param_names = {p.name for p in params_to_clean}
+                for incoming in list_conn_result.incoming_connections:
+                    if incoming.target_parameter_name in param_names:
+                        GriptapeNodes.handle_request(
+                            DeleteConnectionRequest(
+                                source_node_name=incoming.source_node_name,
+                                source_parameter_name=incoming.source_parameter_name,
+                                target_node_name=self.name,  # type: ignore[attr-defined]
+                                target_parameter_name=incoming.target_parameter_name,
+                            )
+                        )
+                for outgoing in list_conn_result.outgoing_connections:
+                    if outgoing.source_parameter_name in param_names:
+                        GriptapeNodes.handle_request(
+                            DeleteConnectionRequest(
+                                source_node_name=self.name,  # type: ignore[attr-defined]
+                                source_parameter_name=outgoing.source_parameter_name,
+                                target_node_name=outgoing.target_node_name,
+                                target_parameter_name=outgoing.target_parameter_name,
+                            )
+                        )
+
+        self.remove_parameter_element_by_name(element_name)  # type: ignore[attr-defined]

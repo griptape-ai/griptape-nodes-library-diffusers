@@ -62,6 +62,10 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
     def __init__(self, pipe: DiffusionPipeline) -> None:
         super().__init__(pipe)
 
+    @override
+    def _get_spatial_alignment(self) -> int:
+        return self.pipe.image_processor.vae_scale_factor
+
     @classmethod
     @override
     def can_make_control_pipe_from_standard(cls, control_net_model_lists: list[str] | str | None) -> bool:

@@ -36,6 +36,9 @@ class LoadLora(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
         self._create_status_parameters()
 
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        self.lora_file_path_params.on_after_value_set(parameter, value)
+
     def set_parameter_value(
         self,
         param_name: str,

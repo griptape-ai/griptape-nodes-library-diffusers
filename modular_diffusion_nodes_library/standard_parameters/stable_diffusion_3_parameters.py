@@ -41,10 +41,6 @@ class StableDiffusion3PipelineParameters(ModularDiffusionPipelineTypePipelinePar
         }
 
     @property
-    def pipeline_class(self) -> type:
-        return self._pipeline_cls
-
-    @property
     def pipeline_name(self) -> str:
         return "StableDiffusion3Pipeline"
 
@@ -53,17 +49,20 @@ class StableDiffusion3PipelineParameters(ModularDiffusionPipelineTypePipelinePar
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        repo_id, revision = self._huggingface_repo_parameter.get_repo_revision()
+        repo_id, revision = self._resolve_repo(self._huggingface_repo_parameter)
         return {
             "repo_id": repo_id,
             "revision": revision,
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> Any:
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.StableDiffusion3Img2ImgPipeline:  # type: ignore[reportAttributeAccessIssue]
         return cls._pipeline_cls.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["repo_id"],
             revision=build_data["revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,
+            **overrides,
         )

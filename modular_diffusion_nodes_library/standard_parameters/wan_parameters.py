@@ -15,6 +15,8 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class WanPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = diffusers.WanPipeline  # type: ignore[reportAttributeAccessIssue]
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -39,10 +41,6 @@ class WanPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
             "model": self._node.get_parameter_value("model"),
         }
 
-    @property
-    def pipeline_class(self) -> type:
-        return diffusers.WanPipeline  # type: ignore[reportAttributeAccessIssue]
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
@@ -52,7 +50,7 @@ class WanPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        repo_id, revision = self._model_repo_parameter.get_repo_revision()
+        repo_id, revision = self._resolve_repo(self._model_repo_parameter)
 
         return {
             "repo_id": repo_id,
@@ -68,11 +66,12 @@ class WanPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         return True
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.WanPipeline:  # type: ignore[reportAttributeAccessIssue]
+    def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> diffusers.WanPipeline:  # type: ignore[reportAttributeAccessIssue]
         return diffusers.WanPipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["repo_id"],
             revision=build_data["revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,
             device_map="balanced",
+            **overrides,
         )

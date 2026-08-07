@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.traits.options import Options
 
+from modular_diffusion_nodes_library.parameters.component_override_parameters import ComponentOverrideParameters
 from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import (
     MODULAR_PIPELINE_TYPE_PROVIDER_MAP,
     LatentPipelineTypeParameters,
@@ -18,14 +19,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
-# This code was duplicated/copied from diffusers_nodes_library/common/parameters/diffusion/builder_parameters.py.
-
 
 class LatentDiffusionPipelineBuilderParameters:
     def __init__(self, node: LatentDiffusionPipelineBuilderNode):
         self.provider_choices = list(MODULAR_PIPELINE_TYPE_PROVIDER_MAP.keys())
         self._node = node
-        self._pipeline_type_parameters: LatentPipelineTypeParameters
+        self._pipeline_type_parameters: LatentPipelineTypeParameters | None = None
+        self._component_override_params = ComponentOverrideParameters(node)
         self.did_provider_change = False
         self.set_pipeline_type_parameters(self.provider_choices[0])
 
@@ -87,6 +87,9 @@ class LatentDiffusionPipelineBuilderParameters:
             self.regenerate_pipeline_type_parameters_for_provider(value)
         self.pipeline_type_parameters.after_value_set(parameter, value)
 
+        if parameter.name in {"provider", "pipeline_type"}:
+            self.refresh_component_override_ports()
+
     def regenerate_pipeline_type_parameters_for_provider(self, provider: str) -> None:
         # Save parameter properties and connections before removing parameters
         self._node.save_parameter_properties()
@@ -118,8 +121,19 @@ class LatentDiffusionPipelineBuilderParameters:
     def get_provider(self) -> str:
         return self._node.get_parameter_value("provider")
 
+    def refresh_component_override_ports(self, *, initial_setup: bool = False) -> None:
+        """Update component override ports to match the current pipeline type's slots."""
+        slots = self.pipeline_type_parameters.pipeline_type_pipeline_params.get_component_slots()
+        self._component_override_params.update_slots(slots, initial_setup=initial_setup)
+
+    @property
+    def component_override_params(self) -> ComponentOverrideParameters:
+        return self._component_override_params
+
     def get_config_kwargs(self) -> dict:
-        return {
+        config = {
             **self.pipeline_type_parameters.get_config_kwargs(),
             "provider": self.get_provider(),
         }
+        config.update(self._component_override_params.get_override_config_kwargs())
+        return config
