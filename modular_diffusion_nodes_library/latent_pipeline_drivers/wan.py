@@ -87,6 +87,14 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
     def __init__(self, pipe: DiffusionPipeline):
         super().__init__(pipe)
 
+    @override
+    def _get_temporal_alignment(self) -> int | None:
+        return self.pipe.vae_scale_factor_temporal
+
+    @override
+    def _get_spatial_alignment(self) -> int:
+        return self.pipe.vae_scale_factor_spatial * self.pipe.transformer.config.patch_size[1]
+
     @classmethod
     @override
     def can_make_control_pipe_from_standard(cls, control_net_model_lists: list[str] | str | None) -> bool:

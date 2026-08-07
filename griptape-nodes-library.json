@@ -23,12 +23,19 @@
             "contents": {
                 "enable_image_preview_intermediates": false
             }
+        },
+        {
+            "description": "Configuration settings for auto resize. Enabling this will automatically resize images and videos to the appropriate resolution and number of frames (video pipelines) as supported by the selected diffusion pipeline.",
+            "category": "modular_diffusion_library",
+            "contents": {
+                "enable_auto_resize": false
+            }
         }
     ],
     "metadata": {
         "author": "Griptape, Inc.",
         "description": "Modular Diffusion nodes for Griptape Nodes.",
-        "library_version": "0.4.0",
+        "library_version": "0.5.0",
         "engine_version": "0.77.5",
         "tags": [
             "Griptape",

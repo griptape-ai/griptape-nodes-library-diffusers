@@ -34,6 +34,7 @@ from modular_diffusion_nodes_library.misc.partial_denoise import (
     PartialDenoisePipelineRunner,
     PartialDenoiseSchedulerProxy,
 )
+from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
 
 _T = TypeVar("_T")
@@ -97,6 +98,95 @@ class LatentPipelineDriver(ABC):
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = None
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = None
     _DEFAULT_NUM_INFERENCE_STEPS: ClassVar[int] = 20
+
+    # ------------------------------------------------------------------
+    # Dimension-alignment validation
+    # ------------------------------------------------------------------
+
+    def _get_temporal_alignment(self) -> int | None:
+        """Return the temporal compression ratio that (num_frames - 1) must be divisible by.
+
+        Override in video drivers to read from the loaded pipeline (e.g.
+        ``self.pipe.vae_scale_factor_temporal``).  Return ``None`` if the
+        driver has no temporal alignment requirement.
+        """
+        return None
+
+    def _get_spatial_alignment(self) -> int:
+        """Return the pixel-space alignment requirement for height and width.
+
+        The base implementation reads ``vae_scale_factor_spatial`` (video /
+        newer pipelines) or ``vae_scale_factor`` (image / older pipelines)
+        directly from the loaded pipeline.  Override when additional factors
+        are required (e.g. ``vae_scale_factor_spatial * patch_size`` for Flux).
+        """
+        factor = getattr(self._pipe, "vae_scale_factor_spatial", None) or getattr(self._pipe, "vae_scale_factor", None)
+        if factor is None:
+            msg = f"Attempted to get spatial alignment. Failed because pipeline '{self._pipe.__class__.__name__}' exposes neither 'vae_scale_factor_spatial' nor 'vae_scale_factor'."
+            raise ValueError(msg)
+        return factor
+
+    def validate_dimensions(self, height: int, width: int, num_frames: int | None = None) -> list[str]:
+        """Return error messages for misaligned dimensions; empty list if all are valid.
+
+        Checks ``height``, ``width``, and (for video) ``num_frames`` against the
+        values returned by ``_get_temporal_alignment()`` and ``_get_spatial_alignment()``,
+        which each driver reads from the loaded pipeline at runtime.  Each
+        message names the invalid value, states the divisibility rule, and
+        suggests the next valid value (ceiling / upper-bound).  Pass
+        ``num_frames=None`` to skip the temporal check (image pipelines).
+        """
+        messages: list[str] = []
+        aligned = self.align_dimensions(height, width, num_frames)
+        temporal_alignment = self._get_temporal_alignment()
+        if num_frames is not None and num_frames != aligned.num_frames:
+            messages.append(
+                f"num_frames={num_frames} is invalid: (num_frames - 1) must be divisible by {temporal_alignment}. "
+                f"Suggested value: {aligned.num_frames}."
+            )
+        spatial_alignment = self._get_spatial_alignment()
+        if height != aligned.height:
+            messages.append(
+                f"height={height} is invalid: must be divisible by {spatial_alignment}. Suggested value: {aligned.height}."
+            )
+        if width != aligned.width:
+            messages.append(
+                f"width={width} is invalid: must be divisible by {spatial_alignment}. Suggested value: {aligned.width}."
+            )
+        return messages
+
+    def align_dimensions(self, height: int, width: int, num_frames: int | None = None) -> DimensionAlignmentResult:
+        """Return aligned dimension values adjusted to the nearest valid values at or above input.
+
+        Returns the inputs unchanged if they are already valid.
+        Override in drivers with model-specific spatial constraints (e.g. area-bounded resize).
+        """
+        spatial_alignment = self._get_spatial_alignment()
+        aligned_h = self._ceil_to_alignment(height, spatial_alignment)
+        aligned_w = self._ceil_to_alignment(width, spatial_alignment)
+
+        aligned_frames = num_frames
+        if num_frames is not None:
+            temporal_alignment = self._get_temporal_alignment()
+            if temporal_alignment is not None:
+                aligned_frames = self._ceil_to_alignment(num_frames - 1, temporal_alignment) + 1
+
+        return DimensionAlignmentResult(aligned_h, aligned_w, aligned_frames, None)
+
+    def snap_frames_for_encoding(self, num_frames: int) -> int:
+        """Return the nearest valid num_frames at or above the input (ceiling snap).
+
+        Returns the input unchanged if it is already valid.
+        """
+        temporal_alignment = self._get_temporal_alignment()
+        if temporal_alignment is None:
+            return num_frames
+        return self._ceil_to_alignment(num_frames - 1, temporal_alignment) + 1
+
+    @staticmethod
+    def _ceil_to_alignment(value: int, alignment: int) -> int:
+        """Return the smallest multiple of alignment that is >= value."""
+        return ((value + alignment - 1) // alignment) * alignment
 
     # ------------------------------------------------------------------
     # Public driver surface — cross-driver signature contract

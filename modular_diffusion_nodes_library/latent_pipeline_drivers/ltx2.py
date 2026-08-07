@@ -66,6 +66,14 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     def __init__(self, pipe: DiffusionPipeline):
         super().__init__(pipe)
 
+    @override
+    def _get_temporal_alignment(self) -> int | None:
+        return self.pipe.vae.temporal_compression_ratio
+
+    @override
+    def _get_spatial_alignment(self) -> int:
+        return self.pipe.vae.spatial_compression_ratio
+
     @property
     def is_hdr_lora_active(self) -> bool:
         """Whether an LTX-2 HDR IC-LoRA adapter is currently loaded on ``self.pipe``.

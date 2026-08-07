@@ -27,7 +27,7 @@ Paint Mask ──┘
 | `pipeline` | `Pipeline Config` | Yes | Must support inpainting (driver has `_inpaint_pipeline_class`). |
 | `image` | `ImageArtifact` / `ImageUrlArtifact` | Yes | Source image. |
 | `mask` | `ImageArtifact` / `ImageUrlArtifact` | Yes | Binary mask — **white pixels = inpaint region**, black = keep original. |
-| `strength` | float (0.0–1.0) | No | Inpaint denoising strength, default `1.0`. Lower values preserve more of the original. |
+| `strength` | float (0.0–1.0) | No | Inpaint denoising strength, default `0.95`. Lower values preserve more of the original. |
 
 ## Outputs
 
@@ -38,7 +38,8 @@ Paint Mask ──┘
 ## Tips & pitfalls
 
 - **Pipeline must support inpainting.** If the chosen pipeline has no inpaint variant the node errors on validation. Pick e.g. Flux Fill on the Pipeline Builder.
-- **Mask must match the source image's dimensions** (it's resampled to the latent grid internally — a wildly mismatched aspect ratio will distort).
+- **Image dimensions must satisfy the pipeline's spatial alignment constraints.** The node validates before running and reports an error with the corrected values; set `modular_diffusion_library.enable_auto_resize = true` in `griptape_nodes_library.json` to silently resize the source image and mask to the nearest valid dimensions instead.
+- **Mask is resized to match the (possibly snapped) source image automatically.** You do not need to pre-resize it to the exact same pixel dimensions.
 - **`strength` lives on the artifact**, not on Generate Media Latents. Adjust it here.
 
 ## See also

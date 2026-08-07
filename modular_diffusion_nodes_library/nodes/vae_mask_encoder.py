@@ -9,8 +9,9 @@ import logging
 from typing import Any
 
 from griptape.artifacts import ImageUrlArtifact
-from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
+from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
+from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from PIL import Image as PILImage
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
@@ -18,6 +19,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory impo
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import GeneratorState, ImageMedia, MaskMedia
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
+from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
 
@@ -91,6 +93,14 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             ),
         )
         self.add_parameter(latents_param)
+        self._dimensionality_warning = ParameterMessage(
+            name="dimensionality_warning",
+            variant="warning",
+            title="Dimensionality Warnings",
+            value="",
+            hide=True,
+        )
+        self.add_node_element(self._dimensionality_warning)
         self._initializing = False
         self._create_status_parameters()
 
@@ -108,19 +118,31 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors: list[Exception] = []
-        if not self.get_parameter_value("pipeline"):
+        self._set_compatibility_message("")
+        pipeline_value = self.get_parameter_value("pipeline")
+        if pipeline_value is None:
             errors.append(ValueError("Missing required 'pipeline' input."))
         else:
-            pipeline_value = self.get_parameter_value("pipeline")
             pipeline_class_name = getattr(pipeline_value, "pipeline_name", None)
             if pipeline_class_name is not None:
                 driver_cls = get_driver_class(pipeline_class_name)
                 if driver_cls is None or driver_cls._inpaint_pipeline_class is None:
                     errors.append(ValueError(f"Pipeline '{pipeline_class_name}' does not support inpainting."))
+
         if self.get_parameter_value("image") is None:
             errors.append(ValueError("Missing required 'image' input."))
         if self.get_parameter_value("mask") is None:
             errors.append(ValueError("Missing required 'mask' input."))
+        pipe = self.pipe_params.get_pipeline()
+        image_value = self.get_parameter_value("image")
+        if pipe is not None and image_value is not None:
+            auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
+            image_pil = self._get_image()
+            driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
+            result = snap_dimensions(driver, image_pil.height, image_pil.width)
+            self._set_compatibility_message(result.message)
+            if not auto_resize and result.message:
+                errors.append(ValueError(result.message))
         return errors or None
 
     def set_parameter_value(
@@ -159,6 +181,17 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         image_pil = self._get_image()
         mask_pil = self._get_mask()
 
+        auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
+        result = snap_dimensions(driver, image_pil.height, image_pil.width)
+        self._set_compatibility_message(result.message)
+        if result.message:
+            if auto_resize:
+                logger.warning(result.message)
+                image_pil = image_pil.resize((result.width, result.height), PILImage.Resampling.LANCZOS)
+                mask_pil = mask_pil.resize((result.width, result.height), PILImage.Resampling.NEAREST)
+            else:
+                raise ValueError(result.message)
+
         # Ensure mask is same size as image
         if mask_pil.size != image_pil.size:
             mask_pil = mask_pil.resize(image_pil.size, PILImage.Resampling.NEAREST)
@@ -194,3 +227,11 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         if isinstance(artifact, ImageUrlArtifact):
             artifact = load_image_from_url_artifact(artifact)
         return image_artifact_to_pil(artifact).convert("L")
+
+    def _set_compatibility_message(self, message_str: str | None) -> None:
+        if message_str:
+            self._dimensionality_warning.value = message_str
+            self._dimensionality_warning.hide = False
+        else:
+            self._dimensionality_warning.value = ""
+            self._dimensionality_warning.hide = True

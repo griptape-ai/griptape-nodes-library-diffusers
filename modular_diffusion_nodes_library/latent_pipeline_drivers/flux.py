@@ -76,6 +76,10 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         super().__init__(pipe)
 
     @override
+    def _get_spatial_alignment(self) -> int:
+        return self.pipe.image_processor.vae_scale_factor
+
+    @override
     def _create_modular_pipe(self) -> ModularPipeline:
         return FluxAutoBlocks().init_pipeline()
 

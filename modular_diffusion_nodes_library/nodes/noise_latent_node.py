@@ -1,9 +1,10 @@
 import logging
 from typing import Any
 
-from griptape_nodes.exe_types.core_types import Parameter
+from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage
 from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode
 from griptape_nodes.exe_types.param_components.seed_parameter import SeedParameter
+from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
     LatentArtifact,  # type: ignore[reportMissingImports]
@@ -20,6 +21,7 @@ from modular_diffusion_nodes_library.parameters.generate_latent_parameters impor
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import (
     ModularDiffusionPipelineParameters,
 )
+from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -58,6 +60,15 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
                 tooltip="Number of video frames to generate for. Ignored for image pipelines.",
             )
         )
+
+        self._dimensionality_warning = ParameterMessage(
+            name="dimensionality_warning",
+            variant="warning",
+            title="Dimensionality Warnings",
+            value="",
+            hide=True,
+        )
+        self.add_node_element(self._dimensionality_warning)
         self.latent_parameter = DiffusionPipelineGenerateLatentParameters(self)  # type: ignore[reportOptionalMemberAccess]
         self.latent_parameter.add_output_parameters()
         self._reorder_trailing_parameters()
@@ -130,7 +141,26 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         if result is not None:
             return result
 
+        pipe = self.pipe_params.get_pipeline()
+        if pipe is not None:
+            latent_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
+            num_frames = self.get_parameter_value("num_frames") or 1
+            height = self.get_parameter_value("height") or 1
+            width = self.get_parameter_value("width") or 1
+            auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
+            result = snap_dimensions(latent_pipeline_driver, height, width, num_frames)
+            self._set_compatibility_message(result.message)
+            if not auto_resize and result.message:
+                return [ValueError(result.message)]
         return None
+
+    def _set_compatibility_message(self, message_str: str | None) -> None:
+        if message_str:
+            self._dimensionality_warning.value = message_str
+            self._dimensionality_warning.hide = False
+        else:
+            self._dimensionality_warning.value = ""
+            self._dimensionality_warning.hide = True
 
     def preprocess(self) -> None:
         pass
@@ -160,8 +190,19 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         width = self.get_parameter_value("width")
         seed = self.get_parameter_value("seed") or 0
         generator_state = GeneratorState.from_seed(seed)
-        if latent_pipeline_driver.produces_video:
-            num_frames = self.get_parameter_value("num_frames") or 1
+        num_frames = self.get_parameter_value("num_frames") or None
+
+        auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
+        if auto_resize:
+            result = snap_dimensions(latent_pipeline_driver, height, width, num_frames)
+            self._set_compatibility_message(result.message)
+            if result.message:
+                logger.warning(result.message)
+            height = result.height
+            width = result.width
+            num_frames = result.num_frames
+
+        if num_frames is not None:
             latents_source_shape = (1, 3, num_frames, height, width)
         else:
             latents_source_shape = (1, 3, height, width)
