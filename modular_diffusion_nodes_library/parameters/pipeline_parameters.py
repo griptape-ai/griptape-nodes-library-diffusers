@@ -54,7 +54,7 @@ class ModularDiffusionPipelineParameters:
             return
 
         if value is None:
-            logger.warning("Value was None, ignoring...")
+            logger.debug("%s: pipeline input is None; skipping runtime-parameter setup.", self._node.name)
             return
 
         pipeline_class = self._get_pipeline_class_from_value(value)

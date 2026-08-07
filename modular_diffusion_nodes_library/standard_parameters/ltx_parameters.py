@@ -1,9 +1,8 @@
 import logging
 from typing import Any
 
+import diffusers
 import torch  # type: ignore[reportMissingImports]
-from diffusers import LTXPipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
@@ -23,6 +22,8 @@ LTX_REPO_IDS = [
 
 
 class LTXPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = diffusers.LTXPipeline  # type: ignore[reportAttributeAccessIssue]
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -43,10 +44,6 @@ class LTXPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
             "model": self._node.get_parameter_value("model"),
         }
 
-    @property
-    def pipeline_class(self) -> type:
-        return LTXPipeline
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
@@ -56,7 +53,7 @@ class LTXPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        base_repo_id, base_revision = self._model_repo_parameter.get_repo_revision()
+        base_repo_id, base_revision = self._resolve_repo(self._model_repo_parameter)
 
         return {
             "base_repo_id": base_repo_id,
@@ -64,11 +61,12 @@ class LTXPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> DiffusionPipeline | Any | None:
-        pipeline = LTXPipeline.from_pretrained(
+    def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> diffusers.LTXPipeline:  # type: ignore[reportAttributeAccessIssue]
+        pipeline = cls._pipeline_cls.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             build_data["base_repo_id"],
             revision=build_data["base_revision"],
             torch_dtype=torch.bfloat16,
+            **overrides,
         )
         pipeline.vae.use_framewise_decoding = True
-        return pipeline
+        return pipeline  # type: ignore[reportReturnType]

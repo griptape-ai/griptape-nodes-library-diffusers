@@ -18,6 +18,8 @@ Z_IMAGE_REPO_IDS = ["Tongyi-MAI/Z-Image-Turbo"]
 
 
 class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = diffusers.ZImagePipeline  # type: ignore[reportAttributeAccessIssue]
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -38,10 +40,6 @@ class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
             "model": self._node.get_parameter_value("model"),
         }
 
-    @property
-    def pipeline_class(self) -> type:
-        return diffusers.ZImagePipeline  # type: ignore[reportAttributeAccessIssue]
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
@@ -51,7 +49,7 @@ class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        base_repo_id, base_revision = self._model_repo_parameter.get_repo_revision()
+        base_repo_id, base_revision = self._resolve_repo(self._model_repo_parameter)
 
         return {
             "base_repo_id": base_repo_id,
@@ -59,13 +57,16 @@ class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         }
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.ZImagePipeline:  # type: ignore[reportAttributeAccessIssue]
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.ZImagePipeline:  # type: ignore[reportAttributeAccessIssue]
         return diffusers.ZImagePipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],
             torch_dtype=torch.bfloat16,
             low_cpu_mem_usage=False,
             local_files_only=True,
+            **overrides,
         )
 
     def supports_layerwise_casting(self) -> bool:

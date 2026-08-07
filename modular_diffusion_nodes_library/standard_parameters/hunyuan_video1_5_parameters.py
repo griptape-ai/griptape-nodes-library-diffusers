@@ -14,6 +14,8 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class HunyuanVideo15PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = diffusers.HunyuanVideo15Pipeline  # type: ignore[reportAttributeAccessIssue]
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -27,6 +29,32 @@ class HunyuanVideo15PipelineParameters(ModularDiffusionPipelineTypePipelineParam
             list_all_models=list_all_models,
         )
 
+    @classmethod
+    def _build_pipeline_from_overrides_only(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.HunyuanVideo15Pipeline:  # type: ignore[reportAttributeAccessIssue]
+        # HunyuanVideo15Pipeline requires a `guider` component that is not in
+        # ALLOWED_COMPONENT_SLOTS. Instantiate one with the T2V checkpoint's
+        # default settings so the pipeline can still be built from component
+        # overrides alone.
+        guider = diffusers.ClassifierFreeGuidance(  # type: ignore[reportAttributeAccessIssue]
+            guidance_scale=6.0,
+            guidance_rescale=0.0,
+            use_original_formulation=False,
+            start=0.0,
+            stop=1.0,
+            enabled=True,
+        )
+        return diffusers.HunyuanVideo15Pipeline(  # type: ignore[reportAttributeAccessIssue]
+            **overrides,
+            guider=guider,
+        )
+
+    @classmethod
+    def get_auto_supplied_components(cls) -> set[str]:
+        # We construct `guider` ourselves in _build_pipeline_from_overrides_only,
+        return {"guider"}
+
     def add_input_parameters(self) -> None:
         self._model_repo_parameter.add_input_parameters()
 
@@ -37,10 +65,6 @@ class HunyuanVideo15PipelineParameters(ModularDiffusionPipelineTypePipelineParam
         return {
             "model": self._node.get_parameter_value("model"),
         }
-
-    @property
-    def pipeline_class(self) -> type:
-        return diffusers.HunyuanVideo15Pipeline  # type: ignore[reportAttributeAccessIssue]
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
@@ -64,11 +88,14 @@ class HunyuanVideo15PipelineParameters(ModularDiffusionPipelineTypePipelineParam
         return True
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> diffusers.HunyuanVideo15Pipeline:  # type: ignore[reportAttributeAccessIssue]
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> diffusers.HunyuanVideo15Pipeline:  # type: ignore[reportAttributeAccessIssue]
         return diffusers.HunyuanVideo15Pipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["repo_id"],
             revision=build_data["revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,
             device_map="balanced",
+            **overrides,
         )

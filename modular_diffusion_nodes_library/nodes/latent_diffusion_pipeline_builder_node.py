@@ -15,6 +15,9 @@ from modular_diffusion_nodes_library.mixins.parameter_connection_preservation_mi
 )
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.huggingface_pipeline_parameter import HuggingFacePipelineParameter
+from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
+    ModelParamsError,
+)
 from modular_diffusion_nodes_library.parameters.pipeline_builder_parameters import (
     LatentDiffusionPipelineBuilderParameters,
 )
@@ -26,16 +29,13 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 # This code was duplicated/copied from diffusers_nodes_library/common/nodes/diffusion_pipeline_builder_node.py.
 
-# Additional postfix bits must be powers of two (1, 2, 4, 8, etc.) to ensure unique combinations
-UNION_PRO_2_CONFIG_HASH_POSTFIX = 1  # 0001
-
 
 class LatentDiffusionPipelineBuilderNode(
     ParameterConnectionPreservationMixin, SuccessFailureExecutionMixin, SuccessFailureNode
 ):
     STATIC_PARAMS: ClassVar = ["provider", "pipeline"]
     START_PARAMS: ClassVar = ["pipeline", "provider"]
-    END_PARAMS: ClassVar = ["Status", "logs"]
+    END_PARAMS: ClassVar = ["component_overrides", "loras", "Status", "logs"]
 
     def __init__(self, **kwargs) -> None:
         self._initializing = True
@@ -55,6 +55,7 @@ class LatentDiffusionPipelineBuilderNode(
         self.log_params.add_output_parameters()
 
         self._initializing = False
+        self.params.refresh_component_override_ports(initial_setup=True)
         self.set_pipeline_artifact()
 
     @property
@@ -87,14 +88,6 @@ class LatentDiffusionPipelineBuilderNode(
         """Get optimization settings for the pipeline."""
         return self.huggingface_pipeline_params.get_hf_pipeline_parameters()
 
-    def _get_config_hash_postfix(self) -> int:
-        config_bits = 0
-        controlnet_model = self.get_parameter_value("controlnet_model")
-        if controlnet_model and controlnet_model.startswith("Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0"):
-            # Set the UNION_PRO_2_CONFIG_HASH_POSTFIX bit
-            config_bits |= UNION_PRO_2_CONFIG_HASH_POSTFIX
-        return config_bits
-
     @property
     def _config_hash(self) -> str:
         """Generate a hash for the current configuration to use as cache key."""
@@ -104,21 +97,54 @@ class LatentDiffusionPipelineBuilderNode(
             loras=self.loras_params.get_loras(),
             optimization_kwargs=self.huggingface_pipeline_params.get_hf_pipeline_parameters(),
             torch_dtype="bfloat16",  # Currently hardcoded
-            postfix_bits=self._get_config_hash_postfix(),
         )
         return identity.cache_key()
 
+    def _build_pipeline_from_component_overrides_only(self) -> bool:
+        """Return True if every visible override port is connected.
+
+        When True, the pipeline can be built directly from component overrides
+        without requiring a HuggingFace model repo.
+        """
+        pipeline_type = self.params.pipeline_type_parameters.pipeline_type_pipeline_params
+        if not pipeline_type.supports_build_from_overrides_only():
+            return False
+        slots = pipeline_type.get_component_slots()
+        overrides = self.params.component_override_params.get_component_overrides()
+        return bool(slots) and set(slots) <= set(overrides.keys())
+
     def _build_pipeline_artifact_strict(self) -> DiffusionPipelineArtifact:
         pipeline_params = self.params.pipeline_type_parameters.pipeline_type_pipeline_params
+        component_overrides = self.params.component_override_params.get_component_overrides()
+        override_is_quantized = self.params.component_override_params.has_quantized_overrides
+        build_from_overrides_only = self._build_pipeline_from_component_overrides_only()
+
         build_data_error: str | None = None
-        try:
-            build_data = pipeline_params.get_build_data()
-        except Exception as e:
-            build_data = {}
-            build_data_error = (
-                f"{self.name}: Failed to collect pipeline build data for "
-                f"pipeline '{pipeline_params.pipeline_name}': {e}"
-            )
+        if build_from_overrides_only:
+            build_data = {
+                "_component_overrides": component_overrides,
+                "_pipeline_cls": pipeline_params.pipeline_cls(),
+                "_all_overrides": True,
+            }
+        else:
+            try:
+                build_data = pipeline_params.get_build_data()
+            except ModelParamsError as e:
+                build_data = {}
+                build_data_error = (
+                    f"{self.name}: Failed to collect pipeline build data for "
+                    f"pipeline '{pipeline_params.pipeline_name}': {e}"
+                )
+
+            if component_overrides:
+                build_data["_component_overrides"] = component_overrides
+
+        if build_from_overrides_only:
+            is_prequantized = override_is_quantized
+            supports_layerwise_casting = not override_is_quantized
+        else:
+            is_prequantized = pipeline_params.is_prequantized() or override_is_quantized
+            supports_layerwise_casting = pipeline_params.supports_layerwise_casting() and not override_is_quantized
 
         return DiffusionPipelineArtifact(
             pipeline_name=pipeline_params.pipeline_name,
@@ -129,16 +155,16 @@ class LatentDiffusionPipelineBuilderNode(
             build_data_error=build_data_error,
             loras=self.loras_params.get_loras(),
             optimization_kwargs=self.optimization_kwargs,
-            is_prequantized=pipeline_params.is_prequantized(),
-            supports_layerwise_casting=pipeline_params.supports_layerwise_casting(),
+            is_prequantized=is_prequantized,
+            supports_layerwise_casting=supports_layerwise_casting,
             requires_device_map=pipeline_params.requires_device_map(),
         )
 
     def build_pipeline_artifact(self) -> DiffusionPipelineArtifact | None:
         try:
             return self._build_pipeline_artifact_strict()
-        except Exception as e:
-            logger.warning("%s: Failed to build pipeline artifact due to error: %s", self.name, str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("%s: Failed to build pipeline artifact: %s: %s", self.name, type(e).__name__, e)
             return None
 
     def get_pipeline_artifact(self) -> DiffusionPipelineArtifact | None:
@@ -160,7 +186,8 @@ class LatentDiffusionPipelineBuilderNode(
 
         During initialization, parameters are added normally.
         After initialization (dynamic mode), parameters are marked as user-defined
-        for serialization and duplicates are prevented.
+        for serialization and duplicates are prevented — unless the parent group
+        manages its own serialization (see ``_parent_manages_own_serialization``).
         """
         if self._initializing:
             super().add_parameter(param)
@@ -168,12 +195,24 @@ class LatentDiffusionPipelineBuilderNode(
 
         # Dynamic mode: prevent duplicates and mark as user-defined
         if not self.does_name_exist(param.name):
-            param.user_defined = True
+            if not self._parent_manages_own_serialization(param):
+                param.user_defined = True
 
             # Restore cached parameter properties using mixin method
             self.restore_cached_parameter_properties(param)
 
             super().add_parameter(param)
+
+    def _parent_manages_own_serialization(self, param: Parameter) -> bool:
+        """Return True if param's parent group has user_defined=False.
+
+        Such groups reconstruct their children on load, so serializing the children
+        would create duplicates (e.g., component_transformer_1).
+        """
+        if param.parent_element_name is None:
+            return False
+        parent_group = self.get_group_by_name_or_element_id(param.parent_element_name)
+        return parent_group is not None and not parent_group.user_defined
 
     def set_parameter_value(
         self,
@@ -189,7 +228,7 @@ class LatentDiffusionPipelineBuilderNode(
             return
 
         if parameter.name == "pipeline":
-            value = normalize_diffusion_pipeline_value(value, node_name=self.name) or self.build_pipeline_artifact()
+            value = normalize_diffusion_pipeline_value(value, node_name=self.name)
 
         self.params.before_value_set(parameter, value)
 
@@ -207,9 +246,10 @@ class LatentDiffusionPipelineBuilderNode(
             self.set_pipeline_artifact()
 
     def validate_before_node_run(self) -> list[Exception] | None:
-        result = self.params.pipeline_type_parameters.pipeline_type_pipeline_params.validate_before_node_run()
-        if result is not None:
-            return result
+        if not self._build_pipeline_from_component_overrides_only():
+            result = self.params.pipeline_type_parameters.pipeline_type_pipeline_params.validate_before_node_run()
+            if result is not None:
+                return result
 
         try:
             self.get_pipeline_artifact_or_raise()
