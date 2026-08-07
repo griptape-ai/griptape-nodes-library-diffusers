@@ -106,6 +106,7 @@ class ModelComponentArtifact(ComponentArtifact):
         (e.g. a generic text-encoder artifact wired to the ``text_encoder_2`` port).
         """
         effective_slot = slot if slot is not None else self.component
+        component_cls = get_component_class(pipeline_cls, effective_slot)
         try:
             if self.source_type == ComponentSourceType.HF_REPO:
                 return self._materialize_hf_repo(pipeline_cls=pipeline_cls, effective_slot=effective_slot)
@@ -120,13 +121,11 @@ class ModelComponentArtifact(ComponentArtifact):
             )
             raise NotImplementedError(msg)
         except Exception as e:
-            # Add component context to any materialization error
-            component_cls = get_component_class(pipeline_cls, effective_slot)
             source_info = self._describe_source()
             msg = (
                 f"Failed to load {self.component} as {component_cls.__name__} from {source_info}. Original error: {e!s}"
             )
-            raise type(e)(msg) from e
+            raise RuntimeError(msg) from e
 
     def _describe_source(self) -> str:
         """Return a human-readable description of this component's source."""
@@ -246,7 +245,13 @@ class ModelComponentArtifact(ComponentArtifact):
                     pipeline_cls.__name__,
                 )
 
-            config_path = resolve_config_path(model_type, component_cls, self.config_source)
+            config_path = resolve_config_path(
+                model_type,
+                component_cls,
+                self.config_source,
+                pipeline_slot=effective_slot,
+                artifact_component=self.component,
+            )
             component = component_cls.from_single_file(config=str(config_path), **kwargs)
             kwargs.pop("pretrained_model_link_or_path_or_dict", None)
             del checkpoint

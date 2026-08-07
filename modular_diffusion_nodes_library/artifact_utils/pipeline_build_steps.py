@@ -92,7 +92,7 @@ class LoadPipelineStep:
                     msg += f", Revision: {revision_info}"
                 msg += f". Original error: {e!s}"
 
-                raise type(e)(msg) from e
+                raise RuntimeError(msg) from e
 
 
 class FuseLorasStep:

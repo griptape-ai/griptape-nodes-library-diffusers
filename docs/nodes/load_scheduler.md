@@ -18,7 +18,7 @@ Category: `ModularDiffusion/Pipeline`
 
 ## Node preview
 
-<!-- TODO: add docs/assets/nodes/load-scheduler.png screenshot -->
+![Load Scheduler node](../assets/nodes/load-scheduler.png)
 
 ## Inputs
 

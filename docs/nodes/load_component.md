@@ -17,7 +17,7 @@ Category: `ModularDiffusion/Pipeline`
 
 ## Node preview
 
-<!-- TODO: add docs/assets/nodes/load-component.png screenshot -->
+![Load Pipeline Component node](../assets/nodes/load-component.png)
 
 ## Inputs
 
