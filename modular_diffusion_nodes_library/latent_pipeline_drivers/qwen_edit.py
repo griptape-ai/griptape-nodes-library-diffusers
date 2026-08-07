@@ -46,7 +46,7 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
     @override
     def align_dimensions(self, height: int, width: int, num_frames: int | None = None) -> DimensionAlignmentResult:
         calc_width, calc_height, _ = calculate_dimensions(_QWEN_EDIT_TARGET_AREA, width / height)
-        return DimensionAlignmentResult(int(calc_height), int(calc_width), None, None)
+        return DimensionAlignmentResult(int(calc_height), int(calc_width), num_frames, None)
 
     @override
     def validate_dimensions(self, height: int, width: int, num_frames: int | None = None) -> list[str]:
