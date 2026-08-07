@@ -119,15 +119,16 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def validate_before_node_run(self) -> list[Exception] | None:
         errors: list[Exception] = []
         self._set_compatibility_message("")
-        if not self.get_parameter_value("pipeline"):
+        pipeline_value = self.get_parameter_value("pipeline")
+        if pipeline_value is None:
             errors.append(ValueError("Missing required 'pipeline' input."))
         else:
-            pipeline_value = self.get_parameter_value("pipeline")
             pipeline_class_name = getattr(pipeline_value, "pipeline_name", None)
             if pipeline_class_name is not None:
                 driver_cls = get_driver_class(pipeline_class_name)
                 if driver_cls is None or driver_cls._inpaint_pipeline_class is None:
                     errors.append(ValueError(f"Pipeline '{pipeline_class_name}' does not support inpainting."))
+
         if self.get_parameter_value("image") is None:
             errors.append(ValueError("Missing required 'image' input."))
         if self.get_parameter_value("mask") is None:
@@ -136,12 +137,12 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         image_value = self.get_parameter_value("image")
         if pipe is not None and image_value is not None:
             auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
-            if not auto_resize:
-                image_pil = self._get_image()
-                driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
-                result = snap_dimensions(driver, image_pil.height, image_pil.width)
-                if result.message:
-                    errors.append(ValueError(result.message))
+            image_pil = self._get_image()
+            driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
+            result = snap_dimensions(driver, image_pil.height, image_pil.width)
+            self._set_compatibility_message(result.message)
+            if not auto_resize and result.message:
+                errors.append(ValueError(result.message))
         return errors or None
 
     def set_parameter_value(

@@ -164,7 +164,6 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors: list[Exception] = []
-        self._set_compatibility_message("")
 
         pipeline_errors = self.pipe_params.validate_before_node_run()
         if pipeline_errors is not None:
@@ -182,12 +181,12 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                     auto_resize = GriptapeNodes.ConfigManager().get_config_value(
                         "modular_diffusion_library.enable_auto_resize"
                     )
-                    if not auto_resize:
-                        image = self.get_input_image()
-                        driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
-                        result = snap_dimensions(driver, image.height, image.width)
-                        if result.message:
-                            errors.append(ValueError(result.message))
+                    image = self.get_input_image()
+                    driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
+                    result = snap_dimensions(driver, image.height, image.width)
+                    self._set_compatibility_message(result.message)
+                    if not auto_resize and result.message:
+                        errors.append(ValueError(result.message))
 
         return errors or None
 

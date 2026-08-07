@@ -137,7 +137,6 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         super().add_parameter(param)
 
     def validate_before_node_run(self) -> list[Exception] | None:
-        self._set_compatibility_message("")
         result = self.pipe_params.validate_before_node_run()
         if result is not None:
             return result
@@ -149,11 +148,10 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
             height = self.get_parameter_value("height") or 1
             width = self.get_parameter_value("width") or 1
             auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
-            if not auto_resize:
-                result = snap_dimensions(latent_pipeline_driver, height, width, num_frames)
-                if result.message:
-                    return [ValueError(result.message)]
-
+            result = snap_dimensions(latent_pipeline_driver, height, width, num_frames)
+            self._set_compatibility_message(result.message)
+            if not auto_resize and result.message:
+                return [ValueError(result.message)]
         return None
 
     def _set_compatibility_message(self, message_str: str | None) -> None:
