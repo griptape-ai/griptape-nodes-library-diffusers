@@ -16,9 +16,11 @@ so this function works for any component regardless of ``SINGLE_FILE_LOADABLE_CL
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from pathlib import Path
+from typing import Any
 
 import diffusers  # type: ignore[reportMissingImports]
 from diffusers.loaders.single_file_model import SINGLE_FILE_LOADABLE_CLASSES  # type: ignore[reportMissingImports]
@@ -74,6 +76,20 @@ def is_hf_config_cached(
     """Return True when ``config_filename`` is present in the warm HF cache at ``subfolder``."""
     filename = f"{subfolder}/{config_filename}" if subfolder else config_filename
     return isinstance(try_to_load_from_cache(repo_id, filename=filename, revision=revision), str)
+
+
+def try_load_json_dict(path: Path) -> dict[str, Any] | None:
+    """Load and return a JSON file as a dict, or ``None`` on any failure."""
+    if not path.is_file():
+        return None
+    try:
+        with path.open() as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+    if isinstance(data, dict):
+        return data
+    return None
 
 
 def loadable_class_name(component_cls: type) -> str | None:

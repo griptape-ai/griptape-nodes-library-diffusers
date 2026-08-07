@@ -15,6 +15,15 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 class StableDiffusionXLPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls = diffusers.StableDiffusionXLImg2ImgPipeline  # type: ignore[reportAttributeAccessIssue]
+    text_conditioning_target_dim_key = "cross_attention_dim"
+
+    @classmethod
+    def text_conditioning_width(cls, resolve_config) -> int | None:
+        text_encoder_width = cls._extract_text_conditioning_width(resolve_config("text_encoder"))
+        text_encoder_2_width = cls._extract_text_conditioning_width(resolve_config("text_encoder_2"))
+        if text_encoder_width is None or text_encoder_2_width is None:
+            return None
+        return text_encoder_width + text_encoder_2_width
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
@@ -50,7 +59,7 @@ class StableDiffusionXLPipelineParameters(ModularDiffusionPipelineTypePipelinePa
     def get_build_data(self) -> dict[str, Any]:
         repo_id, revision = self._resolve_repo(self._huggingface_repo_parameter)
         return {
-            "repo_id": repo_id,
+            "base_repo_id": repo_id,
             "revision": revision,
         }
 
@@ -58,8 +67,9 @@ class StableDiffusionXLPipelineParameters(ModularDiffusionPipelineTypePipelinePa
     def _build_pipeline_from_repo(
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> diffusers.StableDiffusionXLImg2ImgPipeline:  # type: ignore[reportAttributeAccessIssue]
+        repo_id = build_data["base_repo_id"]
         return cls._pipeline_cls.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
-            pretrained_model_name_or_path=build_data["repo_id"],
+            pretrained_model_name_or_path=repo_id,
             revision=build_data["revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,

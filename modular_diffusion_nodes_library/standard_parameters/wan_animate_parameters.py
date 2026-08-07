@@ -55,7 +55,7 @@ class WanAnimatePipelineParameters(ModularDiffusionPipelineTypePipelineParameter
     def get_build_data(self) -> dict[str, Any]:
         repo_id, revision = self._model_repo_parameter.get_repo_revision()
         return {
-            "repo_id": repo_id,
+            "base_repo_id": repo_id,
             "revision": revision,
         }
 
@@ -69,8 +69,9 @@ class WanAnimatePipelineParameters(ModularDiffusionPipelineTypePipelineParameter
     def _build_pipeline_from_repo(
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> diffusers.WanAnimatePipeline:  # type: ignore[reportAttributeAccessIssue]
+        repo_id = build_data["base_repo_id"]
         return diffusers.WanAnimatePipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
-            pretrained_model_name_or_path=build_data["repo_id"],
+            pretrained_model_name_or_path=repo_id,
             revision=build_data["revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,

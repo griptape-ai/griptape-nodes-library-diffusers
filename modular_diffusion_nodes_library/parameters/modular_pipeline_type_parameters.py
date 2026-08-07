@@ -1,6 +1,7 @@
 import inspect
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any
 
 from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
@@ -32,6 +33,10 @@ class ModelParamsError(RuntimeError):
 
 class ModularDiffusionPipelineTypePipelineParameters(ABC):
     _pipeline_cls: type[DiffusionPipeline] | type[ModularPipeline]
+    # Denoiser config key to compare text-conditioning width against (None = skip).
+    text_conditioning_target_dim_key: str | None = None
+    # Channel multiplier from packing latents into spatial patches (1 = no packing).
+    latent_packing_ratio: int = 1
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         self._node = node
@@ -77,6 +82,39 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     @property
     def pipeline_name(self) -> str:
         return self._pipeline_cls.__name__
+
+    @staticmethod
+    def _extract_text_conditioning_width(config: dict[str, Any] | None) -> int | None:
+        """Extract a text-conditioning width from a text-encoder config.
+
+        Multimodal encoders (e.g. Mistral3) nest the language dims under ``text_config``.
+        """
+        if config is None:
+            return None
+
+        text_config = config.get("text_config")
+        if isinstance(text_config, dict):
+            nested = ModularDiffusionPipelineTypePipelineParameters._extract_text_conditioning_width(text_config)
+            if nested is not None:
+                return nested
+
+        value = config.get("d_model")
+        if isinstance(value, int):
+            return value
+
+        value = config.get("hidden_size")
+        if isinstance(value, int):
+            return value
+
+        return None
+
+    @classmethod
+    def text_conditioning_width(
+        cls,
+        resolve_config: Callable[[str], dict[str, Any] | None],
+    ) -> int | None:
+        """Return the effective text-conditioning width for this pipeline, or ``None`` to skip."""
+        return None
 
     def get_component_slots(self) -> list[str]:
         """Return component slot names available for override on this pipeline type.

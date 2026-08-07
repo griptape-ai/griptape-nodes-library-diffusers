@@ -32,6 +32,18 @@ FLUX_2_KLEIN_REPO_IDS = [
 
 class Flux2KleinPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls = diffusers.Flux2KleinPipeline  # type: ignore[reportAttributeAccessIssue]
+    latent_packing_ratio = 4
+    text_conditioning_target_dim_key = "joint_attention_dim"
+    # Flux.2-Klein conditions on a concat of 3 Qwen3 hidden-state layers, so
+    # joint_attention_dim == 3 * text_encoder hidden_size.
+    _text_encoder_hidden_state_layers = 3
+
+    @classmethod
+    def text_conditioning_width(cls, resolve_config) -> int | None:
+        hidden = cls._extract_text_conditioning_width(resolve_config("text_encoder"))
+        if hidden is None:
+            return None
+        return hidden * cls._text_encoder_hidden_state_layers
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)

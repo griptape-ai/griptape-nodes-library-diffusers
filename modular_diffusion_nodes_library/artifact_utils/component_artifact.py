@@ -13,11 +13,14 @@ from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingI
     infer_diffusers_model_type,
     load_single_file_checkpoint,
 )
+from huggingface_hub import try_to_load_from_cache
 
+from modular_diffusion_nodes_library.component_loading.component_slots import component_config_filename
 from modular_diffusion_nodes_library.component_loading.config_resolver import (
     loadable_class_name,
     resolve_config_path,
     resolve_hf_repo_config_subfolder,
+    try_load_json_dict,
 )
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import (
     MODEL_TYPE_TO_PIPELINE_TYPE,
@@ -142,6 +145,83 @@ class ModelComponentArtifact(ComponentArtifact):
             return f"local directory '{self.file_path}'"
         return f"{self.source_type} (details unavailable)"
 
+    def try_read_config(
+        self,
+        *,
+        pipeline_cls: type | None = None,
+    ) -> dict[str, Any] | None:
+        """Read this artifact's config file without materializing weights."""
+        config_name = component_config_filename(self.component)
+        if self.source_type == ComponentSourceType.HF_REPO:
+            if self.repo_ref is None:
+                return None
+            subfolder = self.repo_ref.subfolder or ""
+            if not subfolder:
+                subfolder = (
+                    resolve_hf_repo_config_subfolder(
+                        self.repo_ref.repo_id,
+                        self.component,
+                        self.component,
+                        revision=self.repo_ref.revision,
+                        config_filename=config_name,
+                    )
+                    or ""
+                )
+            filename = f"{subfolder}/{config_name}" if subfolder else config_name
+            cached = try_to_load_from_cache(self.repo_ref.repo_id, filename, revision=self.repo_ref.revision)
+            if not isinstance(cached, str):
+                return None
+            return try_load_json_dict(Path(cached))
+
+        if self.source_type == ComponentSourceType.LOCAL_DIR:
+            if self.file_path is None:
+                return None
+            return try_load_json_dict(Path(self.file_path) / config_name)
+
+        if self.source_type == ComponentSourceType.SINGLE_FILE:
+            return self._try_read_single_file_config(pipeline_cls=pipeline_cls)
+
+        return None
+
+    def _infer_single_file_model_type(self, *, pipeline_cls: type, checkpoint: Any) -> tuple[str, str]:
+        """Infer the checkpoint model type and the effective config lookup model type."""
+        inferred_model_type = infer_diffusers_model_type(checkpoint)
+        if inferred_model_type in MODEL_TYPE_TO_PIPELINE_TYPE:
+            model_type = inferred_model_type
+        else:
+            model_type = _pipeline_default_model_type(pipeline_cls) or inferred_model_type
+        return inferred_model_type, model_type
+
+    def _try_read_single_file_config(
+        self,
+        *,
+        pipeline_cls: type | None,
+    ) -> dict[str, Any] | None:
+        """Read config for a single-file artifact from an explicit config source, if provided."""
+        if self.config_source is None:
+            return None
+
+        config_name = component_config_filename(self.component)
+        config_path = Path(self.config_source)
+        if config_path.is_file():
+            return try_load_json_dict(config_path)
+        if config_path.is_dir():
+            return try_load_json_dict(config_path / config_name)
+        if pipeline_cls is not None:
+            try:
+                component_cls = get_component_class(pipeline_cls, self.component)
+                config_path = resolve_config_path(
+                    "",
+                    component_cls,
+                    self.config_source,
+                    pipeline_slot=self.component,
+                    artifact_component=self.component,
+                )
+            except (FileNotFoundError, ValueError):
+                return None
+            return try_load_json_dict(config_path if config_path.is_file() else config_path / config_name)
+        return None
+
     def _materialize_hf_repo(self, *, pipeline_cls: type, effective_slot: str) -> Any:
         if not self.repo_ref:
             msg = (
@@ -204,15 +284,10 @@ class ModelComponentArtifact(ComponentArtifact):
             raise ValueError(msg)
 
         checkpoint = load_single_file_checkpoint(self.file_path)
-        inferred_model_type = infer_diffusers_model_type(checkpoint)
-
-        # If inferring model type fails to return a recognised type
-        # fall back to the target pipeline's canonical model_type so the
-        # config lookup uses the right cached config.
-        if inferred_model_type in MODEL_TYPE_TO_PIPELINE_TYPE:
-            model_type = inferred_model_type
-        else:
-            model_type = _pipeline_default_model_type(pipeline_cls) or inferred_model_type
+        inferred_model_type, model_type = self._infer_single_file_model_type(
+            pipeline_cls=pipeline_cls,
+            checkpoint=checkpoint,
+        )
 
         logger.info(
             "Inferred model_type='%s' (effective='%s') for %s (%s) from single file '%s'.",
