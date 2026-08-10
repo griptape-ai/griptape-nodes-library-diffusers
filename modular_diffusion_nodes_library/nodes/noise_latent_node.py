@@ -9,7 +9,10 @@ from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
     LatentArtifact,  # type: ignore[reportMissingImports]
 )
-from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
+    DiffusionPipelineArtifact,
+    normalize_diffusion_pipeline_value,
+)
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import GeneratorState
 from modular_diffusion_nodes_library.mixins.parameter_connection_preservation_mixin import (
@@ -22,6 +25,7 @@ from modular_diffusion_nodes_library.parameters.pipeline_parameters import (
     ModularDiffusionPipelineParameters,
 )
 from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
+from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -116,6 +120,10 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
                 self.hide_parameter_by_name("num_frames")
             self._reorder_trailing_parameters()
 
+        fires_reactively = param_name in ("height", "width", "num_frames", "pipeline")
+        if initial_setup and fires_reactively:
+            self.after_value_set(parameter, value)
+
     def _reorder_trailing_parameters(self) -> None:
         """Move ``output_latent`` to the end."""
         trailing = ["output_latent"]
@@ -123,6 +131,11 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         head = [name for name in existing if name not in trailing]
         tail = [name for name in trailing if name in existing]
         self.reorder_elements([*head, *tail])
+
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        super().after_value_set(parameter, value)
+        if parameter.name in ("height", "width", "num_frames", "pipeline"):
+            self._update_compatibility_message(build_if_needed=False)
 
     def add_parameter(self, param: Parameter) -> None:
         """Add a parameter to the node.
@@ -141,18 +154,36 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         if result is not None:
             return result
 
-        pipe = self.pipe_params.get_pipeline()
-        if pipe is not None:
-            latent_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
-            num_frames = self.get_parameter_value("num_frames") or 1
-            height = self.get_parameter_value("height") or 1
-            width = self.get_parameter_value("width") or 1
-            auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
-            result = snap_dimensions(latent_pipeline_driver, height, width, num_frames)
-            self._set_compatibility_message(result.message)
-            if not auto_resize and result.message:
-                return [ValueError(result.message)]
+        dimension_result = self._update_compatibility_message(build_if_needed=True)
+        auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
+        if dimension_result is not None and not auto_resize and dimension_result.message:
+            return [ValueError(dimension_result.message)]
         return None
+
+    def _update_compatibility_message(self, *, build_if_needed: bool = False):
+        pipeline_value = self.get_parameter_value("pipeline")
+        if pipeline_value is None or not isinstance(pipeline_value, DiffusionPipelineArtifact):
+            self._set_compatibility_message(None)
+            return None
+
+        pipeline_class = self.pipe_params.get_pipeline_class()
+        if get_driver_class(pipeline_class) is None:
+            self._set_compatibility_message(None)
+            return None
+
+        if not build_if_needed:
+            if not pipeline_value.config_hash or not model_cache.has_pipeline(pipeline_value.config_hash):
+                self._set_compatibility_message(None)
+                return None
+
+        pipe = self.pipe_params.get_pipeline()
+        latent_pipeline_driver = create_driver(pipe, pipeline_class)
+        num_frames = self.get_parameter_value("num_frames") or 1
+        height = self.get_parameter_value("height") or 1
+        width = self.get_parameter_value("width") or 1
+        result = snap_dimensions(latent_pipeline_driver, height, width, num_frames)
+        self._set_compatibility_message(result.message)
+        return result
 
     def _set_compatibility_message(self, message_str: str | None) -> None:
         if message_str:
