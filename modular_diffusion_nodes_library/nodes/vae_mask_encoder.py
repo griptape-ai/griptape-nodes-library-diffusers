@@ -181,16 +181,11 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         image_pil = self._get_image()
         mask_pil = self._get_mask()
 
-        auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
         result = snap_dimensions(driver, image_pil.height, image_pil.width)
-        self._set_compatibility_message(result.message)
         if result.message:
-            if auto_resize:
-                logger.warning(result.message)
-                image_pil = image_pil.resize((result.width, result.height), PILImage.Resampling.LANCZOS)
-                mask_pil = mask_pil.resize((result.width, result.height), PILImage.Resampling.NEAREST)
-            else:
-                raise ValueError(result.message)
+          logger.warning(result.message)
+          image_pil = image_pil.resize((result.width, result.height), PILImage.Resampling.LANCZOS)
+          mask_pil = mask_pil.resize((result.width, result.height), PILImage.Resampling.NEAREST)
 
         # Ensure mask is same size as image
         if mask_pil.size != image_pil.size:

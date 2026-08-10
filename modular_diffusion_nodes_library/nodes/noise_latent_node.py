@@ -192,15 +192,12 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         generator_state = GeneratorState.from_seed(seed)
         num_frames = self.get_parameter_value("num_frames") or None
 
-        auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
-        if auto_resize:
-            result = snap_dimensions(latent_pipeline_driver, height, width, num_frames)
-            self._set_compatibility_message(result.message)
-            if result.message:
-                logger.warning(result.message)
-            height = result.height
-            width = result.width
-            num_frames = result.num_frames
+        result = snap_dimensions(latent_pipeline_driver, height, width, num_frames)
+        if result.message:
+            logger.warning(result.message)
+        height = result.height
+        width = result.width
+        num_frames = result.num_frames
 
         if num_frames is not None:
             latents_source_shape = (1, 3, num_frames, height, width)

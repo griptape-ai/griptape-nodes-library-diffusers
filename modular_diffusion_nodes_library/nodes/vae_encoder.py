@@ -208,15 +208,10 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         latents_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
 
-        auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
         result = snap_dimensions(latents_pipeline_driver, image.height, image.width)
-        self._set_compatibility_message(result.message)
         if result.message:
-            if auto_resize:
-                logger.warning(result.message)
-                image = image.resize((result.width, result.height), Resampling.LANCZOS)
-            else:
-                raise ValueError(result.message)
+          logger.warning(result.message)
+          image = image.resize((result.width, result.height), Resampling.LANCZOS)
 
         image_tensor = pipe.image_processor.preprocess(image)
         if isinstance(image_tensor, (list, tuple)):
