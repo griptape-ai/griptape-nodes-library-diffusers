@@ -35,12 +35,13 @@ Generate Media Latents (low-res) → [Latent Upsampler] → Generate Media Laten
 | Name | Type | Notes |
 | --- | --- | --- |
 | `provider` | choice | Upsampler family (e.g. `LTX2`). Switching regenerates the model picker. |
-| `upsampler_model` | HF repo picker | Hugging Face repo ID for the upsampler weights. |
+| `upsampler_model` | HF repo picker | Hugging Face repo ID for the upsampler weights. Models your license does not permit are shown but marked unavailable. |
 
 ## Tips & pitfalls
 
 - **Latent-space upsamplers are family-specific.** An LTX2 upsampler will not produce sensible output for an SDXL latent. Match the upsampler family to the latent's pipeline.
 - **You almost always want a refinement Generate after upsampling.** The upsampler increases resolution but doesn't denoise — pair it with a short follow-up Generate at low strength.
+- **An upsampler marked "Not permitted by your license" cannot be used.** It stays visible in the picker with a shield icon, but selecting it badges the parameter and the run fails — pick a permitted upsampler, or take it up with whoever administers your license.
 
 ## See also
 

@@ -40,7 +40,7 @@ Category: `ModularDiffusion/Pipeline`
 | --- | --- | --- |
 | `provider` | choice | `Flux`, `Flux2`, `Stable Diffusion`, `Stable Diffusion 3`, `Qwen`, `Z-Image`, `HunyuanVideo 1.5`, `LTX`, `LTX2`, `WAN`. Changing this swaps every parameter below. |
 | `pipeline_type` | choice | Per-provider pipeline class (e.g. `FluxPipeline`, `WanImageToVideoPipeline`). Determines what the pipeline can do. |
-| `<model repo>` | HF repo picker | Hugging Face repo ID. Diffusers-format only — single-file `.safetensors` checkpoints are not loaded directly. |
+| `<model repo>` | HF repo picker | Hugging Face repo ID. Diffusers-format only — single-file `.safetensors` checkpoints are not loaded directly. Models your license does not permit are shown but marked unavailable. |
 
 ### Memory optimization
 
@@ -60,6 +60,7 @@ Enable only what you need — each option trades speed for memory.
 - **Pipeline cache after restart.** The cache lives in process memory only; the node re-resolves automatically on the next run.
 - **Out of VRAM on load.** The model weights exceed your available GPU memory. Try one or more of these in order of impact: set `quantization_mode` to `int8` or `int4`, set `cpu_offload_strategy` to `Model` (moves idle submodules to CPU), or enable `vae_slicing` (reduces peak memory during decode). Each option trades some inference speed for lower VRAM usage.
 - **LoRAs not applying.** Check two things: (1) the LoRA was trained for the same model architecture as your chosen `pipeline_type` — a Flux LoRA will not work on a WAN pipeline; (2) the [Load LoRA](load_lora.md) node is wired to the `loras` input on this node.
+- **A model marked "Not permitted by your license" cannot be built.** It stays visible in the picker with a shield icon so you can see it exists, but selecting it badges the parameter and the run fails instead of downloading weights — pick a permitted model, or take it up with whoever administers your license.
 - **Set `provider` before configuring other parameters.** Changing `provider` regenerates all parameters for the new model — connections are carried over where parameter names match, but values return to their defaults. Choosing the right provider upfront avoids repeating your setup.
 
 ## See also
