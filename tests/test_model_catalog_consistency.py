@@ -124,8 +124,11 @@ def _repo_ids_from_source(cls: type) -> set[str]:
     their repo lists in module-level constants (e.g. `FLUX_2_REPO_IDS` in flux2_parameters.py)
     that the class then splats in.
     """
+    module = inspect.getmodule(cls)
+    if module is None:
+        return set()
     try:
-        source = inspect.getsource(inspect.getmodule(cls))
+        source = inspect.getsource(module)
     except (OSError, TypeError):
         return set()
     # `owner/name`, optionally with the `::subvariant` postfix the LTX-2 params use.
@@ -409,7 +412,9 @@ def test_the_flux_klein_tiers_are_not_flattened() -> None:
     catalog = find_model_catalog(_schema().metadata.declarations)
     assert catalog is not None
     key_support_by_repo = {
-        resolved.model.provider_model_id: resolved.model.key_support for resolved in iter_catalog_models(catalog)
+        resolved.model.provider_model_id: resolved.model.key_support
+        for resolved in iter_catalog_models(catalog)
+        if resolved.model.provider_model_id is not None
     }
     nine_b = [repo for repo in key_support_by_repo if "klein" in repo and "9B" in repo]
     four_b = [repo for repo in key_support_by_repo if "klein" in repo and "4B" in repo]

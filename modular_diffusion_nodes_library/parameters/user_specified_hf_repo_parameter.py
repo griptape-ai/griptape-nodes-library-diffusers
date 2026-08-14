@@ -122,8 +122,17 @@ class UserSpecifiedHuggingFaceRepoParameter(HuggingFaceModelParameter):
         self._node.remove_parameter_element_by_name(self._download_param_name)
 
     @override
-    def refresh_parameters(self) -> None:
-        repo_id = self._node.get_parameter_value(self._parameter_name)
+    def refresh_parameters(self, value_being_set: str | None = None) -> None:
+        """Re-check the local cache for the typed repo id.
+
+        Deliberately does not delegate to the base implementation. That one rebuilds a dropdown:
+        it adds an `Options` trait to the parameter and overwrites the stored value with a choice
+        drawn from the cache scan. This parameter is a free-text field that accepts any repo id,
+        so there are no choices to offer and the typed value has to survive a refresh.
+        """
+        repo_id = value_being_set
+        if repo_id is None:
+            repo_id = self._node.get_parameter_value(self._parameter_name)
         if repo_id is None:
             repo_id = ""
         self._refresh_parameters(str(repo_id))
