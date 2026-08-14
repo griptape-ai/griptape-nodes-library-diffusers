@@ -776,6 +776,21 @@ wheels = [
 ]
 
 [[package]]
+name = "gguf"
+version = "0.19.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pyyaml" },
+    { name = "requests" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/48/ae/17f1308ae45cd7b08ebb521747d5b23f4efc4d172038a4e228dd5106c3ff/gguf-0.19.0.tar.gz", hash = "sha256:dbadcd6cc7ccd44256f2229fe7c2dff5e8aa5cf0612ab987fd2b1a57e428923f", size = 111220, upload-time = "2026-05-06T13:04:03.667Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/bb/d71d6da82763528c2c2ed6b59a9d6142c6595545a4c448e2085d155e88c2/gguf-0.19.0-py3-none-any.whl", hash = "sha256:70bcd10edfe697fb2dad6e40af2234b9d8ece9a41a99761405121ebda1c3c1cd", size = 118475, upload-time = "2026-05-06T13:04:02.588Z" },
+]
+
+[[package]]
 name = "griffelib"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -841,26 +856,8 @@ loaders-image = [
 ]
 
 [[package]]
-name = "griptape-nodes"
-version = "0.93.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "griptape-nodes-engine" },
-    { name = "websockets" },
-    { name = "xdg-base-dirs" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/8c/4a/dc51722e591173c36f1558e194b8bb1c9943e84c2dc6704fb90e79f6435c/griptape_nodes-0.93.0.tar.gz", hash = "sha256:dddfca94bd477f72fcab853e3b19b828ae71f1d01a61558e2e9b3036359f3391", size = 505557, upload-time = "2026-07-17T00:08:55.714Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ca/4c/003b101f2f862d3ed8b37743fc81dcb142c34ad43d380fd593b94b8b37ed/griptape_nodes-0.93.0-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:171a8aa830abe6ff5999e882f6b065a1492c9dabb8aae2326a6f9a9e1f3917c9", size = 7289576, upload-time = "2026-07-17T00:08:43.724Z" },
-    { url = "https://files.pythonhosted.org/packages/98/64/6333d62a4f4cb9d9caac07b6f7c2769389ae59a9df39116ae07371be7ef7/griptape_nodes-0.93.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:dc2dca6cda2d5af8754fad4543353a4421cdeb4c22c88a26295bdf308758112c", size = 7192720, upload-time = "2026-07-17T00:08:46.134Z" },
-    { url = "https://files.pythonhosted.org/packages/51/bc/36df8f6ddd8af5c39c0d06377e376b7e531b6695cf09f3dcf4bb22758506/griptape_nodes-0.93.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a2ddcb65742fd063f2394ffda0a800f25d98f77003568e717dc95271577201d5", size = 10592286, upload-time = "2026-07-17T00:08:48.59Z" },
-    { url = "https://files.pythonhosted.org/packages/09/b1/7dca0873ebac99dba23d5572eb3d3a55e2ddb14b1789bb1e65010a60ab2c/griptape_nodes-0.93.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a6a798c48eefe58775a9f70eb48e1f4f5dab65ec069bad70c3e02f286761bc91", size = 10115369, upload-time = "2026-07-17T00:08:51.584Z" },
-    { url = "https://files.pythonhosted.org/packages/ac/6b/6421439512478066819df48d786135de629f7d08a7949d861422a48a2174/griptape_nodes-0.93.0-cp312-cp312-win_amd64.whl", hash = "sha256:7f1538d1c8fc4389e14baa6c58a0b9170f9ffd4090b8a5a95ad7b1e4b65403c4", size = 6659671, upload-time = "2026-07-17T00:08:54.094Z" },
-]
-
-[[package]]
 name = "griptape-nodes-engine"
-version = "0.94.4"
+version = "0.97.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -873,14 +870,13 @@ dependencies = [
     { name = "httpx" },
     { name = "huggingface-hub" },
     { name = "json-repair" },
-    { name = "mcp", extra = ["ws"] },
+    { name = "mcp" },
     { name = "packaging" },
     { name = "pillow" },
     { name = "portalocker" },
     { name = "pydantic" },
     { name = "pydantic-ai-skills" },
     { name = "pydantic-ai-slim", extra = ["mcp", "openai"] },
-    { name = "pygit2" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "rich" },
@@ -898,9 +894,9 @@ dependencies = [
     { name = "websockets" },
     { name = "xdg-base-dirs" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/55/f9c81036fa6878567a709bb5a88433b53c5989a2b4414522214fbd0a6df7/griptape_nodes_engine-0.94.4.tar.gz", hash = "sha256:f470e16b864b726bf043db7c56e807a46f08a3335217397bb15a2acc827a0d01", size = 1072063, upload-time = "2026-07-20T18:38:15.517Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d4/e1/ebab04de6ac211702149f346c5511b1c8ad886ab6029c5e7d5a694e92d08/griptape_nodes_engine-0.97.0.tar.gz", hash = "sha256:49b44a1e19adcea0b5dbbcfa0f6e214c1cdf852d9b97430a4153f4b478906232", size = 1121493, upload-time = "2026-08-12T10:58:50.091Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cf/da/f5a90e2039e18808a6a9c2149b90a08095d0543d892023e16c6534d727d5/griptape_nodes_engine-0.94.4-py3-none-any.whl", hash = "sha256:370c0cfdc65eca220b711646f3576c52eb740cc3b2aadca00d7fa64c0b43ef30", size = 1312262, upload-time = "2026-07-20T18:38:13.869Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/88/f62cca520af870f0a324ae1db0e35090b3fd4296f5c5c01c6246564a6d94/griptape_nodes_engine-0.97.0-py3-none-any.whl", hash = "sha256:b697defed3a53b259403fd94bddc47b02d4c49fdd2974e9dc2456ede1a1806ac", size = 1363232, upload-time = "2026-08-12T10:58:48.173Z" },
 ]
 
 [[package]]
@@ -916,8 +912,9 @@ dependencies = [
     { name = "controlnet-aux" },
     { name = "diffusers" },
     { name = "ftfy" },
+    { name = "gguf" },
     { name = "griptape", extra = ["drivers-prompt-amazon-bedrock", "drivers-prompt-anthropic", "drivers-prompt-cohere", "drivers-prompt-ollama", "drivers-web-scraper-trafilatura", "drivers-web-search-duckduckgo", "drivers-web-search-exa", "loaders-image"] },
-    { name = "griptape-nodes" },
+    { name = "griptape-nodes-engine" },
     { name = "imageio", extra = ["ffmpeg"] },
     { name = "matplotlib" },
     { name = "ninja" },
@@ -967,8 +964,9 @@ requires-dist = [
     { name = "controlnet-aux", specifier = ">=0.0.9" },
     { name = "diffusers", specifier = "==0.39.0" },
     { name = "ftfy", specifier = ">=6.3.1" },
+    { name = "gguf", specifier = ">=0.10.0" },
     { name = "griptape", extras = ["drivers-prompt-amazon-bedrock", "drivers-prompt-anthropic", "drivers-prompt-cohere", "drivers-prompt-ollama", "drivers-web-scraper-trafilatura", "drivers-web-search-duckduckgo", "drivers-web-search-exa", "loaders-image"], specifier = ">=1.9.4" },
-    { name = "griptape-nodes", specifier = ">=0.92.0" },
+    { name = "griptape-nodes-engine", specifier = ">=0.97.0" },
     { name = "imageio", extras = ["ffmpeg"], specifier = ">=2.37.2" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "ninja", specifier = ">=1.13.0" },
@@ -1607,11 +1605,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/27/3c/347cf965d313f5d41764e7d46bea6ffe7d9ef13b983cc429b0340962a082/mcp-1.27.2.tar.gz", hash = "sha256:8e02db104096d1c25b28e64bde29a5c32b31bc241710213e12fd4d84985bdfef", size = 621116, upload-time = "2026-05-29T17:16:04.039Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c9/11/252c6f971dc4f16af1d98a1c469d8ba523aab00d1bb76b4d3bc1ff32eacc/mcp-1.27.2-py3-none-any.whl", hash = "sha256:d6ff5160c6ca65d93013626efb3fc249de683c30b2d8570755ceddd490344de5", size = 220498, upload-time = "2026-05-29T17:16:02.442Z" },
-]
-
-[package.optional-dependencies]
-ws = [
-    { name = "websockets" },
 ]
 
 [[package]]
@@ -2333,27 +2326,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5a/be/0f746a6cc399dc437d494c4240d25fa3151314dbd42cb1e89a5543fc1801/pydeprecate-0.7.0.tar.gz", hash = "sha256:925ee2e39f266bcd923c1abb76256da240e51ac04fc1ebb5490e32683770f9c4", size = 98242, upload-time = "2026-03-31T17:31:36.498Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ef/e6/42ece1260c287c5b376932d0d0fb776e5fe2a55ee58cf85d01ef97ca6c15/pydeprecate-0.7.0-py3-none-any.whl", hash = "sha256:b2baf35f82c06a22824029dd54ed763c7e8226f133893d15af4f9cf950a3b4d3", size = 63749, upload-time = "2026-03-31T17:31:35.023Z" },
-]
-
-[[package]]
-name = "pygit2"
-version = "1.19.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "cffi" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/3a/a4/10ce00feef5c43eddacab19ae6610c4d4ef3ab77e544e9ee938772cd1c17/pygit2-1.19.2.tar.gz", hash = "sha256:cbeb3dbca9ca6ee3d5ea5d02f5e844c2d6084a2d5d6621e3e06aa2b11c645bfd", size = 803448, upload-time = "2026-03-29T14:57:27.565Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d5/2d/4fdeb7c6e044588cef9f0fca8b93fbc40fcdb2dfc64367999f45e88c0e7e/pygit2-1.19.2-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:cf479077d48a60b09569a5bb50866d8609f434f8982058594b0d2e2950bd6fce", size = 5704810, upload-time = "2026-03-29T14:56:15.671Z" },
-    { url = "https://files.pythonhosted.org/packages/c7/d8/926415c996ca283c4f7ccf63322ea23135ff17ecd1d2faaba704f6b4d883/pygit2-1.19.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:6e6e7eb5fb49203735627b8e1d410afe19e7d610c9a9733c11084fabd17f0920", size = 5696366, upload-time = "2026-03-29T14:56:17.241Z" },
-    { url = "https://files.pythonhosted.org/packages/8c/5e/c0329db9c980552c5c853dc1e429d13d55c691749db0540ef6bc77c04a98/pygit2-1.19.2-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:1a810da2d108d6bd16115c72a1c3d69fa1528ef927719bdfc94d2cdbc4198288", size = 6035334, upload-time = "2026-03-29T14:56:19.555Z" },
-    { url = "https://files.pythonhosted.org/packages/a6/39/e08003a59a4d58bbba923d1c2be683a84b7b30c7270a19ff3ea02f9558df/pygit2-1.19.2-cp312-cp312-manylinux_2_26_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:d0b8ae5a822afb2771cbacf7c75140e663bc801c44eaaf2e4017f850cb27227c", size = 4636920, upload-time = "2026-03-29T14:56:20.93Z" },
-    { url = "https://files.pythonhosted.org/packages/c9/3c/d3a9ed478add4cd77403416897459750ef2f6a06d8febe452ba03f5b7a27/pygit2-1.19.2-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:330430b6c1a3e6d45d1f5f950734d37d849c07924b5b0475cd995a7e541e6ab1", size = 5798652, upload-time = "2026-03-29T14:56:22.773Z" },
-    { url = "https://files.pythonhosted.org/packages/d4/15/5440f00005db1769062ecc9fab7059ac7ae89217a06e1976734f53c2d040/pygit2-1.19.2-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:7b7f165d1ddfa1e0f205c1115ee10f5fea700fd3584c727b0d61a57192238449", size = 6041142, upload-time = "2026-03-29T14:56:24.618Z" },
-    { url = "https://files.pythonhosted.org/packages/9d/5b/b9f9979a56606a661c0cff24c7aa6f5b1ad34118e116b7d67295be42aaad/pygit2-1.19.2-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:e46ec6a97a5c43704473e42a926f7f20f9934ceef4f4891660313f573c4f0ab8", size = 5769220, upload-time = "2026-03-29T14:56:26.423Z" },
-    { url = "https://files.pythonhosted.org/packages/30/81/9594e604eb19ae02f6a2023840e25574b0abcfc8d58c03cf96c59dd4ba72/pygit2-1.19.2-cp312-cp312-win32.whl", hash = "sha256:6b4de5469e88e7b069143f7a5d6336a4b3e7d911de4633ef18c113e416feb948", size = 946691, upload-time = "2026-03-29T14:56:27.813Z" },
-    { url = "https://files.pythonhosted.org/packages/35/2d/c9bcdaef8f57ba0cdf129a6823f95cadd8ead002f38fba3465732c7517a8/pygit2-1.19.2-cp312-cp312-win_amd64.whl", hash = "sha256:f064748202928f4e882501521229e378e0b7b69b0e7c433cdb2626d007745973", size = 1164290, upload-time = "2026-03-29T14:56:29.13Z" },
-    { url = "https://files.pythonhosted.org/packages/b8/d4/6e9c98d227a8e816e2ffc7304f733e8b924afd8198b16888972fedbe05bd/pygit2-1.19.2-cp312-cp312-win_arm64.whl", hash = "sha256:222f439d751799dc74c3fa75f187abdbc415d12f9a091efa66f0c9ff51893d32", size = 969330, upload-time = "2026-03-29T14:56:30.363Z" },
 ]
 
 [[package]]
