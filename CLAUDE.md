@@ -180,7 +180,9 @@ Adding a new diffusers pipeline requires touching all three:
 2. `parameters/pipeline_parameters.py` → `set_runtime_parameters()` `match` (pipeline class name → runtime parameters class)
 3. `parameters/pipelinetype_parameters.py` → a `LatentPipelineTypeParameters` subclass plus an entry in `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` (`Provider` enum → type-parameters class)
 
-A miss in any of the three surfaces as a confusing UI failure rather than an import error. See [docs/adding-new-model.md](docs/adding-new-model.md) for the full 5-step walkthrough, and the **Task Workflows** section below for the canonical skill files.
+A miss in any of the three surfaces as a confusing UI failure rather than an import error. See [docs/adding-new-model.md](docs/adding-new-model.md) for the full 6-step walkthrough, and the **Task Workflows** section below for the canonical skill files.
+
+**Every offered repo id must also be declared in the `model_catalog`** in `griptape-nodes-library.json`, and its catalog key added to the owning node's `model_usage` list. The HuggingFace dropdowns refuse an undeclared repo rather than allowing it, so a repo id added in Python alone is unusable at runtime. `tests/test_model_catalog_consistency.py` fails on the omission. This requires engine 0.97.0+ — see Step 6 of the walkthrough.
 
 **Pipeline caching**
 

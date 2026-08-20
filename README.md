@@ -119,7 +119,19 @@ Enable only what you need — each option trades some speed for memory. The Pipe
 
 ## Requirements
 
-This library is intended for GPU-capable environments (**CUDA** or **MPS**). See [griptape_nodes_library.json](griptape_nodes_library.json) for the full dependency list.
+This library is intended for GPU-capable environments (**CUDA** or **MPS**). See [griptape-nodes-library.json](griptape-nodes-library.json) for the full dependency list.
+
+**Griptape Nodes engine 0.97.0 or newer.** The model pickers on this library's nodes check your license before offering a model, and that enforcement lives in the engine. On an older engine the library declares a version it cannot satisfy, so the engine marks it **unusable** and it will not load — update the engine rather than editing the declared version, since a lower floor would let the library offer models your license does not permit.
+
+### Model licensing
+
+Some models this library exposes are gated by license. Where that applies:
+
+- Models you are not permitted to use still appear in the picker, marked with a shield icon and *"Not permitted by your license"*.
+- Selecting one badges the parameter **Model Not Permitted**; running the node then fails with the reason rather than downloading weights.
+- If a picker reports that models could not be checked against your license, that is a library registration fault, not a licensing one — please [open an issue](https://github.com/griptape-ai/griptape-nodes-library-modular-diffusion/issues).
+
+Which models are gated depends on your license, so the picker is the source of truth rather than this page.
 
 ## Support
 

@@ -34,9 +34,9 @@ When the three blockers above are resolved, drivers will be able to swap their d
 - **Yes** → runtime variant. Stop and follow [`.github/skills/add-pipeline-variants/SKILL.md`](../.github/skills/add-pipeline-variants/SKILL.md). Examples: ControlNet, inpaint, LTX's `LTXConditionPipeline`.
 - **No** — the variant class needs a component the base pipeline does not have, or needs differently-shaped/-trained weights for an existing component → new pipeline type. Continue with this guide. Examples: WAN T2V vs WAN I2V (different UNet + image encoder), Flux vs Flux Fill (different transformer weights), Qwen vs Qwen Edit (different transformer + image conditioning).
 
-## The 5-Step Process
+## The 6-Step Process
 
-Adding a new model touches five concerns. We'll use **Stable Diffusion 3.5** as the running example.
+Adding a new model touches six concerns. We'll use **Stable Diffusion 3.5** as the running example.
 
 ```mermaid
 graph TD
@@ -44,6 +44,7 @@ graph TD
     B --> C[3. Runtime Parameters<br/>UI for generation]
     C --> D[4. Driver<br/>encode/decode/denoise]
     D --> E[5. Registration<br/>3 registries]
+    E --> F[6. Model catalog<br/>declare for licensing]
 ```
 
 ### Step 1 — Add a Provider (if new)
@@ -154,11 +155,42 @@ MODULAR_PIPELINE_TYPE_PROVIDER_MAP = {
 }
 ```
 
+### Step 6 — Declare the model in the catalog (required, engine 0.97.0+)
+
+Every repo id a node can offer must appear in the `model_catalog` declaration under `metadata.declarations` in [`griptape-nodes-library.json`](../griptape-nodes-library.json). This is what license policy gates on. **Adding a repo id in Python without declaring it here makes the model unusable**: the HuggingFace dropdowns run with `refuse_unrecognized` on, so an undeclared repo is refused with *"is not one of the models this node library declares"* rather than silently allowed.
+
+Add your model under the provider that holds its **licensing authority**. Our Stable Diffusion 3.5 example is licensed by Stability AI, so it goes in the existing `stability` provider block:
+
+```json
+"stability": {
+  "display_name": "Stability AI",
+  "terms_url": "https://huggingface.co/stabilityai",
+  "models": {
+    "md_stable_diffusion_3_5_large": {
+      "display_name": "Stable Diffusion 3.5 Large",
+      "provider_model_id": "stabilityai/stable-diffusion-3.5-large",
+      "family": "Stable Diffusion 3",
+      "key_support": "REQUIRES_CUSTOMER_KEY",
+      "notes": "Gated repo under the Stability Community License; requires accepting the license and an HF token."
+    }
+  }
+}
+```
+
+Add a new provider block only when no existing one holds the licensing authority.
+
+- `provider_model_id` is the exact HuggingFace `owner/name` — it must match the literal in your parameters module character-for-character, since that string is what a dropdown value reduces to.
+- The catalog key (`md_*`) is the stable handle; add it to the `model_usage` `model_ids` list on whichever node offers it (pipeline builder, ControlNet, or upsampler).
+- `key_support` is `REQUIRES_CUSTOMER_KEY` for gated repos or `NO_KEY_REQUIRED` for open ones.
+- **Provider id keys licensing authority, not the hosting org.** A derivative that inherits a base model's terms is keyed to the base authority — e.g. `InstantX/FLUX.1-dev-Controlnet-Union` keys to `black_forest_labs`, not `instantx`, or a provider-scoped policy rule would miss it. `test_flux_derivatives_key_to_black_forest_labs` guards this.
+
+[`tests/test_model_catalog_consistency.py`](../tests/test_model_catalog_consistency.py) walks the Python sources and fails if a repo id exists in code but not in the catalog, so `make check` catches an omission before review.
+
 ---
 
 ## Verification
 
-1. Run `make check` to catch type/lint errors.
+1. Run `make check` to catch type/lint errors, plus the catalog-consistency tests from Step 6.
 2. Open Griptape Nodes, drop a `LatentDiffusionPipelineBuilderNode`, select your new provider, then your new pipeline type, fill in the repo, and resolve the node.
 3. Wire it to a `DiffusionPipelineGenerateLatentNode` and a VAE decoder; verify an image (or video) is produced.
 4. Test partial denoise by chaining two generate nodes (e.g., 0–10 then 10–20 steps).
