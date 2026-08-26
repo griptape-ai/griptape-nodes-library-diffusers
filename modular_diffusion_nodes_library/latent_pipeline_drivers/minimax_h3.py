@@ -29,22 +29,20 @@ from diffusers.modular_pipelines.minimax_h3.denoise import (  # type: ignore[rep
 from diffusers.modular_pipelines.minimax_h3.modular_pipeline import (  # type: ignore[reportMissingImports]
     MiniMaxH3ModularPipeline,
 )
-from diffusers.modular_pipelines.minimax_h3.packing import (  # type: ignore[reportMissingImports]
+from diffusers.modular_pipelines.minimax_h3.modular_pipeline import (  # type: ignore[reportMissingImports]
     MINIMAX_H3_AUDIO_CHANNELS,
-    MINIMAX_H3_CANVAS_MULTIPLE,
     MINIMAX_H3_FPS,
     MINIMAX_H3_MAX_ASPECT_RATIO,
-    MINIMAX_H3_MAX_DURATION,
-    MINIMAX_H3_MAX_PIXELS,
     MINIMAX_H3_MIN_ASPECT_RATIO,
-    MINIMAX_H3_MIN_DURATION,
     align_num_frames,
     audio_latent_num_frames,
-    patchify_video_latents,
-    unpack_audio_tokens,
-    unpatchify_video_tokens,
+    # unpack_audio_tokens,
+    # unpatchify_video_tokens,
     video_latent_num_frames,
 )
+
+from diffusers.modular_pipelines.minimax_h3.before_denoise import patchify_video_latents
+
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     ModularPipelineBlocks,
@@ -357,12 +355,12 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
 
         num_frames = align_num_frames(source_shape[-3])
         duration = num_frames / MINIMAX_H3_FPS
-        if not MINIMAX_H3_MIN_DURATION <= duration <= MINIMAX_H3_MAX_DURATION:
+        if not self.modular_pipe.min_duration <= duration <= self.modular_pipe.max_duration:
             raise ValueError(
                 f"{self.driver_namespace}: Attempted to size a MiniMax-H3 request. Failed with "
                 f"num_frames={source_shape[-3]} because it snaps up to {num_frames} frames "
                 f"({duration:.3f} s at {MINIMAX_H3_FPS} fps), outside the "
-                f"{MINIMAX_H3_MIN_DURATION:g}-{MINIMAX_H3_MAX_DURATION:g} s window MiniMax-H3 "
+                f"{self.modular_pipe.max_duration:g}-{self.modular_pipe.max_duration:g} s window MiniMax-H3 "
                 f"generates. Set num_frames between {MIN_REQUESTABLE_NUM_FRAMES} and "
                 f"{MAX_REQUESTABLE_NUM_FRAMES} on the node that created this latent."
             )
@@ -384,11 +382,11 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         never enforced at all.
         """
         for name, value in (("height", height), ("width", width)):
-            if value <= 0 or value % MINIMAX_H3_CANVAS_MULTIPLE:
+            if value <= 0 or value % self.modular_pipe.canvas_multiple:
                 raise ValueError(
                     f"{self.driver_namespace}: Attempted to size a MiniMax-H3 request. Failed with "
                     f"{name}={value} because it must be a positive multiple of "
-                    f"{MINIMAX_H3_CANVAS_MULTIPLE}."
+                    f"{self.modular_pipe.canvas_multiple}."
                 )
 
         # Aspect ratio first: an extreme ratio usually also blows the pixel budget, and naming the
@@ -401,11 +399,11 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
                 f"1:4 to 4:1."
             )
 
-        if height * width > MINIMAX_H3_MAX_PIXELS:
+        if height * width > self.modular_pipe.config.canvas_max_pixels:
             raise ValueError(
                 f"{self.driver_namespace}: Attempted to size a MiniMax-H3 request. Failed with "
                 f"{width}x{height} ({height * width} pixels) because MiniMax-H3 generates at most "
-                f"{MINIMAX_H3_MAX_PIXELS} pixels. Try 1344x768 (16:9) or 960x544 for faster steps."
+                f"{self.modular_pipe.config.canvas_max_pixels} pixels. Try 1344x768 (16:9) or 960x544 for faster steps."
             )
 
     def _read_paired_audio_latents(

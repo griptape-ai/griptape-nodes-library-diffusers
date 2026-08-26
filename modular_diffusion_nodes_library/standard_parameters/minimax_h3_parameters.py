@@ -23,6 +23,14 @@ AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN = "12GB"
 
 
 class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+
+    _pipeline_cls = MiniMaxH3ModularPipeline  # type: ignore[reportAttributeAccessIssue]
+
+    @classmethod
+    def supports_build_from_overrides_only(cls) -> bool:
+        """MiniMaxH3ModularPipeline does not support overrides."""
+        return False
+
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
@@ -43,9 +51,7 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
             "model": self._node.get_parameter_value("model"),
         }
 
-    @property
-    def pipeline_class(self) -> type:
-        return MiniMaxH3ModularPipeline
+
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
@@ -73,6 +79,25 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
         # Suppresses quantization and layerwise casting, which fire before the requires_device_map
         # short-circuit. Neither is safe to apply on top of the ComponentsManager offload hooks.
         return True
+
+    @classmethod
+    def _build_pipeline_from_repo(
+        cls, build_data: dict[str, Any], overrides: dict[str, Any]
+    ) -> ModularPipeline:  # type: ignore[reportAttributeAccessIssue]
+        # `from_pretrained` resolves the component specs but loads no weights; `load_components`
+        # fetches them. Only the `t2va` / `fl2va` half is touched, never `transformer_ref/`.
+        manager = ComponentsManager()
+        pipe = ModularPipeline.from_pretrained(
+            build_data["repo_id"],
+            revision=build_data["revision"],
+            components_manager=manager,
+        )
+        pipe.load_components(dtype=torch.bfloat16)
+        manager.enable_auto_cpu_offload(
+            device=get_best_device(),
+            memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
+        )
+        return pipe
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> ModularPipeline:
