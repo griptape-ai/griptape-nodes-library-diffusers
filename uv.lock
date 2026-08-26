@@ -518,8 +518,8 @@ wheels = [
 
 [[package]]
 name = "diffusers"
-version = "0.40.0.dev0"
-source = { git = "https://github.com/huggingface/diffusers.git?rev=abc5e9bf71fd38f53cd471bc3acaa84bc5ecbfdc#abc5e9bf71fd38f53cd471bc3acaa84bc5ecbfdc" }
+version = "0.40.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
     { name = "httpx" },

@@ -85,6 +85,8 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         DiffusionPipeline._get_signature_keys) with ALLOWED_COMPONENT_SLOTS,
         preserving the priority order defined there.
         """
+        if issubclass(self._pipeline_cls, ModularPipeline):
+            return []
         all_slots, _ = self._pipeline_cls._get_signature_keys(self._pipeline_cls)  # type: ignore[reportAttributeAccessIssue]
         all_slots_set = set(all_slots)
         return [slot for slot in ALLOWED_COMPONENT_SLOTS if slot in all_slots_set]
