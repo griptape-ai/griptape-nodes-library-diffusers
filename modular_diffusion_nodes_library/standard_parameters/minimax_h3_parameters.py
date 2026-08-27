@@ -92,7 +92,7 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
             revision=build_data["revision"],
             components_manager=manager,
         )
-        pipe.load_components(dtype=torch.bfloat16)
+        pipe.load_components(workflow="fl2va",dtype=torch.bfloat16)
         manager.enable_auto_cpu_offload(
             device=get_best_device(),
             memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
@@ -109,7 +109,7 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
             revision=build_data["revision"],
             components_manager=manager,
         )
-        pipe.load_components(dtype=torch.bfloat16)
+        pipe.load_components(workflow="fl2va", dtype=torch.bfloat16)
         manager.enable_auto_cpu_offload(
             device=get_best_device(),
             memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,

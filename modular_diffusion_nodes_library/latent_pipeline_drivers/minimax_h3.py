@@ -26,23 +26,20 @@ from diffusers.modular_pipelines.minimax_h3.denoise import (  # type: ignore[rep
     MiniMaxH3LoopDenoiser,
     MiniMaxH3LoopSchedulerStep,
 )
-from diffusers.modular_pipelines.minimax_h3.modular_pipeline import (  # type: ignore[reportMissingImports]
-    MiniMaxH3ModularPipeline,
+from diffusers.modular_pipelines.minimax_h3.modular_blocks_minimax_h3 import (  # type: ignore[reportMissingImports]
+    MiniMaxH3CoreDenoiseStep,
+    MiniMaxH3FL2VACoreDenoiseStep,
 )
-from diffusers.modular_pipelines.minimax_h3.modular_pipeline import (  # type: ignore[reportMissingImports]
+from diffusers.modular_pipelines.minimax_h3.modular_pipeline import (  # type: ignore[reportMissingImports]  # type: ignore[reportMissingImports]
     MINIMAX_H3_AUDIO_CHANNELS,
     MINIMAX_H3_FPS,
     MINIMAX_H3_MAX_ASPECT_RATIO,
     MINIMAX_H3_MIN_ASPECT_RATIO,
+    MiniMaxH3ModularPipeline,
     align_num_frames,
     audio_latent_num_frames,
-    # unpack_audio_tokens,
-    # unpatchify_video_tokens,
     video_latent_num_frames,
 )
-
-from diffusers.modular_pipelines.minimax_h3.before_denoise import patchify_video_latents
-
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     ModularPipelineBlocks,
@@ -74,19 +71,22 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     resolve_conditioning_image,
     resolve_frame_index,
 )
+from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 #: Key under which the audio latent rides in this driver's namespaced ``meta`` sub-bag.
 AUDIO_LATENTS_META_KEY = "audio_latents"
 
-#: Frame counts a user can request. ``num_frames`` is snapped up to the next ``17 * n + 5`` the
-#: video VAE can decode, and the resulting duration must land in MiniMax-H3's 5-15 s window. That
-#: makes 108 the smallest usable count (snaps to 124 frames, 5.167 s) and 345 the largest
-#: (14.375 s); 346 would snap to 362, i.e. 15.083 s, which upstream rejects.
-MIN_REQUESTABLE_NUM_FRAMES = 108
+#: Valid ``num_frames`` values must satisfy two independent constraints:
+#:   1. Chunk alignment: the video VAE only encodes counts of the form ``17 * n + 5``.
+#:   2. Duration window: at MiniMax-H3's fixed 24 fps, the resulting duration must fall within
+#:      its 5-15 s generation window.
+#: 124 (5.167 s, n=7) is the smallest ``17 * n + 5`` value whose duration is >= 5 s; 345
+#: (14.375 s, n=20) is the largest whose duration is <= 15 s. The next aligned value up, 362
+#: (n=21), is 15.083 s and falls outside the window, which upstream rejects.
+MIN_REQUESTABLE_NUM_FRAMES = 124
 MAX_REQUESTABLE_NUM_FRAMES = 345
-DEFAULT_NUM_FRAMES = 124
 
 #: Fingerprint of the video latent the audio latent was denoised with. Latent math merges meta
 #: left-operand-wins over a *shallow* copy, so a summed video latent keeps the left operand's
@@ -128,17 +128,28 @@ def _unpack_video_rows(
 ) -> torch.Tensor:
     """Turn denoised video rows back into an unpacked 5-D latent, dropping conditioning rows.
 
-    Used both for the final output and for the step-end preview, which must hand the framework a
-    latent in the public shape rather than the loop's internal row layout.
+    Used only for the step-end preview: it needs the public 5-D shape mid-loop, before
+    ``MiniMaxH3AfterDenoiseStep`` (which does this same reshape for the final output) has run.
+    Reimplements the video half of ``MiniMaxH3AfterDenoiseStep.__call__``
+    (``diffusers/modular_pipelines/minimax_h3/decoders.py``) rather than calling it directly, since
+    that block also reshapes the audio stream and mutates ``block_state`` in place, which the
+    mid-loop preview must not touch.
     """
-    return unpatchify_video_tokens(
-        rows[num_condition_video_rows:],
-        num_latent_frames,
-        latent_height,
-        latent_width,
-        components.vae_latent_channels,
-        components.patch_size,
+    patch_t, patch_h, patch_w = components.patch_size
+    channels = components.vae_latent_channels
+    kept = rows[num_condition_video_rows:]
+    kept = kept.reshape(
+        -1,
+        num_latent_frames // patch_t,
+        latent_height // patch_h,
+        latent_width // patch_w,
+        channels,
+        patch_t,
+        patch_h,
+        patch_w,
     )
+    kept = kept.permute(0, 4, 1, 5, 2, 6, 3, 7)
+    return kept.reshape(-1, channels, num_latent_frames, latent_height, latent_width).contiguous()
 
 
 class _MiniMaxH3PrepareNoiseStep(ModularPipelineBlocks):
@@ -339,6 +350,106 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         return False
 
     # ------------------------------------------------------------------
+    # Dimension-alignment validation
+    # ------------------------------------------------------------------
+
+    @override
+    def _get_spatial_alignment(self) -> int:
+        return cast(MiniMaxH3ModularPipeline, self.modular_pipe).canvas_multiple
+
+    @override
+    def align_dimensions(self, height: int, width: int, num_frames: int | None = None) -> DimensionAlignmentResult:
+        pipe = cast(MiniMaxH3ModularPipeline, self.modular_pipe)
+        spatial_alignment = self._get_spatial_alignment()
+        aligned_h = self._ceil_to_alignment(height, spatial_alignment)
+        aligned_w = self._ceil_to_alignment(width, spatial_alignment)
+
+        # Aspect ratio next: grow whichever axis is deficient (never shrink) so the suggestion stays
+        # the largest canvas MiniMax-H3 will accept for the other, user-requested axis.
+        ratio = aligned_w / aligned_h
+        if ratio > MINIMAX_H3_MAX_ASPECT_RATIO:
+            aligned_h = self._ceil_to_alignment(math.ceil(aligned_w / MINIMAX_H3_MAX_ASPECT_RATIO), spatial_alignment)
+        elif ratio < MINIMAX_H3_MIN_ASPECT_RATIO:
+            aligned_w = self._ceil_to_alignment(math.ceil(aligned_h * MINIMAX_H3_MIN_ASPECT_RATIO), spatial_alignment)
+
+        # Pixel budget last: this is the one axis where "the maximum of what the pipeline suggests"
+        # means shrinking, since there is no larger canvas that still fits the budget. Scale both
+        # axes down together to preserve the now-valid ratio, then floor (not ceil) to the alignment
+        # so the result never creeps back over the budget.
+        max_pixels = pipe.config.canvas_max_pixels
+        if aligned_h * aligned_w > max_pixels:
+            scale = (max_pixels / (aligned_h * aligned_w)) ** 0.5
+            aligned_h = max(spatial_alignment, int(aligned_h * scale) // spatial_alignment * spatial_alignment)
+            aligned_w = max(spatial_alignment, int(aligned_w * scale) // spatial_alignment * spatial_alignment)
+
+        aligned_frames = num_frames
+        if num_frames is not None:
+            # Clamp into the requestable range first so the aligned value this returns is always
+            # itself a valid frame count. `align_num_frames` only rounds up to the next 17n+5 value
+            # with no notion of the 5-15s window, so an out-of-range input (e.g. 346, which rounds to
+            # 362) would otherwise "align" to a value that's still invalid.
+            clamped_frames = min(max(num_frames, MIN_REQUESTABLE_NUM_FRAMES), MAX_REQUESTABLE_NUM_FRAMES)
+            aligned_frames = align_num_frames(clamped_frames, pipe.vae_frames_per_chunk, pipe.vae_latents_per_chunk)
+
+        return DimensionAlignmentResult(aligned_h, aligned_w, aligned_frames, None)
+
+    @override
+    def validate_dimensions(self, height: int, width: int, num_frames: int | None = None) -> list[str]:
+        messages: list[str] = []
+        pipe = cast(MiniMaxH3ModularPipeline, self.modular_pipe)
+        spatial_alignment = self._get_spatial_alignment()
+        aligned = self.align_dimensions(height, width, num_frames)
+
+        if num_frames is not None:
+            # Range check first: only once num_frames is inside the requestable range is a
+            # 17n+5 rounding suggestion meaningful. Checking chunk-alignment first can suggest an
+            # equally out-of-range value (346 "rounds to" 362, which is also invalid) instead of
+            # telling the user the actual problem.
+            if num_frames < MIN_REQUESTABLE_NUM_FRAMES or num_frames > MAX_REQUESTABLE_NUM_FRAMES:
+                messages.append(
+                    f"num_frames={num_frames} is invalid: MiniMax-H3 generates between "
+                    f"{pipe.min_duration:g} and {pipe.max_duration:g} seconds at {MINIMAX_H3_FPS} fps. "
+                    f"Set num_frames between {MIN_REQUESTABLE_NUM_FRAMES} and {MAX_REQUESTABLE_NUM_FRAMES}."
+                )
+            else:
+                aligned_frames = align_num_frames(num_frames, pipe.vae_frames_per_chunk, pipe.vae_latents_per_chunk)
+                if num_frames != aligned_frames:
+                    messages.append(
+                        f"num_frames={num_frames} is invalid: must be of the form "
+                        f"{pipe.vae_frames_per_chunk} * n + {pipe.vae_latents_per_chunk}. "
+                        f"Suggested value: {aligned_frames}."
+                    )
+
+        # Ratio and pixel-budget checks only make sense once height/width are already spatially
+        # aligned, mirroring the order `align_dimensions` applies its own corrections in.
+        height_aligned = height % spatial_alignment == 0
+        width_aligned = width % spatial_alignment == 0
+        if not height_aligned:
+            messages.append(
+                f"height={height} is invalid: must be divisible by {spatial_alignment}. "
+                f"Suggested value: {aligned.height}."
+            )
+        if not width_aligned:
+            messages.append(
+                f"width={width} is invalid: must be divisible by {spatial_alignment}. Suggested value: {aligned.width}."
+            )
+
+        if height_aligned and width_aligned:
+            ratio = width / height
+            if not MINIMAX_H3_MIN_ASPECT_RATIO <= ratio <= MINIMAX_H3_MAX_ASPECT_RATIO:
+                messages.append(
+                    f"{width}x{height} (ratio {ratio:g}) is invalid: MiniMax-H3 supports aspect ratios from "
+                    f"1:4 to 4:1. Suggested value: {aligned.width}x{aligned.height}."
+                )
+            elif height * width > pipe.config.canvas_max_pixels:
+                messages.append(
+                    f"{width}x{height} ({height * width} pixels) is invalid: MiniMax-H3 generates at most "
+                    f"{pipe.config.canvas_max_pixels} pixels. Suggested value: {aligned.width}x{aligned.height}."
+                )
+
+        return messages
+
+    # ------------------------------------------------------------------
     # Geometry
     # ------------------------------------------------------------------
 
@@ -351,16 +462,25 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         """
         pipe = cast(MiniMaxH3ModularPipeline, self.modular_pipe)
         height, width = source_shape[-2], source_shape[-1]
-        self._validate_canvas(height, width)
+        requested_num_frames = source_shape[-3]
 
-        num_frames = align_num_frames(source_shape[-3])
+        # height/width/num_frames are validated up front by validate_dimensions/align_dimensions
+        # (multiple-of-32, aspect ratio, pixel budget, and 17n+5 frame alignment). This is a
+        # defensive backstop for latents that reached denoise without going through that path.
+        messages = self.validate_dimensions(height, width, requested_num_frames)
+        if messages:
+            raise ValueError(
+                f"{self.driver_namespace}: Attempted to size a MiniMax-H3 request. Failed because " + " ".join(messages)
+            )
+
+        num_frames = align_num_frames(requested_num_frames, pipe.vae_frames_per_chunk, pipe.vae_latents_per_chunk)
         duration = num_frames / MINIMAX_H3_FPS
         if not self.modular_pipe.min_duration <= duration <= self.modular_pipe.max_duration:
             raise ValueError(
                 f"{self.driver_namespace}: Attempted to size a MiniMax-H3 request. Failed with "
-                f"num_frames={source_shape[-3]} because it snaps up to {num_frames} frames "
+                f"num_frames={requested_num_frames} because it snaps up to {num_frames} frames "
                 f"({duration:.3f} s at {MINIMAX_H3_FPS} fps), outside the "
-                f"{self.modular_pipe.max_duration:g}-{self.modular_pipe.max_duration:g} s window MiniMax-H3 "
+                f"{self.modular_pipe.min_duration:g}-{self.modular_pipe.max_duration:g} s window MiniMax-H3 "
                 f"generates. Set num_frames between {MIN_REQUESTABLE_NUM_FRAMES} and "
                 f"{MAX_REQUESTABLE_NUM_FRAMES} on the node that created this latent."
             )
@@ -368,43 +488,13 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         compression = pipe.vae_spatial_compression_ratio
         return {
             "num_frames": num_frames,
-            "num_latent_frames": video_latent_num_frames(num_frames),
+            "num_latent_frames": video_latent_num_frames(
+                num_frames, pipe.vae_frames_per_chunk, pipe.vae_latents_per_chunk
+            ),
             "latent_height": height // compression,
             "latent_width": width // compression,
             "num_audio_latents": audio_latent_num_frames(num_frames),
         }
-
-    def _validate_canvas(self, height: int, width: int) -> None:
-        """Reject a canvas MiniMax-H3 cannot express.
-
-        Upstream treats an explicit ``height``/``width`` as a canvas override and skips its own
-        ``resolve_canvas_size`` checks, so these constraints have to be enforced here or they are
-        never enforced at all.
-        """
-        for name, value in (("height", height), ("width", width)):
-            if value <= 0 or value % self.modular_pipe.canvas_multiple:
-                raise ValueError(
-                    f"{self.driver_namespace}: Attempted to size a MiniMax-H3 request. Failed with "
-                    f"{name}={value} because it must be a positive multiple of "
-                    f"{self.modular_pipe.canvas_multiple}."
-                )
-
-        # Aspect ratio first: an extreme ratio usually also blows the pixel budget, and naming the
-        # ratio is the more actionable of the two messages.
-        ratio = width / height
-        if not MINIMAX_H3_MIN_ASPECT_RATIO <= ratio <= MINIMAX_H3_MAX_ASPECT_RATIO:
-            raise ValueError(
-                f"{self.driver_namespace}: Attempted to size a MiniMax-H3 request. Failed with "
-                f"{width}x{height} (ratio {ratio:g}) because MiniMax-H3 supports aspect ratios from "
-                f"1:4 to 4:1."
-            )
-
-        if height * width > self.modular_pipe.config.canvas_max_pixels:
-            raise ValueError(
-                f"{self.driver_namespace}: Attempted to size a MiniMax-H3 request. Failed with "
-                f"{width}x{height} ({height * width} pixels) because MiniMax-H3 generates at most "
-                f"{self.modular_pipe.config.canvas_max_pixels} pixels. Try 1344x768 (16:9) or 960x544 for faster steps."
-            )
 
     def _read_paired_audio_latents(
         self, latent: LatentArtifact, video_latents: torch.Tensor, *, action: str
@@ -483,11 +573,9 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         """Decode the video, and its soundtrack when the artifact still carries the audio latent."""
         pipe = cast(MiniMaxH3ModularPipeline, self.modular_pipe)
         device, _ = self._get_device_and_type()
-        geometry = self._latent_geometry(latent.source_shape)
+        self._latent_geometry(latent.source_shape)  # validates the latent's shape before decoding it
 
-        # The decode blocks take packed rows and unpatchify internally.
         latents = latent.to_torch(device=device, dtype=torch.float32)
-        video_rows = patchify_video_latents(latents, pipe.patch_size)
 
         self.last_audio = None
         self.last_sampling_rate = None
@@ -495,10 +583,7 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
 
         video_state = self._run_blocks(
             pipe.blocks.sub_blocks["decode"].sub_blocks["video"],
-            latents=video_rows,
-            num_latent_frames=geometry["num_latent_frames"],
-            latent_height=geometry["latent_height"],
-            latent_width=geometry["latent_width"],
+            latents=latents,
             output_type="pil",
         )
         video_frames = self._get_required(video_state.values, "videos", list)[0]
@@ -513,16 +598,9 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
             )
             return video_frames
 
-        audio_rows = (
-            audio_latents.to(device=device, dtype=torch.float32)
-            .permute(0, 2, 1)
-            .reshape(-1, pipe.audio_latent_channels)
-        )
         audio_state = self._run_blocks(
             pipe.blocks.sub_blocks["decode"].sub_blocks["audio"],
-            audio_latents=audio_rows,
-            num_audio_latents=geometry["num_audio_latents"],
-            output_type="pil",
+            audio_latents=audio_latents.to(device=device, dtype=torch.float32),
         )
         self.last_audio = self._get_required(audio_state.values, "audio", torch.Tensor)
         self.last_sampling_rate = self._get_required(audio_state.values, "sampling_rate", int)
@@ -639,14 +717,23 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         if audio_latents is not None:
             audio_latents = audio_latents.to(device=device, dtype=torch.float32)
 
-        prefix_blocks = dict(zip(pipe.blocks.block_names, pipe.blocks.sub_blocks.values(), strict=True))
-        prefix_blocks.pop("decode")
+        is_fl2va = "image" in update_kwargs or "last_image" in update_kwargs
+        core_denoise_cls = MiniMaxH3FL2VACoreDenoiseStep if is_fl2va else MiniMaxH3CoreDenoiseStep
+        inner_blocks = dict(core_denoise_cls().sub_blocks)
         denoise_step = _MiniMaxH3CallbackDenoiseStep()
         denoise_step.callback = callback
         denoise_step.start_step = start_step
         denoise_step.end_step = end_step
-        prefix_blocks["denoise"] = denoise_step
-        blocks = SequentialPipelineBlocks.from_blocks_dict(prefix_blocks)
+        inner_blocks["denoise"] = denoise_step
+        denoise_bundle = SequentialPipelineBlocks.from_blocks_dict(inner_blocks)
+
+        outer_blocks = {
+            "before_encode": pipe.blocks.sub_blocks["before_encode"],
+            "text_encoder": pipe.blocks.sub_blocks["text_encoder"],
+            "vae_encoder": pipe.blocks.sub_blocks["vae_encoder"],
+            "denoise": denoise_bundle,
+        }
+        blocks = SequentialPipelineBlocks.from_blocks_dict(outer_blocks)
 
         # The framework signals cancellation by setting `_interrupt` on the pipe, but only when the
         # attribute already exists — and ModularPipeline has none. The pipe is cached across runs,
@@ -664,20 +751,8 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         finally:
             pipe._interrupt = False
 
-        denoised_video_rows = self._get_required(state.values, "latents", torch.Tensor)
-        denoised_audio_rows = self._get_required(state.values, "audio_latents", torch.Tensor)
-        num_condition_video_rows = state.values.get("num_condition_video_rows", 0)
-        num_condition_audio_rows = state.values.get("num_condition_audio_rows", 0)
-
-        video_latents = _unpack_video_rows(
-            denoised_video_rows,
-            pipe,
-            num_condition_video_rows=num_condition_video_rows,
-            num_latent_frames=geometry["num_latent_frames"],
-            latent_height=geometry["latent_height"],
-            latent_width=geometry["latent_width"],
-        )
-        audio_out = unpack_audio_tokens(denoised_audio_rows[num_condition_audio_rows:], geometry["num_audio_latents"])
+        video_latents = self._get_required(state.values, "latents", torch.Tensor)
+        audio_out = self._get_required(state.values, "audio_latents", torch.Tensor)
 
         return self._make_latent_artifact(
             video_latents,
