@@ -23,7 +23,6 @@ AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN = "12GB"
 
 
 class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-
     _pipeline_cls = MiniMaxH3ModularPipeline  # type: ignore[reportAttributeAccessIssue]
 
     @classmethod
@@ -50,8 +49,6 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
         return {
             "model": self._node.get_parameter_value("model"),
         }
-
-
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
@@ -81,9 +78,7 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
         return True
 
     @classmethod
-    def _build_pipeline_from_repo(
-        cls, build_data: dict[str, Any], overrides: dict[str, Any]
-    ) -> ModularPipeline:  # type: ignore[reportAttributeAccessIssue]
+    def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> ModularPipeline:  # type: ignore[reportAttributeAccessIssue]
         # `from_pretrained` resolves the component specs but loads no weights; `load_components`
         # fetches them. Only the `t2va` / `fl2va` half is touched, never `transformer_ref/`.
         manager = ComponentsManager()
@@ -92,12 +87,12 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
             revision=build_data["revision"],
             components_manager=manager,
         )
-        pipe.load_components(dtype=torch.bfloat16)
+        pipe.load_components(workflow="fl2va", dtype=torch.bfloat16)
         manager.enable_auto_cpu_offload(
             device=get_best_device(),
             memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
         )
-        return pipe
+        return pipe  # type: ignore[reportReturnType]
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> ModularPipeline:
@@ -109,9 +104,9 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
             revision=build_data["revision"],
             components_manager=manager,
         )
-        pipe.load_components(dtype=torch.bfloat16)
+        pipe.load_components(workflow="fl2va", dtype=torch.bfloat16)
         manager.enable_auto_cpu_offload(
             device=get_best_device(),
             memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
         )
-        return pipe
+        return pipe  # type: ignore[reportReturnType]
