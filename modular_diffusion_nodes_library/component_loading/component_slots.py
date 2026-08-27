@@ -66,6 +66,20 @@ def slot_component_kind(slot: str) -> str:
     return re.sub(r"_\d+$", "", slot)
 
 
+def component_config_filename(component: str) -> str:
+    """Return the config filename a component's directory uses.
+
+    Tokenizers ship a ``tokenizer_config.json`` and schedulers a
+    ``scheduler_config.json``; every other component uses ``config.json``.
+    """
+    kind = slot_component_kind(component)
+    if kind == "tokenizer":
+        return "tokenizer_config.json"
+    if kind == "scheduler":
+        return "scheduler_config.json"
+    return "config.json"
+
+
 def slot_artifact_type_name(slot: str) -> str:
     """Derive the artifact type name for a given slot.
 

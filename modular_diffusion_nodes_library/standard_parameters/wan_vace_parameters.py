@@ -51,7 +51,7 @@ class WanVacePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         repo_id, revision = self._resolve_repo(self._model_repo_parameter)
 
         return {
-            "repo_id": repo_id,
+            "base_repo_id": repo_id,
             "revision": revision,
         }
 
@@ -62,8 +62,9 @@ class WanVacePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     def _build_pipeline_from_repo(
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> diffusers.WanVACEPipeline:  # type: ignore[reportAttributeAccessIssue]
+        repo_id = build_data["base_repo_id"]
         return diffusers.WanVACEPipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
-            pretrained_model_name_or_path=build_data["repo_id"],
+            pretrained_model_name_or_path=repo_id,
             revision=build_data["revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,

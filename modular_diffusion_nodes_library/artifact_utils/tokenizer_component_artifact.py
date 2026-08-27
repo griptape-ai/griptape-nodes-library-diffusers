@@ -22,16 +22,13 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 class TokenizerComponentArtifact(ModelComponentArtifact):
     """Descriptor for a tokenizer component loaded via diffusers."""
 
-    @override
-    def materialize(self, *, pipeline_cls: type, slot: str | None = None) -> Any:
+    def __post_init__(self) -> None:
         if self.source_type == ComponentSourceType.SINGLE_FILE:
             msg = (
-                f"Attempted to materialize {self.component}. "
-                f"Failed because single-file loading is not supported for tokenizer components. "
+                f"{self.component}: single-file loading is not supported for tokenizer components. "
                 f"Use Local Folder or HuggingFace Repo source type."
             )
             raise ValueError(msg)
-        return super().materialize(pipeline_cls=pipeline_cls, slot=slot)
 
     @override
     def _materialize_hf_repo(self, *, pipeline_cls: type, effective_slot: str) -> Any:

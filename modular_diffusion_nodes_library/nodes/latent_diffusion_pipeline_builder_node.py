@@ -1,14 +1,19 @@
 import logging
 from typing import Any, ClassVar
 
-from griptape_nodes.exe_types.core_types import Parameter
-from griptape_nodes.exe_types.node_types import AsyncResult, NodeResolutionState, SuccessFailureNode
+from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage
+from griptape_nodes.exe_types.node_types import AsyncResult, BaseNode, NodeResolutionState, SuccessFailureNode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     BasePipelineIdentity,
     DiffusionPipelineArtifact,
     normalize_diffusion_pipeline_value,
+)
+from modular_diffusion_nodes_library.component_loading.component_compatibility import (
+    ComponentCompatibilityFinding,
+    FindingCategory,
+    evaluate_component_compatibility,
 )
 from modular_diffusion_nodes_library.mixins.parameter_connection_preservation_mixin import (
     ParameterConnectionPreservationMixin,
@@ -37,6 +42,13 @@ class LatentDiffusionPipelineBuilderNode(
     START_PARAMS: ClassVar = ["pipeline", "provider"]
     END_PARAMS: ClassVar = ["component_overrides", "loras", "Status", "logs"]
 
+    # Severity policy: component-compatibility findings in these categories block
+    # the build (returned as validation errors); all others are surfaced as a
+    # non-blocking warning.
+    _BLOCKING_FINDING_CATEGORIES: ClassVar = frozenset(
+        {FindingCategory.VAE_DENOISER_CHANNELS, FindingCategory.TEXT_ENCODER_DENOISER_DIM}
+    )
+
     def __init__(self, **kwargs) -> None:
         self._initializing = True
         super().__init__(**kwargs)
@@ -53,6 +65,24 @@ class LatentDiffusionPipelineBuilderNode(
 
         self._create_status_parameters()
         self.log_params.add_output_parameters()
+
+        self._compatibility_error = ParameterMessage(
+            name="component_compatibility_error",
+            variant="error",
+            title="Compatibility Errors",
+            value="",
+            hide=True,
+        )
+        self.add_node_element(self._compatibility_error)
+
+        self._compatibility_warning = ParameterMessage(
+            name="component_compatibility_warning",
+            variant="warning",
+            title="Compatibility Warnings",
+            value="",
+            hide=True,
+        )
+        self.add_node_element(self._compatibility_warning)
 
         self._initializing = False
         self.params.refresh_component_override_ports(initial_setup=True)
@@ -244,12 +274,97 @@ class LatentDiffusionPipelineBuilderNode(
         self.huggingface_pipeline_params.after_value_set(parameter, value)
         if parameter.name != "pipeline":
             self.set_pipeline_artifact()
+        if parameter.name.startswith("component_"):
+            self._run_compatibility_checks()
+
+    def after_incoming_connection_removed(
+        self,
+        source_node: BaseNode,
+        source_parameter: Parameter,
+        target_parameter: Parameter,
+    ) -> None:
+        super().after_incoming_connection_removed(source_node, source_parameter, target_parameter)
+        # Refresh compatibility findings here to avoid stale UI messages.
+        if target_parameter.name.startswith("component_"):
+            self._run_compatibility_checks()
+
+    def _compute_compatibility_findings(
+        self,
+    ) -> tuple[list[ComponentCompatibilityFinding], list[ComponentCompatibilityFinding]]:
+        findings = self._evaluate_component_compatibility()
+        blocking = [f for f in findings if self._is_blocking_finding(f)]
+        advisory = [f for f in findings if not self._is_blocking_finding(f)]
+        return blocking, advisory
+
+    def _run_compatibility_checks(
+        self,
+    ) -> tuple[list[ComponentCompatibilityFinding], list[ComponentCompatibilityFinding]]:
+        blocking, advisory = self._compute_compatibility_findings()
+        self._surface_component_findings(blocking, advisory)
+        return blocking, advisory
+
+    def _evaluate_component_compatibility(self) -> list[ComponentCompatibilityFinding]:
+        overrides = self.params.component_override_params.get_component_overrides()
+        if not overrides:
+            return []
+
+        pipeline_params = self.params.pipeline_type_parameters.pipeline_type_pipeline_params
+        if pipeline_params is None:
+            return []
+        pipeline_cls = pipeline_params.pipeline_cls()
+
+        if self._build_pipeline_from_component_overrides_only():
+            base_repo_id = None
+            base_revision = None
+        else:
+            try:
+                build_data = pipeline_params.get_build_data()
+                base_repo_id = build_data.get("base_repo_id")
+                base_revision = build_data.get("base_revision") or build_data.get("revision")
+            except Exception:
+                base_repo_id = None
+                base_revision = None
+
+        return evaluate_component_compatibility(
+            overrides,
+            pipeline_cls,
+            base_repo_id,
+            base_revision=base_revision,
+            pipeline_params_cls=type(pipeline_params),
+        )
+
+    @staticmethod
+    def _set_compatibility_message(message: ParameterMessage, findings: list[ComponentCompatibilityFinding]) -> None:
+        """Populate or hide a compatibility message element for a finding list."""
+        if findings:
+            message.value = "\n\n".join(str(finding) for finding in findings)
+            message.hide = False
+        else:
+            message.value = ""
+            message.hide = True
+
+    def _surface_component_findings(
+        self,
+        blocking: list[ComponentCompatibilityFinding],
+        advisory: list[ComponentCompatibilityFinding],
+    ) -> None:
+        """Show blocking and advisory compatibility findings in separate UI message elements."""
+        self._set_compatibility_message(self._compatibility_error, blocking)
+        self._set_compatibility_message(self._compatibility_warning, advisory)
+
+    def _is_blocking_finding(self, finding: ComponentCompatibilityFinding) -> bool:
+        """Return whether this builder should treat a finding as blocking."""
+        return finding.category in self._BLOCKING_FINDING_CATEGORIES
 
     def validate_before_node_run(self) -> list[Exception] | None:
         if not self._build_pipeline_from_component_overrides_only():
             result = self.params.pipeline_type_parameters.pipeline_type_pipeline_params.validate_before_node_run()
             if result is not None:
                 return result
+
+        blocking, _ = self._compute_compatibility_findings()
+        if blocking:
+            return [ValueError(str(f)) for f in blocking]
 
         try:
             self.get_pipeline_artifact_or_raise()

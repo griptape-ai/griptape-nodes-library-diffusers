@@ -15,6 +15,12 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 class FluxKontextPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls = diffusers.FluxKontextPipeline  # type: ignore[reportAttributeAccessIssue]
+    text_conditioning_target_dim_key = "joint_attention_dim"
+    latent_packing_ratio = 4
+
+    @classmethod
+    def text_conditioning_width(cls, resolve_config) -> int | None:
+        return cls._extract_text_conditioning_width(resolve_config("text_encoder_2"))
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)

@@ -15,6 +15,12 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 class StableDiffusion3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls = diffusers.StableDiffusion3Img2ImgPipeline  # type: ignore[reportAttributeAccessIssue]
+    text_conditioning_target_dim_key = "joint_attention_dim"
+
+    @classmethod
+    def text_conditioning_width(cls, resolve_config) -> int | None:
+        # joint_attention_dim matches T5 (text_encoder_3); CLIP-L/CLIP-G are padded to it.
+        return cls._extract_text_conditioning_width(resolve_config("text_encoder_3"))
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
@@ -51,7 +57,7 @@ class StableDiffusion3PipelineParameters(ModularDiffusionPipelineTypePipelinePar
     def get_build_data(self) -> dict[str, Any]:
         repo_id, revision = self._resolve_repo(self._huggingface_repo_parameter)
         return {
-            "repo_id": repo_id,
+            "base_repo_id": repo_id,
             "revision": revision,
         }
 
@@ -59,8 +65,9 @@ class StableDiffusion3PipelineParameters(ModularDiffusionPipelineTypePipelinePar
     def _build_pipeline_from_repo(
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> diffusers.StableDiffusion3Img2ImgPipeline:  # type: ignore[reportAttributeAccessIssue]
+        repo_id = build_data["base_repo_id"]
         return cls._pipeline_cls.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
-            pretrained_model_name_or_path=build_data["repo_id"],
+            pretrained_model_name_or_path=repo_id,
             revision=build_data["revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,

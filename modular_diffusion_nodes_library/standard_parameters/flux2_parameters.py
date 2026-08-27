@@ -23,6 +23,18 @@ FLUX_2_REPO_IDS = [*QUANTIZED_FLUX_2_REPO_IDS, "black-forest-labs/FLUX.2-dev", "
 
 class Flux2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls = diffusers.Flux2Pipeline  # type: ignore[reportAttributeAccessIssue]
+    latent_packing_ratio = 4
+    text_conditioning_target_dim_key = "joint_attention_dim"
+    # Flux.2 conditions on a concat of 3 text-encoder hidden-state layers, so
+    # joint_attention_dim == 3 * text_encoder hidden_size.
+    _text_encoder_hidden_state_layers = 3
+
+    @classmethod
+    def text_conditioning_width(cls, resolve_config) -> int | None:
+        hidden = cls._extract_text_conditioning_width(resolve_config("text_encoder"))
+        if hidden is None:
+            return None
+        return hidden * cls._text_encoder_hidden_state_layers
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
