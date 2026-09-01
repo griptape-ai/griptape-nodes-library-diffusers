@@ -63,7 +63,6 @@ The exact list depends on the connected pipeline. Common parameters:
 
 - **ControlNet:** when `pipeline` is a `ControlNetDiffusionPipelineArtifact`, the `controlnet_parameters` input is added automatically.
 - **Inpainting:** when `input_latent` is an `InpaintMaskArtifact` (from [Encode Masked Media Latent](encode_masked_media_latent.md)), the node automatically routes through the inpaint pipeline class and uses the artifact's `strength`.
-- **LTX-2.3 IC-LoRA and HDR:** `reference_conditions` accepts `Media Gen Conditioning`, `ImageUrlArtifact`, and `VideoUrlArtifact`; images are passed to Diffusers as still-image references.
 
 ## Tips & pitfalls
 

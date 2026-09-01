@@ -621,22 +621,14 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
         reference_conditions: list[LTX2HDRReferenceCondition] = []
         for payload in media_gen_conditioning_payloads:
-            if payload.mode is ConditioningMode.VIDEO:
-                entry = payload.entries[0]
-                frames = resolve_conditioning_video(entry.artifact)
-                frames = resize_frames_scale_to_fill(frames, target_height, target_width)
-                reference_conditions.append(LTX2HDRReferenceCondition(frames=frames, strength=entry.strength))
-                continue
+            if payload.mode is not ConditioningMode.VIDEO:
+                msg = f"Failed to build LTX2 HDR conditioning because mode '{payload.mode.value}' is unsupported."
+                raise ValueError(msg)
 
-            if payload.mode is ConditioningMode.IMAGE:
-                for entry in payload.entries:
-                    image = resolve_conditioning_image(entry.artifact)
-                    image = resize_frames_scale_to_fill([image], target_height, target_width)[0]
-                    reference_conditions.append(LTX2HDRReferenceCondition(frames=image, strength=entry.strength))
-                continue
-
-            msg = f"Failed to build LTX2 HDR conditioning because mode '{payload.mode.value}' is unsupported."
-            raise ValueError(msg)
+            entry = payload.entries[0]
+            frames = resolve_conditioning_video(entry.artifact)
+            frames = resize_frames_scale_to_fill(frames, target_height, target_width)
+            reference_conditions.append(LTX2HDRReferenceCondition(frames=frames, strength=entry.strength))
 
         return reference_conditions
 
@@ -683,19 +675,12 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
         reference_conditions: list[LTX2ReferenceCondition] = []
         for payload in media_gen_conditioning_payloads:
-            if payload.mode is ConditioningMode.VIDEO:
-                entry = payload.entries[0]
-                frames = resolve_conditioning_video(entry.artifact)
-                reference_conditions.append(LTX2ReferenceCondition(frames=frames, strength=entry.strength))
-                continue
+            if payload.mode is not ConditioningMode.VIDEO:
+                msg = f"Failed to build LTX2 IC-LoRA conditioning because mode '{payload.mode.value}' is unsupported."
+                raise ValueError(msg)
 
-            if payload.mode is ConditioningMode.IMAGE:
-                for entry in payload.entries:
-                    image = resolve_conditioning_image(entry.artifact)
-                    reference_conditions.append(LTX2ReferenceCondition(frames=image, strength=entry.strength))
-                continue
-
-            msg = f"Failed to build LTX2 IC-LoRA conditioning because mode '{payload.mode.value}' is unsupported."
-            raise ValueError(msg)
+            entry = payload.entries[0]
+            frames = resolve_conditioning_video(entry.artifact)
+            reference_conditions.append(LTX2ReferenceCondition(frames=frames, strength=entry.strength))
 
         return reference_conditions
