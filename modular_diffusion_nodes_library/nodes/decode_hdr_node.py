@@ -106,9 +106,17 @@ class DecodeHdrNode(VaeDecodeNode):
         self.progress_bar_component.reset()
         super()._decode()
 
-    def _encode_video_output(self, output: Any, dest_path: Path, fps: int) -> None:
+    def _encode_video_output(
+        self,
+        output: Any,
+        dest_path: Path,
+        fps: int,
+        *,
+        audio: Any = None,
+        audio_sample_rate: int | None = None,
+    ) -> None:
         if not isinstance(output, np.ndarray):
-            super()._encode_video_output(output, dest_path, fps)
+            super()._encode_video_output(output, dest_path, fps, audio=audio, audio_sample_rate=audio_sample_rate)
             return
 
         frames = output[0]

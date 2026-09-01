@@ -5,8 +5,9 @@
 Category: `ModularDiffusion/Encode\Decode`
 
 ## TL;DR
-- Output is **dynamic**: `output_image` for image pipelines, `output_video` (+ `fps`) for video pipelines (LTX, LTX2, WAN). It swaps automatically when you connect a `pipeline`.
+- Output is **dynamic**: `output_image` for image pipelines, `output_video` (+ `fps`) for video pipelines (LTX, LTX2, WAN, HunyuanVideo 1.5, MiniMax-H3). It swaps automatically when you connect a `pipeline`.
 - Almost always the last node in the flow. Connect to a Save Image / Save Video node downstream.
+- **MiniMax-H3 videos come out with sound.** The soundtrack is generated jointly with the picture and muxed into the same MP4 here. Connect Generate Media Latents **directly** to this node.
 
 ## Typical workflow position
 ```text
@@ -35,7 +36,27 @@ Generate Media Latents → [Decode Media Latent] → Save Image / Save Video
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `fps` | int (1–120) | `25` | Output frame rate. **Only shown for video pipelines.** |
+| `fps` | int (1–120) | model's native rate | Output frame rate. **Only shown for video pipelines.** Defaults to the rate the selected model generates at (LTX 25, MiniMax-H3 24, WAN 16, HunyuanVideo 1.5 15), so leaving it alone plays back at the correct speed. |
+
+## Provider / model behavior
+
+| Provider | Behavior |
+| --- | --- |
+| Image pipelines | `output_image` as an `ImageArtifact`. |
+| LTX, LTX2, WAN, HunyuanVideo 1.5 | `output_video` as a silent MP4 at `fps`. |
+| MiniMax-H3 | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. `fps` defaults to the model's fixed **24** — changing it desynchronises the soundtrack, since the audio is muxed at its own true sample rate. |
+
+### MiniMax-H3: keep the edge direct
+
+MiniMax-H3's audio latent travels in the latent's *metadata*, not in its tensor. Only a direct
+`Generate Media Latents → Decode Media Latent` edge preserves it:
+
+- **Empty Latents, Save/Load Latent Tensor** drop the audio metadata. Decoding still works and
+  produces a silent video, with a warning in the logs.
+- **Add / Subtract / Multiply Latents, Latents Composite Mask, Latent Upsampler** are worse: they
+  change the video latent but carry the *old* audio latent through unchanged. This node detects that
+  mismatch and **fails with an error** rather than muxing a soundtrack that no longer matches the
+  picture.
 
 ## Tips & pitfalls
 
