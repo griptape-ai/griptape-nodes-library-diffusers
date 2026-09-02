@@ -38,7 +38,7 @@ Category: `ModularDiffusion/Pipeline`
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `provider` | choice | `Flux`, `Flux2`, `Stable Diffusion`, `Stable Diffusion 3`, `Qwen`, `Z-Image`, `HunyuanVideo 1.5`, `LTX`, `LTX2`, `WAN`. Changing this swaps every parameter below. |
+| `provider` | choice | `Flux`, `Flux2`, `Stable Diffusion`, `Stable Diffusion 3`, `Qwen`, `Z-Image`, `HunyuanVideo 1.5`, `LTX`, `LTX2`, `MiniMax-H3`, `WAN`. Changing this swaps every parameter below. |
 | `pipeline_type` | choice | Per-provider pipeline class (e.g. `FluxPipeline`, `WanImageToVideoPipeline`). Determines what the pipeline can do. |
 | `<model repo>` | HF repo picker | Hugging Face repo ID. Diffusers-format only — single-file `.safetensors` checkpoints are not loaded directly. Models your license does not permit are shown but marked unavailable. |
 
@@ -54,6 +54,12 @@ Category: `ModularDiffusion/Pipeline`
 | `quantization_mode` | choice | `None` | `fp8` / `int8` / `int4` (via `optimum-quanto` / `bitsandbytes`). Shrinks transformer weights at the cost of some quality. |
 
 Enable only what you need — each option trades speed for memory.
+
+### Provider / model behavior
+
+| Provider | Behavior |
+| --- | --- |
+| MiniMax-H3 | The **Memory optimization** knobs above are ignored. MiniMax-H3 is a Modular Diffusers pipeline whose transformer (61.7 GB in bfloat16) and Qwen3-VL conditioner (62.1 GB) cannot be placed by the post-load optimizer, so the builder loads it in bfloat16 and registers the components for automatic CPU offload instead. Expect a single 80 GB accelerator plus ample host RAM. LoRAs are not supported. |
 
 ## Tips & pitfalls
 

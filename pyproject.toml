@@ -12,7 +12,7 @@ dependencies = [
     "beautifulsoup4>=4.13.4",
     "controlnet-aux>=0.0.9",
     "static-ffmpeg>=2.8",
-    "diffusers==0.39.0",
+    "diffusers==0.40.0",
     "imageio[ffmpeg]>=2.37.2",
     "ninja>=1.13.0",
     "numpy>=2.2.4",

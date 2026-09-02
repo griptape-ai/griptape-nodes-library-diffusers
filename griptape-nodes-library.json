@@ -48,7 +48,7 @@
                 "beautifulsoup4>=4.13.4",
                 "controlnet-aux>=0.0.9",
                 "static-ffmpeg>=2.8",
-                "diffusers==0.39.0",
+                "diffusers==0.40.0",
                 "imageio[ffmpeg]>=2.37.2",
                 "ninja>=1.13.0",
                 "numpy>=2.2.4",
@@ -681,6 +681,19 @@
                                 "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 spatial upsampler; inherits the LTX-Video Open Weights License."
                             }
                         }
+                    },
+                    "minimax": {
+                        "display_name": "MiniMax AI",
+                        "terms_url": "https://huggingface.co/MiniMaxAI",
+                        "models": {
+                            "md_minimax_h3": {
+                                "display_name": "MiniMax-H3",
+                                "provider_model_id": "MiniMaxAI/MiniMax-H3",
+                                "family": "MiniMax H3",
+                                "key_support": "REQUIRES_CUSTOMER_KEY",
+                                "notes": "Gated repo under the MiniMax H3 Community License Agreement; requires accepting the license and an HF token."
+                            }
+                        }
                     }
                 }
             }
@@ -732,6 +745,7 @@
                             "md_ltx_video_0_9_7_dev",
                             "md_ltx_video_0_9_7_distilled",
                             "md_ltx_video_0_9_8_13b_distilled",
+                            "md_minimax_h3",
                             "md_qwen_image",
                             "md_qwen_image_edit",
                             "md_qwen_image_edit_2509",
