@@ -73,7 +73,7 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             accepted_modes=(ConditioningMode.IMAGE, ConditioningMode.VIDEO),
             badge_title="IC-LoRA reference conditions",
             badge_message=(
-                "Connect one or more images or video clips here as In Context LoRA reference conditions.\n\n"
+                "Connect one or more video clips here as In Context LoRA reference conditions.Supports also one single image input for SDR to HDR conversion\n\n"
                 "Each reference allows the IC-LoRA adapter to condition generation on the content. "
                 "Use **Media conditions** for inserting frames at specific positions; use this input for "
                 "the IC-LoRA style/content reference."
