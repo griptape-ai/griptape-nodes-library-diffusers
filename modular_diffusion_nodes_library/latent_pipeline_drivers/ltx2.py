@@ -320,6 +320,8 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=torch.float32)
 
+        diffusion_decoder = getattr(self.pipe, "diffusion_decoder", None)
+
         if self.pipe.vae.config.timestep_conditioning:
             timestep = torch.zeros(latents.shape[0], device=device, dtype=dtype)
         else:
@@ -334,7 +336,12 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         latents = latents.to(device=device, dtype=dtype)
 
         with torch.no_grad():
-            video = self.pipe.vae.decode(latents, timestep, return_dict=False)[0]
+            if diffusion_decoder is not None:
+                generator_state = GeneratorState.from_artifact(latent)
+                generator = generator_state.to_generator() if generator_state is not None else None
+                video = diffusion_decoder.decode(latents, generator=generator, return_dict=False)[0]
+            else:
+                video = self.pipe.vae.decode(latents, timestep, return_dict=False)[0]
 
         if self._latent_was_produced_for_hdr(latent):
             # HDR IC-LoRA path: return raw linear HDR for encode_hdr_tensor_to_mp4 in vae_decoder.
