@@ -337,6 +337,9 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
         with torch.no_grad():
             if diffusion_decoder is not None:
+                # Not a registered pipeline component (see ltx25_parameters.py), so pipe.to()/
+                # CPU offload never move it — place it explicitly before use.
+                diffusion_decoder = diffusion_decoder.to(device=device, dtype=dtype)
                 generator_state = GeneratorState.from_artifact(latent)
                 generator = generator_state.to_generator() if generator_state is not None else None
                 video = diffusion_decoder.decode(latents, generator=generator, return_dict=False)[0]

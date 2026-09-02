@@ -100,16 +100,17 @@ class _LTX25PipelineParametersBase(ModularDiffusionPipelineTypePipelineParameter
             local_files_only=True,
             **overrides,
         )
-        diffusion_decoder = LTX2VideoDiffusionDecoderModel.from_pretrained(
+        # Plain attribute, not register_modules: LTX2Pipeline.__init__ has no diffusion_decoder
+        # parameter, so registering it would add a config key with no matching signature key and
+        # break the `pipe.components` invariant diffusers checks internally (raises ValueError).
+        # LTX2PipelineDriver.decode_latent places it on the correct device/dtype before use.
+        pipe.diffusion_decoder = LTX2VideoDiffusionDecoderModel.from_pretrained(
             pretrained_model_name_or_path=base_repo_id,
             subfolder="diffusion_decoder",
             revision=base_revision,
             torch_dtype=torch.bfloat16,
             local_files_only=True,
         )
-        # register_modules (not a plain attribute) so pipe.to(device), CPU offload, and
-        # quantization treat diffusion_decoder like any other pipeline component.
-        pipe.register_modules(diffusion_decoder=diffusion_decoder)
         return pipe
 
 
