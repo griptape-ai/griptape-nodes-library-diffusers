@@ -8,7 +8,10 @@ from griptape_nodes.retained_mode.events.parameter_events import RemoveParameter
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from PIL.Image import Image, Resampling
 
-from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
+    DiffusionPipelineArtifact,
+    normalize_diffusion_pipeline_value,
+)
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     GeneratorState,
@@ -18,6 +21,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
+from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
 from modular_diffusion_nodes_library.utils.video_utils import load_video_frames_from_url_artifact
@@ -122,6 +126,10 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         if param_name == "pipeline":
             self._update_input_parameter()
 
+        fires_reactively = param_name in ("pipeline", "image", "input_video")
+        if initial_setup and fires_reactively:
+            self.after_value_set(parameter, value)
+
     def _update_input_parameter(self) -> None:
         driver_cls = get_driver_class(self.pipe_params.get_pipeline_class())
         if driver_cls is None:
@@ -162,6 +170,11 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         self._current_input_type = new_input_type
 
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        super().after_value_set(parameter, value)
+        if parameter.name in ("pipeline", "image", "input_video"):
+            self._update_compatibility_message(build_if_needed=False)
+
     def validate_before_node_run(self) -> list[Exception] | None:
         errors: list[Exception] = []
 
@@ -172,21 +185,23 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         if self._current_input_type == "video":
             if self.get_parameter_value("input_video") is None:
                 errors.append(ValueError("Missing required 'input_video' input."))
+            else:
+                dimension_result = self._update_compatibility_message(build_if_needed=True)
+                auto_resize = GriptapeNodes.ConfigManager().get_config_value(
+                    "modular_diffusion_library.enable_auto_resize"
+                )
+                if dimension_result is not None and not auto_resize and dimension_result.message:
+                    errors.append(ValueError(dimension_result.message))
         else:
             if self.get_parameter_value("image") is None:
                 errors.append(ValueError("Missing required 'image' input."))
             else:
-                pipe = self.pipe_params.get_pipeline()
-                if pipe is not None:
-                    auto_resize = GriptapeNodes.ConfigManager().get_config_value(
-                        "modular_diffusion_library.enable_auto_resize"
-                    )
-                    image = self.get_input_image()
-                    driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
-                    result = snap_dimensions(driver, image.height, image.width)
-                    self._set_compatibility_message(result.message)
-                    if not auto_resize and result.message:
-                        errors.append(ValueError(result.message))
+                dimension_result = self._update_compatibility_message(build_if_needed=True)
+                auto_resize = GriptapeNodes.ConfigManager().get_config_value(
+                    "modular_diffusion_library.enable_auto_resize"
+                )
+                if dimension_result is not None and not auto_resize and dimension_result.message:
+                    errors.append(ValueError(dimension_result.message))
 
         return errors or None
 
@@ -208,15 +223,10 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         latents_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
 
-        auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
         result = snap_dimensions(latents_pipeline_driver, image.height, image.width)
-        self._set_compatibility_message(result.message)
         if result.message:
-            if auto_resize:
-                logger.warning(result.message)
-                image = image.resize((result.width, result.height), Resampling.LANCZOS)
-            else:
-                raise ValueError(result.message)
+            logger.warning(result.message)
+            image = image.resize((result.width, result.height), Resampling.LANCZOS)
 
         image_tensor = pipe.image_processor.preprocess(image)
         if isinstance(image_tensor, (list, tuple)):
@@ -249,16 +259,11 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         num_frames = len(frames_rgb)
         h, w = frames_rgb[0].height, frames_rgb[0].width
 
-        auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
         result = snap_dimensions(latents_pipeline_driver, h, w, num_frames)
-        self._set_compatibility_message(result.message)
         if result.message:
-            if auto_resize:
-                logger.warning(result.message)
-                frames_rgb = [f.resize((result.width, result.height)) for f in frames_rgb]
-                h, w = result.height, result.width
-            else:
-                raise ValueError(result.message)
+            logger.warning(result.message)
+            frames_rgb = [f.resize((result.width, result.height)) for f in frames_rgb]
+            h, w = result.height, result.width
 
         source_shape = (1, 3, num_frames, h, w)
 
@@ -279,6 +284,53 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             image_artifact = load_image_from_url_artifact(image_artifact)
 
         return image_artifact_to_pil(image_artifact).convert("RGB")
+
+    def _update_compatibility_message(self, *, build_if_needed: bool = False):
+        pipeline_value = self.get_parameter_value("pipeline")
+        if pipeline_value is None or not isinstance(pipeline_value, DiffusionPipelineArtifact):
+            self._set_compatibility_message(None)
+            return None
+
+        pipeline_class = self.pipe_params.get_pipeline_class()
+        if get_driver_class(pipeline_class) is None:
+            self._set_compatibility_message(None)
+            return None
+
+        if not build_if_needed:
+            if not pipeline_value.config_hash or not model_cache.has_pipeline(pipeline_value.config_hash):
+                self._set_compatibility_message(None)
+                return None
+
+        if self._current_input_type == "video":
+            video_artifact = self.get_parameter_value("input_video")
+            if video_artifact is None:
+                self._set_compatibility_message(None)
+                return None
+
+            frames = load_video_frames_from_url_artifact(video_artifact)
+            if not frames:
+                self._set_compatibility_message(None)
+                return None
+
+            num_frames = len(frames)
+            height = frames[0].height
+            width = frames[0].width
+            pipe = self.pipe_params.get_pipeline()
+            driver = create_driver(pipe, pipeline_class)
+            result = snap_dimensions(driver, height, width, num_frames)
+            self._set_compatibility_message(result.message)
+            return result
+
+        if self.get_parameter_value("image") is None:
+            self._set_compatibility_message(None)
+            return None
+
+        image = self.get_input_image()
+        pipe = self.pipe_params.get_pipeline()
+        driver = create_driver(pipe, pipeline_class)
+        result = snap_dimensions(driver, image.height, image.width)
+        self._set_compatibility_message(result.message)
+        return result
 
     def _set_compatibility_message(self, message_str: str | None) -> None:
         if message_str:
