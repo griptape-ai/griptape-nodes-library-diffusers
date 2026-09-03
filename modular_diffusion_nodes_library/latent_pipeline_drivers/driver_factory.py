@@ -16,6 +16,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.hunyuan_video1_5_i2
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.ltx import LTXLatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.ltx2 import LTX2PipelineDriver
+from modular_diffusion_nodes_library.latent_pipeline_drivers.ltx25 import LTX25LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.minimax_h3 import MiniMaxH3LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.qwen import QwenLatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.qwen_edit import QwenEditLatentPipelineDriver
@@ -41,6 +42,7 @@ _DRIVER_REGISTRY: dict[str, type[LatentPipelineDriver]] = {
     "Flux2Pipeline": Flux2LatentPipelineDriver,
     "Flux2KleinPipeline": Flux2KleinLatentPipelineDriver,
     "LTX2Pipeline": LTX2PipelineDriver,
+    "LTX25ModularPipeline": LTX25LatentPipelineDriver,
     "MiniMaxH3ModularPipeline": MiniMaxH3LatentPipelineDriver,
     "QwenImagePipeline": QwenLatentPipelineDriver,
     "QwenImageEditPipeline": QwenEditLatentPipelineDriver,

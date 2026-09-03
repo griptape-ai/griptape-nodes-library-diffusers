@@ -254,10 +254,15 @@ class LatentLTX2PipelineTypeParameters(LatentPipelineTypeParameters):
             "- `LTX2Pipeline` — Text-to-video and image-to-video generation (Lightricks LTX-Video 2.x).\n\n"
             "Supports HDR output via the Decode HDR node. "
             "Frame count must be a multiple of 8, plus 1 (e.g. 9, 17, 25, 33, 41…).\n\n"
-            "- `LTX-2.5 Distilled` / `LTX-2.5 Full (SFT)` — Same `LTX2Pipeline`, built from the single gated "
+            "- `LTX-2.5 Distilled` / `LTX-2.5 Full (SFT)` — Fully modular pipeline built from the single gated "
             "`Lightricks/LTX-2.5-Diffusers` repo. Distilled loads the `transformer` subfolder; Full (SFT) loads "
-            "`transformer_full`. Both always decode through the diffusion decoder (`diffusion_decoder` "
-            "subfolder), never the plain VAE."
+            "`transformer_full` and re-enables dynamic scheduler shifting. Both decode through the diffusion "
+            "decoder. Both generate a soundtrack jointly with the video — connect Generate Media "
+            "Latents directly to Decode Media Latent so the audio latent (carried in the latent's metadata) "
+            "isn't dropped by latent math, composite, upsampler or save/load nodes. Multi-keyframe "
+            "conditioning and IC-LoRA reference-video conditioning both run natively; HDR IC-LoRA output "
+            "still runs through a fixed (non-modular) pipeline since diffusers has no modular blocks for it, "
+            "and produces no audio."
         )
 
     @classmethod

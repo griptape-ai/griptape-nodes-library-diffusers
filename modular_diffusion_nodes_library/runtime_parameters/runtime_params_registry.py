@@ -81,6 +81,7 @@ _RUNTIME_PARAMS_REGISTRY: dict[str, type[DiffusionPipelineRuntimeParameters]] = 
     "HunyuanVideo15ImageToVideoPipeline": HunyuanVideo15ImageToVideoPipelineRuntimeParameters,
     "LTXPipeline": LTXPipelineRuntimeParameters,
     "LTX2Pipeline": LTX2PipelineRuntimeParameters,
+    "LTX25ModularPipeline": LTX2PipelineRuntimeParameters,
     "MiniMaxH3ModularPipeline": MiniMaxH3PipelineRuntimeParameters,
     "QwenImagePipeline": QwenPipelineRuntimeParameters,
     "QwenImageEditPipeline": QwenEditPipelineRuntimeParameters,

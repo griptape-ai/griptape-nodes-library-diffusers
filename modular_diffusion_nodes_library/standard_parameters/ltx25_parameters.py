@@ -2,41 +2,50 @@ import logging
 from typing import Any
 
 import torch  # type: ignore[reportMissingImports]
-from diffusers.models.autoencoders.ltx2_diffusion_decoder import (  # type: ignore[reportMissingImports]
-    LTX2VideoDiffusionDecoderModel,
+from diffusers import (  # type: ignore[reportMissingImports]
+    ComponentsManager,
+    FlowMatchEulerDiscreteScheduler,
+    ModularPipeline,
 )
-from diffusers.models.transformers.transformer_ltx2 import (  # type: ignore[reportMissingImports]
-    LTX2VideoTransformer3DModel,
-)
-from diffusers.pipelines.ltx2.pipeline_ltx2 import LTX2Pipeline  # type: ignore[reportMissingImports]
+from diffusers.modular_pipelines.ltx2.modular_pipeline import LTX25ModularPipeline  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
 )
+from modular_diffusion_nodes_library.utils.torch_utils import get_best_device
 
 logger = logging.getLogger("diffusers_nodes_library")
 
 _LTX25_REPO_ID = "Lightricks/LTX-2.5-Diffusers"
 
+# The transformer alone is tens of GB in bfloat16 plus the Gemma text encoder and connectors; this
+# margin is the size the reference example (`ltx25_SFT.py`) reserves for a single accelerator card.
+AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN = "32GB"
+
 
 class _LTX25PipelineParametersBase(ModularDiffusionPipelineTypePipelineParameters):
     """Shared plumbing for the two LTX-2.5 pipeline_type entries.
 
-    Both entries build an `LTX2Pipeline` from the same repo, differing only in which
-    transformer subfolder is loaded and whether `is_distilled` runtime behavior is used.
-    Decoding always uses the diffusion decoder (`diffusion_decoder` subfolder), attached to
-    the built pipe as a plain attribute; see `LTX2PipelineDriver.decode_latent`.
+    Both entries build an `LTX25ModularPipeline` from the same gated repo and decode through the
+    diffusion decoder (`LTX25AutoBlocks`'s own default) — the HF-authored `ltx25_SFT.py` reference
+    script's swap to plain convolutional VAE decode was an example of what's possible, not a
+    requirement tied to the Full (SFT) transformer. They differ in which transformer subfolder is
+    loaded and, per that same reference script, in scheduler shifting config:
+
+    - Distilled: default scheduler config.
+    - Full (SFT): dynamic shifting re-enabled (`use_dynamic_shifting=True, shift_terminal=0.1`) — the
+      distilled checkpoint's shipped `scheduler/` config has shifting turned off.
     """
 
-    _pipeline_cls = LTX2Pipeline
+    _pipeline_cls = LTX25ModularPipeline
     _transformer_subfolder: str
     _is_distilled: bool
 
     @classmethod
     def supports_build_from_overrides_only(cls) -> bool:
-        "We don't have support for overriding vocoder and audio vae, so we don't support building from overrides only."
+        "LTX25ModularPipeline has no component-override-only construction path."
         return False
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):  # noqa: ARG002
@@ -77,41 +86,49 @@ class _LTX25PipelineParametersBase(ModularDiffusionPipelineTypePipelineParameter
             "transformer_subfolder": self._transformer_subfolder,
         }
 
+    def requires_device_map(self) -> bool:
+        # Opt-out from post-hoc pipeline optimization (`.to(device)`/`enable_*_cpu_offload`), not a
+        # literal accelerate device_map request. Placement is owned entirely by `_build_pipeline_from_repo`
+        # via the `ComponentsManager` below. Matches `MiniMaxH3PipelineParameters`'s identical use.
+        return True
+
+    def is_prequantized(self) -> bool:
+        # Suppresses quantization and layerwise casting, both of which fire before the
+        # `requires_device_map` short-circuit and are unsafe atop the `ComponentsManager` offload hooks.
+        return True
+
     @classmethod
-    def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> LTX2Pipeline:
+    def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> ModularPipeline:  # noqa: ARG003
         base_repo_id = build_data["base_repo_id"]
         base_revision = build_data["base_revision"]
 
-        overrides.setdefault(
-            "transformer",
-            LTX2VideoTransformer3DModel.from_pretrained(
-                pretrained_model_name_or_path=base_repo_id,
-                subfolder=build_data["transformer_subfolder"],
-                revision=base_revision,
-                torch_dtype=torch.bfloat16,
-                local_files_only=True,
-            ),
+        manager = ComponentsManager()
+        pipe = ModularPipeline.from_pretrained(
+            base_repo_id,
+            revision=base_revision,
+            components_manager=manager,
         )
 
-        pipe = LTX2Pipeline.from_pretrained(
-            pretrained_model_name_or_path=base_repo_id,
-            revision=base_revision,
-            torch_dtype=torch.bfloat16,
-            local_files_only=True,
-            **overrides,
+        pipe.load_components(
+            dtype=torch.bfloat16,
+            subfolder={"transformer": build_data["transformer_subfolder"]},
         )
-        # Plain attribute, not register_modules: LTX2Pipeline.__init__ has no diffusion_decoder
-        # parameter, so registering it would add a config key with no matching signature key and
-        # break the `pipe.components` invariant diffusers checks internally (raises ValueError).
-        # LTX2PipelineDriver.decode_latent places it on the correct device/dtype before use.
-        pipe.diffusion_decoder = LTX2VideoDiffusionDecoderModel.from_pretrained(
-            pretrained_model_name_or_path=base_repo_id,
-            subfolder="diffusion_decoder",
-            revision=base_revision,
-            torch_dtype=torch.bfloat16,
-            local_files_only=True,
+
+        if not build_data["is_distilled"]:
+            # Re-enable the dynamic shifting the distilled `scheduler/` config turns off.
+            # `audio_scheduler` is deep-copied from `scheduler` at denoise time, so this one update
+            # covers both.
+            pipe.update_components(
+                scheduler=FlowMatchEulerDiscreteScheduler.from_config(
+                    pipe.scheduler.config, use_dynamic_shifting=True, shift_terminal=0.1
+                )
+            )
+
+        manager.enable_auto_cpu_offload(
+            device=get_best_device(),
+            memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
         )
-        return pipe
+        return pipe  # type: ignore[reportReturnType]
 
 
 class LTX25DistilledPipelineParameters(_LTX25PipelineParametersBase):
