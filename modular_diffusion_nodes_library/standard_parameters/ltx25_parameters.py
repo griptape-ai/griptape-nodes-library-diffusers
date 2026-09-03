@@ -7,6 +7,9 @@ from diffusers import (  # type: ignore[reportMissingImports]
     FlowMatchEulerDiscreteScheduler,
     ModularPipeline,
 )
+from diffusers.models.autoencoders.ltx2_diffusion_decoder import (  # type: ignore[reportMissingImports]
+    LTX2VideoVaeNeighborhoodNattenProcessor,
+)
 from diffusers.modular_pipelines.ltx2.modular_pipeline import LTX25ModularPipeline  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
@@ -113,6 +116,14 @@ class _LTX25PipelineParametersBase(ModularDiffusionPipelineTypePipelineParameter
             dtype=torch.bfloat16,
             subfolder={"transformer": build_data["transformer_subfolder"]},
         )
+
+        # The diffusion decoder denoises over the whole decoded video volume in one pass unless tiled,
+        # which is expensive; the neighborhood-attention processor is the memory-efficient attention
+        # path it's meant to run tiling with. Both are set unconditionally by the reference example
+        # (`ltx25_standalone_modular.py`) and apply to both variants, since both decode through it.
+        pipe.diffusion_decoder.set_attn_processor(LTX2VideoVaeNeighborhoodNattenProcessor())
+        pipe.diffusion_decoder.enable_tiling()
+        pipe.vae.enable_tiling()
 
         if not build_data["is_distilled"]:
             # Re-enable the dynamic shifting the distilled `scheduler/` config turns off.
