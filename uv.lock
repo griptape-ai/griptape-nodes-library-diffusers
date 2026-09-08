@@ -914,7 +914,6 @@ dependencies = [
     { name = "ftfy" },
     { name = "gguf" },
     { name = "griptape", extra = ["drivers-prompt-amazon-bedrock", "drivers-prompt-anthropic", "drivers-prompt-cohere", "drivers-prompt-ollama", "drivers-web-scraper-trafilatura", "drivers-web-search-duckduckgo", "drivers-web-search-exa", "loaders-image"] },
-    { name = "griptape-nodes-engine" },
     { name = "imageio", extra = ["ffmpeg"] },
     { name = "matplotlib" },
     { name = "ninja" },
@@ -949,6 +948,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "griptape-nodes-engine" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "ruff" },
@@ -966,7 +966,6 @@ requires-dist = [
     { name = "ftfy", specifier = ">=6.3.1" },
     { name = "gguf", specifier = ">=0.10.0" },
     { name = "griptape", extras = ["drivers-prompt-amazon-bedrock", "drivers-prompt-anthropic", "drivers-prompt-cohere", "drivers-prompt-ollama", "drivers-web-scraper-trafilatura", "drivers-web-search-duckduckgo", "drivers-web-search-exa", "loaders-image"], specifier = ">=1.9.4" },
-    { name = "griptape-nodes-engine", specifier = ">=0.97.0" },
     { name = "imageio", extras = ["ffmpeg"], specifier = ">=2.37.2" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "ninja", specifier = ">=1.13.0" },
@@ -999,6 +998,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "griptape-nodes-engine", specifier = ">=0.97.0" },
     { name = "pyright", specifier = ">=1.1.396" },
     { name = "pytest" },
     { name = "ruff", specifier = ">=0.8.0" },
