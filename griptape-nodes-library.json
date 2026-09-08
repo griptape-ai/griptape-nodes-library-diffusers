@@ -773,6 +773,26 @@
             }
         },
         {
+            "class_name": "SavePipelineNode",
+            "file_path": "./modular_diffusion_nodes_library/nodes/save_pipeline_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/Pipeline",
+                "description": "Save a Modular Diffusion pipeline configuration recipe as JSON.",
+                "display_name": "Save Pipeline",
+                "group": "diffusion"
+            }
+        },
+        {
+            "class_name": "LoadPipelineNode",
+            "file_path": "./modular_diffusion_nodes_library/nodes/load_pipeline_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/Pipeline",
+                "description": "Load a Modular Diffusion pipeline configuration recipe from JSON.",
+                "display_name": "Load Pipeline",
+                "group": "diffusion"
+            }
+        },
+        {
             "class_name": "DiffusionPipelineGenerateLatentNode",
             "file_path": "./modular_diffusion_nodes_library/nodes/diffusion_pipeline_generate_latent_node.py",
             "metadata": {
