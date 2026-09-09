@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import SuccessFailureNode
@@ -13,6 +14,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
 )
 from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import serialize_pipeline_artifact
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
+from modular_diffusion_nodes_library.parameters.file_path_parameter import FilePathParameter
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -31,16 +33,20 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 allowed_modes={ParameterMode.INPUT},
             )
         )
-        self.add_parameter(
-            Parameter(
-                name="file_path",
-                type="str",
-                default_value="pipeline-config.json",
-                tooltip="Destination JSON path. Relative paths are resolved against the workspace directory.",
-                allowed_modes={ParameterMode.PROPERTY},
-            )
+        self._file_path_param = FilePathParameter(
+            self,
+            file_types=[".json"],
+            tooltip="Destination JSON path. Relative paths are resolved against the workspace directory.",
+            display_name="File Path",
+            allow_create=True,
+            allowed_modes={ParameterMode.PROPERTY},
+            default_value="pipeline-config.json",
         )
+        self._file_path_param.add_input_parameters()
         self._create_status_parameters()
+
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        self._file_path_param.on_after_value_set(parameter, value)
 
     def validate_before_node_run(self) -> list[Exception] | None:
         exceptions: list[Exception] = []

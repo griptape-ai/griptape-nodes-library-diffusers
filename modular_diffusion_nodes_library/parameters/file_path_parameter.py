@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from griptape_nodes.exe_types.core_types import Parameter
+from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
@@ -18,6 +18,10 @@ class FilePathParameter:
         initial_path: str | None = None,
         tooltip: str = "Path to a local file",
         display_name: str | None = None,
+        *,
+        allow_create: bool = False,
+        allowed_modes: set[ParameterMode] | None = None,
+        default_value: str | None = None,
     ):
         self._node = node
         self._parameter_name = parameter_name
@@ -25,12 +29,20 @@ class FilePathParameter:
         self._initial_path = initial_path or str(GriptapeNodes.ConfigManager().workspace_path)
         self._tooltip = tooltip
         self._display_name = display_name
+        self._allow_create = allow_create
+        self._allowed_modes = allowed_modes
+        self._default_value = default_value
 
     def add_input_parameters(self) -> None:
         if self._display_name:
             ui_options = {"display_name": self._display_name}
         else:
             ui_options = {}
+        extra_kwargs: dict[str, Any] = {}
+        if self._allowed_modes is not None:
+            extra_kwargs["allowed_modes"] = self._allowed_modes
+        if self._default_value is not None:
+            extra_kwargs["default_value"] = self._default_value
         self._node.add_parameter(
             Parameter(
                 name=self._parameter_name,
@@ -45,8 +57,10 @@ class FilePathParameter:
                         multiple=False,
                         file_types=self._file_types,
                         initial_path=self._initial_path,
+                        allow_create=self._allow_create,
                     )
                 },
+                **extra_kwargs,
             )
         )
 
