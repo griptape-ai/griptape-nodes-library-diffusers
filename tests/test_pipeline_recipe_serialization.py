@@ -2,7 +2,9 @@ import json
 
 import pytest
 
+from modular_diffusion_nodes_library.artifact_utils import pipeline_recipe
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
+    ComponentArtifact,
     ComponentSourceType,
     HFRepoRef,
     ModelComponentArtifact,
@@ -16,7 +18,6 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import (
     serialize_pipeline_artifact,
     validate_pipeline_recipe_dependencies,
 )
-from modular_diffusion_nodes_library.artifact_utils import pipeline_recipe
 
 
 def test_serialize_base_pipeline_artifact() -> None:
@@ -95,6 +96,31 @@ def test_deserialize_pipeline_artifact_round_trip() -> None:
     loaded_artifact = deserialize_pipeline_artifact(serialize_pipeline_artifact(artifact))
 
     assert loaded_artifact == artifact
+
+
+def test_pipeline_artifact_recipe_dict_round_trips_directly() -> None:
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        config_hash="pipeline-hash",
+        builder_module="test.module",
+        builder_class_name="TestParameters",
+        build_data={"repo_id": "org/model", "revision": "commit-hash"},
+        loras={"/tmp/style.safetensors": 0.8},
+        optimization_kwargs={"vae_slicing": True},
+    )
+
+    assert DiffusionPipelineArtifact.from_recipe_dict(artifact.to_recipe_dict()) == artifact
+
+
+def test_component_artifact_recipe_dict_round_trips_directly() -> None:
+    override = ModelComponentArtifact(
+        load_id="override-id",
+        source_type=ComponentSourceType.HF_REPO,
+        component="unet",
+        repo_ref=HFRepoRef(repo_id="org/model", revision="commit-hash", subfolder="unet"),
+    )
+
+    assert ComponentArtifact.from_recipe_dict(override.to_recipe_dict()) == override
 
 
 def test_deserialize_pipeline_artifact_round_trips_component_overrides() -> None:
