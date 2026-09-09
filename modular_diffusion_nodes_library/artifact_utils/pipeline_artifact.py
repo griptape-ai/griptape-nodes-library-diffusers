@@ -20,6 +20,16 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_build_steps import 
     LoadPipelineStep,
     run_build_steps,
 )
+from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
+    json_safe,
+    optional_string,
+    require_bool,
+    require_dict,
+    require_loras,
+    require_string,
+    require_string_list,
+    resolve_recipe_value,
+)
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_runtime_adapter_step import PipelineRuntimeAdapterStep
 
@@ -161,6 +171,60 @@ class DiffusionPipelineArtifact:
             "requires_device_map": self._requires_device_map,
             "runtime_adapter_steps": [step.metadata for step in self.runtime_adapter_steps()],
         }
+
+    def _ensure_recipe_serializable(self) -> None:
+        if self.runtime_adapter_steps():
+            msg = "Pipelines with runtime adapter steps cannot be saved. Save the base pipeline and reconnect the adapter."
+            raise ValueError(msg)
+
+    def to_recipe_dict(self) -> dict[str, Any]:
+        """Render this pipeline configuration as a JSON-safe recipe dict."""
+        self._ensure_recipe_serializable()
+        if type(self) is not DiffusionPipelineArtifact:
+            msg = f"Unsupported pipeline artifact type: {type(self).__name__}"
+            raise ValueError(msg)
+        return {
+            "type": "base",
+            "pipeline_name": self.pipeline_name,
+            "config_hash": self.config_hash,
+            "builder": {"module": self.builder_module, "class_name": self.builder_class_name},
+            "build_data": json_safe(self.build_data),
+            "build_data_error": self.build_data_error,
+            "loras": json_safe(self.loras),
+            "optimization": json_safe(self.optimization_kwargs),
+            "flags": {
+                "is_prequantized": self.is_prequantized,
+                "supports_layerwise_casting": self.supports_layerwise_casting,
+                "requires_device_map": self.requires_device_map,
+            },
+        }
+
+    @classmethod
+    def from_recipe_dict(cls, data: dict[str, Any]) -> DiffusionPipelineArtifact:
+        """Reconstruct a pipeline artifact, dispatching on its recorded type."""
+        artifact_type = data.get("type")
+        if artifact_type == "controlnet":
+            return ControlNetDiffusionPipelineArtifact.from_recipe_dict(data)
+        if artifact_type != "base":
+            msg = f"Unsupported pipeline recipe artifact type: {artifact_type!r}"
+            raise ValueError(msg)
+        builder = require_dict(data.get("builder"), "Pipeline builder")
+        flags = require_dict(data.get("flags"), "Pipeline flags")
+        return cls(
+            pipeline_name=require_string(data.get("pipeline_name"), "Pipeline name"),
+            config_hash=require_string(data.get("config_hash"), "Pipeline config hash"),
+            builder_module=optional_string(builder.get("module"), "Pipeline builder module"),
+            builder_class_name=optional_string(builder.get("class_name"), "Pipeline builder class name"),
+            build_data=require_dict(resolve_recipe_value(data.get("build_data")), "Pipeline build data"),
+            build_data_error=optional_string(data.get("build_data_error"), "Pipeline build data error"),
+            loras=require_loras(resolve_recipe_value(data.get("loras"))),
+            optimization_kwargs=require_dict(resolve_recipe_value(data.get("optimization")), "Pipeline optimization"),
+            is_prequantized=require_bool(flags.get("is_prequantized"), "Pipeline is_prequantized flag"),
+            supports_layerwise_casting=require_bool(
+                flags.get("supports_layerwise_casting"), "Pipeline supports_layerwise_casting flag"
+            ),
+            requires_device_map=require_bool(flags.get("requires_device_map"), "Pipeline requires_device_map flag"),
+        )
 
     def get_or_build_pipeline(self, log_params: Any | None = None) -> ModularPipeline | DiffusionPipeline | Any:
         if not self.config_hash:
@@ -405,6 +469,25 @@ class ControlNetDiffusionPipelineArtifact(BaseDiffusionPipelineArtifact):
             }
         )
         return metadata
+
+    def to_recipe_dict(self) -> dict[str, Any]:
+        self._ensure_recipe_serializable()
+        return {
+            "type": "controlnet",
+            "base": self.base_artifact.to_recipe_dict(),
+            "config_hash": self.config_hash,
+            "controlnet_models": json_safe(self.controlnet_models),
+        }
+
+    @classmethod
+    def from_recipe_dict(cls, data: dict[str, Any]) -> ControlNetDiffusionPipelineArtifact:
+        return cls(
+            base_artifact=DiffusionPipelineArtifact.from_recipe_dict(
+                require_dict(data.get("base"), "ControlNet base artifact")
+            ),
+            controlnet_models=require_string_list(data.get("controlnet_models"), "ControlNet models"),
+            config_hash=require_string(data.get("config_hash"), "ControlNet config hash"),
+        )
 
     def _get_reuse_log_context(self) -> str:
         return "control net"

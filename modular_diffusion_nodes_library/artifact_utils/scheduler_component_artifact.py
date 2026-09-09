@@ -12,6 +12,13 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ComponentSourceType,
     HFRepoRef,
 )
+from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
+    json_safe,
+    optional_dict,
+    optional_string,
+    require_string,
+    resolve_recipe_value,
+)
 
 
 @dataclass(frozen=True)
@@ -29,6 +36,25 @@ class SchedulerComponentArtifact(ComponentArtifact):
     config_source: str | None = None  # LOCAL_DIR: path to scheduler_config.json or its folder
     repo_ref: HFRepoRef | None = None  # HF_REPO
     text_config: dict[str, Any] | None = None  # RAW_CONFIG: inline dict supplied directly
+
+    def to_recipe_dict(self) -> dict[str, Any]:
+        return {
+            **self._base_recipe_dict(),
+            "scheduler_class": self.scheduler_class,
+            "config_source": json_safe(self.config_source),
+            "repo_ref": self.repo_ref.to_recipe_dict() if self.repo_ref else None,
+            "text_config": json_safe(self.text_config),
+        }
+
+    @classmethod
+    def _from_recipe_dict(cls, data: dict[str, Any]) -> SchedulerComponentArtifact:
+        return cls(
+            **cls._common_kwargs(data),
+            scheduler_class=require_string(data.get("scheduler_class"), "Scheduler component class"),
+            config_source=optional_string(resolve_recipe_value(data.get("config_source")), "Scheduler config source"),
+            repo_ref=HFRepoRef.from_recipe_dict(data.get("repo_ref")),
+            text_config=optional_dict(resolve_recipe_value(data.get("text_config")), "Scheduler text config"),
+        )
 
     @override
     def materialize(self, *, pipeline_cls: type, slot: str | None = None) -> Any:  # noqa: ARG002
