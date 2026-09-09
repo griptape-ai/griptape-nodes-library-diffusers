@@ -5,11 +5,6 @@ from pathlib import Path
 from typing import Any
 
 from huggingface_hub import scan_cache_dir  # pyright: ignore[reportMissingImports]
-from griptape_nodes.retained_mode.events.project_events import (
-    AttemptMapAbsolutePathToProjectRequest,
-    AttemptMapAbsolutePathToProjectResultSuccess,
-)
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
@@ -24,7 +19,7 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
 from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact import SchedulerComponentArtifact
 from modular_diffusion_nodes_library.artifact_utils.text_encoder_component_artifact import TextEncoderComponentArtifact
 from modular_diffusion_nodes_library.artifact_utils.tokenizer_component_artifact import TokenizerComponentArtifact
-from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
+from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros, resolve_path_to_macro
 
 PIPELINE_RECIPE_SCHEMA_VERSION = 1
 
@@ -377,10 +372,10 @@ def _json_safe_value(value: Any) -> Any:
         return _serialize_component_artifact(value)
     if value is None or isinstance(value, str | int | float | bool):
         if isinstance(value, str):
-            return _path_to_macro(value)
+            return resolve_path_to_macro(value)
         return value
     if isinstance(value, Path):
-        return _path_to_macro(str(value))
+        return resolve_path_to_macro(str(value))
     if isinstance(value, list | tuple):
         return [_json_safe_value(item) for item in value]
     if isinstance(value, dict):
@@ -388,14 +383,3 @@ def _json_safe_value(value: Any) -> Any:
 
     msg = f"Pipeline recipe contains non-JSON value: {type(value).__name__}"
     raise TypeError(msg)
-
-
-def _path_to_macro(value: str) -> str:
-    path = Path(value)
-    if not path.is_absolute():
-        return value
-
-    result = GriptapeNodes.handle_request(AttemptMapAbsolutePathToProjectRequest(absolute_path=path))
-    if isinstance(result, AttemptMapAbsolutePathToProjectResultSuccess) and result.mapped_path is not None:
-        return result.mapped_path
-    return value
