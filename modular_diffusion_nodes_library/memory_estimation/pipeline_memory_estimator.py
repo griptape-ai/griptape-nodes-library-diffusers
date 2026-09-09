@@ -450,7 +450,6 @@ def estimate_pipeline_memory_from_build_data(
         # cascade depends on free VRAM at build time and can't be predicted here.
         # See docs/spikes/memory_estimation_preload_api_plan.md, Decision 4.
         offload_mode = None
-        confidence = "low"
         automatic_warning = (
             "memory_optimization_strategy is 'Automatic'; the actual offload topology depends on free VRAM "
             "at build time and cannot be predicted before loading. Showing the upper bound (no offload "
@@ -464,7 +463,6 @@ def estimate_pipeline_memory_from_build_data(
         # means the same thing regardless of which estimator produced it.
         cpu_offload_strategy = optimization_kwargs.get("cpu_offload_strategy", "None")
         offload_mode = {"None": None, "Model": "model", "Sequential": "sequential"}.get(cpu_offload_strategy)
-        confidence = "high"
         automatic_warning = None
 
     peak_weight_bytes = _compute_peak_weight_topology(components, offload_mode, denoiser_num_layers)
@@ -481,7 +479,6 @@ def estimate_pipeline_memory_from_build_data(
         components=components,
         estimated_peak_bytes=estimated_peak_bytes,
         basis="config_only",
-        confidence=confidence,
         warnings=warnings,
     )
 

@@ -28,7 +28,7 @@ class PipelineMemoryEstimateNode(SuccessFailureNode):
                     "pipeline build: if the pipeline is already loaded (e.g. after a Generate Latent node has "
                     "run), the estimate is exact; otherwise it's derived from the pipeline's config alone."
                 ),
-                allowed_modes={ParameterMode.INPUT},
+                allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
             )
         )
         self.add_parameter(
@@ -36,7 +36,7 @@ class PipelineMemoryEstimateNode(SuccessFailureNode):
                 name="latent",
                 input_types=["LatentArtifact"],
                 tooltip="Latent whose shape determines the token count / resolution used in the estimate.",
-                allowed_modes={ParameterMode.INPUT},
+                allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
             )
         )
 
@@ -95,10 +95,8 @@ class PipelineMemoryEstimateNode(SuccessFailureNode):
             self._handle_failure_exception(e)
             return
 
-        basis_description = "loaded pipeline, exact weights" if estimate.basis == "loaded" else "config only, pre-load"
         self.log_params.append_to_logs(
             f"Pipeline: {estimate.pipeline_name} (offload={estimate.offload_mode or 'none'})\n"
-            f"Estimate basis: {basis_description} (confidence={estimate.confidence})\n"
         )
         sum_of_components = 0
         for component in estimate.components:
@@ -126,7 +124,6 @@ class PipelineMemoryEstimateNode(SuccessFailureNode):
             was_successful=True,
             result_details=(
                 f"Estimated peak: {to_human_readable_size(estimate.estimated_peak_bytes)} "
-                f"across {len(estimate.components)} components ({basis_description}, "
-                f"confidence={estimate.confidence})."
+                f"across {len(estimate.components)} components."
             ),
         )
