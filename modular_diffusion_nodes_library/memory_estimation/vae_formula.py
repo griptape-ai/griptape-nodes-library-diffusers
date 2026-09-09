@@ -20,6 +20,19 @@ most-downsampled internal resolution. Mirrors the same per-resolution-level shap
 already used for the UNet-SDPA family (activation_formulas.py's
 estimate_unet_sdpa_activation_bytes / family_registry.get_sdxl_unet_levels).
 
+Within a single level, diffusers' decoder stacks more than one ResnetBlock2D (e.g.
+`layers_per_block + 1` for AutoencoderKL -- vae.py's `Decoder.__init__`), each holding
+its own live activation tensor at that level's resolution -- a single per-level tensor
+undercounts this. Rather than hardcoding a per-family resnet count (it varies: uniform
++1 for AutoencoderKL/Flux2/Qwen/WAN, a per-level tuple for LTX, absent entirely for
+MiniMax H3's ViT-style decoder), `_resnets_per_up_block` reads the real count off the
+loaded (or meta-built) `decoder.up_blocks[i].resnets` module list, since the actual
+module graph is already available in both the post-load and meta-device estimation
+paths. The decoder's `mid_block` resnets are counted separately by
+`_mid_block_extra_bytes` since `block_out_channels` never lists the mid-block's
+resolution. Both fall back to the prior single-tensor behavior when a VAE doesn't
+expose this conventional structure.
+
 The config field naming this list comes from also differs across VAE classes:
 AutoencoderKL, AutoencoderKLLTXVideo, AutoencoderKLLTX2, AutoencoderKLHunyuanVideo15,
 and AutoencoderKLMiniMaxH3 all expose `block_out_channels` directly (verified against
@@ -76,6 +89,39 @@ def _resolve_tiled_extent(vae: torch.nn.Module, source_shape: tuple[int, ...]) -
     return num_frames, height, width
 
 
+def _resnets_per_up_block(vae: torch.nn.Module) -> list[int] | None:
+    """Return the decoder's per-level resnet counts, ordered shallow-to-deep to match
+    `block_out_channels`, or None if the VAE has no conventional `decoder.up_blocks`
+    (e.g. MiniMax H3's ViT-style decoder).
+    """
+    decoder = getattr(vae, "decoder", None)
+    up_blocks = getattr(decoder, "up_blocks", None)
+    if not up_blocks:
+        return None
+    return list(reversed([len(block.resnets) for block in up_blocks]))
+
+
+def _mid_block_extra_bytes(
+    vae: torch.nn.Module,
+    deepest_channels: int,
+    deepest_height: int,
+    deepest_width: int,
+    batch: int,
+    frames: int,
+    element_size: int,
+) -> int:
+    """Extra activation bytes for the decoder's mid-block resnets, which run at the
+    deepest (smallest) resolution before the first up-block and are never listed in
+    `block_out_channels`. Returns 0 if the VAE has no conventional `decoder.mid_block`.
+    """
+    decoder = getattr(vae, "decoder", None)
+    mid_block = getattr(decoder, "mid_block", None)
+    mid_block_resnets = getattr(mid_block, "resnets", None)
+    if not mid_block_resnets:
+        return 0
+    return len(mid_block_resnets) * batch * frames * deepest_height * deepest_width * deepest_channels * element_size
+
+
 def estimate_vae_activation_bytes(
     vae: torch.nn.Module,
     latent: LatentArtifact,
@@ -96,10 +142,24 @@ def estimate_vae_activation_bytes(
     batch = 1 if vae_slicing else source_shape[0] if len(source_shape) >= 4 else 1  # noqa: PLR2004
 
     block_out_channels = _resolve_block_out_channels(vae)
+    resnets_per_level = _resnets_per_up_block(vae)
+
     total_bytes = 0
     for level_index, channels in enumerate(block_out_channels):
         downsample_factor = 2**level_index
         level_height = max(height // downsample_factor, 1)
         level_width = max(width // downsample_factor, 1)
-        total_bytes += batch * frames * level_height * level_width * channels * element_size
+        if resnets_per_level is not None and level_index < len(resnets_per_level):
+            resnet_count = resnets_per_level[level_index]
+        else:
+            resnet_count = 1
+        total_bytes += resnet_count * batch * frames * level_height * level_width * channels * element_size
+
+    deepest_downsample_factor = 2 ** (len(block_out_channels) - 1)
+    deepest_height = max(height // deepest_downsample_factor, 1)
+    deepest_width = max(width // deepest_downsample_factor, 1)
+    total_bytes += _mid_block_extra_bytes(
+        vae, block_out_channels[-1], deepest_height, deepest_width, batch, frames, element_size
+    )
+
     return total_bytes
