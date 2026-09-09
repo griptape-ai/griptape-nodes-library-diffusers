@@ -96,4 +96,5 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             logger=logger,
         )
         if pipeline is not None:
-            self._set_status_results(was_successful=True, result_details=format_pipeline_artifact_summary(pipeline))
+            summary = format_pipeline_artifact_summary(pipeline)
+            self._set_status_results(was_successful=True, result_details=f"Loaded successfully\n\n{summary}")
