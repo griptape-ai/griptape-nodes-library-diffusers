@@ -2,9 +2,11 @@ import logging
 from typing import Any, override
 
 import PIL.Image
+import torch  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.wan.modular_blocks_wan import WanBlocks  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+from diffusers.utils.torch_utils import randn_tensor  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -23,6 +25,10 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 _SOURCE_VIDEO_KEY = "vace_source_video"
 _MASK_KEY = "vace_mask"
 _REFERENCE_IMAGES_KEY = "vace_reference_images"
+
+#: Each reference image costs a latent frame of noise and control tokens, so a video
+#: connected to ``reference_images`` (one reference per frame) would balloon the latent.
+_MAX_REFERENCE_IMAGES = 4
 
 
 def _payload_to_frames(
@@ -145,6 +151,8 @@ def _payload_to_reference_images(payload_value: Any) -> list[PIL.Image.Image]:
 class WanVaceLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
     def __init__(self, pipe: DiffusionPipeline):
         super().__init__(pipe)
+        self._num_reference_latent_frames = 0
+        self._reference_generator_state: GeneratorState | None = None
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
@@ -152,6 +160,41 @@ class WanVaceLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         # is an optional second VACE transformer — not a WAN 2.2 transformer — so we
         # must not use Wan22Blocks regardless of its presence.
         return WanBlocks().init_pipeline()
+
+    @override
+    def prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
+        """Prepend one noise latent frame per reference image.
+
+        VACE encodes each reference image as an extra leading frame on the control branch,
+        so the noise latent has to carry a matching frame or the transformer computes a
+        negative control padding width. The pipeline sizes the noise latent itself only
+        when it is not given an explicit ``latents`` tensor, which this driver always passes.
+        """
+        if self._num_reference_latent_frames == 0:
+            return latents
+
+        shape = list(latents.shape)
+        shape[2] = self._num_reference_latent_frames
+        generator = None
+        if self._reference_generator_state is not None:
+            generator = self._reference_generator_state.to_generator()
+        reference_noise = randn_tensor(tuple(shape), generator=generator, device=latents.device, dtype=latents.dtype)
+        return torch.cat([reference_noise, latents], dim=2)
+
+    @override
+    def prepare_output_latent(
+        self, latents_from_pipe: torch.Tensor, latents_source_shape: tuple[int, ...]
+    ) -> torch.Tensor:
+        """Drop the leading reference latent frames added by :meth:`prepare_input_latent`.
+
+        The pipeline only trims these itself when decoding, and this driver requests
+        ``output_type="latent"``, so an untrimmed latent would decode to a video with
+        junk leading frames that runs longer than the source.
+        """
+        if self._num_reference_latent_frames == 0:
+            return latents_from_pipe
+
+        return latents_from_pipe[:, :, self._num_reference_latent_frames :]
 
     @override
     def denoise_latent(
@@ -199,15 +242,29 @@ class WanVaceLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
                 kwargs["mask"] = _derive_mask_from_source_media(source_media_payload, num_frames, height, width)
 
             if reference_payload is not None:
-                kwargs["reference_images"] = _payload_to_reference_images(reference_payload)
+                reference_images = _payload_to_reference_images(reference_payload)
+                if len(reference_images) > _MAX_REFERENCE_IMAGES:
+                    raise ValueError(
+                        f"Attempted to denoise with WAN VACE (node '{self.driver_namespace}'). "
+                        f"Failed with {len(reference_images)} reference images because at most "
+                        f"{_MAX_REFERENCE_IMAGES} are supported. A video connected to `reference_images` "
+                        "contributes one reference per frame — connect individual images instead."
+                    )
+                kwargs["reference_images"] = reference_images
+                self._num_reference_latent_frames = len(reference_images)
+                self._reference_generator_state = generator_state
 
-        return super().denoise_latent(
-            latent,
-            num_inference_steps,
-            generator_state=generator_state,
-            callback=callback,
-            start_step=start_step,
-            end_step=end_step,
-            return_fully_denoised=return_fully_denoised,
-            **kwargs,
-        )
+        try:
+            return super().denoise_latent(
+                latent,
+                num_inference_steps,
+                generator_state=generator_state,
+                callback=callback,
+                start_step=start_step,
+                end_step=end_step,
+                return_fully_denoised=return_fully_denoised,
+                **kwargs,
+            )
+        finally:
+            self._num_reference_latent_frames = 0
+            self._reference_generator_state = None
