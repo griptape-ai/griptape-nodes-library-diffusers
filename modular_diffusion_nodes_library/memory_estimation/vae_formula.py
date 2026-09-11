@@ -53,12 +53,24 @@ if TYPE_CHECKING:
 def _resolve_block_out_channels(vae: torch.nn.Module) -> list[int]:
     """Return this VAE's per-level channel widths, regardless of which config field
     name the class uses to express them.
+
+    Decoder-specific fields win when present: this formula estimates decode, and several
+    classes let the decoder be wider than the encoder -- `AutoencoderKLFlux2` takes
+    `decoder_block_out_channels` and passes `decoder_block_out_channels or
+    block_out_channels` to its `Decoder` (autoencoder_kl_flux2.py:94, :128), and
+    `AutoencoderKLWan` has the `decoder_base_dim` analog (autoencoder_kl_wan.py:979).
+    Reading only the encoder's field silently builds the whole ladder from the wrong
+    widths for any checkpoint that sets them.
     """
+    decoder_block_out_channels = getattr(vae.config, "decoder_block_out_channels", None)
+    if decoder_block_out_channels is not None:
+        return list(decoder_block_out_channels)
+
     block_out_channels = getattr(vae.config, "block_out_channels", None)
     if block_out_channels is not None:
         return list(block_out_channels)
 
-    base_dim = getattr(vae.config, "base_dim", None)
+    base_dim = getattr(vae.config, "decoder_base_dim", None) or getattr(vae.config, "base_dim", None)
     dim_mult = getattr(vae.config, "dim_mult", None)
     if base_dim is not None and dim_mult is not None:
         return [base_dim * multiplier for multiplier in dim_mult]
@@ -71,20 +83,68 @@ def _resolve_block_out_channels(vae: torch.nn.Module) -> list[int]:
     raise AttributeError(msg)
 
 
+def _resolve_level_downsample_factors(vae: torch.nn.Module, num_levels: int) -> tuple[list[int], list[int]]:
+    """Return per-level cumulative (spatial, temporal) downsample factors, ordered
+    shallow-to-deep to match `block_out_channels`.
+
+    A flat `2 ** level_index` is only correct for image VAEs, where every level halves
+    spatially and nothing is temporally compressed. Video VAEs publish which levels scale
+    and along which axes, and they do not scale uniformly:
+    - `AutoencoderKLLTXVideo.spatio_temporal_scaling` (autoencoder_kl_ltx.py:763) -- a
+      per-level bool scaling BOTH axes together; the last level is False by default.
+    - `AutoencoderKLWan.temperal_downsample` (autoencoder_kl_wan.py:984, diffusers'
+      spelling) -- temporal only, e.g. `[False, True, True]`, while spatial still halves
+      every level.
+
+    Holding frames constant across levels (the previous behavior) overcounts a WAN
+    decoder's deepest levels by up to 4x, since they run at T/4.
+    """
+    spatio_temporal_scaling = getattr(vae.config, "spatio_temporal_scaling", None)
+    temperal_downsample = getattr(vae.config, "temperal_downsample", None)
+
+    spatial_factors: list[int] = []
+    temporal_factors: list[int] = []
+    spatial_factor = 1
+    temporal_factor = 1
+    for level_index in range(num_levels):
+        spatial_factors.append(spatial_factor)
+        temporal_factors.append(temporal_factor)
+        if spatio_temporal_scaling is not None:
+            if level_index < len(spatio_temporal_scaling) and spatio_temporal_scaling[level_index]:
+                spatial_factor *= 2
+                temporal_factor *= 2
+        else:
+            spatial_factor *= 2
+            if temperal_downsample is not None and level_index < len(temperal_downsample):
+                if temperal_downsample[level_index]:
+                    temporal_factor *= 2
+    return spatial_factors, temporal_factors
+
+
 def _resolve_tiled_extent(vae: torch.nn.Module, source_shape: tuple[int, ...]) -> tuple[int, int, int]:
-    """Return (frames, height, width) actually processed at once, honoring tiling."""
+    """Return (frames, height, width) actually processed at once, honoring tiling.
+
+    Tiles overlap by `tile_overlap_factor` (0.25 in every diffusers VAE that defines it),
+    so the tensor a tile actually allocates is larger than the nominal tile size.
+    """
     *_, height, width = source_shape
     num_frames = source_shape[-3] if len(source_shape) >= 5 else 1  # noqa: PLR2004
 
+    overlap_scale = 1.0 + getattr(vae, "tile_overlap_factor", 0.0)
+
     if getattr(vae, "tile_sample_min_size", None) is not None:
-        tile = vae.tile_sample_min_size
+        tile = int(vae.tile_sample_min_size * overlap_scale)
         return num_frames, min(height, tile), min(width, tile)
 
     tile_height = getattr(vae, "tile_sample_min_height", None)
     tile_width = getattr(vae, "tile_sample_min_width", None)
     if tile_height is not None and tile_width is not None:
         tile_frames = getattr(vae, "tile_sample_min_num_frames", num_frames)
-        return min(num_frames, tile_frames), min(height, tile_height), min(width, tile_width)
+        return (
+            min(num_frames, tile_frames),
+            min(height, int(tile_height * overlap_scale)),
+            min(width, int(tile_width * overlap_scale)),
+        )
 
     return num_frames, height, width
 
@@ -133,33 +193,57 @@ def estimate_vae_activation_bytes(
     vae_slicing = optimization_kwargs.get("vae_slicing", False)
     source_shape = latent.source_shape
 
+    *_, full_height, full_width = source_shape
+    full_frames = source_shape[-3] if len(source_shape) >= 5 else 1  # noqa: PLR2004
+
     if vae_tiling and getattr(vae, "use_tiling", False):
         frames, height, width = _resolve_tiled_extent(vae, source_shape)
     else:
-        *_, height, width = source_shape
-        frames = source_shape[-3] if len(source_shape) >= 5 else 1  # noqa: PLR2004
+        frames, height, width = full_frames, full_height, full_width
 
     batch = 1 if vae_slicing else source_shape[0] if len(source_shape) >= 4 else 1  # noqa: PLR2004
 
     block_out_channels = _resolve_block_out_channels(vae)
     resnets_per_level = _resnets_per_up_block(vae)
+    spatial_factors, temporal_factors = _resolve_level_downsample_factors(vae, len(block_out_channels))
 
     total_bytes = 0
     for level_index, channels in enumerate(block_out_channels):
-        downsample_factor = 2**level_index
-        level_height = max(height // downsample_factor, 1)
-        level_width = max(width // downsample_factor, 1)
+        level_height = max(height // spatial_factors[level_index], 1)
+        level_width = max(width // spatial_factors[level_index], 1)
+        level_frames = max(frames // temporal_factors[level_index], 1)
         if resnets_per_level is not None and level_index < len(resnets_per_level):
             resnet_count = resnets_per_level[level_index]
         else:
             resnet_count = 1
-        total_bytes += resnet_count * batch * frames * level_height * level_width * channels * element_size
+        total_bytes += resnet_count * batch * level_frames * level_height * level_width * channels * element_size
 
-    deepest_downsample_factor = 2 ** (len(block_out_channels) - 1)
-    deepest_height = max(height // deepest_downsample_factor, 1)
-    deepest_width = max(width // deepest_downsample_factor, 1)
+        # Upsample intermediate. UpDecoderBlock2D runs its resnets and THEN upsamples at
+        # the same channel count (unet_2d_blocks.py, UpDecoderBlock2D.forward), so the
+        # transition from the next-deeper level materialises a `block_out_channels[
+        # level_index + 1]` tensor at THIS level's resolution -- a tensor that appears at
+        # no level of the ladder. It is the single largest omission in the pre-fix
+        # formula: 0.81 GiB of a measured 2.38 GiB for Flux2 at 1024x1024.
+        if level_index + 1 < len(block_out_channels):
+            deeper_channels = block_out_channels[level_index + 1]
+            total_bytes += batch * level_frames * level_height * level_width * deeper_channels * element_size
+
+    # Decoder output head: `conv_norm_out` -> silu -> `conv_out` holds a
+    # block_out_channels[0]-wide tensor at the shallowest (full) resolution, outside
+    # every up-block and so outside the level loop above.
+    total_bytes += batch * frames * height * width * block_out_channels[0] * element_size
+
+    deepest_height = max(height // spatial_factors[-1], 1)
+    deepest_width = max(width // spatial_factors[-1], 1)
+    deepest_frames = max(frames // temporal_factors[-1], 1)
     total_bytes += _mid_block_extra_bytes(
-        vae, block_out_channels[-1], deepest_height, deepest_width, batch, frames, element_size
+        vae, block_out_channels[-1], deepest_height, deepest_width, batch, deepest_frames, element_size
     )
+
+    # Tiled decode still materialises the full-resolution output tensor that the tiles are
+    # blended into, whatever the tile size -- a floor the per-tile terms above never
+    # cover, and the term that keeps a tiled estimate from collapsing toward zero.
+    out_channels = getattr(vae.config, "out_channels", 3)
+    total_bytes += batch * full_frames * full_height * full_width * out_channels * element_size
 
     return total_bytes

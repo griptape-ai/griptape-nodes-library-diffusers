@@ -62,11 +62,20 @@ _BASE_PIPELINE_TORCH_DTYPE = torch.bfloat16
 
 _WEIGHT_BEARING_ROLES = {"text_encoder", "denoiser", "vae"}
 
+# Activations are computed in the model's compute dtype, never narrower than 16-bit, even
+# when the weights are stored quantized. Reading the activation width off a quantized
+# parameter reported int8/uint8 (halving every activation term) and, in the pre-load path
+# where int4 resolves to 0.5 bytes, `int(0.5)` zeroed them out entirely with no warning.
+_MIN_ACTIVATION_BYTES_PER_ELEMENT = 2
+
 
 def _classify_role(component_name: str) -> str:
     if component_name.startswith("text_encoder"):
         return "text_encoder"
-    if component_name in ("transformer", "unet"):
+    # `transformer_2` is WAN 2.2's second denoiser (up to ~14B). Matching it here keeps it
+    # out of the "other" bucket, which reported zero activation memory for it and emitted
+    # a spurious "unrecognized component" warning.
+    if component_name in ("transformer", "unet") or component_name.startswith("transformer_"):
         return "denoiser"
     if component_name == "vae":
         return "vae"
@@ -78,6 +87,20 @@ def _element_size(component: torch.nn.Module) -> int:
         return next(component.parameters()).element_size()
     except StopIteration:
         return 4  # no parameters found; fall back to float32 width
+
+
+def _activation_element_size(component: torch.nn.Module) -> int:
+    """Return the bytes-per-element activations will actually be computed at.
+
+    Takes the widest parameter dtype rather than the first: a quantized module stores its
+    linear weights at int8/uint8 but keeps norms and biases in the compute dtype, so the
+    maximum recovers the compute width while `next(parameters())` may land on a quantized
+    tensor and report 1.
+    """
+    element_sizes = [parameter.element_size() for parameter in component.parameters()]
+    if not element_sizes:
+        return _MIN_ACTIVATION_BYTES_PER_ELEMENT
+    return max(max(element_sizes), _MIN_ACTIVATION_BYTES_PER_ELEMENT)
 
 
 def _estimate_denoiser_activation_bytes(
@@ -139,7 +162,7 @@ def _estimate_component(
     optimization_kwargs: dict[str, Any],
 ) -> ComponentMemoryEstimate:
     weight_bytes = get_model_memory(component)
-    element_size = _element_size(component)
+    element_size = _activation_element_size(component)
 
     if role == "text_encoder":
         activation_bytes = estimate_text_encoder_activation_bytes()
@@ -188,6 +211,27 @@ def _compute_peak_weight_topology(
     return max(c.weight_bytes for c in components)
 
 
+def _compute_estimated_peak_bytes(peak_weight_bytes: int, components: list[ComponentMemoryEstimate]) -> int:
+    """Combine the weight and activation terms into a peak VRAM figure.
+
+    Models `torch.cuda.max_memory_allocated()`, then applies the single
+    MEMORY_HEADROOM_FACTOR margin. Allocated is the portable target: it is fixed by the
+    architecture and the resolution, so it reproduces exactly across runs and across GPUs.
+    Everything above it -- CUDA context, cuBLAS/cuDNN workspaces, and the caching
+    allocator's reserved-but-unused segments -- varies by card, driver and OS, and the
+    allocator surrenders most of the last one under memory pressure anyway
+    (`release_cached_blocks()` on allocation failure). Those belong in the blanket margin,
+    not in a fitted constant.
+
+    Activations are combined with `max`, not `sum`: text encoders run and are freed before
+    denoise, and the denoiser's activations are freed before VAE decode. Those three
+    phases never coexist, so summing them invented memory -- which happened to mask a much
+    larger undercount in the VAE term until both were measured against a real run.
+    """
+    peak_activation_bytes = max((component.activation_bytes for component in components), default=0)
+    return int((peak_weight_bytes + peak_activation_bytes) * MEMORY_HEADROOM_FACTOR)
+
+
 def estimate_pipeline_memory(
     pipe: DiffusionPipeline,
     latent: LatentArtifact,
@@ -217,8 +261,7 @@ def estimate_pipeline_memory(
             denoiser_num_layers = fields.num_layers
 
     peak_weight_bytes = _compute_peak_weight_topology(components, offload_mode, denoiser_num_layers)
-    total_activation_bytes = sum(c.activation_bytes for c in components)
-    estimated_peak_bytes = int((peak_weight_bytes + total_activation_bytes) * MEMORY_HEADROOM_FACTOR)
+    estimated_peak_bytes = _compute_estimated_peak_bytes(peak_weight_bytes, components)
 
     warnings = [c.warning for c in components if c.warning is not None]
 
@@ -390,7 +433,11 @@ def estimate_pipeline_memory_from_build_data(
             supports_layerwise_casting=artifact.supports_layerwise_casting,
         )
         weight_bytes = int(weight_bytes / stored_bytes_per_element * effective_bytes_per_element)
-        element_size = int(effective_bytes_per_element)
+        # Weights shrink under quantization; activations do not -- they are computed at the
+        # compute dtype regardless. Deriving the activation width from
+        # `effective_bytes_per_element` halved every activation term under fp8/int8 and, for
+        # int4 (0.5 bytes), `int(0.5)` silently zeroed them.
+        element_size = max(int(stored_bytes_per_element), _MIN_ACTIVATION_BYTES_PER_ELEMENT)
 
         if role == "text_encoder":
             activation_bytes = estimate_text_encoder_activation_bytes()
@@ -466,8 +513,7 @@ def estimate_pipeline_memory_from_build_data(
         automatic_warning = None
 
     peak_weight_bytes = _compute_peak_weight_topology(components, offload_mode, denoiser_num_layers)
-    total_activation_bytes = sum(c.activation_bytes for c in components)
-    estimated_peak_bytes = int((peak_weight_bytes + total_activation_bytes) * MEMORY_HEADROOM_FACTOR)
+    estimated_peak_bytes = _compute_estimated_peak_bytes(peak_weight_bytes, components)
 
     warnings = [c.warning for c in components if c.warning is not None]
     if automatic_warning is not None:

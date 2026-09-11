@@ -6,6 +6,7 @@ from typing import Any
 
 import diffusers  # type: ignore[reportMissingImports]
 import numpy as np
+import torch  # type: ignore[reportMissingImports]
 from diffusers.pipelines.ltx2.export_utils import encode_hdr_tensor_to_mp4  # type: ignore[reportMissingImports]
 from diffusers.utils.export_utils import encode_video  # type: ignore[reportMissingImports]
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
@@ -239,7 +240,36 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         latent_artifact = self.get_parameter_value("latent_tensor")
 
         latents_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
+
+        # TEMPORARY memory-estimation calibration probe -- remove once the VAE activation
+        # formula is calibrated. Splits "what the estimator models" (allocated) from "what
+        # actually OOMs" (reserved), so decode-phase activation can be compared directly
+        # against estimate_vae_activation_bytes().
+        probe_cuda = torch.cuda.is_available()
+        if probe_cuda:
+            torch.cuda.synchronize()
+            baseline_allocated = torch.cuda.memory_allocated()
+            baseline_reserved = torch.cuda.memory_reserved()
+            torch.cuda.reset_peak_memory_stats()
+
         output = latents_pipeline_driver.decode_latent(latent_artifact)
+
+        if probe_cuda:
+            torch.cuda.synchronize()
+            gib = 1024**3
+            peak_allocated = torch.cuda.max_memory_allocated()
+            peak_reserved = torch.cuda.max_memory_reserved()
+            logger.info(
+                "DECODE MEM PROBE | baseline: allocated=%.2f GiB reserved=%.2f GiB | "
+                "peak: allocated=%.2f GiB reserved=%.2f GiB | decode activations: %.2f GiB | "
+                "fragmentation (peak reserved - peak allocated): %.2f GiB",
+                baseline_allocated / gib,
+                baseline_reserved / gib,
+                peak_allocated / gib,
+                peak_reserved / gib,
+                (peak_allocated - baseline_allocated) / gib,
+                (peak_reserved - peak_allocated) / gib,
+            )
 
         if latents_pipeline_driver.produces_video:
             with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_file_obj:
