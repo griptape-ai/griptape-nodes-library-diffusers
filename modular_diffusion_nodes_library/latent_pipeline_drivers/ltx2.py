@@ -454,17 +454,27 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         return kwargs
 
     @staticmethod
+    def _distilled_sigmas(use_stage_2: bool) -> list[float]:
+        if use_stage_2:
+            return STAGE_2_DISTILLED_SIGMA_VALUES
+        return DISTILLED_SIGMA_VALUES
+
+    @staticmethod
     def _update_args_for_distilled_pipeline(original_kwargs: dict[str, Any]) -> dict[str, Any]:
         kwargs = original_kwargs.copy()
         if "use_stage_2" in kwargs:
             use_stage_2 = kwargs.pop("use_stage_2")
-            if not use_stage_2:
-                kwargs["sigmas"] = DISTILLED_SIGMA_VALUES
-            else:
-                kwargs["sigmas"] = STAGE_2_DISTILLED_SIGMA_VALUES
-                kwargs["noise_scale"] = STAGE_2_DISTILLED_SIGMA_VALUES[0]
+            kwargs["sigmas"] = LTX2PipelineDriver._distilled_sigmas(use_stage_2)
+            if use_stage_2:
+                kwargs["noise_scale"] = kwargs["sigmas"][0]
             kwargs["num_inference_steps"] = len(kwargs["sigmas"])
         return kwargs
+
+    @override
+    def resolve_effective_num_inference_steps(self, num_inference_steps: int, pipe_kwargs: dict[str, Any]) -> int:
+        if "use_stage_2" in pipe_kwargs:
+            return len(self._distilled_sigmas(bool(pipe_kwargs["use_stage_2"])))
+        return num_inference_steps
 
     def _run_denoise_with_pipe_variant(
         self,
