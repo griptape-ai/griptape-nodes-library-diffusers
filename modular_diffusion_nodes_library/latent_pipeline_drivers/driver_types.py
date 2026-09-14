@@ -4,6 +4,7 @@ Leaf module — must not import anything from ``base_driver`` or any concrete
 driver.
 """
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -37,6 +38,28 @@ def read_driver_meta(artifact: Any, key: str, required_driver_name: str, default
     if not isinstance(sub, dict):
         return default
     return sub.get(key, default)
+
+
+def video_fingerprint(tensor: torch.Tensor) -> tuple[tuple[int, ...], float, float]:
+    """Cheap value-sensitive fingerprint of a video latent.
+
+    Shape alone would not do: latent math preserves shape and changes only values.
+    """
+    flat = tensor.detach().to(device="cpu", dtype=torch.float64)
+    return (tuple(tensor.shape), float(flat.sum()), float(flat.square().sum()))
+
+
+def fingerprints_match(
+    left: tuple[tuple[int, ...], float, float] | None,
+    right: tuple[tuple[int, ...], float, float],
+) -> bool:
+    if left is None:
+        return False
+    if tuple(left[0]) != tuple(right[0]):
+        return False
+    return math.isclose(left[1], right[1], rel_tol=1e-9, abs_tol=1e-6) and math.isclose(
+        left[2], right[2], rel_tol=1e-9, abs_tol=1e-6
+    )
 
 
 @dataclass(frozen=True)
