@@ -237,10 +237,12 @@ class DiffusionPipelineGenerateLatentParameters:
             "modular_diffusion_library.enable_image_preview_intermediates", default=False
         )
 
-        strength_affected_steps = self.get_strength_affected_steps()
-
         first_iteration_time = None
         latent_pipeline_driver = create_driver(pipe, pipeline_class)
+        effective_num_inference_steps = latent_pipeline_driver.resolve_effective_num_inference_steps(
+            num_inference_steps, pipe_kwargs
+        )
+        strength_affected_steps = self.get_strength_affected_steps(effective_num_inference_steps)
 
         input_latent_artifact = self._node.get_parameter_value("input_latent")
         if input_latent_artifact is None:
@@ -377,8 +379,8 @@ class DiffusionPipelineGenerateLatentParameters:
             return 1.0 - (self.start_step / number_of_steps)
         return 1.0
 
-    def get_strength_affected_steps(self) -> int:
-        return math.ceil(self.get_num_inference_steps() * self.get_strength())
+    def get_strength_affected_steps(self, num_inference_steps: int) -> int:
+        return math.ceil(num_inference_steps * self.get_strength())
 
     def get_control_net_parameters(self) -> dict[str, Any] | None:
         control_net_parameters = self._node.get_parameter_value(
