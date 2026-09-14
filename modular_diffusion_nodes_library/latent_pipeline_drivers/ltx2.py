@@ -224,7 +224,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
+    def _prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
         device, _ = self._get_device_and_type()
         latents = latents.to(device=device, dtype=torch.float32)
         return self.pipe._denormalize_latents(
