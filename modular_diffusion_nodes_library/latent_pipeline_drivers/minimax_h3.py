@@ -60,7 +60,9 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     GeneratorState,
     ImageMedia,
     VideoMedia,
+    fingerprints_match,
     read_driver_meta,
+    video_fingerprint,
 )
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
     normalize_to_payloads,
@@ -93,28 +95,6 @@ MAX_REQUESTABLE_NUM_FRAMES = 345
 #: unsummed audio: the audio is still present but no longer corresponds to the video. Comparing
 #: fingerprints at decode time turns that from a silently desynchronised soundtrack into an error.
 AUDIO_PAIRED_WITH_META_KEY = "audio_paired_with"
-
-
-def _video_fingerprint(tensor: torch.Tensor) -> tuple[tuple[int, ...], float, float]:
-    """Cheap value-sensitive fingerprint of a video latent.
-
-    Shape alone would not do: latent math preserves shape and changes only values.
-    """
-    flat = tensor.detach().to(device="cpu", dtype=torch.float64)
-    return (tuple(tensor.shape), float(flat.sum()), float(flat.square().sum()))
-
-
-def _fingerprints_match(
-    left: tuple[tuple[int, ...], float, float] | None,
-    right: tuple[tuple[int, ...], float, float],
-) -> bool:
-    if left is None:
-        return False
-    if tuple(left[0]) != tuple(right[0]):
-        return False
-    return math.isclose(left[1], right[1], rel_tol=1e-9, abs_tol=1e-6) and math.isclose(
-        left[2], right[2], rel_tol=1e-9, abs_tol=1e-6
-    )
 
 
 def _unpack_video_rows(
@@ -510,7 +490,7 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
             return None
 
         paired_with = read_driver_meta(latent, AUDIO_PAIRED_WITH_META_KEY, self.driver_namespace)
-        if not _fingerprints_match(paired_with, _video_fingerprint(video_latents)):
+        if not fingerprints_match(paired_with, video_fingerprint(video_latents)):
             raise ValueError(
                 f"{self.driver_namespace}: Attempted to {action} a MiniMax-H3 latent. Failed "
                 f"because its audio latent belongs to a different video latent, so the soundtrack "
@@ -562,7 +542,7 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
             source_shape=source_shape,
             meta={
                 AUDIO_LATENTS_META_KEY: audio_latents,
-                AUDIO_PAIRED_WITH_META_KEY: _video_fingerprint(latents),
+                AUDIO_PAIRED_WITH_META_KEY: video_fingerprint(latents),
                 **GeneratorState.from_generator(generator).as_meta(),
             },
         )
@@ -759,7 +739,7 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
             upstream=latent,
             meta={
                 AUDIO_LATENTS_META_KEY: audio_out,
-                AUDIO_PAIRED_WITH_META_KEY: _video_fingerprint(video_latents),
+                AUDIO_PAIRED_WITH_META_KEY: video_fingerprint(video_latents),
                 **GeneratorState.from_generator(generator).as_meta(),
             },
         )
