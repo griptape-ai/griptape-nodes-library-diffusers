@@ -174,7 +174,7 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
 
     Latents at the driver boundary are in **unpacked 5D** format
     ``[B, C, T, H, W]``.  Packing/unpacking is handled internally via
-    ``prepare_input_latent`` / ``prepare_output_latent``.
+    ``_prepare_input_latent`` / ``prepare_output_latent``.
     """
 
     produces_video: ClassVar[bool] = True

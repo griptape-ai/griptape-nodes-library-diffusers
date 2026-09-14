@@ -94,7 +94,7 @@ Create `latent_pipeline_drivers/<model>.py`. Subclass `LatentPipelineDriver` fro
 
 **Read the `LatentPipelineDriver` docstring before writing a line.** It defines the binding contract for every public driver method:
 
-> Public latents are **unpacked** (4-D image `[B, C, H/vae, W/vae]`, 5-D video `[B, C, T_lat, H/vae, W/vae]`) and **normalised** (~N(0,1)). Per-VAE whitening `(z - mean) / std` is applied inside `encode_media`; the inverse runs inside `decode_latent`. Model-specific packing (Flux, Qwen) is applied transiently in `prepare_input_latent` / `prepare_output_latent` and never appears on the public surface. Public methods exchange `LatentArtifact` (with `source_shape` carried on the artifact / on the input `ImageMedia` / `VideoMedia` / `MaskMedia` dataclass), never raw tensors.
+> Public latents are **unpacked** (4-D image `[B, C, H/vae, W/vae]`, 5-D video `[B, C, T_lat, H/vae, W/vae]`) and **normalised** (~N(0,1)). Per-VAE whitening `(z - mean) / std` is applied inside `encode_media`; the inverse runs inside `decode_latent`. Model-specific packing (Flux, Qwen) is applied transiently in `_prepare_input_latent` / `prepare_output_latent` and never appears on the public surface. Public methods exchange `LatentArtifact` (with `source_shape` carried on the artifact / on the input `ImageMedia` / `VideoMedia` / `MaskMedia` dataclass), never raw tensors.
 
 **Forwardable-signature contract (enforced at subclass time).** Four methods — `encode_media`, `decode_latent`, `create_noise_latent`, `add_noise_to_latent` — must match [`FORWARDABLE_METHOD_POSITIONAL`](../modular_diffusion_nodes_library/latent_pipeline_drivers/_base_driver_forwardable_signature.py) **exactly**: same parameter names, same order, no extra positional or kw-only parameters, no `*args`/`**kwargs`. Driver-specific tunables are NOT permitted on these methods — route them through the driver-namespaced sub-bag on `LatentArtifact.meta` via `_make_latent_artifact(..., meta=...)` and read them back with `read_driver_meta(...)`. See [`driver_types.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_types.py) (`META_DRIVER_KEY`, `read_driver_meta`, `GeneratorState`) and the SDXL `_KIND_META_KEY` pattern in [`stable_diffusion_xl.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) for the canonical shape.
 
@@ -112,7 +112,7 @@ Required overrides:
 | `add_noise_to_latent()` | `(latent, generator_state, num_inference_steps, strength) -> LatentArtifact` | Prefer modular e.g.`Img2ImgSetTimesteps` + `Img2ImgPrepareLatents` block sequence. |
 
 Optional overrides:
-- `prepare_input_latent` / `prepare_output_latent` — pack/unpack for transformers that use sequence-packed latents (Flux, Qwen)
+- `_prepare_input_latent` / `prepare_output_latent` — pack/unpack for transformers that use sequence-packed latents (Flux, Qwen)
 - `_extract_latents_from_output()` — return `pipe_output.frames` for video, default `images` for image
 - Video models: set the `produces_video = True` and `video_fps` ClassVars
 - `encode_prompt()` — only if your text encoder block needs extra inputs beyond `prompt`/`negative_prompt`
