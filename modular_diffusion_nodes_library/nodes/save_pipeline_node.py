@@ -15,6 +15,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
 from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import serialize_pipeline_artifact
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.file_path_parameter import FilePathParameter
+from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -36,11 +37,11 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self._file_path_param = FilePathParameter(
             self,
             file_types=[".json"],
-            tooltip="Destination JSON path. Relative paths are resolved against the workspace directory.",
+            tooltip="Destination JSON path. Relative paths are resolved against the project directory.",
             display_name="File Path",
             allow_create=True,
             allowed_modes={ParameterMode.PROPERTY},
-            default_value="pipeline-config.json",
+            default_value="{project_dir}/pipeline-config.json",
         )
         self._file_path_param.add_input_parameters()
         self._create_status_parameters()
@@ -76,8 +77,9 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             if not isinstance(file_path, str) or not file_path.strip():
                 raise ValueError(f"Parameter 'file_path' on node '{self.name}' must be a non-empty string.")
 
+            expanded_path = expand_path_macros(file_path)
             workspace_path = GriptapeNodes.ConfigManager().workspace_path
-            resolved_path = resolve_workspace_path(Path(file_path), workspace_path)
+            resolved_path = resolve_workspace_path(Path(expanded_path), workspace_path)
             resolved_path.parent.mkdir(parents=True, exist_ok=True)
 
             temp_path = resolved_path.with_suffix(f"{resolved_path.suffix}.tmp")
