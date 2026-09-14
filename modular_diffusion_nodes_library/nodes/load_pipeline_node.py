@@ -29,10 +29,10 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self._file_path_param = FilePathParameter(
             self,
             file_types=[".json"],
-            tooltip="Pipeline configuration JSON path. Relative paths are resolved against the workspace directory.",
+            tooltip="Pipeline configuration JSON path. Relative paths are resolved against the project directory.",
             display_name="File Path",
             allowed_modes={ParameterMode.PROPERTY},
-            default_value="pipeline-config.json",
+            default_value="{project_dir}/pipeline-config.json",
         )
         self._file_path_param.add_input_parameters()
         self.add_parameter(
