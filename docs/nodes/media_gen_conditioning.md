@@ -7,7 +7,7 @@ Category: `ModularDiffusion/Conditioning`
 ## TL;DR
 - Connect a pipeline to get preset layouts tailored to that model (e.g. first/last frame slots for WAN Image-to-Video).
 - Without a pipeline, a flexible image-or-video layout is shown with a "Preset" dropdown; a number of images slider is shown in "Custom" preset mode.
-- Connect the `conditioning` output to the `media_conditions` (LTX / LTX2 / WAN) or `reference_images` (Flux2 Klein) input on Generate Media Latents.
+- Connect the `conditioning` output to the matching conditioning input on Generate Media Latents — the input's name and count depend on the connected pipeline, e.g. `media_conditions` for LTX / LTX2 or `reference_images` for Flux2 Klein.
 
 ## Typical workflow position
 ```text
@@ -61,21 +61,13 @@ Load Image (last) ───┴─→ [Media Generation Conditioning] ──┘
 
 ## Provider / model behavior
 
-### No pipeline connected (default)
-
-Both image and video modes are available. `Preset` choices: **Custom** (default), First + Middle + Last, First + Last, First frame. In Custom mode, `num_images` (0–8), `frame_index`, and `strength` are all adjustable. video mode, a single `video` input with `frame_index` and `video_strength` is shown
-
-### WAN Image-to-Video
-
-Image mode only. `Preset` choices: **First + Last** (default), First frame.
-
-### LTX / LTX2
-
-Same as "No pipeline connected" but in image mode, **First + Middle + Last** is default.
-
-### Flux2 Klein
-
-Image mode only. Flexible image slots (1–8). The `reference_images` input on Generate Media Latents is active only when an inpaint mask is also connected.
+| Pipeline | Behavior |
+| --- | --- |
+| No pipeline connected (default) | Both image and video modes are available. `Preset` choices: **Custom** (default), First + Middle + Last, First + Last, First frame. In Custom mode, `num_images` (0–8), `frame_index`, and `strength` are all adjustable. In video mode, a single `video` input with `frame_index` and `video_strength` is shown. |
+| Flux2 Klein | Image mode only. Flexible image slots (1–8). The `reference_images` input on Generate Media Latents is active only when an inpaint mask is also connected. |
+| LTX / LTX2 | Same as "No pipeline connected" but in image mode, **First + Middle + Last** is default. |
+| WAN Image-to-Video | Image mode only. `Preset` choices: **First + Last** (default), First frame. |
+| WAN VACE | Image mode only. `Preset` choices: **First + Middle + Last** (default), First + Last, First frame — feeds the `source_media` input on Generate Media Latents. The same node can also feed `mask` and `reference_images`; `reference_images` accepts up to 8 images. |
 
 ## Tips & pitfalls
 
