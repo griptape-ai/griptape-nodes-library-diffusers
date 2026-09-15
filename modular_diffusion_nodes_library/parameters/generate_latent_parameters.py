@@ -277,7 +277,7 @@ class DiffusionPipelineGenerateLatentParameters:
             return {}
 
         self._node.progress_bar_component.initialize(strength_affected_steps)  # type: ignore[reportAttributeAccessIssue]
-        input_latent_for_denoise = self.prepare_input_latent(input_latent_artifact, latent_pipeline_driver)
+        input_latent_for_denoise = self._prepare_input_latent(input_latent_artifact, latent_pipeline_driver)
         if input_latent_for_denoise is None:
             raise ValueError("Failed to prepare input latent for the pipeline.")
 
@@ -299,7 +299,7 @@ class DiffusionPipelineGenerateLatentParameters:
         self.publish_output_latent(output_latent_artifact)  # type: ignore[reportArgumentType]
         self._node.log_params.append_to_logs("Done.\n")  # type: ignore[reportAttributeAccessIssue]
 
-    def prepare_input_latent(
+    def _prepare_input_latent(
         self, input_latent_artifact: LatentArtifact | InpaintMaskArtifact, latent_pipeline_driver: LatentPipelineDriver
     ) -> LatentArtifact | InpaintMaskArtifact | None:
         if input_latent_artifact is None:

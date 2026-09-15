@@ -88,7 +88,7 @@ class LatentPipelineDriver(ABC):
     and the inverse inside ``decode_latent``.
 
     Any model-specific *packing* (e.g. Flux, Qwen) is applied transiently
-    inside ``prepare_input_latent`` / ``prepare_output_latent`` and never
+    inside ``_prepare_input_latent`` / ``prepare_output_latent`` and never
     appears on the public surface.
     """
 
@@ -317,7 +317,7 @@ class LatentPipelineDriver(ABC):
 
         return LatentArtifact.from_torch(tensor, source_shape=source_shape, meta=base)
 
-    def prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
+    def _prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
         """Return latents ready to be passed into the pipeline, which may involve packing or other preprocessing."""
         return latents
 
@@ -433,7 +433,7 @@ class LatentPipelineDriver(ABC):
             kwargs.update(inpaint_kwargs)
         elif "latents" not in kwargs:
             latents = latent.to_torch(device=device, dtype=dtype)
-            latents = self.prepare_input_latent(latents, source_shape)
+            latents = self._prepare_input_latent(latents, source_shape)
             kwargs["latents"] = latents
 
         # check that the pipeline supports the kwargs we are passing in
