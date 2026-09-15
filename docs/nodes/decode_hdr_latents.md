@@ -7,7 +7,8 @@ Category: `ModularDiffusion/Encode\Decode`
 ## TL;DR
 - Extends [Decode Media Latent](decode_media_latent.md): same inputs and dynamic image/video output, plus tone mapping and EXR export for HDR video pipelines (e.g. LTX 2.3 HDR).
 - Output is always a tone-mapped SDR image or MP4 video — set `exr_output_folder` to also save the raw linear HDR frames as an OpenEXR sequence before tone mapping is applied.
-- Standard (non-HDR) pipelines behave identically to Decode Media Latent; tone mapping is not applied.
+- Standard (non-HDR) pipelines behave identically to Decode Media Latent; tone mapping is not applied. That includes LTX2's audio track — see [Decode Media Latent](decode_media_latent.md).
+- The HDR IC-LoRA path never produces audio, regardless of `tone_mapping` or `exr_output_folder`.
 - HDR output applies only to pipeline drivers that return linear `np.ndarray` frames (LTX 2.3 HDR); all other pipelines use the standard decode path.
 
 ## Typical workflow position

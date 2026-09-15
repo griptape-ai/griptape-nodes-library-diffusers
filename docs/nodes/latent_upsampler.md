@@ -41,6 +41,7 @@ Generate Media Latents (low-res) → [Latent Upsampler] → Generate Media Laten
 
 - **Latent-space upsamplers are family-specific.** An LTX2 upsampler will not produce sensible output for an SDXL latent. Match the upsampler family to the latent's pipeline.
 - **You almost always want a refinement Generate after upsampling.** The upsampler increases resolution but doesn't denoise — pair it with a short follow-up Generate at low strength.
+- **Keep LTX2 audio through refinement.** The upsampler preserves the input latent's audio metadata so a following plain LTX2 Generate stage refines video and audio together; Decode Media Latent muxes the final soundtrack.
 - **An upsampler marked "Not permitted by your license" cannot be used.** It stays visible in the picker with a shield icon, but selecting it badges the parameter and the run fails — pick a permitted upsampler, or take it up with whoever administers your license.
 
 ## See also

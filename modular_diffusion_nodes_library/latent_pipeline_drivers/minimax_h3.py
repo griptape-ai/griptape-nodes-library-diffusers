@@ -8,12 +8,10 @@ Owning the loop is what makes partial denoise, live preview and mid-run cancella
 even though HunyuanVideo 1.5 (whose loop is sealed inside diffusers) cannot offer the latter two.
 
 Two latent streams share one public artifact: the video latent is the artifact's tensor, and the
-audio latent rides in this driver's namespaced ``meta`` sub-bag. That channel is only safe on a
-direct Generate -> Decode edge. Nodes that rebuild meta from scratch (Empty Latent, save/load) drop
-the audio, and latent math is worse: it sums the video latent while keeping the left operand's
-*unsummed* audio, so the audio is present but no longer matches the picture. ``decode_latent``
-therefore checks a fingerprint of the video latent the audio was paired with, and refuses rather
-than muxing a desynchronised soundtrack.
+audio latent rides in this driver's namespaced ``meta`` sub-bag. Nodes that rebuild meta from
+scratch (Empty Latent, save/load) drop the audio. Nodes that transform video latents while
+preserving metadata intentionally retain the existing soundtrack, allowing users to keep it when
+performing video-only latent edits.
 """
 
 import logging
@@ -60,9 +58,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     GeneratorState,
     ImageMedia,
     VideoMedia,
-    fingerprints_match,
     read_driver_meta,
-    video_fingerprint,
 )
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
     normalize_to_payloads,
@@ -89,12 +85,6 @@ AUDIO_LATENTS_META_KEY = "audio_latents"
 #: (n=21), is 15.083 s and falls outside the window, which upstream rejects.
 MIN_REQUESTABLE_NUM_FRAMES = 124
 MAX_REQUESTABLE_NUM_FRAMES = 345
-
-#: Fingerprint of the video latent the audio latent was denoised with. Latent math merges meta
-#: left-operand-wins over a *shallow* copy, so a summed video latent keeps the left operand's
-#: unsummed audio: the audio is still present but no longer corresponds to the video. Comparing
-#: fingerprints at decode time turns that from a silently desynchronised soundtrack into an error.
-AUDIO_PAIRED_WITH_META_KEY = "audio_paired_with"
 
 
 def _unpack_video_rows(
@@ -475,31 +465,9 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
             "num_audio_latents": audio_latent_num_frames(num_frames),
         }
 
-    def _read_paired_audio_latents(
-        self, latent: LatentArtifact, video_latents: torch.Tensor, *, action: str
-    ) -> torch.Tensor | None:
-        """Return the artifact's audio latent, or ``None`` when it carries none.
-
-        Raises when an audio latent is present but was paired with a *different* video latent. That
-        is the dangerous case: latent math shallow-merges meta left-operand-wins, so a summed video
-        latent keeps the left operand's unsummed audio. Both the denoise and the decode entry points
-        check this, so a stale pairing cannot be laundered by passing through a second denoise.
-        """
-        audio_latents = read_driver_meta(latent, AUDIO_LATENTS_META_KEY, self.driver_namespace)
-        if audio_latents is None:
-            return None
-
-        paired_with = read_driver_meta(latent, AUDIO_PAIRED_WITH_META_KEY, self.driver_namespace)
-        if not fingerprints_match(paired_with, video_fingerprint(video_latents)):
-            raise ValueError(
-                f"{self.driver_namespace}: Attempted to {action} a MiniMax-H3 latent. Failed "
-                f"because its audio latent belongs to a different video latent, so the soundtrack "
-                f"would not match the picture. MiniMax-H3 generates video and audio jointly and the "
-                f"audio travels in the latent's metadata, which latent math, composite and upsampler "
-                f"nodes do not recompute. Connect Generate Media Latents directly to Decode Media "
-                f"Latent."
-            )
-        return audio_latents
+    def _read_audio_latents(self, latent: LatentArtifact) -> torch.Tensor | None:
+        """Return the artifact's audio latent, or ``None`` when it carries none."""
+        return read_driver_meta(latent, AUDIO_LATENTS_META_KEY, self.driver_namespace)
 
     def _run_blocks(self, blocks: Any, **kwargs: Any) -> PipelineState:
         """Run ``blocks`` over one shared ``PipelineState`` and return it.
@@ -542,7 +510,6 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
             source_shape=source_shape,
             meta={
                 AUDIO_LATENTS_META_KEY: audio_latents,
-                AUDIO_PAIRED_WITH_META_KEY: video_fingerprint(latents),
                 **GeneratorState.from_generator(generator).as_meta(),
             },
         )
@@ -558,7 +525,7 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
 
         self.last_audio = None
         self.last_sampling_rate = None
-        audio_latents = self._read_paired_audio_latents(latent, latents, action="decode")
+        audio_latents = self._read_audio_latents(latent)
 
         video_state = self._run_blocks(
             pipe.blocks.sub_blocks["decode"].sub_blocks["video"],
@@ -682,7 +649,7 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
 
         generator = update_kwargs.pop("generator", generator_state.to_generator())
         video_latents_in = latent.to_torch(device=device, dtype=torch.float32)
-        audio_latents = self._read_paired_audio_latents(latent, video_latents_in, action="denoise")
+        audio_latents = self._read_audio_latents(latent)
         if audio_latents is None and start_step > 0:
             # Upstream draws fresh audio noise when none is supplied, but with a begin index set
             # both schedulers would step that pure noise as if it were already partly denoised,
@@ -739,7 +706,6 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
             upstream=latent,
             meta={
                 AUDIO_LATENTS_META_KEY: audio_out,
-                AUDIO_PAIRED_WITH_META_KEY: video_fingerprint(video_latents),
                 **GeneratorState.from_generator(generator).as_meta(),
             },
         )
