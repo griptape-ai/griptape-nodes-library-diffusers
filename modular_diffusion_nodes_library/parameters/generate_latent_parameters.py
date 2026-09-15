@@ -1,5 +1,4 @@
 import logging
-import math
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
@@ -380,7 +379,12 @@ class DiffusionPipelineGenerateLatentParameters:
         return 1.0
 
     def get_strength_affected_steps(self, num_inference_steps: int) -> int:
-        return math.ceil(num_inference_steps * self.get_strength())
+        start_step = min(self.start_step, num_inference_steps)
+        if self.end_step == -1:
+            end_step = num_inference_steps
+        else:
+            end_step = min(self.end_step, num_inference_steps)
+        return max(end_step - start_step, 0)
 
     def get_control_net_parameters(self) -> dict[str, Any] | None:
         control_net_parameters = self._node.get_parameter_value(

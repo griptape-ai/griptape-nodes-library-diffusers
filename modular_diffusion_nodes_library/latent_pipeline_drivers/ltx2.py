@@ -35,9 +35,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     GeneratorState,
     ImageMedia,
     VideoMedia,
-    fingerprints_match,
     read_driver_meta,
-    video_fingerprint,
 )
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
     MediaGenConditioningPayload,
@@ -58,12 +56,6 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 #: Key under which the audio latent rides in this driver's namespaced ``meta`` sub-bag.
 AUDIO_LATENTS_META_KEY = "audio_latents"
-
-#: Fingerprint of the video latent the audio latent was denoised with. Latent math merges meta
-#: left-operand-wins over a *shallow* copy, so a summed video latent keeps the left operand's
-#: unsummed audio: the audio is still present but no longer corresponds to the video. Comparing
-#: fingerprints at decode time turns that from a silently desynchronised soundtrack into an error.
-AUDIO_PAIRED_WITH_META_KEY = "audio_paired_with"
 
 
 class LTX2PipelineDriver(LatentPipelineDriver):
@@ -331,30 +323,9 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         )
         return hdr
 
-    def _read_paired_audio_latents(
-        self, latent: LatentArtifact, video_latents: torch.Tensor, *, action: str
-    ) -> torch.Tensor | None:
-        """Return the artifact's audio latent, or ``None`` when it carries none.
-
-        Raises when an audio latent is present but was paired with a *different* video latent. That
-        is the dangerous case: latent math shallow-merges meta left-operand-wins, so a summed video
-        latent keeps the left operand's unsummed audio. Both the denoise and the decode entry points
-        check this, so a stale pairing cannot be laundered by passing through a second denoise.
-        """
-        audio_latents = read_driver_meta(latent, AUDIO_LATENTS_META_KEY, self.driver_namespace)
-        if audio_latents is None:
-            return None
-
-        paired_with = read_driver_meta(latent, AUDIO_PAIRED_WITH_META_KEY, self.driver_namespace)
-        if not fingerprints_match(paired_with, video_fingerprint(video_latents)):
-            raise ValueError(
-                f"{self.driver_namespace}: Attempted to {action} an LTX2 latent. Failed because its "
-                f"audio latent belongs to a different video latent, so the soundtrack would not match "
-                f"the picture. LTX2 generates video and audio jointly and the audio travels in the "
-                f"latent's metadata, which latent math, composite and upsampler nodes do not "
-                f"recompute. Connect Generate Media Latents directly to Decode Media Latent."
-            )
-        return audio_latents
+    def _read_audio_latents(self, latent: LatentArtifact | InpaintMaskArtifact) -> torch.Tensor | None:
+        """Return the artifact's audio latent, or ``None`` when it carries none."""
+        return read_driver_meta(latent, AUDIO_LATENTS_META_KEY, self.driver_namespace)
 
     @override
     def decode_latent(self, latent: LatentArtifact) -> list[Image] | np.ndarray:
@@ -363,7 +334,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
         self.last_audio = None
         self.last_sampling_rate = None
-        audio_latents = self._read_paired_audio_latents(latent, latents, action="decode")
+        audio_latents = self._read_audio_latents(latent)
 
         if self.pipe.vae.config.timestep_conditioning:
             timestep = torch.zeros(latents.shape[0], device=device, dtype=dtype)
@@ -477,6 +448,11 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         if MediaGenConditioningKey.OUTPUT in kwargs:
             return self._denoise_with_video_gen_conditioning(latent, **kwargs)
 
+        audio_latents = self._read_audio_latents(latent)
+        if audio_latents is not None:
+            device, _ = self._get_device_and_type()
+            kwargs["audio_latents"] = audio_latents.to(device=device, dtype=torch.float32)
+
         result = super().denoise_latent(latent, **kwargs)
         result = self._stamp_audio(result)
         return self._stamp_pipeline_class(result, self.pipe.__class__.__name__)
@@ -503,7 +479,6 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             upstream=artifact,
             meta={
                 AUDIO_LATENTS_META_KEY: audio_latents,
-                AUDIO_PAIRED_WITH_META_KEY: video_fingerprint(video_latents),
             },
         )
 
@@ -657,37 +632,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
         logger.info("LTX2: calling HDR pipeline: LTX2HDRPipeline")
         kwargs["reference_conditions"] = reference_conditions
-        result = self._run_denoise_with_pipe_variant(latent, LTX2HDRPipeline, **kwargs)
-        return self._carry_forward_audio(latent, result)
-
-    def _carry_forward_audio(
-        self, source: LatentArtifact | InpaintMaskArtifact, result: LatentArtifact
-    ) -> LatentArtifact:
-        """Re-pair ``source``'s audio latent (if any) onto ``result``.
-
-        ``LTX2HDRPipeline`` only remaps dynamic range and never re-synthesizes audio, so it always
-        reports ``audio=None`` and ``_stamp_audio`` cannot help here. But an input soundtrack is still
-        valid for the HDR-remapped picture, so read it directly off ``source`` and re-fingerprint it
-        against the new HDR video tensor rather than losing it or leaving it paired with the pre-HDR
-        video (which `_read_paired_audio_latents` would then reject as a mismatch at decode time).
-        """
-        if not isinstance(source, LatentArtifact):
-            return result
-        device, _ = self._get_device_and_type()
-        source_video = source.to_torch(device=device, dtype=torch.float32)
-        audio_latents = self._read_paired_audio_latents(source, source_video, action="carry audio into an HDR result")
-        if audio_latents is None:
-            return result
-        result_video = result.to_torch()
-        return self._make_latent_artifact(
-            result_video,
-            source_shape=result.source_shape,
-            upstream=result,
-            meta={
-                AUDIO_LATENTS_META_KEY: audio_latents,
-                AUDIO_PAIRED_WITH_META_KEY: video_fingerprint(result_video),
-            },
-        )
+        return self._run_denoise_with_pipe_variant(latent, LTX2HDRPipeline, **kwargs)
 
     @staticmethod
     def _set_default_kwargs_hdr(original_kwargs: dict[str, Any]) -> dict[str, Any]:
