@@ -119,6 +119,18 @@ check/json: ## Validate JSON files.
 		! -path "./node_modules/*" \
 		-exec sh -c 'jq empty "{}" > /dev/null 2>&1 || (echo "Invalid JSON: {}" && exit 1)' \;
 
+.PHONY: test
+test: ## Run all tests.
+	@uv run pytest tests
+
+.PHONY: test/unit
+test/unit: ## Run unit tests (everything except workflow tests).
+	@uv run pytest tests --ignore=tests/workflows
+
+.PHONY: test/workflows
+test/workflows: ## Run workflow tests.
+	@uv run pytest -s tests/workflows
+
 .DEFAULT_GOAL := help
 .PHONY: help
 help: ## Print Makefile help text.

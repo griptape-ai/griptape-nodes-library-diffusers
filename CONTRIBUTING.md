@@ -50,21 +50,21 @@ Top-level layout of this repository:
 1. **Run tests:**
 
     ```shell
-    uv run pytest tests/
+    make test
+    ```
+
+    Or run a specific test suite:
+
+    ```shell
+    make test/unit
+    make test/workflows
     ```
 
 1. **Check code quality:**
 
     ```shell
-    uv run ruff check .
-    uv run ruff format . --check
-    ```
-
-    To auto-fix:
-
-    ```shell
-    uv run ruff check . --fix
-    uv run ruff format .
+    make check  # Check linting, formatting, and type errors
+    make fix    # Auto-fix issues where possible
     ```
 
 1. **Submit a pull request** against the `main` branch of this repository. Describe your changes clearly in the PR description.
