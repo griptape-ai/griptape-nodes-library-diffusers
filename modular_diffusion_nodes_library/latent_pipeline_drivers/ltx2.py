@@ -32,8 +32,10 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutput,
     GeneratorState,
     ImageMedia,
+    PipelineOutput,
     VideoMedia,
     read_driver_meta,
 )
@@ -67,13 +69,6 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     _IC_LORA_REFERENCE_KEY: ClassVar[str] = "ltx2_ic_lora_reference"
     #: Record concrete ``DiffusionPipeline`` class that produced the latent.
     _PIPELINE_CLASS_META_KEY: ClassVar[str] = "pipeline_class"
-
-    def __init__(self, pipe: DiffusionPipeline):
-        super().__init__(pipe)
-        # Stashed by `_extract_latents_from_output` for the duration of one `denoise_latent()`
-        # call, then folded into the returned artifact's meta by `_stamp_audio` and reset. `None`
-        # for pipelines that don't produce audio (e.g. LTX2HDRPipeline).
-        self._pending_audio_latents: torch.Tensor | None = None
 
     @override
     def _get_temporal_alignment(self) -> int | None:
@@ -296,10 +291,13 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def _extract_latents_from_output(self, pipe_output: Any) -> torch.Tensor:
+    def _extract_latents_from_output(self, pipe_output: Any) -> PipelineOutput:
         """LTX2 pipelines return video frames under ``.frames``; audio (if any) rides in ``.audio``."""
-        self._pending_audio_latents = getattr(pipe_output, "audio", None)
-        return pipe_output.frames
+        audio = getattr(pipe_output, "audio", None)
+        extra_meta = None
+        if audio is not None:
+            extra_meta = {AUDIO_LATENTS_META_KEY: audio}
+        return PipelineOutput(media=pipe_output.frames, extra_meta=extra_meta)
 
     def _decode_hdr_to_linear_np(self, video: torch.Tensor) -> torch.Tensor | np.ndarray:
         """Convert decoded LogC3-compressed VAE output to linear HDR np.ndarray.
@@ -328,12 +326,10 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         return read_driver_meta(latent, AUDIO_LATENTS_META_KEY, self.driver_namespace)
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> list[Image] | np.ndarray:
+    def decode_latent(self, latent: LatentArtifact) -> DecodeOutput:
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=torch.float32)
 
-        self.last_audio = None
-        self.last_sampling_rate = None
         audio_latents = self._read_audio_latents(latent)
 
         if self.pipe.vae.config.timestep_conditioning:
@@ -355,7 +351,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         if self._latent_was_produced_for_hdr(latent):
             # HDR IC-LoRA path: return raw linear HDR for encode_hdr_tensor_to_mp4 in vae_decoder.
             # LTX2HDRPipeline never produces audio, so audio_latents is always None here.
-            return self._decode_hdr_to_linear_np(video)  # type: ignore[reportReturnType]
+            return DecodeOutput(media=self._decode_hdr_to_linear_np(video))  # type: ignore[reportArgumentType]
 
         frames = self.pipe.video_processor.postprocess_video(video, output_type="pil")[0]
 
@@ -364,14 +360,17 @@ class LTX2PipelineDriver(LatentPipelineDriver):
                 "%s: decoding video only because the latent carries no audio latents in driver meta.",
                 self.driver_namespace,
             )
-            return frames
+            return DecodeOutput(media=frames)
 
         with torch.no_grad():
             audio_latents = audio_latents.to(device=device, dtype=self.pipe.audio_vae.dtype)
             generated_mel_spectrograms = self.pipe.audio_vae.decode(audio_latents, return_dict=False)[0]
-            self.last_audio = self.pipe.vocoder(generated_mel_spectrograms)
-        self.last_sampling_rate = self.pipe.vocoder.config.output_sampling_rate
-        return frames
+            audio = self.pipe.vocoder(generated_mel_spectrograms)
+        return DecodeOutput(
+            media=frames,
+            audio=audio,
+            audio_sample_rate=self.pipe.vocoder.config.output_sampling_rate,
+        )
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
@@ -454,7 +453,6 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             kwargs["audio_latents"] = audio_latents.to(device=device, dtype=torch.float32)
 
         result = super().denoise_latent(latent, **kwargs)
-        result = self._stamp_audio(result)
         return self._stamp_pipeline_class(result, self.pipe.__class__.__name__)
 
     def _stamp_pipeline_class(self, artifact: LatentArtifact, pipeline_class_name: str) -> LatentArtifact:
@@ -464,22 +462,6 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             source_shape=artifact.source_shape,
             upstream=artifact,
             meta={self._PIPELINE_CLASS_META_KEY: pipeline_class_name},
-        )
-
-    def _stamp_audio(self, artifact: LatentArtifact) -> LatentArtifact:
-        """Return a copy of ``artifact`` carrying the audio latent stashed by the last pipe call, if any."""
-        audio_latents = self._pending_audio_latents
-        self._pending_audio_latents = None
-        if audio_latents is None:
-            return artifact
-        video_latents = artifact.to_torch()
-        return self._make_latent_artifact(
-            video_latents,
-            source_shape=artifact.source_shape,
-            upstream=artifact,
-            meta={
-                AUDIO_LATENTS_META_KEY: audio_latents,
-            },
         )
 
     # ------------------------------------------------------------------
@@ -543,7 +525,6 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             result = super().denoise_latent(latent, **kwargs)
         finally:
             self._pipe = original_pipe
-        result = self._stamp_audio(result)
         return self._stamp_pipeline_class(result, target_class.__name__)
 
     # ------------------------------------------------------------------
