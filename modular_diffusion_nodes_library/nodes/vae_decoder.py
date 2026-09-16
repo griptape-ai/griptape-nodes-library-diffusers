@@ -17,6 +17,7 @@ from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import DecodeOutput
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.pillow_utils import pil_to_image_artifact
@@ -239,17 +240,21 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         latent_artifact = self.get_parameter_value("latent_tensor")
 
         latents_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
-        output = latents_pipeline_driver.decode_latent(latent_artifact)
+        decoded = latents_pipeline_driver.decode_latent(latent_artifact)
+        if isinstance(decoded, DecodeOutput):
+            output = decoded.media
+            audio = decoded.audio
+            audio_sample_rate = decoded.audio_sample_rate
+        else:
+            output = decoded
+            audio = None
+            audio_sample_rate = None
 
         if latents_pipeline_driver.produces_video:
             with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_file_obj:
                 temp_path = Path(temp_file_obj.name)
             try:
                 fps = int(self.get_parameter_value("fps") or latents_pipeline_driver.video_fps)
-                # Drivers whose model generates a soundtrack alongside the video publish it here so
-                # it can be muxed into the same file.
-                audio = latents_pipeline_driver.last_audio
-                audio_sample_rate = latents_pipeline_driver.last_sampling_rate
                 if audio is not None and fps != latents_pipeline_driver.video_fps:
                     # A jointly generated soundtrack is muxed at its own true sample rate, so any
                     # frame rate other than the one the model generated at drifts the two apart.

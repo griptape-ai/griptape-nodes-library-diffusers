@@ -23,6 +23,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutput,
     DecodeResult,
     GeneratorState,
 )
@@ -327,7 +328,10 @@ class DiffusionPipelineGenerateLatentParameters:
     ) -> DecodeResult:
         unpacked = latent_pipeline_driver.prepare_output_latent(latents, source_shape)
         preview_artifact = latent_pipeline_driver._make_latent_artifact(unpacked, source_shape=source_shape)
-        return latent_pipeline_driver.decode_latent(preview_artifact)
+        decoded = latent_pipeline_driver.decode_latent(preview_artifact)
+        if isinstance(decoded, DecodeOutput):
+            return decoded.media
+        return decoded
 
     def publish_output_image_preview_latents(
         self, latents: torch.Tensor, source_shape: tuple[int, ...], latent_pipeline_driver: LatentPipelineDriver

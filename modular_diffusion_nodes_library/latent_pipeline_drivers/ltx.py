@@ -35,6 +35,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     DecodeResult,
     GeneratorState,
     ImageMedia,
+    PipelineOutput,
     VideoMedia,
 )
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
@@ -220,9 +221,9 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         return self._unpack_latents(latents_from_pipe, height, width, num_frames)
 
     @override
-    def _extract_latents_from_output(self, pipe_output: Any) -> torch.Tensor:
+    def _extract_latents_from_output(self, pipe_output: Any) -> PipelineOutput:
         """LTX pipeline with output_type='latent' returns packed latents under .frames."""
-        return pipe_output.frames
+        return PipelineOutput(media=pipe_output.frames)
 
     # ------------------------------------------------------------------
     # Latent creation

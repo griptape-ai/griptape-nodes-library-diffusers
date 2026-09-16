@@ -54,7 +54,7 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
-    DecodeResult,
+    DecodeOutput,
     GeneratorState,
     ImageMedia,
     VideoMedia,
@@ -515,7 +515,7 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
+    def decode_latent(self, latent: LatentArtifact) -> DecodeOutput:
         """Decode the video, and its soundtrack when the artifact still carries the audio latent."""
         pipe = cast(MiniMaxH3ModularPipeline, self.modular_pipe)
         device, _ = self._get_device_and_type()
@@ -523,8 +523,6 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
 
         latents = latent.to_torch(device=device, dtype=torch.float32)
 
-        self.last_audio = None
-        self.last_sampling_rate = None
         audio_latents = self._read_audio_latents(latent)
 
         video_state = self._run_blocks(
@@ -536,21 +534,21 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
 
         # The live-preview path decodes a latent it rebuilt without meta, so a missing soundtrack is
         # normal there and must not raise. Debug rather than warning because that path decodes once
-        # per denoise step. Callers that need the audio check `last_audio`.
+        # per denoise step. A missing soundtrack is represented by a DecodeOutput without audio.
         if audio_latents is None:
             logger.debug(
                 "%s: decoding video only because the latent carries no audio latents in driver meta.",
                 self.driver_namespace,
             )
-            return video_frames
+            return DecodeOutput(media=video_frames)
 
         audio_state = self._run_blocks(
             pipe.blocks.sub_blocks["decode"].sub_blocks["audio"],
             audio_latents=audio_latents.to(device=device, dtype=torch.float32),
         )
-        self.last_audio = self._get_required(audio_state.values, "audio", torch.Tensor)
-        self.last_sampling_rate = self._get_required(audio_state.values, "sampling_rate", int)
-        return video_frames
+        audio = self._get_required(audio_state.values, "audio", torch.Tensor)
+        audio_sample_rate = self._get_required(audio_state.values, "sampling_rate", int)
+        return DecodeOutput(media=video_frames, audio=audio, audio_sample_rate=audio_sample_rate)
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:

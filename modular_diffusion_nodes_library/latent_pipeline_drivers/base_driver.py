@@ -27,6 +27,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     GeneratorState,
     ImageMedia,
     MaskMedia,
+    PipelineOutput,
     TextEncodings,
     VideoMedia,
 )
@@ -208,13 +209,6 @@ class LatentPipelineDriver(ABC):
         self._pipe = pipe
         self._modular_pipe: ModularPipeline | None = None
 
-        # Soundtrack published by ``decode_latent`` for models that generate audio jointly with the
-        # video, read by the VAE Decode node in the same call so it can be muxed into the output
-        # file. ``decode_latent`` owns these: it must set them on every call, clearing them when the
-        # decode produced no audio. Drivers for silent models leave them ``None``.
-        self.last_audio: torch.Tensor | None = None
-        self.last_sampling_rate: int | None = None
-
     @property
     def pipe(self) -> DiffusionPipeline:
         return self._pipe
@@ -341,12 +335,13 @@ class LatentPipelineDriver(ABC):
         """Return pure noise latent. See class docstring for the latent shape contract."""
         ...
 
-    def _extract_latents_from_output(self, pipe_output: Any) -> torch.Tensor:
-        """Extract the raw latent tensor from a pipeline output object.
-        Image pipelines expose the result as `images`
-        override for video pipelines with `frames`.
+    def _extract_latents_from_output(self, pipe_output: Any) -> PipelineOutput:
+        """Extract the raw latent tensor from a pipeline output object. Image pipelines expose
+        the result as `images`; override for video pipelines with `frames`. Set `extra_meta`
+        when the pipeline output also carries out-of-band data (e.g. audio) that should be
+        stamped onto the returned artifact's metadata.
         """
-        return pipe_output.images
+        return PipelineOutput(media=pipe_output.images)
 
     @abstractmethod
     def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
@@ -481,12 +476,14 @@ class LatentPipelineDriver(ABC):
         else:
             pipe_output = pipe(**pipe_kwargs)  # type: ignore[reportCallIssue]
 
-        output_tensor = self.prepare_output_latent(self._extract_latents_from_output(pipe_output), source_shape)
+        extracted_output = self._extract_latents_from_output(pipe_output)
+        output_tensor = self.prepare_output_latent(extracted_output.media, source_shape)
+        output_metadata = extracted_output.extra_meta or {}
         return self._make_latent_artifact(
             output_tensor,
             source_shape=source_shape,
             upstream=latent,
-            meta=GeneratorState.from_generator(generator).as_meta(),
+            meta={**GeneratorState.from_generator(generator).as_meta(), **output_metadata},
         )
 
     # ------------------------------------------------------------------
