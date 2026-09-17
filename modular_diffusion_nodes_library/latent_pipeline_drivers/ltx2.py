@@ -504,12 +504,6 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             kwargs["num_inference_steps"] = len(kwargs["sigmas"])
         return kwargs
 
-    @override
-    def resolve_effective_num_inference_steps(self, num_inference_steps: int, pipe_kwargs: dict[str, Any]) -> int:
-        if "use_stage_2" in pipe_kwargs:
-            return len(self._distilled_sigmas(bool(pipe_kwargs["use_stage_2"])))
-        return num_inference_steps
-
     def _run_denoise_with_pipe_variant(
         self,
         latent: LatentArtifact | InpaintMaskArtifact,

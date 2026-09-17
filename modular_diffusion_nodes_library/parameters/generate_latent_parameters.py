@@ -239,10 +239,7 @@ class DiffusionPipelineGenerateLatentParameters:
 
         first_iteration_time = None
         latent_pipeline_driver = create_driver(pipe, pipeline_class)
-        effective_num_inference_steps = latent_pipeline_driver.resolve_effective_num_inference_steps(
-            num_inference_steps, pipe_kwargs
-        )
-        strength_affected_steps = self.get_strength_affected_steps(effective_num_inference_steps)
+        strength_affected_steps = self.get_strength_affected_steps(num_inference_steps)
 
         input_latent_artifact = self._node.get_parameter_value("input_latent")
         if input_latent_artifact is None:
