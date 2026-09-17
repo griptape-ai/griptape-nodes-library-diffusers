@@ -7,7 +7,7 @@ Category: `ModularDiffusion/Encode\Decode`
 ## TL;DR
 - Output is **dynamic**: `output_image` for image pipelines, `output_video` (+ `fps`) for video pipelines (LTX, LTX2, WAN, HunyuanVideo 1.5, MiniMax-H3). It swaps automatically when you connect a `pipeline`.
 - Almost always the last node in the flow. Connect to a Save Image / Save Video node downstream.
-- **MiniMax-H3 videos come out with sound.** The soundtrack is generated jointly with the picture and muxed into the same MP4 here. Connect Generate Media Latents **directly** to this node.
+- **MiniMax-H3 and LTX2 videos come out with sound.** The soundtrack is generated jointly with the picture, travels with the latent's metadata, and is muxed into the same MP4 here. LTX2's HDR IC-LoRA path does not produce audio.
 
 ## Typical workflow position
 ```text
@@ -43,20 +43,19 @@ Generate Media Latents → [Decode Media Latent] → Save Image / Save Video
 | Provider | Behavior |
 | --- | --- |
 | Image pipelines | `output_image` as an `ImageArtifact`. |
-| LTX, LTX2, WAN, HunyuanVideo 1.5 | `output_video` as a silent MP4 at `fps`. |
+| LTX, WAN, HunyuanVideo 1.5 | `output_video` as a silent MP4 at `fps`. |
+| LTX2 (base, video-conditioning, IC-LoRA) | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. The HDR IC-LoRA path (`Decode HDR Latents`) never produces audio. |
 | MiniMax-H3 | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. `fps` defaults to the model's fixed **24** — changing it desynchronises the soundtrack, since the audio is muxed at its own true sample rate. |
 
-### MiniMax-H3: keep the edge direct
+### MiniMax-H3 and LTX2: audio metadata
 
-MiniMax-H3's audio latent travels in the latent's *metadata*, not in its tensor. Only a direct
-`Generate Media Latents → Decode Media Latent` edge preserves it:
+Both models' audio latent travels in the latent's *metadata*, not in its tensor:
 
 - **Empty Latents, Save/Load Latent Tensor** drop the audio metadata. Decoding still works and
-  produces a silent video, with a warning in the logs.
+  produces a silent video, with a debug-level log message.
 - **Add / Subtract / Multiply Latents, Latents Composite Mask, Latent Upsampler** are worse: they
-  change the video latent but carry the *old* audio latent through unchanged. This node detects that
-  mismatch and **fails with an error** rather than muxing a soundtrack that no longer matches the
-  picture.
+  change the video latent while retaining its existing audio metadata. Decoding muxes that retained
+  soundtrack with the edited video.
 
 ## Tips & pitfalls
 

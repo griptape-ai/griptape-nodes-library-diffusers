@@ -32,8 +32,10 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutput,
     GeneratorState,
     ImageMedia,
+    PipelineOutput,
     VideoMedia,
     read_driver_meta,
 )
@@ -54,6 +56,9 @@ from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_var
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
+#: Key under which the audio latent rides in this driver's namespaced ``meta`` sub-bag.
+AUDIO_LATENTS_META_KEY = "audio_latents"
+
 
 class LTX2PipelineDriver(LatentPipelineDriver):
     produces_video: ClassVar[bool] = True
@@ -64,9 +69,6 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     _IC_LORA_REFERENCE_KEY: ClassVar[str] = "ltx2_ic_lora_reference"
     #: Record concrete ``DiffusionPipeline`` class that produced the latent.
     _PIPELINE_CLASS_META_KEY: ClassVar[str] = "pipeline_class"
-
-    def __init__(self, pipe: DiffusionPipeline):
-        super().__init__(pipe)
 
     @override
     def _get_temporal_alignment(self) -> int | None:
@@ -289,9 +291,13 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def _extract_latents_from_output(self, pipe_output: Any) -> torch.Tensor:
-        """LTX2 pipelines return video frames under ``.frames`` instead of ``.images``."""
-        return pipe_output.frames
+    def _extract_latents_from_output(self, pipe_output: Any) -> PipelineOutput:
+        """LTX2 pipelines return video frames under ``.frames``; audio (if any) rides in ``.audio``."""
+        audio = getattr(pipe_output, "audio", None)
+        extra_meta = None
+        if audio is not None:
+            extra_meta = {AUDIO_LATENTS_META_KEY: audio}
+        return PipelineOutput(media=pipe_output.frames, extra_meta=extra_meta)
 
     def _decode_hdr_to_linear_np(self, video: torch.Tensor) -> torch.Tensor | np.ndarray:
         """Convert decoded LogC3-compressed VAE output to linear HDR np.ndarray.
@@ -315,10 +321,16 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         )
         return hdr
 
+    def _read_audio_latents(self, latent: LatentArtifact | InpaintMaskArtifact) -> torch.Tensor | None:
+        """Return the artifact's audio latent, or ``None`` when it carries none."""
+        return read_driver_meta(latent, AUDIO_LATENTS_META_KEY, self.driver_namespace)
+
     @override
-    def decode_latent(self, latent: LatentArtifact) -> list[Image] | np.ndarray:
+    def decode_latent(self, latent: LatentArtifact) -> DecodeOutput:
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=torch.float32)
+
+        audio_latents = self._read_audio_latents(latent)
 
         if self.pipe.vae.config.timestep_conditioning:
             timestep = torch.zeros(latents.shape[0], device=device, dtype=dtype)
@@ -338,10 +350,27 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
         if self._latent_was_produced_for_hdr(latent):
             # HDR IC-LoRA path: return raw linear HDR for encode_hdr_tensor_to_mp4 in vae_decoder.
-            return self._decode_hdr_to_linear_np(video)  # type: ignore[reportReturnType]
+            # LTX2HDRPipeline never produces audio, so audio_latents is always None here.
+            return DecodeOutput(media=self._decode_hdr_to_linear_np(video))  # type: ignore[reportArgumentType]
 
         frames = self.pipe.video_processor.postprocess_video(video, output_type="pil")[0]
-        return frames
+
+        if audio_latents is None:
+            logger.debug(
+                "%s: decoding video only because the latent carries no audio latents in driver meta.",
+                self.driver_namespace,
+            )
+            return DecodeOutput(media=frames)
+
+        with torch.no_grad():
+            audio_latents = audio_latents.to(device=device, dtype=self.pipe.audio_vae.dtype)
+            generated_mel_spectrograms = self.pipe.audio_vae.decode(audio_latents, return_dict=False)[0]
+            audio = self.pipe.vocoder(generated_mel_spectrograms)
+        return DecodeOutput(
+            media=frames,
+            audio=audio,
+            audio_sample_rate=self.pipe.vocoder.config.output_sampling_rate,
+        )
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
@@ -418,6 +447,11 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         if MediaGenConditioningKey.OUTPUT in kwargs:
             return self._denoise_with_video_gen_conditioning(latent, **kwargs)
 
+        audio_latents = self._read_audio_latents(latent)
+        if audio_latents is not None:
+            device, _ = self._get_device_and_type()
+            kwargs["audio_latents"] = audio_latents.to(device=device, dtype=torch.float32)
+
         result = super().denoise_latent(latent, **kwargs)
         return self._stamp_pipeline_class(result, self.pipe.__class__.__name__)
 
@@ -454,15 +488,19 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         return kwargs
 
     @staticmethod
+    def _distilled_sigmas(use_stage_2: bool) -> list[float]:
+        if use_stage_2:
+            return STAGE_2_DISTILLED_SIGMA_VALUES
+        return DISTILLED_SIGMA_VALUES
+
+    @staticmethod
     def _update_args_for_distilled_pipeline(original_kwargs: dict[str, Any]) -> dict[str, Any]:
         kwargs = original_kwargs.copy()
         if "use_stage_2" in kwargs:
             use_stage_2 = kwargs.pop("use_stage_2")
-            if not use_stage_2:
-                kwargs["sigmas"] = DISTILLED_SIGMA_VALUES
-            else:
-                kwargs["sigmas"] = STAGE_2_DISTILLED_SIGMA_VALUES
-                kwargs["noise_scale"] = STAGE_2_DISTILLED_SIGMA_VALUES[0]
+            kwargs["sigmas"] = LTX2PipelineDriver._distilled_sigmas(use_stage_2)
+            if use_stage_2:
+                kwargs["noise_scale"] = kwargs["sigmas"][0]
             kwargs["num_inference_steps"] = len(kwargs["sigmas"])
         return kwargs
 

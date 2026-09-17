@@ -1,5 +1,4 @@
 import logging
-import math
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
@@ -24,6 +23,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutput,
     DecodeResult,
     GeneratorState,
 )
@@ -237,10 +237,9 @@ class DiffusionPipelineGenerateLatentParameters:
             "modular_diffusion_library.enable_image_preview_intermediates", default=False
         )
 
-        strength_affected_steps = self.get_strength_affected_steps()
-
         first_iteration_time = None
         latent_pipeline_driver = create_driver(pipe, pipeline_class)
+        strength_affected_steps = self.get_strength_affected_steps(num_inference_steps)
 
         input_latent_artifact = self._node.get_parameter_value("input_latent")
         if input_latent_artifact is None:
@@ -326,7 +325,10 @@ class DiffusionPipelineGenerateLatentParameters:
     ) -> DecodeResult:
         unpacked = latent_pipeline_driver.prepare_output_latent(latents, source_shape)
         preview_artifact = latent_pipeline_driver._make_latent_artifact(unpacked, source_shape=source_shape)
-        return latent_pipeline_driver.decode_latent(preview_artifact)
+        decoded = latent_pipeline_driver.decode_latent(preview_artifact)
+        if isinstance(decoded, DecodeOutput):
+            return decoded.media
+        return decoded
 
     def publish_output_image_preview_latents(
         self, latents: torch.Tensor, source_shape: tuple[int, ...], latent_pipeline_driver: LatentPipelineDriver
@@ -377,8 +379,13 @@ class DiffusionPipelineGenerateLatentParameters:
             return 1.0 - (self.start_step / number_of_steps)
         return 1.0
 
-    def get_strength_affected_steps(self) -> int:
-        return math.ceil(self.get_num_inference_steps() * self.get_strength())
+    def get_strength_affected_steps(self, num_inference_steps: int) -> int:
+        start_step = min(self.start_step, num_inference_steps)
+        if self.end_step == -1:
+            end_step = num_inference_steps
+        else:
+            end_step = min(self.end_step, num_inference_steps)
+        return max(end_step - start_step, 0)
 
     def get_control_net_parameters(self) -> dict[str, Any] | None:
         control_net_parameters = self._node.get_parameter_value(
