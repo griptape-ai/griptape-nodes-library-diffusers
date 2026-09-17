@@ -321,15 +321,6 @@ class LatentPipelineDriver(ABC):
         """Return latents ready to be process further e.g. with mask, which may involve unpacking or other postprocessing."""
         return latents_from_pipe
 
-    def resolve_effective_num_inference_steps(self, num_inference_steps: int, pipe_kwargs: dict[str, Any]) -> int:
-        """Return the number of denoising steps `denoise_latent` will actually run.
-
-        Defaults to `num_inference_steps` unchanged. Override when a driver substitutes its own
-        step count internally (e.g. a fixed distilled sigma schedule) so callers computing a
-        progress-bar total can match the real step count instead of the UI's requested one.
-        """
-        return num_inference_steps
-
     @abstractmethod
     def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         """Return pure noise latent. See class docstring for the latent shape contract."""
