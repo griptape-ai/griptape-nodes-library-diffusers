@@ -35,7 +35,7 @@
     "metadata": {
         "author": "Griptape, Inc.",
         "description": "Modular Diffusion nodes for Griptape Nodes.",
-        "library_version": "0.6.0",
+        "library_version": "0.7.0",
         "engine_version": "0.97.0",
         "tags": [
             "Griptape",
