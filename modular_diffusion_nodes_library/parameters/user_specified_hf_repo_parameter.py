@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from typing import override
+from typing import ClassVar, override
 
 from griptape_nodes.exe_types.core_types import BadgeData, NodeMessageResult, ParameterMode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_model_parameter import HuggingFaceModelParameter
-from griptape_nodes.exe_types.param_components.huggingface.huggingface_utils import list_repo_revisions_in_cache
+from griptape_nodes.exe_types.param_components.huggingface.huggingface_utils import list_all_repo_revisions_in_cache
 from griptape_nodes.exe_types.param_types.parameter_button import ParameterButton
 from griptape_nodes.exe_types.param_types.parameter_string import ParameterString
+from griptape_nodes.retained_mode.events.parameter_events import AlterParameterDetailsRequest
+from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.button import Button, ButtonDetailsMessagePayload, OnClickMessageResultPayload
+from griptape_nodes.traits.options import Options
 
 from modular_diffusion_nodes_library.component_loading.config_resolver import HF_REPO_ID_PATTERN
 
@@ -32,19 +35,34 @@ class UserSpecifiedHuggingFaceRepoParameter(HuggingFaceModelParameter):
     this creates a plain text input that accepts any repo ID.
     """
 
+    # Shared across every instance: the local HF cache is process-global, so one scan
+    # serves all repo fields. The stored list is an immutable snapshot; callers only read it.
+    _cached_repo_choices: ClassVar[list[tuple[str, str]] | None] = None
+
     @property
     def _download_param_name(self) -> str:
         return f"{self._parameter_name}_download"
+
+    @classmethod
+    def _get_cached_repo_choices(cls) -> list[tuple[str, str]]:
+        if cls._cached_repo_choices is None:
+            cls._cached_repo_choices = list_all_repo_revisions_in_cache()
+        return cls._cached_repo_choices
+
+    @classmethod
+    def _invalidate_cached_repo_choices(cls) -> None:
+        cls._cached_repo_choices = None
 
     @override
     def fetch_repo_revisions(self) -> list[tuple[str, str]]:
         repo_id = self._node.get_parameter_value(self._parameter_name)
         return self._fetch_repo_revisions(repo_id)
 
-    def _fetch_repo_revisions(self, repo_id: str) -> list[tuple[str, str]]:
+    def _fetch_repo_revisions(self, repo_id: str | None) -> list[tuple[str, str]]:
         if not repo_id or not HF_REPO_ID_PATTERN.fullmatch(str(repo_id)):
             return []
-        return list_repo_revisions_in_cache(str(repo_id))
+        cached_revisions = self._get_cached_repo_choices()
+        return [rev for rev in cached_revisions if rev[0] == str(repo_id)]
 
     @override
     def get_download_models(self) -> list[str]:
@@ -63,6 +81,29 @@ class UserSpecifiedHuggingFaceRepoParameter(HuggingFaceModelParameter):
             repo_id = str(value)
         self._refresh_parameters(repo_id)
         return value
+
+    def _push_repo_choices_to_ui(self) -> None:
+        """Push the full cached repo list to the frontend as autocomplete hints.
+
+        ``allow_custom=True`` applies filters client-side, so the backend must supply the whole list.
+        The update only emits when the new ``ui_options`` differs from the current one, so overlay
+        the new list onto a fresh merged dict; updating the ``Options`` trait first would erase that
+        diff and the change would never reach the UI.
+        """
+        param = self._node.get_parameter_by_name(self._parameter_name)
+        if param is None:
+            return
+
+        repo_ids = sorted({repo_id for repo_id, _ in self._get_cached_repo_choices()})
+        ui_options = {**param.ui_options}
+        ui_options["simple_dropdown"] = repo_ids
+        GriptapeNodes.handle_request(
+            AlterParameterDetailsRequest(
+                parameter_name=self._parameter_name,
+                node_name=self._node.name,
+                ui_options=ui_options,
+            )
+        )
 
     def _on_refresh_click(self, _button: Button, _details: ButtonDetailsMessagePayload) -> NodeMessageResult | None:
         self.refresh_parameters()
@@ -92,7 +133,8 @@ class UserSpecifiedHuggingFaceRepoParameter(HuggingFaceModelParameter):
             accept_any=False,
             converters=[self._on_value_changed],
             badge=_INFO_BADGE,
-            traits={
+            traits={  # type: ignore[reportArgumentType]
+                Options(choices=sorted({repo_id for repo_id, _ in self._get_cached_repo_choices()}), allow_custom=True),
                 Button(
                     icon="list-restart",
                     size="icon",
@@ -135,7 +177,10 @@ class UserSpecifiedHuggingFaceRepoParameter(HuggingFaceModelParameter):
             repo_id = self._node.get_parameter_value(self._parameter_name)
         if repo_id is None:
             repo_id = ""
-        self._refresh_parameters(str(repo_id))
+
+        self._invalidate_cached_repo_choices()
+        self._push_repo_choices_to_ui()
+        self._refresh_parameters(repo_id)
 
     def _refresh_parameters(self, repo_id: str) -> None:
         self._repo_revisions = self._fetch_repo_revisions(repo_id)
@@ -148,8 +193,9 @@ class UserSpecifiedHuggingFaceRepoParameter(HuggingFaceModelParameter):
     @override
     def validate_before_node_run(self) -> list[Exception] | None:
         repo_id = self._node.get_parameter_value(self._parameter_name)
-        self._refresh_parameters(repo_id)
-        downloaded = {r for r, _ in self._repo_revisions}
+        # Rescan at the run boundary so validation reflects repos downloaded since the last refresh.
+        self._invalidate_cached_repo_choices()
+        downloaded = {r for r, _ in self._fetch_repo_revisions(repo_id)}
         if repo_id and repo_id not in downloaded:
             return [
                 RuntimeError(

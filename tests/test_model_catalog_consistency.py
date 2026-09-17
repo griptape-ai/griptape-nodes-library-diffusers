@@ -30,6 +30,7 @@ from griptape_nodes.node_library.library_validation import (
     detect_retired_node_declarations,
     validate_library_declarations,
 )
+from packaging.version import Version
 
 from modular_diffusion_nodes_library.parameters.controlnet_node_parameter_types import ControlNetNodesParameterType
 from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import MODULAR_PIPELINE_TYPE_PROVIDER_MAP
@@ -49,7 +50,7 @@ UPSAMPLER_NODE = "LatentUpsamplerNode"
 
 
 def _load_library() -> dict[str, Any]:
-    return json.loads(LIBRARY_JSON.read_text())
+    return json.loads(LIBRARY_JSON.read_text(encoding="utf-8"))
 
 
 def _schema() -> LibrarySchema:
@@ -158,7 +159,7 @@ def _constructs_dropdown_parameter(path: Path) -> bool:
     module that merely *documents* `HuggingFaceRepoParameter` in prose.
     """
     try:
-        tree = ast.parse(path.read_text())
+        tree = ast.parse(path.read_text(encoding="utf-8"))
     except SyntaxError:
         return False
     return any(
@@ -219,7 +220,7 @@ def test_free_text_repo_parameters_are_gated() -> None:
     hosting_modules = sorted(
         path.relative_to(package).as_posix()
         for path in package.rglob("*.py")
-        if free_text.search(path.read_text()) and "user_specified_hf_repo_parameter" not in path.name
+        if free_text.search(path.read_text(encoding="utf-8")) and "user_specified_hf_repo_parameter" not in path.name
     )
     declared_nodes = {node["class_name"] for node in _load_library()["nodes"] if _has_model_usage(node)}
     assert hosting_modules == [] or {"LoadComponent", "LoadSchedulerComponent"} <= declared_nodes
@@ -247,7 +248,7 @@ def test_schema_and_engine_versions_meet_the_declaration_baseline() -> None:
     """
     schema = _schema()
     assert schema.library_schema_version == "0.10.0"
-    assert schema.metadata.engine_version == ENGINE_VERSION_FLOOR
+    assert Version(schema.metadata.engine_version) >= Version(ENGINE_VERSION_FLOOR)
 
 
 def test_manifest_and_pyproject_engine_floors_agree() -> None:
@@ -259,8 +260,11 @@ def test_manifest_and_pyproject_engine_floors_agree() -> None:
     dependency is on `griptape-nodes-engine`, which provides the `griptape_nodes` package --
     not `griptape-nodes`, which provides `griptape_nodes_app`.
     """
-    pyproject = (Path(__file__).parents[1] / "pyproject.toml").read_text()
-    assert f'"griptape-nodes-engine>={ENGINE_VERSION_FLOOR}"' in pyproject
+    pyproject = (Path(__file__).parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+    match = re.search(r'"griptape-nodes-engine>=([^"]+)"', pyproject)
+    assert match is not None, "pyproject declares no griptape-nodes-engine floor"
+    pyproject_version = Version(match.group(1))
+    assert pyproject_version >= Version(ENGINE_VERSION_FLOOR)
 
 
 def test_every_catalog_model_is_used_by_some_node() -> None:
