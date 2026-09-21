@@ -205,12 +205,11 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
                 self.publish_update_to_parameter("output_latent", latent_artifact)
                 self.set_parameter_value("output_latent", latent_artifact)
                 self.parameter_output_values["output_latent"] = latent_artifact
-
             except Exception:
                 logger.exception("%s: Diffusion Pipeline execution failed", self.name)
-                # Aggressive cleanup on failure
-                cleanup_memory_caches()
                 raise
+            finally:
+                cleanup_memory_caches()
 
         yield work
 
