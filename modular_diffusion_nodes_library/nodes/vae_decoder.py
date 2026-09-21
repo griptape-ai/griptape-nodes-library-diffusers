@@ -21,6 +21,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.pillow_utils import pil_to_image_artifact
+from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -232,7 +233,11 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def process(self) -> AsyncResult:
         self._clear_execution_status()
         yield lambda: self._run_with_status(
-            self._decode, success_msg="Decoded successfully.", failure_log="VAE decode failed", logger=logger
+            self._decode,
+            success_msg="Decoded successfully.",
+            failure_log="VAE decode failed",
+            logger=logger,
+            on_error=cleanup_memory_caches,
         )
 
     def _decode(self) -> None:
@@ -249,6 +254,8 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             output = decoded
             audio = None
             audio_sample_rate = None
+
+        cleanup_memory_caches()
 
         if latents_pipeline_driver.produces_video:
             with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_file_obj:
