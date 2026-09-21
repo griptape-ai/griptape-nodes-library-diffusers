@@ -14,11 +14,13 @@ import pytest_asyncio  # type: ignore[reportMissingImports]
 from dotenv import load_dotenv
 from griptape_nodes.bootstrap.workflow_executors.local_workflow_executor import LocalWorkflowExecutor
 from griptape_nodes.retained_mode.events.object_events import ClearAllObjectStateRequest
+from griptape_nodes.retained_mode.events.parameter_events import SetParameterValueRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.retained_mode.managers.settings import LIBRARIES_TO_REGISTER_KEY
 from griptape_nodes.utils import install_file_url_support
 
 from tests.preflight import WORKFLOW_TESTS_PRESENT_KEY, get_preflight_data
+from tests.workflows.workflow_configs import ParamOverride, WorkflowConfig
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,35 @@ WORKFLOW_ASSETS_DIR = LIBRARY_ROOT / "workflows" / "assets"
 LEGACY_ASSETS_ALIAS = Path("/workspace/workflows/assets")
 
 load_dotenv()
+
+
+class ConfigurableWorkflowExecutor(LocalWorkflowExecutor):
+    """Executor that applies a config's parameter overrides after load, before the flow runs.
+
+    Overrides arrive per run via the `parameter_overrides` kwarg that `arun` forwards into
+    `aprepare_workflow_for_run`, so a single session-scoped instance can drive every config.
+    """
+
+    async def aprepare_workflow_for_run(self, flow_input: Any, **kwargs: Any) -> str:
+        overrides: tuple[ParamOverride, ...] = kwargs.pop("parameter_overrides", ())
+        flow_name = await super().aprepare_workflow_for_run(flow_input, **kwargs)
+        for override in overrides:
+            # initial_setup=False so the builder node rebuilds dependent params (pipeline_type, model).
+            result = await GriptapeNodes.ahandle_request(
+                SetParameterValueRequest(
+                    parameter_name=override.parameter_name,
+                    node_name=override.node_name,
+                    value=override.value,
+                    initial_setup=False,
+                )
+            )
+            if result.failed():
+                msg = (
+                    f"Attempted to override parameter '{override.parameter_name}' on node "
+                    f"'{override.node_name}' with value {override.value!r}. Failed with result: {result}."
+                )
+                raise RuntimeError(msg)
+        return flow_name
 
 
 def _link_directory(link: Path, target: Path) -> None:
@@ -100,6 +131,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     missing_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_by_workflow"]
     missing_libraries_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_libraries_by_workflow"]
     missing_loras_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_loras_by_workflow"]
+    repo_available: dict[str, bool] = preflight_data["repo_available"]
     kept_items: list[pytest.Item] = []
     deselected_items: list[pytest.Item] = []
     workflow_tests_present = False
@@ -116,9 +148,17 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         workflow_tests_present = True
         workflow_path = Path(str(callspec.params["workflow_path"]))
         workflow_name = workflow_path.name
-        missing_repos = missing_by_workflow.get(workflow_name, ())
         missing_libraries = missing_libraries_by_workflow.get(workflow_name, ())
         missing_loras = missing_loras_by_workflow.get(workflow_name, ())
+
+        # A config that declares its own repos is checked against those; otherwise fall back to
+        # the repos statically extracted from the template as-shipped.
+        config_param = callspec.params.get("config")
+        if isinstance(config_param, WorkflowConfig) and config_param.repos:
+            missing_repos = tuple(repo for repo in config_param.repos if not repo_available.get(repo, False))
+        else:
+            missing_repos = missing_by_workflow.get(workflow_name, ())
+
         if not missing_repos and not missing_libraries and not missing_loras:
             kept_items.append(item)
             continue
@@ -255,9 +295,9 @@ def workflow_run_workspace(
 
 
 @pytest_asyncio.fixture(scope="session")
-async def workflow_executor() -> AsyncGenerator[LocalWorkflowExecutor, Any]:
-    """Create and manage a single LocalWorkflowExecutor for all tests."""
-    async with LocalWorkflowExecutor() as executor:
+async def workflow_executor() -> AsyncGenerator[ConfigurableWorkflowExecutor, Any]:
+    """Create and manage a single ConfigurableWorkflowExecutor for all tests."""
+    async with ConfigurableWorkflowExecutor() as executor:
         yield executor
 
 

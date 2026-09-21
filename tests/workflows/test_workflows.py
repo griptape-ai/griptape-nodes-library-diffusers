@@ -1,41 +1,38 @@
-import logging
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
-import pytest_asyncio  # type: ignore[reportMissingImports]
-from dotenv import load_dotenv
-from griptape_nodes.bootstrap.workflow_executors.local_workflow_executor import LocalWorkflowExecutor
 
-LIBRARY_ROOT = Path(__file__).parents[2]
-IGNORED_WORKFLOW_NAMES = {
-    "WanAnimate.py",
-    "WanReplace.py",
-}
+from tests.workflows.workflow_configs import (
+    WORKFLOW_CONFIGS,
+    WorkflowConfig,
+    get_workflow_paths,
+    workflow_test_params,
+)
 
+if TYPE_CHECKING:
+    from tests.workflows.conftest import ConfigurableWorkflowExecutor
 
-def get_workflows() -> list[str]:
-    """Get all workflow templates for this library."""
-    workflows_dir = LIBRARY_ROOT / "workflows" / "templates"
-    return [
-        str(f)
-        for f in workflows_dir.iterdir()
-        if f.is_file() and f.suffix == ".py" and not f.name.startswith("__") and f.name not in IGNORED_WORKFLOW_NAMES
-    ]
+def test_workflow_configs_reference_existing_templates() -> None:
+    """Every WORKFLOW_CONFIGS key must match a template stem, or its configs are silently dropped."""
+    template_stems = {Path(path).stem for path in get_workflow_paths()}
+    unknown = sorted(set(WORKFLOW_CONFIGS) - template_stems)
+    assert not unknown, f"WORKFLOW_CONFIGS references templates that do not exist: {unknown}"
 
 
 # TODO: https://github.com/griptape-ai/griptape-nodes-library-advanced-media/issues/4
 #       Workflows in this library perform CUDA checks that fail on standard CI runners.
-# TODO: Re-enable WAN workflows (WanAnimate.py, WanReplace.py) once the framework
-#       resolves parameter values from connections before validation. Currently:
-#       - CreateConnectionRequest creates graph edges (connections exist)
-#       - But get_parameter_value() still returns None at validation time
-#       - Validator runs before source nodes execute, finds None, throws ValueError
-#       Fix requires one of:
-#       1. Auto-resolve parameter values from connected sources before validation
-#       2. Change validator to check connection existence instead of value presence
-#       3. Explicitly set input_latent values via SetParameterValueRequest in templates
-@pytest.mark.parametrize("workflow_path", get_workflows())
+@pytest.mark.parametrize(("workflow_path", "config"), workflow_test_params())
 @pytest.mark.asyncio
-async def test_workflow_runs(workflow_path: str, workflow_executor: LocalWorkflowExecutor) -> None:
-    """Simple test to check if the workflow runs without errors."""
-    await workflow_executor.arun(workflow_name="main", flow_input={}, workflow_path=workflow_path)
+async def test_workflow_runs(
+    workflow_path: str, config: WorkflowConfig, workflow_executor: ConfigurableWorkflowExecutor
+) -> None:
+    """Run a workflow template under a given configuration, applying its parameter overrides."""
+    await workflow_executor.arun(
+        workflow_name="main",
+        flow_input={},
+        workflow_path=workflow_path,
+        parameter_overrides=config.overrides,
+    )

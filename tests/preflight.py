@@ -10,6 +10,7 @@ from griptape_nodes.utils.dict_utils import get_dot_value
 
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_utils import list_repo_revisions_in_cache
 from tests.workflows.dependencies import ExtractionBlocker, WorkflowDependencies, extract_workflow_dependencies
+from tests.workflows.workflow_configs import config_repos
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +201,9 @@ def _build_preflight_data() -> dict[str, Any]:
         if not required_repos:
             workflows_with_no_repos.append(workflow_name)
 
-    unique_required_repos = {repo for repos in workflow_required_repos.values() for repo in repos}
+    # Config-declared repos are checked alongside statically-extracted ones so the collection
+    # hook can deselect a config whose model is not cached.
+    unique_required_repos = {repo for repos in workflow_required_repos.values() for repo in repos} | config_repos()
     repo_available: dict[str, bool] = {}
     for repo_id in sorted(unique_required_repos):
         repo_available[repo_id] = bool(list_repo_revisions_in_cache(repo_id))
