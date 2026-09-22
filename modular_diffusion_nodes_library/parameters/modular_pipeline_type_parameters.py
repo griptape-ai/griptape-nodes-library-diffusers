@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
 
+import torch  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.node_types import BaseNode
@@ -191,13 +192,35 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     def build_pipeline_from_build_data(
         cls, build_data: dict[str, Any]
     ) -> ModularPipeline | DiffusionPipeline | Any | None:
-        """Build pipeline from build_data. Routes to overrides-only or repo path."""
+        """Build pipeline from build_data. Routes to baked, overrides-only, or repo path."""
         pipeline_cls = build_data.get("_pipeline_cls") or cls._pipeline_cls
+
+        if "_baked_path" in build_data:
+            return cls._build_pipeline_from_baked(build_data, pipeline_cls=pipeline_cls)
+
         overrides = cls._materialize_overrides(build_data, pipeline_cls=pipeline_cls)
 
         if build_data.get("_all_overrides"):
             return cls._build_pipeline_from_overrides_only(build_data, overrides)
         return cls._build_pipeline_from_repo(build_data, overrides)
+
+    @classmethod
+    def _build_pipeline_from_baked(
+        cls, build_data: dict[str, Any], *, pipeline_cls: type
+    ) -> ModularPipeline | DiffusionPipeline | Any | None:
+        """Rebuild from a local baked (save_pretrained'd) folder.
+
+        Default: from_pretrained the folder directly, plus load_components() for
+        ModularPipeline subclasses. Override for pipeline types with special load
+        requirements (e.g. MiniMaxH3's ComponentsManager offload).
+        """
+        baked_path = build_data["_baked_path"]
+        dtype = getattr(torch, build_data.get("_baked_dtype") or "bfloat16", torch.bfloat16)
+        if issubclass(pipeline_cls, ModularPipeline):
+            pipe = pipeline_cls.from_pretrained(baked_path)
+            pipe.load_components(dtype=dtype)
+            return pipe
+        return pipeline_cls.from_pretrained(baked_path, torch_dtype=dtype, local_files_only=True)
 
     @classmethod
     @abstractmethod
