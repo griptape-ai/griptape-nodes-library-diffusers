@@ -15,12 +15,14 @@ class FilePathParameter:
         node: BaseNode,
         parameter_name: str = "file_path",
         file_types: list[str] | None = None,
+        # Where the file picker opens.
         initial_path: str | None = None,
         tooltip: str = "Path to a local file",
         display_name: str | None = None,
         *,
         allow_create: bool = False,
         allowed_modes: set[ParameterMode] | None = None,
+        # Stored path default for the string parameter; independent of the picker's initial_path.
         default_value: str | None = None,
     ):
         self._node = node
