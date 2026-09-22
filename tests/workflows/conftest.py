@@ -139,7 +139,25 @@ def workflow_runs_root(request: pytest.FixtureRequest) -> Generator[Path, None, 
 
     workflows_link = root / "workflows"
     if not workflows_link.exists():
-        workflows_link.symlink_to(LIBRARY_ROOT / "workflows", target_is_directory=True)
+        try:
+            workflows_link.symlink_to(LIBRARY_ROOT / "workflows", target_is_directory=True)
+        except OSError as e:
+            # Windows symlink permission fallback: copy only templates, skip large model files
+            if e.winerror == 1314:  # WinError: A required privilege is not held
+                import shutil
+
+                def ignore_patterns(directory, files):
+                    # Skip model directories to avoid disk space issues
+                    return {f for f in files if f == "models"}
+
+                shutil.copytree(
+                    LIBRARY_ROOT / "workflows",
+                    workflows_link,
+                    dirs_exist_ok=True,
+                    ignore=ignore_patterns,
+                )
+            else:
+                raise
 
     yield root
 
@@ -147,7 +165,10 @@ def workflow_runs_root(request: pytest.FixtureRequest) -> Generator[Path, None, 
         logger.info("Preserved workflow runs root: %s", root)
         return
 
-    workflows_link.unlink(missing_ok=True)
+    if workflows_link.is_symlink():
+        workflows_link.unlink(missing_ok=True)
+    else:
+        shutil.rmtree(workflows_link, ignore_errors=True)
     if owns_root:
         shutil.rmtree(root, ignore_errors=True)
     else:

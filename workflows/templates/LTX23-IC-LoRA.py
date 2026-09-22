@@ -4,7 +4,7 @@
 # [tool.griptape-nodes]
 # name = "LTX23-IC-LoRA"
 # schema_version = "0.19.2"
-# engine_version_created_with = "0.88.0"
+# engine_version_created_with = "0.89.0"
 # node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.2.0"], ["Griptape Nodes Library", "0.75.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "EmptyLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "LoadLora"], ["Griptape Modular Diffusion Nodes Library", "LoraActivationPipelineNode"], ["Griptape Modular Diffusion Nodes Library", "MediaGenConditioningNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Library", "LoadVideo"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
 # description = "LTX-2.3 IC-LoRA workflow that conditions text-to-video generation on a reference video via an in-context LoRA adapter, producing an output clip that follows the reference's structure or motion."

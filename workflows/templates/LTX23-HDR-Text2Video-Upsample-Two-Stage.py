@@ -4,7 +4,7 @@
 # [tool.griptape-nodes]
 # name = "LTX23-HDR-Text2Video-Upsample-Two-Stage"
 # schema_version = "0.19.2"
-# engine_version_created_with = "0.88.0"
+# engine_version_created_with = "0.89.0"
 # node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.2.0"], ["Griptape Nodes Library", "0.75.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "DecodeHdrNode"], ["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "EmptyLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "LatentUpsamplerNode"], ["Griptape Modular Diffusion Nodes Library", "LoadLora"], ["Griptape Modular Diffusion Nodes Library", "LoraActivationPipelineNode"], ["Griptape Modular Diffusion Nodes Library", "MediaGenConditioningNode"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Library", "Group"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
 # image = "https://raw.githubusercontent.com/griptape-ai/griptape-nodes-library-diffusers/main/workflows/templates/LTX23-HDR-Text2Video-Upsample-Two-Stage.png"

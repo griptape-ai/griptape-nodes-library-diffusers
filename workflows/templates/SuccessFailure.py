@@ -4,7 +4,7 @@
 # [tool.griptape-nodes]
 # name = "SuccessFailure"
 # schema_version = "0.19.1"
-# engine_version_created_with = "0.86.1"
+# engine_version_created_with = "0.89.0"
 # node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.2.0"], ["Griptape Nodes Library", "0.79.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Library", "CancelWorkflow"], ["Griptape Nodes Library", "EndFlow"], ["Griptape Nodes Library", "Group"], ["Griptape Nodes Library", "IfElse"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "StartFlow"], ["Griptape Nodes Library", "TextInput"]]
 # description = "Dynamically change execution path using success/failure status of a node. This is useful for handling errors in a workflow."

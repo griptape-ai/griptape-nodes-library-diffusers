@@ -4,7 +4,7 @@
 # [tool.griptape-nodes]
 # name = "FirstAndLastFrameImage2Video"
 # schema_version = "0.19.1"
-# engine_version_created_with = "0.86.0"
+# engine_version_created_with = "0.89.0"
 # node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.2.0"], ["Griptape Nodes Library", "0.75.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "LatentUpsamplerNode"], ["Griptape Modular Diffusion Nodes Library", "MediaGenConditioningNode"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Library", "Group"], ["Griptape Nodes Library", "IntegerInput"], ["Griptape Nodes Library", "LoadImage"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "RescaleImage"], ["Griptape Nodes Library", "TextInput"]]
 # description = "First and Last Frame I2V workflow using the Modular Diffusion Library Nodes"
