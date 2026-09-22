@@ -5,12 +5,14 @@ import inspect
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_model_parameter import HuggingFaceModelParameter
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact
+from modular_diffusion_nodes_library.artifact_utils.packed_quant_io import apply_packed_quant_from_folder
 from modular_diffusion_nodes_library.component_loading.component_slots import ALLOWED_COMPONENT_SLOTS
 
 if TYPE_CHECKING:
@@ -236,11 +238,16 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
 
         baked_path = build_data["_baked_path"]
         dtype = getattr(torch, build_data.get("_baked_dtype") or "bfloat16", torch.bfloat16)
+        overrides = cls._materialize_overrides(build_data, pipeline_cls=pipeline_cls)
         if issubclass(pipeline_cls, ModularPipeline):
             pipe = pipeline_cls.from_pretrained(baked_path)
+            if overrides:
+                pipe.update_components(**overrides)
             pipe.load_components(dtype=dtype)
-            return pipe
-        return pipeline_cls.from_pretrained(baked_path, torch_dtype=dtype, local_files_only=True)
+        else:
+            pipe = pipeline_cls.from_pretrained(baked_path, torch_dtype=dtype, local_files_only=True, **overrides)
+        apply_packed_quant_from_folder(pipe, Path(baked_path), unpacked_dtype=dtype)
+        return pipe
 
     @classmethod
     @abstractmethod
