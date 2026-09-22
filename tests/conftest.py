@@ -27,6 +27,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 def pytest_sessionstart(session: pytest.Session) -> None:
     # Strict mode fails fast if any workflow would be deselected by preflight.
+    # It prints the exact repo/library/LoRA gaps that caused the deselection so the issue is easy to
+    # diagnose before the workflow test run starts.
     if not session.config.getoption("--preflight-strict"):
         return
 
@@ -37,8 +39,10 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
     missing_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_by_workflow"]
     missing_libraries_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_libraries_by_workflow"]
+    missing_loras_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_loras_by_workflow"]
     missing_repo_lines = []
     missing_library_lines = []
+    missing_lora_lines = []
     for workflow_name in skipped_workflows:
         missing_repos = missing_by_workflow.get(workflow_name, ())
         if missing_repos:
@@ -48,11 +52,17 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         if missing_libraries:
             missing_library_lines.append(f"  - {workflow_name}: {', '.join(missing_libraries)}")
 
+        missing_loras = missing_loras_by_workflow.get(workflow_name, ())
+        if missing_loras:
+            missing_lora_lines.append(f"  - {workflow_name}: {', '.join(missing_loras)}")
+
     details_sections: list[str] = []
     if missing_repo_lines:
         details_sections.append("Missing cached model repos:\n" + "\n".join(missing_repo_lines))
     if missing_library_lines:
         details_sections.append("Missing installed node libraries:\n" + "\n".join(missing_library_lines))
+    if missing_lora_lines:
+        details_sections.append("Missing or unreadable LoRA files:\n" + "\n".join(missing_lora_lines))
 
     details = "\n\n".join(details_sections)
     raise pytest.UsageError(
@@ -83,7 +93,8 @@ def pytest_report_collectionfinish(config: pytest.Config) -> list[str]:
     if not config.stash.get(WORKFLOW_TESTS_PRESENT_KEY, default=False):
         return []
 
-    # Make preflight behavior visible in test output so deselection is transparent.
+    # Make the preflight decisions visible in the collection output so the user can see exactly why
+    # workflows were skipped without having to inspect internal data structures manually.
     preflight_data = get_preflight_data()
     discovered = preflight_data["discovered_workflows"]
     runnable = preflight_data["runnable_workflows"]
@@ -91,6 +102,7 @@ def pytest_report_collectionfinish(config: pytest.Config) -> list[str]:
     zero_repo = preflight_data["workflows_with_no_repos"]
     missing_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_by_workflow"]
     missing_libraries_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_libraries_by_workflow"]
+    missing_loras_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_loras_by_workflow"]
     extraction_blockers_by_workflow: dict[str, tuple[ExtractionBlocker, ...]] = preflight_data[
         "workflow_extraction_blockers"
     ]
@@ -128,10 +140,13 @@ def pytest_report_collectionfinish(config: pytest.Config) -> list[str]:
             reasons: list[tuple[str, list]] = []
             missing_repos = missing_by_workflow.get(workflow_name, ())
             if missing_repos:
-                reasons.append((tw.markup(f"missing repos: {', '.join(missing_repos)}", yellow=True), []))
+                reasons.append((tw.markup(f"missing model repos: {', '.join(missing_repos)}", yellow=True), []))
             missing_libraries = missing_libraries_by_workflow.get(workflow_name, ())
             if missing_libraries:
                 reasons.append((tw.markup(f"missing libraries: {', '.join(missing_libraries)}", yellow=True), []))
+            missing_loras = missing_loras_by_workflow.get(workflow_name, ())
+            if missing_loras:
+                reasons.append((tw.markup(f"missing LoRAs: {', '.join(missing_loras)}", yellow=True), []))
             blockers = extraction_blockers_by_workflow.get(workflow_name, ())
             if blockers:
                 blocker_detail = "; ".join(blocker.detail for blocker in blockers)

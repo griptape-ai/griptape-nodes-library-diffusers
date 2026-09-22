@@ -130,6 +130,39 @@ def _write_workflow(tmp_path: Path, source: str) -> Path:
     return workflow_path
 
 
+class TestLoraExtraction:
+    def test_load_lora_node_file_paths_are_extracted(self, tmp_path: Path) -> None:
+        source = (
+            "node0_name = 'load_lora'\n"
+            "node0_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='LoadLora', "
+            "specific_library_name='Library A', node_name='Load LoRA')) )\n"
+            "with GriptapeNodes.ContextManager().node(node0_name):\n"
+            "    AddParameterToNodeRequest(parameter_name='file_path', default_value='/tmp/first.safetensors')\n"
+            "    SetParameterValueRequest(\n"
+            "        parameter_name='file_path', node_name=node0_name, value='/tmp/second.safetensors', is_output=False\n"
+            "    )\n"
+        )
+
+        result = extract_workflow_dependencies(_write_workflow(tmp_path, source))
+
+        assert result.conclusive
+        assert result.lora_file_paths == ('/tmp/second.safetensors',)
+
+    def test_dynamic_lora_path_blocks_extraction(self, tmp_path: Path) -> None:
+        source = (
+            "node0_name = 'load_lora'\n"
+            "with GriptapeNodes.ContextManager().node(node0_name):\n"
+            "    SetParameterValueRequest(\n"
+            "        parameter_name='file_path', node_name=node0_name, value=some_dynamic_expression(), is_output=False\n"
+            "    )\n"
+        )
+
+        result = extract_workflow_dependencies(_write_workflow(tmp_path, source))
+
+        assert not result.conclusive
+        assert [blocker.code for blocker in result.blockers] == ["unresolved-lora-path"]
+
+
 class TestValuePrecedence:
     """Default/saved-assignment replay precedence for model parameters."""
 
@@ -518,3 +551,42 @@ class TestPreflightAdapter:
         assert preflight_data["workflow_extraction_blockers"] == {"blocked.py": blocked_result.blockers}
         assert "conclusive_empty.py" not in preflight_data["workflow_extraction_blockers"]
         assert "blocked.py" not in preflight_data["workflows_with_no_repos"]
+
+    def test_preflight_tracks_missing_lora_paths(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from tests import preflight
+
+        workflow_path = Path("workflow.py")
+        result = WorkflowDependencies(
+            workflow_path=workflow_path,
+            lora_file_paths=("/tmp/does-not-exist.safetensors",),
+        )
+        monkeypatch.setattr(preflight, "_discover_workflow_templates", lambda: [workflow_path.name])
+        monkeypatch.setattr(preflight, "extract_workflow_dependencies", lambda _: result)
+        monkeypatch.setattr(preflight, "_discover_installed_library_manifests", lambda: {})
+        monkeypatch.setattr(preflight, "list_repo_revisions_in_cache", lambda repo_id: [])
+
+        preflight_data = preflight._build_preflight_data()
+
+        assert preflight_data["workflow_required_loras"][workflow_path.name] == ("/tmp/does-not-exist.safetensors",)
+        assert preflight_data["missing_loras_by_workflow"][workflow_path.name] == ("/tmp/does-not-exist.safetensors",)
+
+    def test_lora_path_is_resolved_to_assets_lora_root(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from tests import preflight
+
+        # The repo-local install convention is: user-created LoRAs live under workflows/assets/lora.
+        # We accept repo-relative references to that folder, but reject any file outside it.
+        # Point the library root at tmp_path so this test doesn't write into the real repo.
+        lora_dir = tmp_path / "workflows" / "assets" / "lora"
+        lora_dir.mkdir(parents=True)
+        lora_file = lora_dir / "example.safetensors"
+        lora_file.write_bytes(b"stub")
+        monkeypatch.setattr(preflight, "LIBRARY_ROOT", tmp_path)
+        monkeypatch.setattr(preflight, "LORA_ASSETS_DIR", lora_dir)
+
+        monkeypatch.setattr(preflight, "_discover_workflow_templates", lambda: [])
+        assert preflight._resolve_lora_path("{project_dir}/../workflows/assets/lora/example.safetensors") == lora_file
+        assert preflight._resolve_lora_path("../workflows/assets/lora/example.safetensors") == lora_file
+
+        outside = tmp_path / "outside.safetensors"
+        outside.write_bytes(b"stub")
+        assert preflight._resolve_lora_path(str(outside)) is None

@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import pickle
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -34,6 +35,7 @@ class WorkflowDependencies:
     workflow_path: Path
     model_dependencies: tuple[ModelDependency, ...] = ()
     library_names: tuple[str, ...] = ()
+    lora_file_paths: tuple[str, ...] = ()
     blockers: tuple[ExtractionBlocker, ...] = ()
 
     @property
@@ -131,6 +133,7 @@ REPO_ID_PATTERN = re.compile(r"\b[\w.-]+/[\w.-]+\b")
 # saved model selections may be pinned to a revision as "{repo_id} ({40-hex commit hash})".
 REPO_REVISION_KEY_PATTERN = re.compile(r"^(.+) \(([a-f0-9]{40})\)$")
 REPO_PARAMETERS = {"model", "controlnet_model", "upsampler_model"}
+LORA_PARAMETERS = {"file_path"}
 ROLE_BY_PARAMETER = {
     "model": "primary",
     "controlnet_model": "controlnet",
@@ -259,7 +262,9 @@ def _classify_repo_value(value: Any) -> _ResolvedValue:
     return _ResolvedValue(kind="blocked", detail=f"unsupported value type {type(value).__name__!r}")
 
 
-def _resolve_embedded_table_reference(node: ast.Subscript, embedded: EmbeddedValues) -> _ResolvedValue:
+def _resolve_embedded_table_reference(
+    node: ast.Subscript, embedded: EmbeddedValues, classify: Callable[[Any], _ResolvedValue]
+) -> _ResolvedValue:
     key_node = node.slice
     if not isinstance(key_node, ast.Constant) or not isinstance(key_node.value, str):
         return _ResolvedValue(kind="blocked", detail="top_level_unique_values_dict key is not a string literal")
@@ -270,7 +275,35 @@ def _resolve_embedded_table_reference(node: ast.Subscript, embedded: EmbeddedVal
     if embedded_value.error is not None:
         return _ResolvedValue(kind="blocked", detail=embedded_value.error)
 
-    return _classify_repo_value(embedded_value.value)
+    return classify(embedded_value.value)
+
+
+def _classify_lora_path_value(value: Any) -> _ResolvedValue:
+    if value is None:
+        return _ResolvedValue(kind="empty")
+    if isinstance(value, str) and value == "":
+        return _ResolvedValue(kind="empty")
+    if isinstance(value, list) and not value:
+        return _ResolvedValue(kind="empty")
+
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return _ResolvedValue(kind="empty")
+        return _ResolvedValue(kind="repo", repos=(stripped,))
+
+    if isinstance(value, list):
+        paths: set[str] = set()
+        for element in value:
+            element_result = _classify_lora_path_value(element)
+            if element_result.kind == "blocked":
+                return element_result
+            paths.update(element_result.repos)
+        if not paths:
+            return _ResolvedValue(kind="empty")
+        return _ResolvedValue(kind="repo", repos=tuple(sorted(paths)))
+
+    return _ResolvedValue(kind="blocked", detail=f"unsupported value type {type(value).__name__!r}")
 
 
 def _resolve_repo_expression(node: ast.expr, embedded: EmbeddedValues) -> _ResolvedValue:
@@ -280,7 +313,7 @@ def _resolve_repo_expression(node: ast.expr, embedded: EmbeddedValues) -> _Resol
         and isinstance(node.value, ast.Name)
         and node.value.id == "top_level_unique_values_dict"
     ):
-        return _resolve_embedded_table_reference(node, embedded)
+        return _resolve_embedded_table_reference(node, embedded, _classify_repo_value)
 
     try:
         literal_value = ast.literal_eval(node)
@@ -290,6 +323,24 @@ def _resolve_repo_expression(node: ast.expr, embedded: EmbeddedValues) -> _Resol
         )
 
     return _classify_repo_value(literal_value)
+
+
+def _resolve_lora_path_expression(node: ast.expr, embedded: EmbeddedValues) -> _ResolvedValue:
+    if (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "top_level_unique_values_dict"
+    ):
+        return _resolve_embedded_table_reference(node, embedded, _classify_lora_path_value)
+
+    try:
+        literal_value = ast.literal_eval(node)
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+        return _ResolvedValue(
+            kind="blocked", detail="value is not a literal or a top_level_unique_values_dict reference"
+        )
+
+    return _classify_lora_path_value(literal_value)
 
 
 def _repo_assignment_key(node_var: str | None, call: ast.Call, parameter_name: str) -> RepoAssignmentKey:
@@ -330,8 +381,6 @@ def _collect_repo_assignments(module: ast.Module) -> RepoAssignmentSlots:
             node_var = _node_identity_for_line(regions, call.lineno)
             storage_key = _repo_assignment_key(node_var, call, parameter_name)
             established.add(storage_key)
-            # ui_options.simple_dropdown is never consulted, so dropdown alternatives can never
-            # become defaults or dependencies.
             default_value_node = _get_keyword(call, "default_value")
             if default_value_node is None:
                 continue
@@ -340,9 +389,8 @@ def _collect_repo_assignments(module: ast.Module) -> RepoAssignmentSlots:
             )
             continue
 
-        # SetParameterValueRequest
         if _keyword_bool_literal(call, "is_output") is True:
-            continue  # literal output assignments never contribute model dependencies
+            continue
         value_node = _get_keyword(call, "value")
         if value_node is None:
             continue
@@ -350,9 +398,61 @@ def _collect_repo_assignments(module: ast.Module) -> RepoAssignmentSlots:
         node_var = node_name_node.id if isinstance(node_name_node, ast.Name) else None
         storage_key = _repo_assignment_key(node_var, call, parameter_name)
         if storage_key in dynamically_added_keys and storage_key not in established:
-            continue  # this parameter is only ever created by a later Add in this file, so this assignment fails
-        # The final assignment for a given node/parameter wins because calls are replayed in
-        # lexical order and each overwrites any prior entry for the same key.
+            continue
+        current[storage_key] = _ValueSlot(value_node=value_node, source=_source_location(call), node_key=node_var)
+
+    return current
+
+
+def _collect_lora_path_assignments(module: ast.Module) -> RepoAssignmentSlots:
+    regions = _node_context_regions(module)
+    calls = [
+        node
+        for node in ast.walk(module)
+        if _is_named_call(node, "AddParameterToNodeRequest") or _is_named_call(node, "SetParameterValueRequest")
+    ]
+    calls.sort(key=lambda call: (call.lineno, call.col_offset))
+
+    dynamically_added_keys: set[RepoAssignmentKey] = set()
+    for call in calls:
+        if not _is_named_call(call, "AddParameterToNodeRequest"):
+            continue
+        parameter_name = _keyword_str(call, "parameter_name")
+        if parameter_name is None or parameter_name not in LORA_PARAMETERS:
+            continue
+        node_var = _node_identity_for_line(regions, call.lineno)
+        dynamically_added_keys.add(_repo_assignment_key(node_var, call, parameter_name))
+
+    current: RepoAssignmentSlots = {}
+    established: set[RepoAssignmentKey] = set()
+
+    for call in calls:
+        parameter_name = _keyword_str(call, "parameter_name")
+        if parameter_name is None or parameter_name not in LORA_PARAMETERS:
+            continue
+
+        if _is_named_call(call, "AddParameterToNodeRequest"):
+            node_var = _node_identity_for_line(regions, call.lineno)
+            storage_key = _repo_assignment_key(node_var, call, parameter_name)
+            established.add(storage_key)
+            default_value_node = _get_keyword(call, "default_value")
+            if default_value_node is None:
+                continue
+            current[storage_key] = _ValueSlot(
+                value_node=default_value_node, source=_source_location(call), node_key=node_var
+            )
+            continue
+
+        if _keyword_bool_literal(call, "is_output") is True:
+            continue
+        value_node = _get_keyword(call, "value")
+        if value_node is None:
+            continue
+        node_name_node = _get_keyword(call, "node_name")
+        node_var = node_name_node.id if isinstance(node_name_node, ast.Name) else None
+        storage_key = _repo_assignment_key(node_var, call, parameter_name)
+        if storage_key in dynamically_added_keys and storage_key not in established:
+            continue
         current[storage_key] = _ValueSlot(value_node=value_node, source=_source_location(call), node_key=node_var)
 
     return current
@@ -428,6 +528,31 @@ def _extract_model_dependencies(
     return _merge_model_dependencies(evidence), tuple(sorted(blockers))
 
 
+def _extract_lora_file_paths(
+    module: ast.Module, embedded: EmbeddedValues
+) -> tuple[tuple[str, ...], tuple[ExtractionBlocker, ...]]:
+    assignments = _collect_lora_path_assignments(module)
+    paths: set[str] = set()
+    blockers: list[ExtractionBlocker] = []
+
+    for key, slot in assignments.items():
+        resolved = _resolve_lora_path_expression(slot.value_node, embedded)
+        if resolved.kind == "blocked":
+            blockers.append(
+                ExtractionBlocker(
+                    code="unresolved-lora-path",
+                    detail=f"file_path: {resolved.detail}",
+                    source=slot.source,
+                )
+            )
+            continue
+        if resolved.kind == "empty":
+            continue
+        paths.update(resolved.repos)
+
+    return tuple(sorted(paths)), tuple(sorted(blockers))
+
+
 def extract_workflow_dependencies(workflow_path: Path) -> WorkflowDependencies:
     try:
         source = workflow_path.read_text(encoding="utf-8")
@@ -447,10 +572,12 @@ def extract_workflow_dependencies(workflow_path: Path) -> WorkflowDependencies:
     embedded_values = _extract_embedded_values(module)
     library_names, library_blockers = _extract_library_names(module)
     model_dependencies, model_blockers = _extract_model_dependencies(module, embedded_values)
-    blockers = tuple(sorted(library_blockers + model_blockers))
+    lora_file_paths, lora_blockers = _extract_lora_file_paths(module, embedded_values)
+    blockers = tuple(sorted(library_blockers + model_blockers + lora_blockers))
     return WorkflowDependencies(
         workflow_path=workflow_path,
         model_dependencies=model_dependencies,
         library_names=library_names,
+        lora_file_paths=lora_file_paths,
         blockers=blockers,
     )

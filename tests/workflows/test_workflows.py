@@ -8,8 +8,6 @@ from griptape_nodes.bootstrap.workflow_executors.local_workflow_executor import 
 
 LIBRARY_ROOT = Path(__file__).parents[2]
 IGNORED_WORKFLOW_NAMES = {
-    "LoRAText2Image.py",
-    "LTX23-IC-LoRA.py",
     "WanAnimate.py",
     "WanReplace.py",
 }
@@ -21,19 +19,12 @@ def get_workflows() -> list[str]:
     return [
         str(f)
         for f in workflows_dir.iterdir()
-        if f.is_file()
-        and f.suffix == ".py"
-        and not f.name.startswith("__")
-        and f.name not in IGNORED_WORKFLOW_NAMES
+        if f.is_file() and f.suffix == ".py" and not f.name.startswith("__") and f.name not in IGNORED_WORKFLOW_NAMES
     ]
 
 
 # TODO: https://github.com/griptape-ai/griptape-nodes-library-advanced-media/issues/4
 #       Workflows in this library perform CUDA checks that fail on standard CI runners.
-# TODO: Re-enable the LoRA workflow templates once we can check whether the
-#       required LoRA model is downloaded before running the template tests.
-# TODO: Re-enable the LTX IC LoRA workflow once we can check whether the LoRA
-#       model file exists before running the template tests.
 # TODO: Re-enable WAN workflows (WanAnimate.py, WanReplace.py) once the framework
 #       resolves parameter values from connections before validation. Currently:
 #       - CreateConnectionRequest creates graph edges (connections exist)
