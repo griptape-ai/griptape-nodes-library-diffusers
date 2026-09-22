@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,10 @@ from modular_diffusion_nodes_library.artifact_utils import (
     tokenizer_component_artifact as _tokenizer_component_artifact,  # noqa: F401
 )
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact, ComponentSourceType
-from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
+    DEFAULT_BAKED_DTYPE,
+    DiffusionPipelineArtifact,
+)
 from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
     PIPELINE_RECIPE_SCHEMA_VERSION,
     require_dict,
@@ -65,6 +69,83 @@ def validate_pipeline_recipe_dependencies(artifact: DiffusionPipelineArtifact) -
     return [*issues, *_validate_build_data_repositories(artifact.build_data)]
 
 
+@dataclass(frozen=True)
+class QuantizationStatus:
+    """Recorded quant types for Load Pipeline status.
+
+    `slots` is slot name → type when we know which components are quantized.
+    `pipeline` is a single type when we only know it at pipeline level.
+    """
+
+    slots: dict[str, str] = field(default_factory=dict)
+    pipeline: str | None = None
+
+
+def collect_quantization_status(artifact: DiffusionPipelineArtifact) -> QuantizationStatus:
+    """Read GGUF overrides, baked packed slots, pre-quantized Hub repos, or recipe quanto mode."""
+    build_data = artifact.build_data
+    slots: dict[str, str] = {}
+
+    overrides = build_data.get("_component_overrides")
+    if isinstance(overrides, dict):
+        for slot, override in overrides.items():
+            label = _override_quant_label(override)
+            if label is not None:
+                slots[str(slot)] = label
+
+    packed = build_data.get("_packed_quant_slots") or []
+    baked_mode = build_data.get("_baked_quantization_mode")
+    if isinstance(packed, list) and packed:
+        mode = baked_mode if isinstance(baked_mode, str) and baked_mode else "quanto"
+        for slot in packed:
+            if isinstance(slot, str) and slot not in slots:
+                slots[slot] = mode
+
+    if slots:
+        return QuantizationStatus(slots=slots)
+
+    if artifact.is_prequantized:
+        label = _hub_prequant_label(build_data)
+        if label is not None:
+            return QuantizationStatus(pipeline=label)
+        return QuantizationStatus()
+
+    mode = artifact.optimization_kwargs.get("quantization_mode")
+    if isinstance(mode, str) and mode not in {"", "None"}:
+        return QuantizationStatus(pipeline=mode)
+    return QuantizationStatus()
+
+
+def format_quantization_status_lines(status: QuantizationStatus) -> list[str]:
+    """One line when every slot shares a type; per slot when they differ."""
+    if status.slots:
+        types = set(status.slots.values())
+        if len(types) == 1:
+            qtype = next(iter(types))
+            names = ", ".join(sorted(status.slots))
+            return [f"Quantization: {qtype} ({names})"]
+        return ["Quantization", *[f"  {slot}: {status.slots[slot]}" for slot in sorted(status.slots)]]
+    if status.pipeline:
+        return [f"Quantization: {status.pipeline}"]
+    return []
+
+
+def format_baked_pipeline_summary(artifact: DiffusionPipelineArtifact) -> str:
+    """Load Pipeline status for a baked folder."""
+    build_data = artifact.build_data
+    lines = [
+        "Loaded baked pipeline",
+        "",
+        f"Type: {artifact.pipeline_name}",
+        f"Path: {build_data.get('_baked_path', '')}",
+        f"Dtype: {build_data.get('_baked_dtype', DEFAULT_BAKED_DTYPE)}",
+    ]
+    quant_lines = format_quantization_status_lines(collect_quantization_status(artifact))
+    if quant_lines:
+        lines.extend(quant_lines)
+    return "\n".join(lines)
+
+
 def format_pipeline_artifact_summary(artifact: DiffusionPipelineArtifact) -> str:
     """Format the persisted pipeline configuration for a Load Pipeline status message."""
     build_data = artifact.build_data
@@ -90,7 +171,13 @@ def format_pipeline_artifact_summary(artifact: DiffusionPipelineArtifact) -> str
             if not isinstance(override, ComponentArtifact):
                 lines.append(f"  {slot}: Unsupported override configuration")
                 continue
-            lines.extend([f"  {slot.title()}", f"    Type: {type(override).__name__}", f"    Source: {override.source_type.value}"])
+            lines.extend(
+                [
+                    f"  {slot.title()}",
+                    f"    Type: {type(override).__name__}",
+                    f"    Source: {override.source_type.value}",
+                ]
+            )
             if isinstance(override, SchedulerComponentArtifact):
                 lines.append(f"    Class: {override.scheduler_class or 'Unknown'}")
             if override.repo_ref is not None:
@@ -107,7 +194,28 @@ def format_pipeline_artifact_summary(artifact: DiffusionPipelineArtifact) -> str
             if override.torch_dtype:
                 lines.append(f"    Dtype: {override.torch_dtype}")
 
+    quant_lines = format_quantization_status_lines(collect_quantization_status(artifact))
+    if quant_lines:
+        lines.extend(["", *quant_lines])
+
     return "\n".join(lines)
+
+
+def _override_quant_label(override: Any) -> str | None:
+    if not getattr(override, "is_quantized", False):
+        return None
+    path = getattr(override, "file_path", None) or ""
+    if str(path).lower().endswith(".gguf"):
+        return "GGUF"
+    return None
+
+
+def _hub_prequant_label(build_data: dict[str, Any]) -> str | None:
+    repo = str(build_data.get("base_repo_id") or build_data.get("repo_id") or "")
+    lower = repo.lower()
+    if "nvfp4" in lower:
+        return "fp4"
+    return None
 
 
 def _validate_build_data_repositories(build_data: dict[str, Any]) -> list[str]:

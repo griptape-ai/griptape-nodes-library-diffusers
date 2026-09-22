@@ -124,7 +124,7 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             exceptions.append(ValueError(f"Parameter 'pipeline' on node '{self.name}' must be a Pipeline Config."))
         elif self.get_parameter_value("save_mode") == _SAVE_FULL_PIPELINE:
             try:
-                pipeline.check_bakeable()
+                pipeline.check_full_pipeline_bake_policy()
             except ValueError as e:
                 exceptions.append(e)
 
@@ -155,7 +155,7 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             resolved_path = resolve_workspace_path(Path(expanded_path), workspace_path)
 
             if self.get_parameter_value("save_mode") == _SAVE_FULL_PIPELINE:
-                pipeline.check_bakeable()
+                pipeline.check_full_pipeline_bake_policy()
                 pipe = pipeline.get_or_build_pipeline()
                 save_baked_pipeline(pipe, pipeline, resolved_path)
                 return resolved_path
