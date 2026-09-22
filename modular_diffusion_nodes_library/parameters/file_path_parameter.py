@@ -86,6 +86,29 @@ class FilePathParameter:
         existing["fileSystemPicker"] = picker.ui_options_for_trait()["fileSystemPicker"]
         param.ui_options = existing
 
+    def set_picker_mode(
+        self,
+        *,
+        allow_files: bool,
+        allow_directories: bool,
+        file_types: list[str] | None = None,
+    ) -> None:
+        """Flip the picker between file and directory selection at runtime."""
+        self._file_types = file_types
+        param = self._node.get_parameter_by_name(self._parameter_name)
+        if param is None:
+            return
+        picker = next(iter(param.find_elements_by_type(FileSystemPicker)), None)
+        if picker is None:
+            return
+        picker.allow_files = allow_files
+        picker.allow_directories = allow_directories
+        picker.file_types = file_types or []
+        # _ui_options overrides traits in the ui_options property, so both stores must stay in sync.
+        existing = {k: v for k, v in param.ui_options.items() if k != "fileSystemPicker"}
+        existing["fileSystemPicker"] = picker.ui_options_for_trait()["fileSystemPicker"]
+        param.ui_options = existing
+
     def on_after_value_set(self, parameter: Parameter, value: Any) -> None:
         if parameter.name != self._parameter_name:
             return

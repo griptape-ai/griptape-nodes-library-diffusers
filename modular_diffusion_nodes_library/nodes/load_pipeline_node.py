@@ -10,6 +10,7 @@ from griptape_nodes.retained_mode.events.parameter_events import SetParameterVal
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.utils import resolve_workspace_path
 
+from modular_diffusion_nodes_library.artifact_utils.pipeline_baking import make_baked_artifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import (
     deserialize_pipeline_artifact,
     format_pipeline_artifact_summary,
@@ -27,15 +28,21 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
+        self._loaded_from_baked_dir = False
         self._file_path_param = FilePathParameter(
             self,
             file_types=[".json"],
-            tooltip="Pipeline configuration JSON path. Relative paths are resolved against the project directory.",
+            tooltip=(
+                "A recipe JSON file or a baked pipeline folder. "
+                "Relative paths are resolved against the project directory."
+            ),
             display_name="File Path",
             allowed_modes={ParameterMode.PROPERTY},
             default_value="{project_dir}/pipeline-config.json",
         )
         self._file_path_param.add_input_parameters()
+        # Accept both a recipe .json file and a baked Diffusers repo directory.
+        self._file_path_param.set_picker_mode(allow_files=True, allow_directories=True, file_types=[".json"])
         self.add_parameter(
             Parameter(
                 name="pipeline",
@@ -95,9 +102,15 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         expanded_path = expand_path_macros(file_path)
         workspace_path = GriptapeNodes.ConfigManager().workspace_path
         resolved_path = resolve_workspace_path(Path(expanded_path), workspace_path)
-        if not resolved_path.is_file():
-            raise FileNotFoundError(f"Pipeline configuration file does not exist: {resolved_path}")
 
+        if resolved_path.is_dir():
+            self._loaded_from_baked_dir = True
+            return make_baked_artifact(resolved_path)
+
+        if not resolved_path.is_file():
+            raise FileNotFoundError(f"Pipeline source does not exist: {resolved_path}")
+
+        self._loaded_from_baked_dir = False
         pipeline = deserialize_pipeline_artifact(resolved_path.read_text(encoding="utf-8"))
         dependency_issues = validate_pipeline_recipe_dependencies(pipeline)
         if dependency_issues:
@@ -105,12 +118,29 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             raise RuntimeError(f"Pipeline recipe dependencies are unavailable:\n{details}")
         return pipeline
 
+    def _success_status_details(self, pipeline: Any) -> str:
+        if self._loaded_from_baked_dir:
+            build_data = pipeline.build_data
+            baked_path = Path(build_data["_baked_path"])
+            return "\n".join(
+                [
+                    "Loaded baked pipeline",
+                    "",
+                    f"Type: {pipeline.pipeline_name}",
+                    f"Path: {baked_path}",
+                    f"Dtype: {build_data['_baked_dtype']}",
+                ]
+            )
+        summary = format_pipeline_artifact_summary(pipeline)
+        return f"Loaded successfully\n\n{summary}"
+
     def _publish_from_committed_path(self) -> None:
         """Load and publish when the editor commits a path. Never reject the path change."""
+        self._loaded_from_baked_dir = False
         try:
             pipeline = self._load_pipeline_from_path()
         except Exception as error:
-            logger.exception("%s: Pipeline configuration load failed after path change", self.name)
+            logger.exception("%s: Pipeline load failed after path change", self.name)
             try:
                 self._publish_pipeline(None)
             except Exception:
@@ -125,11 +155,11 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             self._set_status_results(was_successful=False, result_details=str(error))
             return
 
-        summary = format_pipeline_artifact_summary(pipeline)
-        self._set_status_results(was_successful=True, result_details=f"Loaded successfully\n\n{summary}")
+        self._set_status_results(was_successful=True, result_details=self._success_status_details(pipeline))
 
     def process(self) -> None:
         self._clear_execution_status()
+        self._loaded_from_baked_dir = False
 
         def load() -> Any:
             pipeline = self._load_pipeline_from_path()
@@ -138,10 +168,11 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         pipeline = self._run_with_status(
             load,
-            success_msg="Pipeline configuration loaded successfully.",
-            failure_log="Pipeline configuration load failed",
+            success_msg="Pipeline loaded successfully.",
+            failure_log="Pipeline load failed",
             logger=logger,
         )
-        if pipeline is not None:
-            summary = format_pipeline_artifact_summary(pipeline)
-            self._set_status_results(was_successful=True, result_details=f"Loaded successfully\n\n{summary}")
+        if pipeline is None:
+            return
+
+        self._set_status_results(was_successful=True, result_details=self._success_status_details(pipeline))
