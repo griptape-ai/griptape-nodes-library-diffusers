@@ -13,6 +13,7 @@ from griptape_nodes.utils import resolve_workspace_path
 from modular_diffusion_nodes_library.artifact_utils.pipeline_baking import make_baked_artifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import (
     deserialize_pipeline_artifact,
+    format_baked_pipeline_summary,
     format_pipeline_artifact_summary,
     validate_pipeline_recipe_dependencies,
 )
@@ -120,17 +121,7 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
     def _success_status_details(self, pipeline: Any) -> str:
         if self._loaded_from_baked_dir:
-            build_data = pipeline.build_data
-            baked_path = Path(build_data["_baked_path"])
-            return "\n".join(
-                [
-                    "Loaded baked pipeline",
-                    "",
-                    f"Type: {pipeline.pipeline_name}",
-                    f"Path: {baked_path}",
-                    f"Dtype: {build_data['_baked_dtype']}",
-                ]
-            )
+            return format_baked_pipeline_summary(pipeline)
         summary = format_pipeline_artifact_summary(pipeline)
         return f"Loaded successfully\n\n{summary}"
 
