@@ -131,7 +131,9 @@ class ComponentArtifact(ABC):
     def _common_kwargs(cls, data: dict[str, Any]) -> dict[str, Any]:
         return {
             "load_id": require_string(data.get("load_id"), "Component override load ID"),
-            "source_type": ComponentSourceType(require_string(data.get("source_type"), "Component override source type")),
+            "source_type": ComponentSourceType(
+                require_string(data.get("source_type"), "Component override source type")
+            ),
             "component": require_string(data.get("component"), "Component override component"),
             "torch_dtype": require_string(data.get("torch_dtype"), "Component override torch dtype"),
         }

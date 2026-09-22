@@ -31,12 +31,30 @@ from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
     require_string_list,
     resolve_recipe_value,
 )
+from modular_diffusion_nodes_library.component_loading.component_slots import slot_component_kind
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_runtime_adapter_step import PipelineRuntimeAdapterStep
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 DEFAULT_BAKED_DTYPE = "bfloat16"
+
+
+def _optimization_kwargs_for_baked(data: dict[str, Any]) -> dict[str, Any]:
+    """Never re-apply UI quant on load when the folder already holds packed tensors."""
+    kwargs = dict(data.get("optimization_kwargs") or {})
+    if data.get("baked_quantization_mode") or data.get("packed_quant_slots"):
+        kwargs["quantization_mode"] = "None"
+    return kwargs
+
+
+def _baked_file_override_build_data(data: dict[str, Any], baked_path: Path) -> dict[str, Any]:
+    file_overrides = data.get("file_overrides") or {}
+    if not isinstance(file_overrides, dict) or not file_overrides:
+        return {}
+    from modular_diffusion_nodes_library.artifact_utils.baked_file_overrides import resolve_file_overrides
+
+    return {"_component_overrides": resolve_file_overrides(file_overrides, baked_path)}
 
 
 def _digest(parts: dict[str, Any]) -> str:
@@ -202,49 +220,49 @@ class DiffusionPipelineArtifact:
             },
         }
 
-    def check_bakeable(self) -> None:
-        """Raise if this pipeline uses a feature Full Pipeline save doesn't support yet."""
-        if self.is_prequantized:
+    def _gguf_override_slots(self) -> list[str]:
+        overrides = self.build_data.get("_component_overrides") or {}
+        if not isinstance(overrides, dict):
+            return []
+        return [str(slot) for slot, override in overrides.items() if getattr(override, "is_quantized", False)]
+
+    def check_full_pipeline_bake_policy(self) -> None:
+        """Raise if Full Pipeline save is unsupported for this config (artifact-only; no build)."""
+        gguf_slots = self._gguf_override_slots()
+        if self.is_prequantized and not gguf_slots:
             msg = (
                 "Full Pipeline save does not yet support pre-quantised models "
                 "(e.g. bnb-4bit repos); their quantised weights are not verified to round-trip "
                 "through save_pretrained. Use Config Only instead."
             )
             raise ValueError(msg)
-
-        quantization_mode = self.optimization_kwargs.get("quantization_mode", "None")
-        if quantization_mode != "None":
+        gguf_denoisers = [slot for slot in gguf_slots if slot_component_kind(slot) in {"unet", "transformer"}]
+        if self.loras and gguf_denoisers:
+            names = ", ".join(gguf_denoisers)
             msg = (
-                f"Full Pipeline save does not yet support quantization_mode={quantization_mode!r} "
-                "(quantised weights are not guaranteed to round-trip through save_pretrained). "
-                "Use Config Only, or set Quantization Mode to 'None' before saving."
+                f"Full Pipeline save cannot persist LoRAs together with a GGUF denoiser override "
+                f"({names}); the .gguf file is copied as-is and LoRAs usually fuse into that slot. "
+                "Use Config Only instead."
             )
             raise ValueError(msg)
-
-        overrides = self.build_data.get("_component_overrides", {})
-        for slot, override in overrides.items():
-            if getattr(override, "is_quantized", False):
-                msg = (
-                    f"Full Pipeline save does not yet support quantised component overrides "
-                    f"(slot '{slot}' is quantised, e.g. GGUF). Use Config Only instead."
-                )
-                raise ValueError(msg)
 
     def to_baked_config_dict(self) -> dict[str, Any]:
         """Render the artifact-owned half of a baked folder's sidecar config.
 
-        Fields describing the folder rather than the artifact (schema version,
-        layout, dtype of the built pipe) are added by the caller, mirroring how
-        `serialize_pipeline_artifact` wraps `to_recipe_dict`. LoRAs and
-        quantization settings are dropped: baking fuses them into the weights.
+        Schema version, layout, dtype of the built pipe) are added by the caller, mirroring how
+        `serialize_pipeline_artifact` wraps `to_recipe_dict`. 
         """
-        self.check_bakeable()
+        self.check_full_pipeline_bake_policy()
+        optimization_kwargs = dict(self.optimization_kwargs)
+        baked_quantization_mode = optimization_kwargs.get("quantization_mode", "None")
+        if baked_quantization_mode != "None":
+            optimization_kwargs["quantization_mode"] = "None"
         return {
             "pipeline_name": self.pipeline_name,
             "builder_module": self.builder_module,
             "builder_class_name": self.builder_class_name,
-            "optimization_kwargs": self.optimization_kwargs,
-            "is_prequantized": self.is_prequantized,
+            "optimization_kwargs": optimization_kwargs,
+            "baked_quantization_mode": baked_quantization_mode if baked_quantization_mode != "None" else None,
             "supports_layerwise_casting": self.supports_layerwise_casting,
             "requires_device_map": self.requires_device_map,
         }
@@ -267,10 +285,12 @@ class DiffusionPipelineArtifact:
             build_data={
                 "_baked_path": str(baked_path),
                 "_baked_dtype": data.get("torch_dtype", DEFAULT_BAKED_DTYPE),
+                "_baked_quantization_mode": data.get("baked_quantization_mode"),
+                "_packed_quant_slots": list(data.get("packed_quant_slots") or []),
+                **_baked_file_override_build_data(data, baked_path),
             },
             loras={},  # already fused into the saved weights
-            optimization_kwargs=data.get("optimization_kwargs"),
-            is_prequantized=data.get("is_prequantized", False),
+            optimization_kwargs=_optimization_kwargs_for_baked(data),
             supports_layerwise_casting=data.get("supports_layerwise_casting", True),
             requires_device_map=data.get("requires_device_map", False),
         )
@@ -546,7 +566,8 @@ class ControlNetDiffusionPipelineArtifact(BaseDiffusionPipelineArtifact):
         )
         return metadata
 
-    def check_bakeable(self) -> None:
+    def check_full_pipeline_bake_policy(self) -> None:
+        """Raise if Full Pipeline save is unsupported for this config (artifact-only; no build)."""
         msg = "Full Pipeline save does not yet support ControlNet pipelines. Use Config Only instead."
         raise ValueError(msg)
 
