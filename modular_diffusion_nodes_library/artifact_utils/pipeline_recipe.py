@@ -133,6 +133,11 @@ def _validate_build_data_repositories(build_data: dict[str, Any]) -> list[str]:
 
 
 def _list_cached_repo_revisions(repo_id: str) -> list[tuple[str, str]]:
+    # Use scan_cache_dir() so we get every cached revision for repo_id.
+    # list_repo_revisions_in_cache() / list_all_repo_revisions_in_cache() in
+    # griptape_nodes...huggingface_utils use quick_scan_diffuser_repos(), which
+    # returns one snapshot hash per repo — enough for presence checks, not for
+    # validating a specific pinned revision in _validate_build_data_repositories().
     cache_info = scan_cache_dir()
     for repo in cache_info.repos:
         if repo.repo_id == repo_id:
