@@ -205,12 +205,11 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
                 self.publish_update_to_parameter("output_latent", latent_artifact)
                 self.set_parameter_value("output_latent", latent_artifact)
                 self.parameter_output_values["output_latent"] = latent_artifact
-
             except Exception:
                 logger.exception("%s: Diffusion Pipeline execution failed", self.name)
-                # Aggressive cleanup on failure
-                cleanup_memory_caches()
                 raise
+            finally:
+                cleanup_memory_caches()
 
         yield work
 
@@ -221,7 +220,9 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         width = self.get_parameter_value("width")
         seed = self.get_parameter_value("seed") or 0
         generator_state = GeneratorState.from_seed(seed)
-        num_frames = self.get_parameter_value("num_frames") or None
+        num_frames = None
+        if latent_pipeline_driver.produces_video:
+            num_frames = self.get_parameter_value("num_frames") or None
 
         result = snap_dimensions(latent_pipeline_driver, height, width, num_frames)
         if result.message:
