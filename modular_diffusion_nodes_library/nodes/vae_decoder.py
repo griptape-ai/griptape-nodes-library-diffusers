@@ -46,7 +46,7 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.add_parameter(
             Parameter(
                 name="output_image",
-                output_type="ImageArtifact",
+                output_type="ImageUrlArtifact",
                 tooltip="Decoded image from the latent tensor.",
                 allowed_modes={ParameterMode.OUTPUT},
                 serializable=False,
@@ -168,7 +168,7 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             self.add_parameter(
                 Parameter(
                     name="output_image",
-                    output_type="ImageArtifact",
+                    output_type="ImageUrlArtifact",
                     tooltip="Decoded image from the latent tensor.",
                     allowed_modes={ParameterMode.OUTPUT},
                     user_defined=True,
