@@ -6,6 +6,7 @@ from typing import Any
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import NodeResolutionState, SuccessFailureNode
+from griptape_nodes.retained_mode.events.parameter_events import SetParameterValueRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.utils import resolve_workspace_path
 
@@ -48,6 +49,13 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
         self._file_path_param.on_after_value_set(parameter, value)
+        if parameter.name != "file_path":
+            return
+        # Macro rewrite may replace the path via a nested set; that call publishes.
+        current = self.get_parameter_value("file_path")
+        if current != value:
+            return
+        self._publish_from_committed_path()
 
     @property
     def state(self) -> NodeResolutionState:
@@ -66,27 +74,66 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             return [ValueError(f"Parameter 'file_path' on node '{self.name}' must be a non-empty string.")]
         return None
 
+    def _publish_pipeline(self, pipeline: Any) -> None:
+        # The request unresolves connected nodes and pushes the artifact into
+        # them so parameters derived from it are rebuilt.
+        result = GriptapeNodes.handle_request(
+            SetParameterValueRequest(parameter_name="pipeline", node_name=self.name, value=pipeline)
+        )
+        if result.failed():
+            raise RuntimeError(
+                f"Attempted to publish pipeline on node '{self.name}'. "
+                f"Failed because the engine rejected the value: {result.result_details}"
+            )
+        self.parameter_output_values["pipeline"] = pipeline
+
+    def _load_pipeline_from_path(self) -> Any:
+        file_path = self.get_parameter_value("file_path")
+        if not isinstance(file_path, str) or not file_path.strip():
+            raise ValueError(f"Parameter 'file_path' on node '{self.name}' must be a non-empty string.")
+
+        expanded_path = expand_path_macros(file_path)
+        workspace_path = GriptapeNodes.ConfigManager().workspace_path
+        resolved_path = resolve_workspace_path(Path(expanded_path), workspace_path)
+        if not resolved_path.is_file():
+            raise FileNotFoundError(f"Pipeline configuration file does not exist: {resolved_path}")
+
+        pipeline = deserialize_pipeline_artifact(resolved_path.read_text(encoding="utf-8"))
+        dependency_issues = validate_pipeline_recipe_dependencies(pipeline)
+        if dependency_issues:
+            details = "\n".join(f"- {issue}" for issue in dependency_issues)
+            raise RuntimeError(f"Pipeline recipe dependencies are unavailable:\n{details}")
+        return pipeline
+
+    def _publish_from_committed_path(self) -> None:
+        """Load and publish when the editor commits a path. Never reject the path change."""
+        try:
+            pipeline = self._load_pipeline_from_path()
+        except Exception as error:
+            logger.exception("%s: Pipeline configuration load failed after path change", self.name)
+            try:
+                self._publish_pipeline(None)
+            except Exception:
+                logger.exception("%s: Failed to clear pipeline after a path-change load error", self.name)
+            self._set_status_results(was_successful=False, result_details=str(error))
+            return
+
+        try:
+            self._publish_pipeline(pipeline)
+        except Exception as error:
+            logger.exception("%s: Failed to publish pipeline after path change", self.name)
+            self._set_status_results(was_successful=False, result_details=str(error))
+            return
+
+        summary = format_pipeline_artifact_summary(pipeline)
+        self._set_status_results(was_successful=True, result_details=f"Loaded successfully\n\n{summary}")
+
     def process(self) -> None:
         self._clear_execution_status()
 
-        def load() -> None:
-            file_path = self.get_parameter_value("file_path")
-            if not isinstance(file_path, str) or not file_path.strip():
-                raise ValueError(f"Parameter 'file_path' on node '{self.name}' must be a non-empty string.")
-
-            expanded_path = expand_path_macros(file_path)
-            workspace_path = GriptapeNodes.ConfigManager().workspace_path
-            resolved_path = resolve_workspace_path(Path(expanded_path), workspace_path)
-            if not resolved_path.is_file():
-                raise FileNotFoundError(f"Pipeline configuration file does not exist: {resolved_path}")
-
-            pipeline = deserialize_pipeline_artifact(resolved_path.read_text(encoding="utf-8"))
-            dependency_issues = validate_pipeline_recipe_dependencies(pipeline)
-            if dependency_issues:
-                details = "\n".join(f"- {issue}" for issue in dependency_issues)
-                raise RuntimeError(f"Pipeline recipe dependencies are unavailable:\n{details}")
-            self.set_parameter_value("pipeline", pipeline)
-            self.parameter_output_values["pipeline"] = pipeline
+        def load() -> Any:
+            pipeline = self._load_pipeline_from_path()
+            self._publish_pipeline(pipeline)
             return pipeline
 
         pipeline = self._run_with_status(
