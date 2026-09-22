@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is the **Modular Diffusion Nodes Library** — a Griptape Nodes library that exposes 🧨 Diffusers pipelines as composable nodes (pipeline builder, VAE encode/decode, noise, denoise, latent math, ControlNet, LoRA, etc.). Each diffusion stage is its own node, so flows can branch, chain, and reorder steps (multi-stage refinement, ControlNet stacking, latent composition, first/last-frame video conditioning, latent upscaling).
 
-It is consumed by the [`griptape-nodes`](../griptape-nodes) engine, which loads it via `griptape_nodes_library.json`.
+It is consumed by the [`griptape-nodes`](../griptape-nodes) engine, which loads it via `griptape-nodes-library.json`.
 
 ## Development
 
@@ -16,19 +16,19 @@ All development is uv-backed. Run these directly from the repo root:
 
 ```bash
 uv sync --all-groups --all-extras            # install deps
-uv run ruff format --check                   # check formatting
-uv run ruff check .                          # check linting
-uv run ruff format                           # auto-format
-uv run ruff check --fix --unsafe-fixes       # auto-fix lint
-uv run pytest tests                          # run tests
+make check                                   # format, lint, pyright, JSON (what CI runs)
+make fix                                     # auto-fix format and lint
+make test/unit                               # unit tests (excludes tests/workflows)
 ```
+
+`make check` runs `ruff format --check`, `ruff check`, `pyright .`, and JSON validation. Underlying ruff commands: `uv run ruff format --check` / `uv run ruff check .`.
 
 **Iteration Loop**
 
 1. **Make the change**: implement the feature or fix.
-2. **Run checks**: `uv run ruff format --check` + `uv run ruff check .` to surface lint/format issues.
-3. **Fix issues**: resolve everything from the previous step (use `uv run ruff format` and `uv run ruff check --fix --unsafe-fixes` for autofixable ones).
-4. **Run tests**: `uv run pytest tests --ignore=tests/workflows` once checks pass.
+2. **Run checks**: `make check` to surface lint, format, and type issues.
+3. **Fix issues**: resolve everything from the previous step (`make fix` handles autofixable ones).
+4. **Run tests**: `make test/unit` once checks pass.
 5. **Continue working**: move on to the next change.
 
 ## Working Principles
@@ -145,7 +145,7 @@ Prefer verifiable goals ("write a failing test for X, then make it pass") over i
 
 **Top-level layout** (under `modular_diffusion_nodes_library/`):
 
-- `nodes/` — the user-facing Griptape nodes (Pipeline Builder, Generate Latent, VAE Encode/Decode, Noise/Empty/Add Latent, LoRA, ControlNet, Latent Math, Conditioning, Save Latent Tensor, etc.). Each node is registered in `griptape_nodes_library.json`.
+- `nodes/` — the user-facing Griptape nodes (Pipeline Builder, Generate Latent, VAE Encode/Decode, Noise/Empty/Add Latent, LoRA, ControlNet, Latent Math, Conditioning, Save Latent Tensor, etc.). Each node is registered in `griptape-nodes-library.json`.
 - `latent_pipeline_drivers/` — per-model drivers (`flux`, `flux2`, `qwen`, `z_image`, `ltx`, `wan`, `wan_i2v`, `stable_diffusion_xl`, `stable_diffusion_3`, `flux_fill`, …) all extending `LatentPipelineDriver` in `base_driver.py`. `driver_factory.py` maps a diffusers pipeline class name → driver class.
 - `standard_parameters/` — per-model **load-time** parameter sets (repo IDs, dtype, quantization, offload). Subclass `ModularDiffusionPipelineTypePipelineParameters`.
 - `runtime_parameters/` — per-model **generate-time** parameter sets (prompt, negative_prompt, guidance, true_cfg, etc.). Subclass `DiffusionPipelineRuntimeParameters` — never re-add `num_inference_steps`, `seed`, or `generator`; the base class owns those.
@@ -155,24 +155,7 @@ Prefer verifiable goals ("write a failing test for X, then make it pass") over i
 - `misc/` — orthogonal helpers, notably `partial_denoise.py` (timestep slicing for multi-stage workflows).
 - `utils/` — generic utilities (tensor helpers, dtype mapping, hashing).
 
-**Driver contract — read this before touching a driver**
-
-`LatentPipelineDriver` defines the **public latent surface** that all nodes operate on:
-
-> Public latents are **unpacked** (4-D image `[B, C, H/vae, W/vae]`, 5-D video `[B, C, T_lat, H/vae, W/vae]`) and **normalised** (~N(0,1)). Per-VAE whitening `(z - mean) / std` is applied inside `encode_image/encode_video`; the inverse runs inside `decode_latent`. Model-specific packing (Flux, Qwen) is applied transiently in `_prepare_input_latent` / `prepare_output_latent` and never appears on the public surface.
-
-If you break this invariant, **every downstream node breaks** (latent math, composite, save/load, upscaler). Match the closest existing driver and copy its structure.
-
-**Modular-blocks-first philosophy**
-
-The long-term goal is to use the diffusers `ModularPipeline` block system for ALL pipeline operations. When integrating a new model:
-
-- **Encode / decode / create-noise / add-noise / encode-prompt** → use modular blocks via `self.modular_pipe.blocks.sub_blocks[...]` and `self._call_block(...)`. Every existing driver does this.
-- **Denoise loop** → fall back to `DiffusionPipeline.__call__()` via the base class `denoise_latent()`. Three blockers prevent modular denoise today:
-    1. **Partial denoise** — `PartialDenoisePipelineRunner` / `PartialDenoiseSchedulerProxy` in `misc/partial_denoise.py` patch `pipe.scheduler.set_timesteps()`. No equivalent on `ModularPipeline`.
-    2. **Callback / preview** — step-end previews and progress use `callback_on_step_end` passed via `pipe_kwargs`. Modular denoise blocks don't expose this hook.
-    3. **Cancellation** — implemented by setting `pipe._interrupt = True` inside the step callback. `ModularPipeline` has no equivalent.
-- **Only override `denoise_latent()` for model-specific kwarg munging** (e.g. LTX building video conditions, WAN i2v extracting first/last frames). Always end with `super().denoise_latent(...)` so partial-denoise, callback, cancellation, and inpaint routing keep working.
+**Driver contract and modular-blocks-first**: read [`.claude/rules/latent-drivers.md`](.claude/rules/latent-drivers.md) before touching `latent_pipeline_drivers/`, `nodes/`, or `misc/partial_denoise.py`. The public latent contract (unpacked, normalised) must not break.
 
 **Provider / pipeline-class registration — the three places**
 
@@ -182,7 +165,7 @@ Adding a new diffusers pipeline requires touching all three:
 2. `parameters/pipeline_parameters.py` → `set_runtime_parameters()` `match` (pipeline class name → runtime parameters class)
 3. `parameters/pipelinetype_parameters.py` → a `LatentPipelineTypeParameters` subclass plus an entry in `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` (`Provider` enum → type-parameters class)
 
-A miss in any of the three surfaces as a confusing UI failure rather than an import error. See [docs/adding-new-model.md](docs/adding-new-model.md) for the full 6-step walkthrough, and the **Task Workflows** section below for the canonical skill files.
+A miss in any of the three surfaces as a confusing UI failure rather than an import error. See [docs/adding-new-model.md](docs/adding-new-model.md) for the full 6-step walkthrough.
 
 **Every offered repo id must also be declared in the `model_catalog`** in `griptape-nodes-library.json`, and its catalog key added to the owning node's `model_usage` list. The HuggingFace dropdowns refuse an undeclared repo rather than allowing it, so a repo id added in Python alone is unusable at runtime. `tests/test_model_catalog_consistency.py` fails on the omission. This requires engine 0.97.0+ — see Step 6 of the walkthrough.
 
@@ -195,9 +178,9 @@ The Pipeline Builder caches the loaded pipeline in memory and reuses it across r
 **Creating a node:**
 
 1. Add the implementation under `modular_diffusion_nodes_library/nodes/<your_node>.py`, extending `BaseNode` from the engine.
-2. Register it in `griptape_nodes_library.json` (category, metadata, file path).
+2. Register it in `griptape-nodes-library.json` (category, metadata, file path).
 3. Restart the engine — the node appears under the **ModularDiffusion** categories in the node picker.
-4. **Document the node.** Add a page under `docs/nodes/<your_node>.md` following [docs/node-doc-format.md](docs/node-doc-format.md) and link it from `docs/index.md`. Use the [.github/skills/document-node/SKILL.md](.github/skills/document-node/SKILL.md) skill.
+4. **Document the node.** Add a page under `docs/nodes/<your_node>.md` following [docs/node-doc-format.md](docs/node-doc-format.md) and link it from `docs/index.md`. Use the `document-node` skill.
 
 **Wiring a node to a model:**
 
@@ -205,35 +188,22 @@ The Pipeline Builder caches the loaded pipeline in memory and reuses it across r
 - Runtime parameters (prompt, guidance, etc.) go in `runtime_parameters/`.
 - All pipeline I/O goes through the driver — never call `DiffusionPipeline.__call__()` from a node directly.
 
-**Modifying a node:** any change to a node's parameters, inputs, outputs, defaults, category, display name, or provider-specific behavior MUST be accompanied by an update to its `docs/nodes/<name>.md` page in the same change. Invoke [.github/skills/document-node/SKILL.md](.github/skills/document-node/SKILL.md) for the workflow.
-
-## Task Workflows
-
-Multi-step tasks have canonical walkthroughs under `.github/skills/`. **You MUST read the matching skill in full before writing any code** — the trigger conditions and full procedure live there, not here.
-
-| Task | Skill |
-|---|---|
-| Adding a runtime variant (`from_pipe(base)` works against loaded components) | @.github/skills/add-pipeline-variants/SKILL.md |
-| Adding a new pipeline TYPE (`from_pipe` cannot produce it from loaded components) | @.github/skills/add-modular-pipeline/SKILL.md |
-| Authoring or updating a node documentation page | @.github/skills/document-node/SKILL.md |
-
-**Default to variant first.** The decision criterion is: *can `<NewPipelineClass>.from_pipe(base_pipe)` produce a working pipeline from the components already loaded on the base pipe?* Yes → variant. No (needs a component the base doesn't have, or differently-shaped/-trained weights for an existing component) → new pipeline type. If unsure, read @.github/skills/add-pipeline-variants/SKILL.md § "Rule 0" first. The `add-modular-pipeline` and `add-pipeline-variants` workflows are not complete until any affected node docs have been updated via the `document-node` skill.
+**Modifying a node:** any change to a node's parameters, inputs, outputs, defaults, category, display name, or provider-specific behavior MUST be accompanied by an update to its `docs/nodes/<name>.md` page in the same change. Invoke the `document-node` skill for the workflow.
 
 ## Verification
 
 When adding a model or driver:
 
 1. `uv run ruff format --check` + `uv run ruff check .` — clears lint/format.
-2. `uv run pytest tests --ignore=tests/workflows` — unit tests pass.
-3. The relevant `docs/nodes/<name>.md` pages exist and match the changed code (per [.github/skills/document-node/SKILL.md](.github/skills/document-node/SKILL.md)).
-4. Open Griptape Nodes, drop a `LatentDiffusionPipelineBuilderNode`, select your provider + pipeline type, fill the repo, resolve.
-5. Wire to a `DiffusionPipelineGenerateLatentNode` + VAE decoder; confirm an image/video is produced.
-6. Test partial denoise by chaining two generate nodes (e.g. 0–10 then 10–20 steps).
-7. Test cancellation mid-run.
+2. The relevant `docs/nodes/<name>.md` pages exist and match the changed code (per the `document-node` skill).
+3. Open Griptape Nodes, drop a `LatentDiffusionPipelineBuilderNode`, select your provider + pipeline type, fill the repo, resolve.
+4. Wire to a `DiffusionPipelineGenerateLatentNode` + VAE decoder; confirm an image/video is produced.
+5. Test partial denoise by chaining two generate nodes (e.g. 0–10 then 10–20 steps).
+6. Test cancellation mid-run.
 
 ## When in doubt
 
 - **Existing drivers are the source of truth.** Pick the closest match and copy its structure.
 - **Read the diffusers source** under `.venv/Lib/site-packages/diffusers` before assuming a modular block exists.
 - **Don't bypass `LatentPipelineDriver.denoise_latent()`** for callback / partial-denoise / cancellation concerns — those are framework-level open problems.
-- Consult repo memory under `/memories/repo/` for previously-learned gotchas before re-deriving them. List the directory and read entries whose filenames look relevant. Treat memory as advisory — entries may be outdated; verify against current source before relying on them.
+- Check the feature docs in `docs/` (see `docs/adding-new-model.md`) and the path-scoped rules in `.claude/rules/` before re-deriving a subsystem's behaviour. Verify against current source, since docs can drift.

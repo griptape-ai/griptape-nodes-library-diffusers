@@ -50,7 +50,7 @@ Alternatively, register the library directly in your `griptape_nodes_config.json
   "app_events": {
     "on_app_initialization_complete": {
       "libraries_to_register": [
-        "path/to/griptape-nodes-library-modular-diffusion/griptape_nodes_library.json"
+        "path/to/griptape-nodes-library-modular-diffusion/griptape-nodes-library.json"
       ]
     }
   }
