@@ -2,7 +2,7 @@ import logging
 from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage
-from griptape_nodes.exe_types.node_types import AsyncResult, BaseNode, NodeResolutionState, SuccessFailureNode
+from griptape_nodes.exe_types.node_types import AsyncResult, BaseNode, SuccessFailureNode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
@@ -87,21 +87,12 @@ class LatentDiffusionPipelineBuilderNode(
         self.params.refresh_component_override_ports(initial_setup=True)
         self.set_pipeline_artifact()
 
-    @property
-    def state(self) -> NodeResolutionState:
-        """Overrides BaseNode.state to report UNRESOLVED once the built pipeline has left the object store, so re-running the graph rebuilds it."""
-        pipeline_artifact = self.get_pipeline_artifact()
-        if pipeline_artifact is None or pipeline_artifact.config_hash is None:
-            return super().state
-        cached = self.local_objects.get(self.local_objects.key_for(pipeline_artifact.config_hash))
-        if self._state == NodeResolutionState.RESOLVED and cached is None:
-            logger.debug("Pipeline not found in cache, marking node as UNRESOLVED")
-            return NodeResolutionState.UNRESOLVED
-        return super().state
-
-    @state.setter
-    def state(self, new_state: NodeResolutionState) -> None:
-        self._state = new_state
+    # No `state` override. It used to report UNRESOLVED when this node's pipeline was no longer cached,
+    # so that re-running the graph rebuilt it. The object store is per-process and its keys are
+    # namespaced by the process that filled them, so on the orchestrator -- where node state is read --
+    # the answer was always "not cached" once the pipeline was built in a worker, and this node re-ran
+    # and reloaded the model on every execution. `get_or_build_pipeline` already rebuilds on a miss, in
+    # the process that holds the cache, so eviction is handled where it can actually be observed.
 
     def set_pipeline_artifact(self) -> None:
         pipeline_artifact = self.build_pipeline_artifact()
@@ -151,9 +142,11 @@ class LatentDiffusionPipelineBuilderNode(
 
         build_data_error: str | None = None
         if build_from_overrides_only:
+            # No `_pipeline_cls` entry: reading it imports diffusers, and this runs on the orchestrator
+            # where the execution environment is absent. `build_pipeline_from_build_data` already falls
+            # back to the params class's own `pipeline_cls()`, in the process that builds.
             build_data = {
                 "_component_overrides": component_overrides,
-                "_pipeline_cls": pipeline_params.pipeline_cls(),
                 "_all_overrides": True,
             }
         else:

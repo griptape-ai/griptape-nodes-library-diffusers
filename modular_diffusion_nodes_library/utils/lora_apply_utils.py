@@ -129,8 +129,16 @@ class LoraPipelineRuntimeAdapterStep(PipelineRuntimeAdapterStep):
 
     def _metadata(self) -> dict[str, Any]:
         return {
-            "loras": {key: {"path": spec.path, "weight": float(spec.weight)} for key, spec in self._loras.items()},
+            "loras": {
+                key: {"path": spec.path, "weight": float(spec.weight), "trigger_phrase": spec.trigger_phrase}
+                for key, spec in self._loras.items()
+            },
         }
+
+    @classmethod
+    def _from_metadata(cls, data: dict[str, Any]) -> LoraPipelineRuntimeAdapterStep:
+        raw: dict[str, Any] = data.get("loras", {})
+        return cls({key: LoraSpec.from_raw(spec) for key, spec in raw.items()})
 
     @contextmanager
     def activate(self, pipe: Any, *, node_name: str | None = None) -> Iterator[Any]:
