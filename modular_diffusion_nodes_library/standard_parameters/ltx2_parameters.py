@@ -18,6 +18,13 @@ logger = logging.getLogger("diffusers_nodes_library")
 
 class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls_path = "diffusers.pipelines.ltx2.pipeline_ltx2:LTX2Pipeline"
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "tokenizer",
+        "scheduler",
+    ]
     _repo_ids: ClassVar[list[str]] = [
         "dg845/LTX-2.3-Diffusers",
         "dg845/LTX-2.3-Distilled-Diffusers",

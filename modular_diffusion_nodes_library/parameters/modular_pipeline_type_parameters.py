@@ -41,6 +41,12 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     # Holding the class would import diffusers when this module is imported, and the orchestrator
     # imports every parameter module to build node classes without ever running a pipeline.
     _pipeline_cls_path: ClassVar[str]
+    # Component slots this pipeline exposes for override, in ALLOWED_COMPONENT_SLOTS order. Declared
+    # rather than read off the pipeline's __init__ signature: reading it imports the pipeline class,
+    # and the orchestrator builds these parameters for every Pipeline Builder it shows without the
+    # execution environment installed. No default, so a new pipeline type that forgets to declare
+    # fails loudly instead of quietly offering no override ports.
+    _component_slots: ClassVar[list[str]]
     # Denoiser config key to compare text-conditioning width against (None = skip).
     text_conditioning_target_dim_key: str | None = None
     # Channel multiplier from packing latents into spatial patches (1 = no packing).
@@ -134,18 +140,12 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         return None
 
     def get_component_slots(self) -> list[str]:
-        """Return component slot names available for override on this pipeline type.
+        """Component slot names available for override on this pipeline type.
 
-        Intersects the pipeline's __init__ signature (via
-        DiffusionPipeline._get_signature_keys) with ALLOWED_COMPONENT_SLOTS,
-        preserving the priority order defined there.
+        `tests/test_component_slots.py` checks every declaration against the pinned diffusers, so a
+        signature change upstream surfaces as a failing test rather than wrong ports in the builder.
         """
-        if issubclass(self.pipeline_cls(), self._modular_pipeline_cls()):
-            return []
-        pipeline_cls = self.pipeline_cls()
-        all_slots, _ = pipeline_cls._get_signature_keys(pipeline_cls)  # type: ignore[reportAttributeAccessIssue]
-        all_slots_set = set(all_slots)
-        return [slot for slot in ALLOWED_COMPONENT_SLOTS if slot in all_slots_set]
+        return list(self._component_slots)
 
     @classmethod
     def _materialize_overrides(cls, build_data: dict[str, Any], *, pipeline_cls: type) -> dict[str, Any]:

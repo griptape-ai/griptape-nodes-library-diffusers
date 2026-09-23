@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
@@ -18,6 +18,17 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 class StableDiffusion3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls_path = "diffusers:StableDiffusion3Img2ImgPipeline"
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "text_encoder_2",
+        "text_encoder_3",
+        "tokenizer",
+        "tokenizer_2",
+        "tokenizer_3",
+        "scheduler",
+    ]
     text_conditioning_target_dim_key = "joint_attention_dim"
 
     @classmethod

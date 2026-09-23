@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # Copied from diffusers_nodes_library/common/parameters/diffusion/flux2/flux2_parameters.py
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
@@ -26,6 +26,13 @@ FLUX_2_REPO_IDS = [*QUANTIZED_FLUX_2_REPO_IDS, "black-forest-labs/FLUX.2-dev", "
 
 class Flux2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls_path = "diffusers:Flux2Pipeline"
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "tokenizer",
+        "scheduler",
+    ]
     latent_packing_ratio = 4
     text_conditioning_target_dim_key = "joint_attention_dim"
     # Flux.2 conditions on a concat of 3 text-encoder hidden-state layers, so

@@ -108,9 +108,10 @@ Prefer verifiable goals ("write a failing test for X, then make it pass") over i
     3. Runtime use → `import` inside the function that uses it.
 - A decorator is evaluated while the class body runs, so `@torch.no_grad()` imports torch at import time. Use `no_grad` / `inference_mode` from [`utils/torch_utils.py`](modular_diffusion_nodes_library/utils/torch_utils.py) instead.
 - Validation that needs a real pipeline class belongs in `tests/`, not in a module-scope guard. See [tests/test_pipeline_type_override_coverage.py](tests/test_pipeline_type_override_coverage.py).
+- **A node's `__init__` must not reach a pipeline class either.** Deferring an import only helps if nothing calls it at edit time, and the orchestrator constructs every node class to show it in the editor. Anything derived from a pipeline's `__init__` signature is a fact about the pinned diffusers: declare it per pipeline type and pin it with a test. `_component_slots` on [`modular_pipeline_type_parameters.py`](modular_diffusion_nodes_library/parameters/modular_pipeline_type_parameters.py) plus [tests/test_component_slots.py](tests/test_component_slots.py) is the precedent.
 - Circular imports remain the other reason to import inside a function. When that is the reason, say so in a comment naming the cycle.
 
-`uv run python scripts/check_edit_time_imports.py` is the gate: it imports every node module and fails if a heavy package is reached. Run it after touching imports.
+`uv run python scripts/check_edit_time_imports.py` is the gate: it imports every node module **and constructs every node class**, then fails if a heavy package was reached. Run it after touching imports or a node's `__init__`. Run it in the full environment — with the heavy packages installed, so an accidental import is recorded rather than crashing.
 
 ## Exception Handling
 

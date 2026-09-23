@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
@@ -24,6 +24,7 @@ AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN = "12GB"
 
 class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls_path = "diffusers.modular_pipelines.minimax_h3.modular_pipeline:MiniMaxH3ModularPipeline"
+    _component_slots: ClassVar[list[str]] = []
 
     @classmethod
     def supports_build_from_overrides_only(cls) -> bool:

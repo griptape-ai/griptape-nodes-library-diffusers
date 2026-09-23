@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # Copied from diffusers_nodes_library/common/parameters/diffusion/z_image/z_image_parameters.py
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
@@ -22,6 +22,13 @@ Z_IMAGE_REPO_IDS = ["Tongyi-MAI/Z-Image-Turbo"]
 
 class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls_path = "diffusers:ZImagePipeline"
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "tokenizer",
+        "scheduler",
+    ]
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)

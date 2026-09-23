@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
@@ -18,6 +18,13 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 class QwenPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls_path = "diffusers:QwenImagePipeline"
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "tokenizer",
+        "scheduler",
+    ]
     text_conditioning_target_dim_key = "joint_attention_dim"
     latent_packing_ratio = 4
 

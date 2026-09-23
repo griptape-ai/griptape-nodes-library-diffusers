@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
@@ -18,6 +18,14 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 class WanVacePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls_path = "diffusers:WanVACEPipeline"
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "tokenizer",
+        "transformer_2",
+        "scheduler",
+    ]
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
