@@ -40,9 +40,11 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     missing_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_by_workflow"]
     missing_libraries_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_libraries_by_workflow"]
     missing_loras_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_loras_by_workflow"]
+    missing_paths_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_paths_by_workflow"]
     missing_repo_lines = []
     missing_library_lines = []
     missing_lora_lines = []
+    missing_path_lines = []
     for workflow_name in skipped_workflows:
         missing_repos = missing_by_workflow.get(workflow_name, ())
         if missing_repos:
@@ -56,6 +58,10 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         if missing_loras:
             missing_lora_lines.append(f"  - {workflow_name}: {', '.join(missing_loras)}")
 
+        missing_paths = missing_paths_by_workflow.get(workflow_name, ())
+        if missing_paths:
+            missing_path_lines.append(f"  - {workflow_name}: {', '.join(missing_paths)}")
+
     details_sections: list[str] = []
     if missing_repo_lines:
         details_sections.append("Missing cached model repos:\n" + "\n".join(missing_repo_lines))
@@ -63,6 +69,8 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         details_sections.append("Missing installed node libraries:\n" + "\n".join(missing_library_lines))
     if missing_lora_lines:
         details_sections.append("Missing or unreadable LoRA files:\n" + "\n".join(missing_lora_lines))
+    if missing_path_lines:
+        details_sections.append("Missing local files or folders:\n" + "\n".join(missing_path_lines))
 
     details = "\n\n".join(details_sections)
     raise pytest.UsageError(
@@ -103,6 +111,7 @@ def pytest_report_collectionfinish(config: pytest.Config) -> list[str]:
     missing_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_by_workflow"]
     missing_libraries_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_libraries_by_workflow"]
     missing_loras_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_loras_by_workflow"]
+    missing_paths_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_paths_by_workflow"]
     extraction_blockers_by_workflow: dict[str, tuple[ExtractionBlocker, ...]] = preflight_data[
         "workflow_extraction_blockers"
     ]
@@ -147,6 +156,9 @@ def pytest_report_collectionfinish(config: pytest.Config) -> list[str]:
             missing_loras = missing_loras_by_workflow.get(workflow_name, ())
             if missing_loras:
                 reasons.append((tw.markup(f"missing LoRAs: {', '.join(missing_loras)}", yellow=True), []))
+            missing_paths = missing_paths_by_workflow.get(workflow_name, ())
+            if missing_paths:
+                reasons.append((tw.markup(f"missing files/folders: {', '.join(missing_paths)}", yellow=True), []))
             blockers = extraction_blockers_by_workflow.get(workflow_name, ())
             if blockers:
                 blocker_detail = "; ".join(blocker.detail for blocker in blockers)

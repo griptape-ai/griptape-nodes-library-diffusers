@@ -30,12 +30,21 @@ class ExtractionBlocker:
     source: SourceLocation | None = None
 
 
+class PathRequirement(NamedTuple):
+    """A required path, the node type that declared it, and whether it is a 'file', 'folder', or 'both'."""
+
+    path: str
+    node_type: str
+    kind: str
+
+
 @dataclass(frozen=True)
 class WorkflowDependencies:
     workflow_path: Path
     model_dependencies: tuple[ModelDependency, ...] = ()
     library_names: tuple[str, ...] = ()
     lora_file_paths: tuple[str, ...] = ()
+    path_requirements: tuple[PathRequirement, ...] = ()
     blockers: tuple[ExtractionBlocker, ...] = ()
 
     @property
@@ -139,6 +148,18 @@ ROLE_BY_PARAMETER = {
     "controlnet_model": "controlnet",
     "upsampler_model": "upscaler",
 }
+# LoadLora's `file_path` is a LoRA asset.
+LORA_NODE_TYPES = frozenset({"LoadLora"})
+# LoadComponent and LoadScheduler folders are diffusers component dirs (need config.json etc).
+COMPONENT_FOLDER_NODE_TYPES = frozenset({"LoadComponent", "LoadSchedulerComponent"})
+# Path-input parameters we preflight-check, keyed by node type then parameter name -> 'file'/'folder'/'both'.
+# Kept explicit rather than deduced from the workflow's fileSystemPicker, there is no reliable way to infer
+# it from the workflow alone.
+PATH_PARAMETERS_BY_NODE_TYPE: dict[str, dict[str, str]] = {
+    "LoadComponent": {"file_path": "file", "folder_path": "folder", "config_source": "both"},
+    "LoadSchedulerComponent": {"config_path": "file"},
+    "DiffusionPipelineGenerateLatentNode": {"text_embeddings_path": "file"},
+}
 
 
 @dataclass(frozen=True)
@@ -150,14 +171,14 @@ class _ValueSlot:
     node_key: str | None
 
 
-class RepoAssignmentKey(NamedTuple):
-    """Identifies a repo parameter slot: the node it belongs to (or a synthetic per-call fallback) and its name."""
+class AssignmentKey(NamedTuple):
+    """Identifies a parameter slot: the node it belongs to (or a synthetic per-call fallback) and its name."""
 
     node_key: str
     parameter_name: str
 
 
-type RepoAssignmentSlots = dict[RepoAssignmentKey, _ValueSlot]
+type AssignmentSlots = dict[AssignmentKey, _ValueSlot]
 
 
 @dataclass(frozen=True)
@@ -197,6 +218,28 @@ def _keyword_bool_literal(call: ast.Call, name: str) -> bool | None:
     if isinstance(value, ast.Constant) and isinstance(value.value, bool):
         return value.value
     return None
+
+
+def _collect_node_types(module: ast.Module) -> dict[str, str]:
+    # Map each `nodeN_name = (await ... CreateNodeRequest(node_type=...))` variable to its node type.
+    node_types: dict[str, str] = {}
+    for node in ast.walk(module):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name):
+            continue
+        create_call = next(
+            (child for child in ast.walk(node.value) if _is_named_call(child, "CreateNodeRequest")),
+            None,
+        )
+        if create_call is None:
+            continue
+        node_type = _keyword_str(create_call, "node_type")
+        if node_type is None:
+            continue
+        node_types[target.id] = node_type
+    return node_types
 
 
 def _node_context_regions(module: ast.Module) -> list[tuple[int, int, str | None]]:
@@ -278,7 +321,7 @@ def _resolve_embedded_table_reference(
     return classify(embedded_value.value)
 
 
-def _classify_lora_path_value(value: Any) -> _ResolvedValue:
+def _classify_path_value(value: Any) -> _ResolvedValue:
     if value is None:
         return _ResolvedValue(kind="empty")
     if isinstance(value, str) and value == "":
@@ -295,7 +338,7 @@ def _classify_lora_path_value(value: Any) -> _ResolvedValue:
     if isinstance(value, list):
         paths: set[str] = set()
         for element in value:
-            element_result = _classify_lora_path_value(element)
+            element_result = _classify_path_value(element)
             if element_result.kind == "blocked":
                 return element_result
             paths.update(element_result.repos)
@@ -325,13 +368,13 @@ def _resolve_repo_expression(node: ast.expr, embedded: EmbeddedValues) -> _Resol
     return _classify_repo_value(literal_value)
 
 
-def _resolve_lora_path_expression(node: ast.expr, embedded: EmbeddedValues) -> _ResolvedValue:
+def _resolve_path_expression(node: ast.expr, embedded: EmbeddedValues) -> _ResolvedValue:
     if (
         isinstance(node, ast.Subscript)
         and isinstance(node.value, ast.Name)
         and node.value.id == "top_level_unique_values_dict"
     ):
-        return _resolve_embedded_table_reference(node, embedded, _classify_lora_path_value)
+        return _resolve_embedded_table_reference(node, embedded, _classify_path_value)
 
     try:
         literal_value = ast.literal_eval(node)
@@ -340,16 +383,16 @@ def _resolve_lora_path_expression(node: ast.expr, embedded: EmbeddedValues) -> _
             kind="blocked", detail="value is not a literal or a top_level_unique_values_dict reference"
         )
 
-    return _classify_lora_path_value(literal_value)
+    return _classify_path_value(literal_value)
 
 
-def _repo_assignment_key(node_var: str | None, call: ast.Call, parameter_name: str) -> RepoAssignmentKey:
-    """Build a RepoAssignmentKey, falling back to a per-call synthetic node key when identity is unresolved."""
+def _assignment_key(node_var: str | None, call: ast.Call, parameter_name: str) -> AssignmentKey:
+    """Build an AssignmentKey, falling back to a per-call synthetic node key when identity is unresolved."""
     node_key = node_var if node_var is not None else f"@{call.lineno}:{call.col_offset}"
-    return RepoAssignmentKey(node_key=node_key, parameter_name=parameter_name)
+    return AssignmentKey(node_key=node_key, parameter_name=parameter_name)
 
 
-def _collect_repo_assignments(module: ast.Module) -> RepoAssignmentSlots:
+def _collect_repo_assignments(module: ast.Module) -> AssignmentSlots:
     """Replay AddParameterToNodeRequest/SetParameterValueRequest calls in source order."""
     regions = _node_context_regions(module)
     calls = [
@@ -359,7 +402,7 @@ def _collect_repo_assignments(module: ast.Module) -> RepoAssignmentSlots:
     ]
     calls.sort(key=lambda call: (call.lineno, call.col_offset))
 
-    dynamically_added_keys: set[RepoAssignmentKey] = set()
+    dynamically_added_keys: set[AssignmentKey] = set()
     for call in calls:
         if not _is_named_call(call, "AddParameterToNodeRequest"):
             continue
@@ -367,10 +410,10 @@ def _collect_repo_assignments(module: ast.Module) -> RepoAssignmentSlots:
         if parameter_name is None or parameter_name not in REPO_PARAMETERS:
             continue
         node_var = _node_identity_for_line(regions, call.lineno)
-        dynamically_added_keys.add(_repo_assignment_key(node_var, call, parameter_name))
+        dynamically_added_keys.add(_assignment_key(node_var, call, parameter_name))
 
-    current: RepoAssignmentSlots = {}
-    established: set[RepoAssignmentKey] = set()
+    current: AssignmentSlots = {}
+    established: set[AssignmentKey] = set()
 
     for call in calls:
         parameter_name = _keyword_str(call, "parameter_name")
@@ -379,7 +422,7 @@ def _collect_repo_assignments(module: ast.Module) -> RepoAssignmentSlots:
 
         if _is_named_call(call, "AddParameterToNodeRequest"):
             node_var = _node_identity_for_line(regions, call.lineno)
-            storage_key = _repo_assignment_key(node_var, call, parameter_name)
+            storage_key = _assignment_key(node_var, call, parameter_name)
             established.add(storage_key)
             default_value_node = _get_keyword(call, "default_value")
             if default_value_node is None:
@@ -396,7 +439,7 @@ def _collect_repo_assignments(module: ast.Module) -> RepoAssignmentSlots:
             continue
         node_name_node = _get_keyword(call, "node_name")
         node_var = node_name_node.id if isinstance(node_name_node, ast.Name) else None
-        storage_key = _repo_assignment_key(node_var, call, parameter_name)
+        storage_key = _assignment_key(node_var, call, parameter_name)
         if storage_key in dynamically_added_keys and storage_key not in established:
             continue
         current[storage_key] = _ValueSlot(value_node=value_node, source=_source_location(call), node_key=node_var)
@@ -404,7 +447,14 @@ def _collect_repo_assignments(module: ast.Module) -> RepoAssignmentSlots:
     return current
 
 
-def _collect_lora_path_assignments(module: ast.Module) -> RepoAssignmentSlots:
+def _is_lora_node(node_var: str | None, node_types: dict[str, str]) -> bool:
+    # A resolved non-lora node type excludes the slot; an unresolved node defaults to LoRA to avoid regressions.
+    if node_var is None:
+        return True
+    return node_types.get(node_var, "") in LORA_NODE_TYPES or node_var not in node_types
+
+
+def _collect_lora_path_assignments(module: ast.Module, node_types: dict[str, str]) -> AssignmentSlots:
     regions = _node_context_regions(module)
     calls = [
         node
@@ -413,7 +463,7 @@ def _collect_lora_path_assignments(module: ast.Module) -> RepoAssignmentSlots:
     ]
     calls.sort(key=lambda call: (call.lineno, call.col_offset))
 
-    dynamically_added_keys: set[RepoAssignmentKey] = set()
+    dynamically_added_keys: set[AssignmentKey] = set()
     for call in calls:
         if not _is_named_call(call, "AddParameterToNodeRequest"):
             continue
@@ -421,10 +471,12 @@ def _collect_lora_path_assignments(module: ast.Module) -> RepoAssignmentSlots:
         if parameter_name is None or parameter_name not in LORA_PARAMETERS:
             continue
         node_var = _node_identity_for_line(regions, call.lineno)
-        dynamically_added_keys.add(_repo_assignment_key(node_var, call, parameter_name))
+        if not _is_lora_node(node_var, node_types):
+            continue
+        dynamically_added_keys.add(_assignment_key(node_var, call, parameter_name))
 
-    current: RepoAssignmentSlots = {}
-    established: set[RepoAssignmentKey] = set()
+    current: AssignmentSlots = {}
+    established: set[AssignmentKey] = set()
 
     for call in calls:
         parameter_name = _keyword_str(call, "parameter_name")
@@ -433,7 +485,9 @@ def _collect_lora_path_assignments(module: ast.Module) -> RepoAssignmentSlots:
 
         if _is_named_call(call, "AddParameterToNodeRequest"):
             node_var = _node_identity_for_line(regions, call.lineno)
-            storage_key = _repo_assignment_key(node_var, call, parameter_name)
+            if not _is_lora_node(node_var, node_types):
+                continue
+            storage_key = _assignment_key(node_var, call, parameter_name)
             established.add(storage_key)
             default_value_node = _get_keyword(call, "default_value")
             if default_value_node is None:
@@ -450,10 +504,76 @@ def _collect_lora_path_assignments(module: ast.Module) -> RepoAssignmentSlots:
             continue
         node_name_node = _get_keyword(call, "node_name")
         node_var = node_name_node.id if isinstance(node_name_node, ast.Name) else None
-        storage_key = _repo_assignment_key(node_var, call, parameter_name)
+        if not _is_lora_node(node_var, node_types):
+            continue
+        storage_key = _assignment_key(node_var, call, parameter_name)
         if storage_key in dynamically_added_keys and storage_key not in established:
             continue
         current[storage_key] = _ValueSlot(value_node=value_node, source=_source_location(call), node_key=node_var)
+
+    return current
+
+
+def _path_kind(node_var: str | None, parameter_name: str, node_types: dict[str, str]) -> str | None:
+    # Look up a node's path parameter in PATH_PARAMETERS_BY_NODE_TYPE, returning its 'file'/'folder'/'both' kind.
+    if node_var is None:
+        return None
+    node_type = node_types.get(node_var)
+    if node_type is None:
+        return None
+    return PATH_PARAMETERS_BY_NODE_TYPE.get(node_type, {}).get(parameter_name)
+
+
+def _collect_path_assignments(
+    module: ast.Module, node_types: dict[str, str]
+) -> dict[AssignmentKey, tuple[str, _ValueSlot]]:
+    # Replay Add/SetParameter calls, keeping the authoritative value for each known file/folder path
+    # parameter (from PATH_PARAMETERS_BY_NODE_TYPE) tagged with its kind. Identified by name, not by
+    # picker signature, because a parameter in its node default state emits no Add/Alter declaration.
+    regions = _node_context_regions(module)
+    calls = [
+        node
+        for node in ast.walk(module)
+        if _is_named_call(node, "AddParameterToNodeRequest") or _is_named_call(node, "SetParameterValueRequest")
+    ]
+    calls.sort(key=lambda call: (call.lineno, call.col_offset))
+
+    current: dict[AssignmentKey, tuple[str, _ValueSlot]] = {}
+    for call in calls:
+        parameter_name = _keyword_str(call, "parameter_name")
+        if parameter_name is None:
+            continue
+
+        if _is_named_call(call, "AddParameterToNodeRequest"):
+            node_var = _node_identity_for_line(regions, call.lineno)
+            kind = _path_kind(node_var, parameter_name, node_types)
+            if kind is None:
+                continue
+            default_value_node = _get_keyword(call, "default_value")
+            if default_value_node is None:
+                continue
+            storage_key = _assignment_key(node_var, call, parameter_name)
+            current[storage_key] = (
+                kind,
+                _ValueSlot(value_node=default_value_node, source=_source_location(call), node_key=node_var),
+            )
+            continue
+
+        if _keyword_bool_literal(call, "is_output") is True:
+            continue
+        node_name_node = _get_keyword(call, "node_name")
+        node_var = node_name_node.id if isinstance(node_name_node, ast.Name) else None
+        kind = _path_kind(node_var, parameter_name, node_types)
+        if kind is None:
+            continue
+        value_node = _get_keyword(call, "value")
+        if value_node is None:
+            continue
+        storage_key = _assignment_key(node_var, call, parameter_name)
+        current[storage_key] = (
+            kind,
+            _ValueSlot(value_node=value_node, source=_source_location(call), node_key=node_var),
+        )
 
     return current
 
@@ -529,14 +649,14 @@ def _extract_model_dependencies(
 
 
 def _extract_lora_file_paths(
-    module: ast.Module, embedded: EmbeddedValues
+    module: ast.Module, embedded: EmbeddedValues, node_types: dict[str, str]
 ) -> tuple[tuple[str, ...], tuple[ExtractionBlocker, ...]]:
-    assignments = _collect_lora_path_assignments(module)
+    assignments = _collect_lora_path_assignments(module, node_types)
     paths: set[str] = set()
     blockers: list[ExtractionBlocker] = []
 
-    for key, slot in assignments.items():
-        resolved = _resolve_lora_path_expression(slot.value_node, embedded)
+    for _key, slot in assignments.items():
+        resolved = _resolve_path_expression(slot.value_node, embedded)
         if resolved.kind == "blocked":
             blockers.append(
                 ExtractionBlocker(
@@ -551,6 +671,33 @@ def _extract_lora_file_paths(
         paths.update(resolved.repos)
 
     return tuple(sorted(paths)), tuple(sorted(blockers))
+
+
+def _extract_path_dependencies(
+    module: ast.Module, embedded: EmbeddedValues, node_types: dict[str, str]
+) -> tuple[tuple[PathRequirement, ...], tuple[ExtractionBlocker, ...]]:
+    """Extract non-lora file/folder path dependencies (component weights, text embeddings, etc.)."""
+    assignments = _collect_path_assignments(module, node_types)
+    requirements: set[PathRequirement] = set()
+    blockers: list[ExtractionBlocker] = []
+
+    for key, (kind, slot) in assignments.items():
+        resolved = _resolve_path_expression(slot.value_node, embedded)
+        if resolved.kind == "blocked":
+            blockers.append(
+                ExtractionBlocker(
+                    code="unresolved-path",
+                    detail=f"{key.parameter_name}: {resolved.detail}",
+                    source=slot.source,
+                )
+            )
+            continue
+        if resolved.kind == "empty":
+            continue
+        node_type = node_types.get(slot.node_key, "") if slot.node_key is not None else ""
+        requirements.update(PathRequirement(path=path, node_type=node_type, kind=kind) for path in resolved.repos)
+
+    return tuple(sorted(requirements)), tuple(sorted(blockers))
 
 
 def extract_workflow_dependencies(workflow_path: Path) -> WorkflowDependencies:
@@ -570,14 +717,17 @@ def extract_workflow_dependencies(workflow_path: Path) -> WorkflowDependencies:
         return WorkflowDependencies(workflow_path=workflow_path, blockers=(blocker,))
 
     embedded_values = _extract_embedded_values(module)
+    node_types = _collect_node_types(module)
     library_names, library_blockers = _extract_library_names(module)
     model_dependencies, model_blockers = _extract_model_dependencies(module, embedded_values)
-    lora_file_paths, lora_blockers = _extract_lora_file_paths(module, embedded_values)
-    blockers = tuple(sorted(library_blockers + model_blockers + lora_blockers))
+    lora_file_paths, lora_blockers = _extract_lora_file_paths(module, embedded_values, node_types)
+    path_requirements, path_blockers = _extract_path_dependencies(module, embedded_values, node_types)
+    blockers = tuple(sorted(library_blockers + model_blockers + lora_blockers + path_blockers))
     return WorkflowDependencies(
         workflow_path=workflow_path,
         model_dependencies=model_dependencies,
         library_names=library_names,
         lora_file_paths=lora_file_paths,
+        path_requirements=path_requirements,
         blockers=blockers,
     )
