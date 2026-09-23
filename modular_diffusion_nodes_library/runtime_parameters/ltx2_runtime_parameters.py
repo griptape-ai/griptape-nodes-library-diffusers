@@ -91,6 +91,12 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
         super().after_value_set(parameter, value)
         self._text_embeddings_path_param.on_after_value_set(parameter, value)
+        if parameter.name == "use_stage_2":
+            self._sync_num_inference_steps_for_distillation()
+
+    def preprocess(self) -> None:
+        super().preprocess()
+        self._sync_num_inference_steps_for_distillation()
 
     def add_input_parameters(self) -> None:
         self._add_input_parameters()
@@ -239,6 +245,20 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             if step_metadata.get("kind") == LoraPipelineRuntimeAdapterStep.KIND:
                 return True
         return False
+
+    def _sync_num_inference_steps_for_distillation(self) -> None:
+        """Keep the (hidden, when distilled) num_inference_steps parameter matching the fixed sigma schedule."""
+        if not self._is_distilled:
+            return
+
+        from diffusers.pipelines.ltx2.utils import (  # type: ignore[reportMissingImports]
+            DISTILLED_SIGMA_VALUES,
+            STAGE_2_DISTILLED_SIGMA_VALUES,
+        )
+
+        use_stage_2 = bool(self._node.get_parameter_value("use_stage_2"))
+        sigmas = STAGE_2_DISTILLED_SIGMA_VALUES if use_stage_2 else DISTILLED_SIGMA_VALUES
+        self._node.set_parameter_value("num_inference_steps", len(sigmas), emit_change=False)
 
     def _remove_input_parameters(self) -> None:
         self._reference_conditions_param.remove_input_parameters()

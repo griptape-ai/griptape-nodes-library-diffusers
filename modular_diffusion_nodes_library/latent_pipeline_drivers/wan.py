@@ -16,12 +16,12 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     DecodeResult,
     GeneratorState,
     ImageMedia,
+    PipelineOutput,
     VideoMedia,
 )
 from modular_diffusion_nodes_library.utils.torch_utils import no_grad
 
 if TYPE_CHECKING:
-    import torch  # type: ignore[reportMissingImports]
     from diffusers.modular_pipelines.modular_pipeline_utils import (
         InputParam,  # type: ignore[reportMissingImports]
         OutputParam,  # type: ignore[reportMissingImports]
@@ -151,9 +151,9 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def _extract_latents_from_output(self, pipe_output: Any) -> torch.Tensor:
+    def _extract_latents_from_output(self, pipe_output: Any) -> PipelineOutput:
         """WAN pipelines return video frames under ``.frames`` instead of ``.images``."""
-        return pipe_output.frames
+        return PipelineOutput(media=pipe_output.frames)
 
     @override
     def decode_latent(self, latent: LatentArtifact) -> DecodeResult:

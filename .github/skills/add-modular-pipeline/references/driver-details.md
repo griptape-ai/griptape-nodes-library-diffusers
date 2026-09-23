@@ -22,7 +22,7 @@ Progressive-load reference for the `LatentPipelineDriver` subclass. Load this wh
 >
 > **Space.** Latents are **normalised**: each channel ~N(0, 1), matching `torch.randn`. For VAEs whose raw latents are not unit-variance (e.g. WAN, Flux2), drivers must apply per-channel whitening `(z - latents_mean) / latents_std` inside `encode_media` and the inverse inside `decode_latent`.
 >
-> Any model-specific *packing* (e.g. Flux, Qwen) is applied transiently inside `prepare_input_latent` / `prepare_output_latent` and never appears on the public surface.
+> Any model-specific *packing* (e.g. Flux, Qwen) is applied transiently inside `_prepare_input_latent` / `prepare_output_latent` and never appears on the public surface.
 
 ---
 
@@ -225,7 +225,7 @@ The block contract is the only source of truth — the list above is illustrativ
 
 ## Optional Overrides
 
-### `prepare_input_latent(latents, latents_source_shape)` / `prepare_output_latent(...)`
+### `_prepare_input_latent(latents, latents_source_shape)` / `prepare_output_latent(...)`
 
 Default is identity. Override whenever the pipeline's transformer expects a tensor shape that differs from the unpacked public-contract latent — inspect the pipeline's `prepare_latents` / `_pack_latents` / `__call__` methods (or the transformer's expected input shape) to decide.
 
@@ -284,6 +284,14 @@ The base class handles: partial-denoise via `PartialDenoisePipelineRunner`, `cal
 - `_inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = <YourInpaintPipeline>` — enables inpaint routing in base class.
 - `_partial_denoise_proxy_class: ClassVar[type[PartialDenoiseSchedulerProxy]]` — override if the model's scheduler needs a custom proxy. Default is fine for FlowMatch / DDIM / DPM schedulers.
 - `_DEFAULT_NUM_INFERENCE_STEPS: ClassVar[int] = 20` — the step count used inside `create_noise_latent` when the modular `PrepareLatents` block needs one. Override if the model's scheduler needs a different value to produce well-scaled noise.
+
+---
+
+## Keep Pipe-Independent Operations Unit-Testable
+
+Any driver operation, such as tensor-shape math, concatenation, trimming, padding, that doesn't need `self.pipe`/`self.modular_pipe` should be written so it's testable i.e. callable and assertable without constructing a real pipeline. It could be a module-level function, a `@staticmethod`, or a plain method (instances are cheap to build with `Driver.__new__(Driver)`, skipping `__init__` and the real pipe) — the point is testability, not where the code lives.
+
+See `_prepend_reference_noise` in [`wan_vace.py`](../../../../modular_diffusion_nodes_library/latent_pipeline_drivers/wan_vace.py) and [`tests/test_wan_vace_reference_latents.py`](../../../../tests/test_wan_vace_reference_latents.py) for the precedent.
 
 ---
 

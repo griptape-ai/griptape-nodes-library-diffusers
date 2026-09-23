@@ -35,6 +35,10 @@ from modular_diffusion_nodes_library.standard_parameters.hunyuan_video1_5_parame
     HunyuanVideo15PipelineParameters,
 )
 from modular_diffusion_nodes_library.standard_parameters.ltx2_parameters import LTX2PipelineParameters
+from modular_diffusion_nodes_library.standard_parameters.ltx25_parameters import (
+    LTX25DistilledPipelineParameters,
+    LTX25FullPipelineParameters,
+)
 from modular_diffusion_nodes_library.standard_parameters.ltx_parameters import (
     LTXPipelineParameters,
 )
@@ -249,13 +253,18 @@ class LatentLTX2PipelineTypeParameters(LatentPipelineTypeParameters):
         return (
             "- `LTX2Pipeline` — Text-to-video and image-to-video generation (Lightricks LTX-Video 2.x).\n\n"
             "Supports HDR output via the Decode HDR node. "
-            "Frame count must be a multiple of 8, plus 1 (e.g. 9, 17, 25, 33, 41…)."
+            "Frame count must be a multiple of 8, plus 1 (e.g. 9, 17, 25, 33, 41…).\n\n"
+            "- `LTX-2.5 Distilled` / `LTX-2.5 Full (SFT)` — Same `LTX2Pipeline`, built from the single gated "
+            "`Lightricks/LTX-2.5-Diffusers` repo. Distilled loads the `transformer` subfolder; Full (SFT) loads "
+            "`transformer_full`. Both always decode through the plain vae."
         )
 
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
             "LTX2Pipeline": LTX2PipelineParameters,
+            "LTX-2.5 Distilled": LTX25DistilledPipelineParameters,
+            "LTX-2.5 Full (SFT)": LTX25FullPipelineParameters,
         }
 
 
@@ -266,9 +275,8 @@ class LatentMiniMaxH3PipelineTypeParameters(LatentPipelineTypeParameters):
             "- `MiniMaxH3ModularPipeline` — Text-to-video and keyframe-to-video generation with a "
             "**jointly generated soundtrack** (MiniMax-H3).\n\n"
             "Video and audio come out of one denoising loop, and the Decode Media Latent node muxes "
-            "them into a single MP4. The audio latent travels in the latent's metadata, so connect "
-            "Generate Media Latents **directly** to Decode Media Latent — latent math, composite, "
-            "upsampler and save/load nodes drop it.\n\n"
+            "them into a single MP4. The audio latent travels in the latent's metadata; operations "
+            "that preserve metadata retain the soundtrack, while save/load does not.\n\n"
             "Fixed 24 fps, 5 to 15 seconds. Frame count is snapped up to the next `17 * n + 5` "
             "(124, 141, 158, … 345). Height and width must be multiples of 32 and default to "
             "MiniMax-H3's own canvas. Guidance is baked into the weights, so there is no "

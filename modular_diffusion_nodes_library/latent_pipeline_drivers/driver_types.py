@@ -15,9 +15,25 @@ if TYPE_CHECKING:
     from PIL.Image import Image
 
 TextEncodings = dict[str, Any]
+
+
+@dataclass(frozen=True)
+class DecodeOutput:
+    media: Image | list[Image] | np.ndarray
+    audio: torch.Tensor | None = None
+    audio_sample_rate: int | None = None
+
+
 # `type` rather than a plain assignment: the right-hand side is evaluated only when something
 # introspects the alias, so naming these types does not import numpy or PIL.
-type DecodeResult = Image | list[Image] | np.ndarray
+type DecodeResult = DecodeOutput | Image | list[Image] | np.ndarray
+
+
+@dataclass(frozen=True)
+class PipelineOutput:
+    media: torch.Tensor
+    extra_meta: dict[str, Any] | None = None
+
 
 #: Fixed key under which drivers store their namespaced sub-bag on
 #: ``LatentArtifact.meta``. The driver's class name is stored at this key, and

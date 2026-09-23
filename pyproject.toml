@@ -1,6 +1,6 @@
 [project]
 name = "griptape-nodes-library-modular-diffusion"
-version = "0.6.0"
+version = "0.7.0"
 description = "Modular Diffusion nodes for Griptape Nodes."
 authors = [
     {name = "Griptape, Inc."}
@@ -119,7 +119,7 @@ exclude = ["workflows/", ".venv/", "**/__pycache__"]
 
 [dependency-groups]
 dev = [
-    "griptape-nodes-engine>=0.97.0",
+    "griptape-nodes-engine>=0.100.2",
     "pyright>=1.1.396",
     "ruff>=0.8.0",
     "pytest",

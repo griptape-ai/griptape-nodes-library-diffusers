@@ -143,7 +143,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
+    def _prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
         """Return latents ready to be passed into the pipeline, which may involve packing or other preprocessing."""
         packed_latents = self.pack_latents(latents, height=latents_source_shape[-2], width=latents_source_shape[-1])
         return packed_latents

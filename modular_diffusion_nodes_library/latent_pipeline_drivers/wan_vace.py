@@ -17,6 +17,7 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
 
 if TYPE_CHECKING:
     import PIL.Image  # type: ignore[reportMissingImports]
+    import torch  # type: ignore[reportMissingImports]
     from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
@@ -25,6 +26,10 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 _SOURCE_VIDEO_KEY = "vace_source_video"
 _MASK_KEY = "vace_mask"
 _REFERENCE_IMAGES_KEY = "vace_reference_images"
+
+#: Each reference image costs a latent frame of noise and control tokens, so a video
+#: connected to ``reference_images`` (one reference per frame) would balloon the latent.
+_MAX_REFERENCE_IMAGES = 8
 
 
 def _payload_to_frames(
@@ -148,9 +153,28 @@ def _payload_to_reference_images(payload_value: Any) -> list[PIL.Image.Image]:
     return reference_images
 
 
+def _prepend_reference_noise(
+    base_latents: torch.Tensor, num_reference_images: int, generator: torch.Generator
+) -> torch.Tensor:
+    """Prepend one noise latent frame per reference image to the control branch.
+
+    VACE encodes each reference image as an extra leading frame on the control branch.
+    """
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.utils.torch_utils import randn_tensor  # type: ignore[reportMissingImports]
+
+    shape = list(base_latents.shape)
+    shape[2] = num_reference_images
+    reference_noise = randn_tensor(
+        tuple(shape), generator=generator, device=base_latents.device, dtype=base_latents.dtype
+    )
+    return torch.cat([reference_noise, base_latents], dim=2)
+
+
 class WanVaceLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
     def __init__(self, pipe: DiffusionPipeline):
         super().__init__(pipe)
+        self._num_reference_latent_frames = 0
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
@@ -160,6 +184,16 @@ class WanVaceLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         from diffusers.modular_pipelines.wan.modular_blocks_wan import WanBlocks  # type: ignore[reportMissingImports]
 
         return WanBlocks().init_pipeline()
+
+    @override
+    def prepare_output_latent(
+        self, latents_from_pipe: torch.Tensor, latents_source_shape: tuple[int, ...]
+    ) -> torch.Tensor:
+        """Drop the leading reference latent frames added by :meth:`denoise_latent`."""
+        if self._num_reference_latent_frames == 0:
+            return latents_from_pipe
+
+        return latents_from_pipe[:, :, self._num_reference_latent_frames :]
 
     @override
     def denoise_latent(
@@ -207,15 +241,32 @@ class WanVaceLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
                 kwargs["mask"] = _derive_mask_from_source_media(source_media_payload, num_frames, height, width)
 
             if reference_payload is not None:
-                kwargs["reference_images"] = _payload_to_reference_images(reference_payload)
+                reference_images = _payload_to_reference_images(reference_payload)
+                if len(reference_images) > _MAX_REFERENCE_IMAGES:
+                    raise ValueError(
+                        f"Attempted to denoise with WAN VACE (node '{self.driver_namespace}'). "
+                        f"Failed with {len(reference_images)} reference images because at most "
+                        f"{_MAX_REFERENCE_IMAGES} are supported. A video connected to `reference_images` "
+                        "contributes one reference per frame — connect individual images instead."
+                    )
+                device, dtype = self._get_device_and_type()
+                base_latents = latent.to_torch(device=device, dtype=dtype)
+                generator = generator_state.to_generator()
+                kwargs["latents"] = _prepend_reference_noise(base_latents, len(reference_images), generator)
+                kwargs["generator"] = generator
+                kwargs["reference_images"] = reference_images
+                self._num_reference_latent_frames = len(reference_images)
 
-        return super().denoise_latent(
-            latent,
-            num_inference_steps,
-            generator_state=generator_state,
-            callback=callback,
-            start_step=start_step,
-            end_step=end_step,
-            return_fully_denoised=return_fully_denoised,
-            **kwargs,
-        )
+        try:
+            return super().denoise_latent(
+                latent,
+                num_inference_steps,
+                generator_state=generator_state,
+                callback=callback,
+                start_step=start_step,
+                end_step=end_step,
+                return_fully_denoised=return_fully_denoised,
+                **kwargs,
+            )
+        finally:
+            self._num_reference_latent_frames = 0

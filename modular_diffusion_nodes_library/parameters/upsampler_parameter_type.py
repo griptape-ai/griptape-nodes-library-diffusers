@@ -79,7 +79,7 @@ class LTX2UpsamplerParameters(BaseUpsamplerParameters):
 
     @override
     def _model_repo_id(self) -> list[str]:
-        return ["dg845/LTX-2.3-Spatial-Upsampler-Diffusers"]
+        return ["dg845/LTX-2.3-Spatial-Upsampler-Diffusers", "Lightricks/LTX-2.5-Diffusers"]
 
     @override
     def _upsample(
@@ -127,7 +127,11 @@ class LTX2UpsamplerParameters(BaseUpsamplerParameters):
 
         source_shape = latent_artifact.source_shape
         upscaled_source_shape = (*source_shape[:-2], source_shape[-2] * 2, source_shape[-1] * 2)
-        return LatentArtifact.from_torch(upsampled_cpu, source_shape=upscaled_source_shape)
+        return LatentArtifact.from_torch(
+            upsampled_cpu,
+            source_shape=upscaled_source_shape,
+            meta=latent_artifact.metadata,
+        )
 
 
 # ------------------------------------------------------------------
@@ -192,7 +196,11 @@ class LTXUpsamplerParameters(BaseUpsamplerParameters):
         pipeline.to("cpu")
 
         upscaled_source_shape = (*source_shape[:-2], source_shape[-2] * 2, source_shape[-1] * 2)
-        return LatentArtifact.from_torch(upsampled_cpu, source_shape=upscaled_source_shape)
+        return LatentArtifact.from_torch(
+            upsampled_cpu,
+            source_shape=upscaled_source_shape,
+            meta=latent_artifact.metadata,
+        )
 
 
 # ------------------------------------------------------------------

@@ -28,7 +28,8 @@ uv run pytest tests                          # run tests
 1. **Make the change**: implement the feature or fix.
 2. **Run checks**: `uv run ruff format --check` + `uv run ruff check .` to surface lint/format issues.
 3. **Fix issues**: resolve everything from the previous step (use `uv run ruff format` and `uv run ruff check --fix --unsafe-fixes` for autofixable ones).
-4. **Continue working**: move on to the next change.
+4. **Run tests**: `uv run pytest tests --ignore=tests/workflows` once checks pass.
+5. **Continue working**: move on to the next change.
 
 ## Working Principles
 
@@ -158,7 +159,7 @@ Prefer verifiable goals ("write a failing test for X, then make it pass") over i
 
 `LatentPipelineDriver` defines the **public latent surface** that all nodes operate on:
 
-> Public latents are **unpacked** (4-D image `[B, C, H/vae, W/vae]`, 5-D video `[B, C, T_lat, H/vae, W/vae]`) and **normalised** (~N(0,1)). Per-VAE whitening `(z - mean) / std` is applied inside `encode_image/encode_video`; the inverse runs inside `decode_latent`. Model-specific packing (Flux, Qwen) is applied transiently in `prepare_input_latent` / `prepare_output_latent` and never appears on the public surface.
+> Public latents are **unpacked** (4-D image `[B, C, H/vae, W/vae]`, 5-D video `[B, C, T_lat, H/vae, W/vae]`) and **normalised** (~N(0,1)). Per-VAE whitening `(z - mean) / std` is applied inside `encode_image/encode_video`; the inverse runs inside `decode_latent`. Model-specific packing (Flux, Qwen) is applied transiently in `_prepare_input_latent` / `prepare_output_latent` and never appears on the public surface.
 
 If you break this invariant, **every downstream node breaks** (latent math, composite, save/load, upscaler). Match the closest existing driver and copy its structure.
 
@@ -223,11 +224,12 @@ Multi-step tasks have canonical walkthroughs under `.github/skills/`. **You MUST
 When adding a model or driver:
 
 1. `uv run ruff format --check` + `uv run ruff check .` — clears lint/format.
-2. The relevant `docs/nodes/<name>.md` pages exist and match the changed code (per [.github/skills/document-node/SKILL.md](.github/skills/document-node/SKILL.md)).
-3. Open Griptape Nodes, drop a `LatentDiffusionPipelineBuilderNode`, select your provider + pipeline type, fill the repo, resolve.
-4. Wire to a `DiffusionPipelineGenerateLatentNode` + VAE decoder; confirm an image/video is produced.
-5. Test partial denoise by chaining two generate nodes (e.g. 0–10 then 10–20 steps).
-6. Test cancellation mid-run.
+2. `uv run pytest tests --ignore=tests/workflows` — unit tests pass.
+3. The relevant `docs/nodes/<name>.md` pages exist and match the changed code (per [.github/skills/document-node/SKILL.md](.github/skills/document-node/SKILL.md)).
+4. Open Griptape Nodes, drop a `LatentDiffusionPipelineBuilderNode`, select your provider + pipeline type, fill the repo, resolve.
+5. Wire to a `DiffusionPipelineGenerateLatentNode` + VAE decoder; confirm an image/video is produced.
+6. Test partial denoise by chaining two generate nodes (e.g. 0–10 then 10–20 steps).
+7. Test cancellation mid-run.
 
 ## When in doubt
 

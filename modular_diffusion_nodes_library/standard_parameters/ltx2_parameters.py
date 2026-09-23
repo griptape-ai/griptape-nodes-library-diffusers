@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
@@ -18,6 +18,11 @@ logger = logging.getLogger("diffusers_nodes_library")
 
 class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls_path = "diffusers.pipelines.ltx2.pipeline_ltx2:LTX2Pipeline"
+    _repo_ids: ClassVar[list[str]] = [
+        "dg845/LTX-2.3-Diffusers",
+        "dg845/LTX-2.3-Distilled-Diffusers",
+        "Lightricks/LTX-2",
+    ]
 
     @classmethod
     def supports_build_from_overrides_only(cls) -> bool:
@@ -28,7 +33,7 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         super().__init__(node)
         self._model_repo_parameter = HuggingFaceRepoParameter(
             node,
-            repo_ids=["dg845/LTX-2.3-Diffusers", "dg845/LTX-2.3-Distilled-Diffusers", "Lightricks/LTX-2"],
+            repo_ids=self._repo_ids,
             parameter_name="model",
             list_all_models=list_all_models,
         )

@@ -16,12 +16,12 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     DecodeResult,
     GeneratorState,
     ImageMedia,
+    PipelineOutput,
     VideoMedia,
 )
 from modular_diffusion_nodes_library.utils.torch_utils import no_grad
 
 if TYPE_CHECKING:
-    import torch  # type: ignore[reportMissingImports]
     from diffusers.modular_pipelines.hunyuan_video1_5.modular_pipeline import (  # type: ignore[reportMissingImports]
         HunyuanVideo15ModularPipeline,
     )
@@ -165,9 +165,9 @@ class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
         return HunyuanVideo15AutoBlocks().init_pipeline()
 
     @override
-    def _extract_latents_from_output(self, pipe_output: Any) -> torch.Tensor:
+    def _extract_latents_from_output(self, pipe_output: Any) -> PipelineOutput:
         """HunyuanVideo pipelines return video frames under `.frames` instead of `.images`."""
-        return pipe_output.frames
+        return PipelineOutput(media=pipe_output.frames)
 
     @override
     def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:

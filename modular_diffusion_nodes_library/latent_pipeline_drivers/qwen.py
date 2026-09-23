@@ -118,7 +118,7 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         return self.prepare_output_latent(latents, (1, -1, height, width))
 
     @override
-    def prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
+    def _prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
         """Return latents ready to be passed into the pipeline, which may involve packing or other preprocessing."""
         packed_latents = self.modular_pipe.pachifier.pack_latents(latents)
         return packed_latents

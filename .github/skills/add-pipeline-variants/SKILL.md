@@ -62,7 +62,7 @@ Any new runtime input added by a variant (e.g. `controlnet_conditioning_scale`, 
 
 Variants must preserve the public latent contract in [`base_driver.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py) docstring:
 - Latents passed across the public surface remain **unpacked + normalised**
-- Any packing required by the variant pipeline happens inside `prepare_input_latent`/`prepare_output_latent` (or transiently inside the overridden `denoise_latent`), never on the public surface
+- Any packing required by the variant pipeline happens inside `_prepare_input_latent`/`prepare_output_latent` (or transiently inside the overridden `denoise_latent`), never on the public surface
 - Never bypass `super().denoise_latent()` for callback / partial-denoise / cancellation concerns
 
 ### Rule 4 — Prove every claim with code references

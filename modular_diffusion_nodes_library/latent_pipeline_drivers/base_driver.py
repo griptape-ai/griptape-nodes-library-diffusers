@@ -20,6 +20,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     GeneratorState,
     ImageMedia,
     MaskMedia,
+    PipelineOutput,
     TextEncodings,
     VideoMedia,
 )
@@ -90,7 +91,7 @@ class LatentPipelineDriver(ABC):
     and the inverse inside ``decode_latent``.
 
     Any model-specific *packing* (e.g. Flux, Qwen) is applied transiently
-    inside ``prepare_input_latent`` / ``prepare_output_latent`` and never
+    inside ``_prepare_input_latent`` / ``prepare_output_latent`` and never
     appears on the public surface.
     """
 
@@ -210,13 +211,6 @@ class LatentPipelineDriver(ABC):
         self._pipe = pipe
         self._modular_pipe: ModularPipeline | None = None
 
-        # Soundtrack published by ``decode_latent`` for models that generate audio jointly with the
-        # video, read by the VAE Decode node in the same call so it can be muxed into the output
-        # file. ``decode_latent`` owns these: it must set them on every call, clearing them when the
-        # decode produced no audio. Drivers for silent models leave them ``None``.
-        self.last_audio: torch.Tensor | None = None
-        self.last_sampling_rate: int | None = None
-
     @property
     def pipe(self) -> DiffusionPipeline:
         return self._pipe
@@ -325,7 +319,7 @@ class LatentPipelineDriver(ABC):
 
         return LatentArtifact.from_torch(tensor, source_shape=source_shape, meta=base)
 
-    def prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
+    def _prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
         """Return latents ready to be passed into the pipeline, which may involve packing or other preprocessing."""
         return latents
 
@@ -340,12 +334,13 @@ class LatentPipelineDriver(ABC):
         """Return pure noise latent. See class docstring for the latent shape contract."""
         ...
 
-    def _extract_latents_from_output(self, pipe_output: Any) -> torch.Tensor:
-        """Extract the raw latent tensor from a pipeline output object.
-        Image pipelines expose the result as `images`
-        override for video pipelines with `frames`.
+    def _extract_latents_from_output(self, pipe_output: Any) -> PipelineOutput:
+        """Extract the raw latent tensor from a pipeline output object. Image pipelines expose
+        the result as `images`; override for video pipelines with `frames`. Set `extra_meta`
+        when the pipeline output also carries out-of-band data (e.g. audio) that should be
+        stamped onto the returned artifact's metadata.
         """
-        return pipe_output.images
+        return PipelineOutput(media=pipe_output.images)
 
     @abstractmethod
     def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
@@ -448,7 +443,7 @@ class LatentPipelineDriver(ABC):
             kwargs.update(inpaint_kwargs)
         elif "latents" not in kwargs:
             latents = latent.to_torch(device=device, dtype=dtype)
-            latents = self.prepare_input_latent(latents, source_shape)
+            latents = self._prepare_input_latent(latents, source_shape)
             kwargs["latents"] = latents
 
         # check that the pipeline supports the kwargs we are passing in
@@ -487,12 +482,14 @@ class LatentPipelineDriver(ABC):
         else:
             pipe_output = pipe(**pipe_kwargs)  # type: ignore[reportCallIssue]
 
-        output_tensor = self.prepare_output_latent(self._extract_latents_from_output(pipe_output), source_shape)
+        extracted_output = self._extract_latents_from_output(pipe_output)
+        output_tensor = self.prepare_output_latent(extracted_output.media, source_shape)
+        output_metadata = extracted_output.extra_meta or {}
         return self._make_latent_artifact(
             output_tensor,
             source_shape=source_shape,
             upstream=latent,
-            meta=GeneratorState.from_generator(generator).as_meta(),
+            meta={**GeneratorState.from_generator(generator).as_meta(), **output_metadata},
         )
 
     # ------------------------------------------------------------------
