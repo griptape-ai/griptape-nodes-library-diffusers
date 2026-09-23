@@ -1001,6 +1001,16 @@
             }
         },
         {
+            "class_name": "ReleasePipelineNode",
+            "file_path": "./modular_diffusion_nodes_library/nodes/release_pipeline_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/Pipeline",
+                "description": "Releases one diffusion pipeline from GPU/CPU memory, leaving the rest of the cache alone. Use this to free VRAM for the next pipeline while keeping others loaded. The pipeline configuration is untouched, so a node that needs it again rebuilds it.",
+                "display_name": "Release Pipeline",
+                "group": "diffusion"
+            }
+        },
+        {
             "class_name": "LoadLora",
             "file_path": "./modular_diffusion_nodes_library/nodes/load_lora_node.py",
             "metadata": {
