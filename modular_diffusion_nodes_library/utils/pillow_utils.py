@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 
 from griptape.artifacts import ImageArtifact, ImageUrlArtifact
 
+from modular_diffusion_nodes_library.utils.config_utils import get_config_value, get_workspace_path
+
 if TYPE_CHECKING:
     from PIL.Image import Image
 
@@ -29,18 +31,12 @@ def pil_to_image_artifact(pil_image: Image, directory_path: str = "") -> ImageUr
 
     if directory_path:
         # Perform cleanup if needed before saving new file
-        cleanup_enabled = GriptapeNodes.ConfigManager().get_config_value(
-            "modular_diffusion_library.enable_directory_cleanup"
-        )
+        cleanup_enabled = get_config_value("modular_diffusion_library.enable_directory_cleanup")
         if cleanup_enabled:
-            static_files_directory = GriptapeNodes.ConfigManager().get_config_value(
-                "static_files_directory", default="staticfiles"
-            )
-            path = GriptapeNodes.ConfigManager().workspace_path / static_files_directory / directory_path
+            static_files_directory = get_config_value("static_files_directory", default="staticfiles")
+            path = get_workspace_path() / static_files_directory / directory_path
 
-            max_size_gb = GriptapeNodes.ConfigManager().get_config_value(
-                "modular_diffusion_library.max_directory_size_gb"
-            )
+            max_size_gb = get_config_value("modular_diffusion_library.max_directory_size_gb")
             GriptapeNodes.OSManager().cleanup_directory_if_needed(full_directory_path=path, max_size_gb=max_size_gb)
 
         dest = ProjectFileDestination.from_situation(

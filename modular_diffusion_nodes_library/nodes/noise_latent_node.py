@@ -4,7 +4,6 @@ from typing import Any
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage
 from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode
 from griptape_nodes.exe_types.param_components.seed_parameter import SeedParameter
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
     LatentArtifact,  # type: ignore[reportMissingImports]
@@ -24,6 +23,7 @@ from modular_diffusion_nodes_library.parameters.generate_latent_parameters impor
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import (
     ModularDiffusionPipelineParameters,
 )
+from modular_diffusion_nodes_library.utils.config_utils import get_config_value
 from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
@@ -164,7 +164,7 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         auto-resize is on, the node adjusts at run time instead of refusing here.
         """
         dimension_result = self._update_compatibility_message(build_if_needed=True)
-        auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
+        auto_resize = get_config_value("modular_diffusion_library.enable_auto_resize")
         if dimension_result is not None and not auto_resize and dimension_result.message:
             return [ValueError(dimension_result.message)]
         return None

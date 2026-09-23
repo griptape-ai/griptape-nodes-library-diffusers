@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from griptape.artifacts import ImageArtifact, ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterList, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import (
     InpaintMaskArtifact,  # type: ignore[reportMissingImports]
@@ -30,6 +29,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     DecodeResult,
     GeneratorState,
 )
+from modular_diffusion_nodes_library.utils.config_utils import get_config_value
 from modular_diffusion_nodes_library.utils.directory_utils import (
     check_cleanup_intermediates_directory,
     get_intermediates_directory_path,
@@ -241,9 +241,7 @@ class DiffusionPipelineGenerateLatentParameters:
         self._node.clear_cancellation()
         num_inference_steps = self.get_num_inference_steps()
         # Default to False for better performance - preview intermediates slow down inference
-        enable_preview = GriptapeNodes.ConfigManager().get_config_value(
-            "modular_diffusion_library.enable_image_preview_intermediates", default=False
-        )
+        enable_preview = get_config_value("modular_diffusion_library.enable_image_preview_intermediates", default=False)
 
         first_iteration_time = None
         latent_pipeline_driver = create_driver(pipe, pipeline_class)

@@ -5,12 +5,12 @@ from pathlib import Path
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import DataNode
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.utils import resolve_workspace_path
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
     LatentArtifact,  # type: ignore[reportMissingImports]
 )
+from modular_diffusion_nodes_library.utils.config_utils import get_workspace_path
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -74,7 +74,7 @@ class SaveLatentTensorNode(DataNode):
         latent_artifact = self.get_parameter_value("latent_tensor")
         file_path = self.get_parameter_value("file_path")
 
-        workspace_path = GriptapeNodes.ConfigManager().workspace_path
+        workspace_path = get_workspace_path()
         resolved_path = resolve_workspace_path(Path(file_path), workspace_path)
         resolved_path.parent.mkdir(parents=True, exist_ok=True)
 
