@@ -25,7 +25,6 @@ from modular_diffusion_nodes_library.parameters.pipeline_parameters import (
     ModularDiffusionPipelineParameters,
 )
 from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
-from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -172,7 +171,10 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
             return None
 
         if not build_if_needed:
-            if not pipeline_value.config_hash or not model_cache.has_pipeline(pipeline_value.config_hash):
+            if (
+                not pipeline_value.config_hash
+                or self.local_objects.get(self.local_objects.key_for(pipeline_value.config_hash)) is None
+            ):
                 self._set_compatibility_message(None)
                 return None
 

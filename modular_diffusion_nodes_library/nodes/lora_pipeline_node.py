@@ -10,7 +10,6 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     normalize_diffusion_pipeline_value,
 )
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
-from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.lora_apply_utils import LoraPipelineRuntimeAdapterStep
 from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec, normalize_loras
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
@@ -197,11 +196,11 @@ class LoraActivationPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNod
 
         def build() -> Any:
             with self.log_params.append_profile_to_logs("Pipeline building/caching"):
-                return pipeline_artifact.get_or_build_pipeline(log_params=self.log_params)
+                return pipeline_artifact.get_or_build_pipeline(self, log_params=self.log_params)
 
         def cleanup() -> None:
             self.log_params.append_to_logs("Pipeline building failed.\n")
-            model_cache.remove_pipeline(pipeline_artifact.config_hash)
+            self.local_objects.drop(self.local_objects.key_for(pipeline_artifact.config_hash))
             cleanup_memory_caches()
 
         return self._run_with_status(
