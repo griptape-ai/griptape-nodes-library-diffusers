@@ -16,19 +16,16 @@ therefore checks a fingerprint of the video latent the audio was paired with, an
 than muxing a desynchronised soundtrack.
 """
 
+from __future__ import annotations
+
 import logging
 import math
-from typing import Any, ClassVar, cast, override
+from typing import TYPE_CHECKING, Any, ClassVar, cast, override
 
-import torch  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.minimax_h3.denoise import (  # type: ignore[reportMissingImports]
     MiniMaxH3DenoiseLoopWrapper,
     MiniMaxH3LoopDenoiser,
     MiniMaxH3LoopSchedulerStep,
-)
-from diffusers.modular_pipelines.minimax_h3.modular_blocks_minimax_h3 import (  # type: ignore[reportMissingImports]
-    MiniMaxH3CoreDenoiseStep,
-    MiniMaxH3FL2VACoreDenoiseStep,
 )
 from diffusers.modular_pipelines.minimax_h3.modular_pipeline import (  # type: ignore[reportMissingImports]  # type: ignore[reportMissingImports]
     MINIMAX_H3_AUDIO_CHANNELS,
@@ -46,11 +43,6 @@ from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[repor
     PipelineState,
     SequentialPipelineBlocks,
 )
-from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
-    InputParam,
-    OutputParam,
-)
-from diffusers.utils.torch_utils import randn_tensor  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -72,6 +64,15 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     resolve_frame_index,
 )
 from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult
+from modular_diffusion_nodes_library.utils.torch_utils import no_grad
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.modular_pipelines.modular_pipeline_utils import (
+        InputParam,  # type: ignore[reportMissingImports]
+        OutputParam,  # type: ignore[reportMissingImports]
+    )
+    from diffusers.utils.torch_utils import randn_tensor  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -100,6 +101,8 @@ def _video_fingerprint(tensor: torch.Tensor) -> tuple[tuple[int, ...], float, fl
 
     Shape alone would not do: latent math preserves shape and changes only values.
     """
+    import torch  # type: ignore[reportMissingImports]
+
     flat = tensor.detach().to(device="cpu", dtype=torch.float64)
     return (tuple(tensor.shape), float(flat.sum()), float(flat.square().sum()))
 
@@ -164,6 +167,10 @@ class _MiniMaxH3PrepareNoiseStep(ModularPipelineBlocks):
 
     @property
     def inputs(self) -> list[InputParam]:
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            InputParam,
+        )
+
         return [
             InputParam("num_latent_frames", required=True),
             InputParam("latent_height", required=True),
@@ -174,6 +181,11 @@ class _MiniMaxH3PrepareNoiseStep(ModularPipelineBlocks):
 
     @property
     def intermediate_outputs(self) -> list[OutputParam]:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            OutputParam,
+        )
+
         return [
             OutputParam(
                 "latents",
@@ -187,10 +199,12 @@ class _MiniMaxH3PrepareNoiseStep(ModularPipelineBlocks):
             ),
         ]
 
-    @torch.no_grad()
+    @no_grad
     def __call__(
         self, components: MiniMaxH3ModularPipeline, state: PipelineState
     ) -> tuple[MiniMaxH3ModularPipeline, PipelineState]:
+        import torch  # type: ignore[reportMissingImports]
+
         block_state = cast(Any, self.get_block_state(state))
         device = components._execution_device
 
@@ -249,6 +263,10 @@ class _MiniMaxH3CallbackDenoiseStep(MiniMaxH3DenoiseLoopWrapper):
     def loop_inputs(self) -> list[InputParam]:
         # The video geometry is not part of upstream's loop contract, but the step-end preview needs
         # it to unpack the in-flight rows into the public latent shape.
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            InputParam,
+        )
+
         return [
             *super().loop_inputs,
             InputParam("num_latent_frames", required=True),
@@ -275,8 +293,9 @@ class _MiniMaxH3CallbackDenoiseStep(MiniMaxH3DenoiseLoopWrapper):
             end = min(max(self.end_step, begin + 1), num_steps)
         return begin, end
 
-    @torch.no_grad()
+    @no_grad
     def __call__(self, components: MiniMaxH3ModularPipeline, state: PipelineState) -> PipelineState:
+
         block_state = cast(Any, self.get_block_state(state))
 
         if len(block_state.audio_timesteps) != len(block_state.timesteps):
@@ -531,6 +550,8 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         in-place mutation of an inference tensor outside ``inference_mode`` raises. ``no_grad``
         produces ordinary tensors and avoids the whole class of problem.
         """
+        import torch  # type: ignore[reportMissingImports]
+
         state = PipelineState()
         for param in blocks.inputs:
             if param.name in kwargs:
@@ -545,6 +566,8 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         generator = generator_state.to_generator()
         geometry = self._latent_geometry(source_shape)
         state = self._run_blocks(
@@ -570,6 +593,8 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
     @override
     def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
         """Decode the video, and its soundtrack when the artifact still carries the audio latent."""
+        import torch  # type: ignore[reportMissingImports]
+
         pipe = cast(MiniMaxH3ModularPipeline, self.modular_pipe)
         device, _ = self._get_device_and_type()
         self._latent_geometry(latent.source_shape)  # validates the latent's shape before decoding it
@@ -675,6 +700,12 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         return_fully_denoised: bool = False,
         **kwargs: Any,
     ) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.minimax_h3.modular_blocks_minimax_h3 import (  # type: ignore[reportMissingImports]
+            MiniMaxH3CoreDenoiseStep,
+            MiniMaxH3FL2VACoreDenoiseStep,
+        )
+
         if isinstance(latent, InpaintMaskArtifact):
             raise NotImplementedError(f"{self.driver_namespace} does not support inpainting.")
         if return_fully_denoised:

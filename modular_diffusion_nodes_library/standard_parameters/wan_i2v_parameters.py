@@ -1,9 +1,9 @@
+from __future__ import annotations
+
 # Copied from diffusers_nodes_library/common/parameters/diffusion/wan/img2vid_parameters.py
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import diffusers  # type: ignore[reportMissingImports]
-import torch  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
@@ -11,11 +11,14 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
     ModularDiffusionPipelineTypePipelineParameters,
 )
 
+if TYPE_CHECKING:
+    import diffusers  # type: ignore[reportMissingImports]
+
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class WanImageToVideoPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-    _pipeline_cls = diffusers.WanImageToVideoPipeline  # type: ignore[reportAttributeAccessIssue]
+    _pipeline_cls_path = "diffusers:WanImageToVideoPipeline"
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
@@ -68,6 +71,9 @@ class WanImageToVideoPipelineParameters(ModularDiffusionPipelineTypePipelinePara
     def _build_pipeline_from_repo(
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> diffusers.WanImageToVideoPipeline:  # type: ignore[reportAttributeAccessIssue]
+        import diffusers  # type: ignore[reportMissingImports]
+        import torch  # type: ignore[reportMissingImports]
+
         repo_id = build_data["base_repo_id"]
         return diffusers.WanImageToVideoPipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=repo_id,

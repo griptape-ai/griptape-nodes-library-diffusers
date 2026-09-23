@@ -5,14 +5,15 @@ masked image through the pipeline's VAE, and outputs an
 ``InpaintMaskArtifact``.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from griptape.artifacts import ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
-from PIL import Image as PILImage
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
@@ -25,6 +26,9 @@ from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
 
+if TYPE_CHECKING:
+    from PIL import Image as PILImage  # type: ignore[reportMissingImports]
+
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
@@ -32,6 +36,8 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     """Encode a masked image into an InpaintMaskArtifact (mask + masked_latent)."""
 
     def __init__(self, **kwargs) -> None:
+        from PIL import Image as PILImage
+
         self._initializing = True
         super().__init__(**kwargs)
 
@@ -180,6 +186,8 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
 
     def _encode(self) -> None:
+        from PIL import Image as PILImage
+
         pipe = self.pipe_params.get_pipeline()
         pipeline_class = self.pipe_params.get_pipeline_class()
         driver = create_driver(pipe, pipeline_class)

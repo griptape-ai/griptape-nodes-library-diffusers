@@ -1,15 +1,7 @@
-import logging
-from typing import Any, override
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.qwenimage.pipeline_qwenimage_edit import (
-    calculate_dimensions,  # type: ignore[reportMissingImports]
-)
-from diffusers.pipelines.qwenimage.pipeline_qwenimage_edit_plus import (  # type: ignore[reportMissingImports]
-    QwenImageEditPlusPipeline,
-)
-from PIL import Image
+import logging
+from typing import TYPE_CHECKING, Any, override
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -30,6 +22,10 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
 from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
 
+if TYPE_CHECKING:
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+    from PIL import Image
+
 logger = logging.getLogger("modular_diffusers_nodes_library")
 _QWEN_EDIT_TARGET_AREA = 1024 * 1024
 
@@ -45,6 +41,10 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
 
     @override
     def align_dimensions(self, height: int, width: int, num_frames: int | None = None) -> DimensionAlignmentResult:
+        from diffusers.pipelines.qwenimage.pipeline_qwenimage_edit import (
+            calculate_dimensions,  # type: ignore[reportMissingImports]
+        )
+
         calc_width, calc_height, _ = calculate_dimensions(_QWEN_EDIT_TARGET_AREA, width / height)
         return DimensionAlignmentResult(int(calc_height), int(calc_width), num_frames, None)
 
@@ -73,6 +73,8 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         image = media.image
@@ -124,6 +126,10 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
         return_fully_denoised: bool = False,
         **kwargs: Any,
     ) -> LatentArtifact:
+        from diffusers.pipelines.qwenimage.pipeline_qwenimage_edit_plus import (  # type: ignore[reportMissingImports]
+            QwenImageEditPlusPipeline,
+        )
+
         original_pipe = self._pipe
 
         payload = kwargs.pop(MediaGenConditioningKey.OUTPUT, None)

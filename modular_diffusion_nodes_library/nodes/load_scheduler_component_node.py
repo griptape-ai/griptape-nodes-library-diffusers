@@ -6,7 +6,6 @@ import json
 import logging
 from typing import Any
 
-import diffusers  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage, ParameterMode
 from griptape_nodes.exe_types.node_types import SuccessFailureNode
 from griptape_nodes.traits.options import Options
@@ -503,6 +502,8 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         return False
 
     def _check_unknown_config_keys(self, config: dict[str, Any], scheduler_class_name: str) -> None:
+        import diffusers  # type: ignore[reportMissingImports]
+
         config_class_name = config.get("_class_name")
         if isinstance(config_class_name, str) and self._update_family_message(config_class_name):
             return

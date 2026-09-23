@@ -1,30 +1,13 @@
-import logging
-from typing import Any, ClassVar, cast, override
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.hunyuan_video1_5.before_denoise import (  # type: ignore[reportMissingImports]
-    HunyuanVideo15PrepareLatentsStep,
-    HunyuanVideo15SetTimestepsStep,
-)
-from diffusers.modular_pipelines.hunyuan_video1_5.decoders import (  # type: ignore[reportMissingImports]
-    HunyuanVideo15VaeDecoderStep,
-)
-from diffusers.modular_pipelines.hunyuan_video1_5.modular_blocks_hunyuan_video1_5 import (
-    HunyuanVideo15AutoBlocks,
-)
-from diffusers.modular_pipelines.hunyuan_video1_5.modular_pipeline import (  # type: ignore[reportMissingImports]
-    HunyuanVideo15ModularPipeline,
-)
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar, cast, override
+
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     ModularPipelineBlocks,
     PipelineState,
 )
-from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
-    InputParam,
-    OutputParam,
-)
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -35,6 +18,18 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.utils.torch_utils import no_grad
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.modular_pipelines.hunyuan_video1_5.modular_pipeline import (  # type: ignore[reportMissingImports]
+        HunyuanVideo15ModularPipeline,
+    )
+    from diffusers.modular_pipelines.modular_pipeline_utils import (
+        InputParam,  # type: ignore[reportMissingImports]
+        OutputParam,  # type: ignore[reportMissingImports]
+    )
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -50,6 +45,8 @@ class _HunyuanVideo15EncodeVideoStep(ModularPipelineBlocks):
 
     @property
     def intermediate_outputs(self) -> list[OutputParam]:
+        import torch  # type: ignore[reportMissingImports]
+
         return [
             OutputParam(
                 "video_latents",
@@ -58,10 +55,12 @@ class _HunyuanVideo15EncodeVideoStep(ModularPipelineBlocks):
             ),
         ]
 
-    @torch.no_grad()
+    @no_grad
     def __call__(
         self, components: HunyuanVideo15ModularPipeline, state: PipelineState
     ) -> tuple[HunyuanVideo15ModularPipeline, PipelineState]:
+        import torch  # type: ignore[reportMissingImports]
+
         block_state = cast(Any, self.get_block_state(state))
 
         device = components._execution_device
@@ -85,6 +84,10 @@ class _HunyuanVideo15AddNoiseStep(ModularPipelineBlocks):
 
     @property
     def inputs(self) -> list[InputParam]:
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            InputParam,
+        )
+
         return [
             InputParam("latents", required=True),
             InputParam("noise", required=True),
@@ -94,6 +97,11 @@ class _HunyuanVideo15AddNoiseStep(ModularPipelineBlocks):
 
     @property
     def intermediate_outputs(self) -> list[OutputParam]:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            OutputParam,
+        )
+
         return [
             OutputParam(
                 "noisy_latents",
@@ -102,10 +110,14 @@ class _HunyuanVideo15AddNoiseStep(ModularPipelineBlocks):
             ),
         ]
 
-    @torch.no_grad()
+    @no_grad
     def __call__(
         self, components: HunyuanVideo15ModularPipeline, state: PipelineState
     ) -> tuple[HunyuanVideo15ModularPipeline, PipelineState]:
+        from diffusers.modular_pipelines.hunyuan_video1_5.before_denoise import (  # type: ignore[reportMissingImports]
+            HunyuanVideo15SetTimestepsStep,
+        )
+
         block_state = cast(Any, self.get_block_state(state))
 
         _, state = HunyuanVideo15SetTimestepsStep()(components, state)  # type: ignore[reportOperatorIssue]
@@ -146,6 +158,10 @@ class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
+        from diffusers.modular_pipelines.hunyuan_video1_5.modular_blocks_hunyuan_video1_5 import (
+            HunyuanVideo15AutoBlocks,
+        )
+
         return HunyuanVideo15AutoBlocks().init_pipeline()
 
     @override
@@ -155,6 +171,11 @@ class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.hunyuan_video1_5.before_denoise import (  # type: ignore[reportMissingImports]
+            HunyuanVideo15PrepareLatentsStep,
+        )
+
         generator = generator_state.to_generator()
         num_frames, height, width = source_shape[-3], source_shape[-2], source_shape[-1]
         prepare_latents = HunyuanVideo15PrepareLatentsStep()
@@ -177,6 +198,10 @@ class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
     @override
     def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
         """Decode a 5-D HunyuanVideo latent and return the video frames."""
+        from diffusers.modular_pipelines.hunyuan_video1_5.decoders import (  # type: ignore[reportMissingImports]
+            HunyuanVideo15VaeDecoderStep,
+        )
+
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
         vae_decoder_step = HunyuanVideo15VaeDecoderStep()
@@ -186,6 +211,8 @@ class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         if isinstance(media, ImageMedia):
             raise NotImplementedError(
                 f"Pipeline '{self.pipe.__class__.__name__}' does not support image encoding. Use a video input instead."
@@ -205,6 +232,8 @@ class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
         num_inference_steps: int,
         strength: float,
     ) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         device, dtype = self._get_device_and_type()
         source_shape = latent.source_shape
         latents = latent.to_torch(device=device, dtype=dtype)

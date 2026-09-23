@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import json
 import logging
+from typing import TYPE_CHECKING
 
-import diffusers  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.traits.options import Options
+
+if TYPE_CHECKING:
+    import diffusers  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 

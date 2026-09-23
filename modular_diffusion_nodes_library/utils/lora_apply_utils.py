@@ -1,11 +1,11 @@
+from __future__ import annotations
+
 import hashlib
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, ClassVar
-
-import safetensors  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec
 from modular_diffusion_nodes_library.utils.pipeline_runtime_adapter_step import PipelineRuntimeAdapterStep
@@ -27,6 +27,8 @@ def _to_adapter_name(model_path: str) -> str:
 
 
 def _load_missing_lora_adapters(pipe: Any, lora_by_name: dict[str, dict[str, Any]]) -> None:
+    import safetensors  # type: ignore[reportMissingImports]
+
     loras_to_load = dict(lora_by_name)
     existing_adapter_names = {name for names in pipe.get_list_adapters().values() for name in names}
     for name in existing_adapter_names:
@@ -45,6 +47,8 @@ def _load_missing_lora_adapters(pipe: Any, lora_by_name: dict[str, dict[str, Any
 
 def _stash_lora_metadata(pipe: Any, *, adapter_name: str, lora_path: str) -> None:
     """Capture safetensors header metadata onto the pipe so downstream code can read it."""
+    import safetensors  # type: ignore[reportMissingImports]
+
     try:
         with safetensors.safe_open(lora_path, framework="pt") as f:  # type: ignore[reportAttributeAccessIssue]
             metadata = dict(f.metadata() or {})

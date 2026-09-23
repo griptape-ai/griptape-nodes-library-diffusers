@@ -1,7 +1,8 @@
-from typing import ClassVar
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_layout import (
     FlexibleImageConfig,
@@ -22,6 +23,9 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     MediaGenConditioningKey,
     resolve_conditioning_image,
 )
+
+if TYPE_CHECKING:
+    from PIL.Image import Image
 
 
 class Flux2DevPipelineRuntimeParameters(Flux2PipelineRuntimeParameters):

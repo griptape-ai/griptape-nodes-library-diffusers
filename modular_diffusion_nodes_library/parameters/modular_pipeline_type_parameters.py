@@ -1,16 +1,21 @@
+from __future__ import annotations
+
+import importlib
 import inspect
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_model_parameter import HuggingFaceModelParameter
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact
 from modular_diffusion_nodes_library.component_loading.component_slots import ALLOWED_COMPONENT_SLOTS
+
+if TYPE_CHECKING:
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -32,7 +37,10 @@ class ModelParamsError(RuntimeError):
 
 
 class ModularDiffusionPipelineTypePipelineParameters(ABC):
-    _pipeline_cls: type[DiffusionPipeline] | type[ModularPipeline]
+    # Where the pipeline class lives, as "module:attribute", rather than the class itself.
+    # Holding the class would import diffusers when this module is imported, and the orchestrator
+    # imports every parameter module to build node classes without ever running a pipeline.
+    _pipeline_cls_path: ClassVar[str]
     # Denoiser config key to compare text-conditioning width against (None = skip).
     text_conditioning_target_dim_key: str | None = None
     # Channel multiplier from packing latents into spatial patches (1 = no packing).
@@ -75,13 +83,22 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     def get_config_kwargs(self) -> dict:
         raise NotImplementedError
 
+    @staticmethod
+    def _modular_pipeline_cls() -> type[ModularPipeline]:
+        """Imported on demand for the same reason as `pipeline_cls`."""
+        module = importlib.import_module("diffusers.modular_pipelines.modular_pipeline")
+        return module.ModularPipeline
+
     @classmethod
     def pipeline_cls(cls) -> type[DiffusionPipeline] | type[ModularPipeline]:
-        return cls._pipeline_cls
+        """The pipeline class, imported on first call."""
+        module_name, _, attribute = cls._pipeline_cls_path.partition(":")
+        return getattr(importlib.import_module(module_name), attribute)
 
     @property
     def pipeline_name(self) -> str:
-        return self._pipeline_cls.__name__
+        """Read off the configured path, so naming a pipeline never imports diffusers."""
+        return self._pipeline_cls_path.rpartition(":")[2]
 
     @staticmethod
     def _extract_text_conditioning_width(config: dict[str, Any] | None) -> int | None:
@@ -123,9 +140,10 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         DiffusionPipeline._get_signature_keys) with ALLOWED_COMPONENT_SLOTS,
         preserving the priority order defined there.
         """
-        if issubclass(self._pipeline_cls, ModularPipeline):
+        if issubclass(self.pipeline_cls(), self._modular_pipeline_cls()):
             return []
-        all_slots, _ = self._pipeline_cls._get_signature_keys(self._pipeline_cls)  # type: ignore[reportAttributeAccessIssue]
+        pipeline_cls = self.pipeline_cls()
+        all_slots, _ = pipeline_cls._get_signature_keys(pipeline_cls)  # type: ignore[reportAttributeAccessIssue]
         all_slots_set = set(all_slots)
         return [slot for slot in ALLOWED_COMPONENT_SLOTS if slot in all_slots_set]
 
@@ -153,8 +171,8 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
 
     @classmethod
     def verify_overridable_covers_required(cls) -> None:
-        """Raise if any required init arg of ``cls._pipeline_cls`` is not covered."""
-        pipeline_cls = cls._pipeline_cls
+        """Raise if any required init arg of the pipeline class is not covered."""
+        pipeline_cls = cls.pipeline_cls()
         required = _required_init_components(pipeline_cls)
         missing = required - set(ALLOWED_COMPONENT_SLOTS) - cls.get_auto_supplied_components()
         if missing:
@@ -192,7 +210,7 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         cls, build_data: dict[str, Any]
     ) -> ModularPipeline | DiffusionPipeline | Any | None:
         """Build pipeline from build_data. Routes to overrides-only or repo path."""
-        pipeline_cls = build_data.get("_pipeline_cls") or cls._pipeline_cls
+        pipeline_cls = build_data.get("_pipeline_cls") or cls.pipeline_cls()
         overrides = cls._materialize_overrides(build_data, pipeline_cls=pipeline_cls)
 
         if build_data.get("_all_overrides"):

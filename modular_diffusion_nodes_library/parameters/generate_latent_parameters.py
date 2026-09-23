@@ -1,15 +1,14 @@
+from __future__ import annotations
+
 import logging
 import math
 from datetime import UTC, datetime
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import torch  # type: ignore[import]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from griptape.artifacts import ImageArtifact, ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterList, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import (
     InpaintMaskArtifact,  # type: ignore[reportMissingImports]
@@ -33,6 +32,11 @@ from modular_diffusion_nodes_library.utils.directory_utils import (
 )
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil, pil_to_image_artifact
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[import]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+    from PIL.Image import Image  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -333,6 +337,8 @@ class DiffusionPipelineGenerateLatentParameters:
     ) -> None:
         # Check to ensure there's enough space in the intermediates directory
         # if that setting is enabled.
+        from PIL.Image import Image
+
         check_cleanup_intermediates_directory()
 
         preview_image_pil = self.latents_to_image_pil(latents, source_shape, latent_pipeline_driver)

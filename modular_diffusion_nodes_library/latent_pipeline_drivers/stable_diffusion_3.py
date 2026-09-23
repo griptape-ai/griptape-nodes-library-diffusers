@@ -1,8 +1,8 @@
-import logging
-from typing import Any, ClassVar, override
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar, override
+
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     SequentialPipelineBlocks,
@@ -13,16 +13,9 @@ from diffusers.modular_pipelines.stable_diffusion_3.before_denoise import (  # t
     StableDiffusion3PrepareLatentsStep,
     StableDiffusion3SetTimestepsStep,
 )
-from diffusers.modular_pipelines.stable_diffusion_3.modular_blocks_stable_diffusion_3 import (  # type: ignore[reportMissingImports]
-    StableDiffusion3AutoBlocks,
-)
-from diffusers.pipelines.controlnet_sd3.pipeline_stable_diffusion_3_controlnet import (  # type: ignore[reportMissingImports]
-    StableDiffusion3ControlNetPipeline,
-)
 from diffusers.pipelines.controlnet_sd3.pipeline_stable_diffusion_3_controlnet_inpainting import (  # type: ignore[reportMissingImports]
     StableDiffusion3ControlNetInpaintingPipeline,
 )
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3_inpaint import (  # type: ignore[reportMissingImports]
     StableDiffusion3InpaintPipeline,
 )
@@ -36,6 +29,9 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     VideoMedia,
 )
+
+if TYPE_CHECKING:
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -83,6 +79,10 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
+        from diffusers.modular_pipelines.stable_diffusion_3.modular_blocks_stable_diffusion_3 import (  # type: ignore[reportMissingImports]
+            StableDiffusion3AutoBlocks,
+        )
+
         return StableDiffusion3AutoBlocks().init_pipeline()
 
     @classmethod
@@ -97,6 +97,11 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         pipe: ModularPipeline | DiffusionPipeline,
         control_net_model_lists: list[str] | str | None,
     ) -> ModularPipeline | DiffusionPipeline:
+        from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
+        from diffusers.pipelines.controlnet_sd3.pipeline_stable_diffusion_3_controlnet import (  # type: ignore[reportMissingImports]
+            StableDiffusion3ControlNetPipeline,
+        )
+
         if not control_net_model_lists:
             return pipe
 
@@ -125,6 +130,8 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         source_shape: tuple[int, ...],
         generator_state: GeneratorState,
     ) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         generator = generator_state.to_generator()
         output_state = self._call_block(
             _SD3PrepareNoiseLatentStep(),
@@ -152,6 +159,8 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         Returns the noised latent at the scheduler's sigma scale for the
         requested strength.
         """
+        import torch  # type: ignore[reportMissingImports]
+
         device, dtype = self._get_device_and_type()
 
         # Generate noise via the modular path
@@ -244,6 +253,8 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]

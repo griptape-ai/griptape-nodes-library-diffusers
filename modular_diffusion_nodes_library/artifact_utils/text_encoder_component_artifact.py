@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, override
 
-import torch  # type: ignore[reportMissingImports]
-
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import ModelComponentArtifact
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import get_component_class
 
@@ -16,6 +14,8 @@ class TextEncoderComponentArtifact(ModelComponentArtifact):
 
     @override
     def _materialize_single_file(self, *, pipeline_cls: type, effective_slot: str) -> Any:
+        import torch  # type: ignore[reportMissingImports]
+
         if not self.file_path:
             msg = (
                 f"Attempted to materialize {self.component}. "

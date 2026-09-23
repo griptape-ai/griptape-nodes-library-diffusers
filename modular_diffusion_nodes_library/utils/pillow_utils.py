@@ -1,13 +1,19 @@
-import io
+from __future__ import annotations
 
-import PIL.Image
-import PIL.ImageOps
+import io
+from typing import TYPE_CHECKING
+
 from griptape.artifacts import ImageArtifact, ImageUrlArtifact
-from PIL.Image import Image
+
+if TYPE_CHECKING:
+    from PIL.Image import Image
 
 
 def image_artifact_to_pil(image_artifact: ImageArtifact) -> Image:
     """Converts Griptape ImageArtifact to Pillow Image."""
+    import PIL.Image
+    import PIL.ImageOps
+
     return PIL.Image.open(io.BytesIO(image_artifact.value))
 
 
@@ -58,6 +64,9 @@ def pad_mirror(image: Image, target_size: tuple[int, int]) -> Image:
     Returns:
     - A new Image of size target_size, filled with mirrored tiles of the original
     """
+    import PIL.Image
+    import PIL.ImageOps
+
     orig_w, orig_h = image.size
     target_w, target_h = target_size
 

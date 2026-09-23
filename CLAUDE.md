@@ -97,18 +97,19 @@ Prefer verifiable goals ("write a failing test for X, then make it pass") over i
         return result
     ```
 
-**CRITICAL: Do NOT use lazy imports** — Imports MUST be at the top of the file:
+**Keep heavy dependencies out of import time** — imports at the top of the file, with one systematic exception:
 
-- All imports at the top of the file, standard order
-- NEVER use lazy imports (imports inside functions) unless required to resolve an unavoidable circular import
-- If you think you need a lazy import, STOP, explain why, and ASK for confirmation
-- If you must use one, add a comment naming the exact circular import being resolved
-- Bad:
-    ```python
-    def process_data(value):
-        from some_module import helper  # NO! Move to top
-        return helper(value)
-    ```
+- Light imports (stdlib, `griptape_nodes`, `griptape`, this library's own modules) go at the top of the file, standard order.
+- **Heavy dependencies must not be imported at module scope.** `torch`, `diffusers`, `transformers`, `accelerate`, `numpy`, `PIL`, `cv2`, `safetensors`, `peft`, `scipy`, `Imath`/`OpenEXR` and friends are declared in `pip_dependencies_exec`, not `pip_dependencies`, so they exist only in a worker's execution venv. The orchestrator imports every module under `nodes/` to build the node classes, and it does so without them installed.
+- Three ways to defer, in order of preference:
+    1. Annotation-only use → a `TYPE_CHECKING` block. The file needs `from __future__ import annotations`.
+    2. A module-scope type alias → `type Alias = ...` (PEP 695), whose right-hand side is evaluated lazily.
+    3. Runtime use → `import` inside the function that uses it.
+- A decorator is evaluated while the class body runs, so `@torch.no_grad()` imports torch at import time. Use `no_grad` / `inference_mode` from [`utils/torch_utils.py`](modular_diffusion_nodes_library/utils/torch_utils.py) instead.
+- Validation that needs a real pipeline class belongs in `tests/`, not in a module-scope guard. See [tests/test_pipeline_type_override_coverage.py](tests/test_pipeline_type_override_coverage.py).
+- Circular imports remain the other reason to import inside a function. When that is the reason, say so in a comment naming the cycle.
+
+`uv run python scripts/check_edit_time_imports.py` is the gate: it imports every node module and fails if a heavy package is reached. Run it after touching imports.
 
 ## Exception Handling
 

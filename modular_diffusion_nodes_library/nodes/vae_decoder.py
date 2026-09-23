@@ -1,13 +1,11 @@
+from __future__ import annotations
+
 import logging
 import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
 
-import diffusers  # type: ignore[reportMissingImports]
-import numpy as np
-from diffusers.pipelines.ltx2.export_utils import encode_hdr_tensor_to_mp4  # type: ignore[reportMissingImports]
-from diffusers.utils.export_utils import encode_video  # type: ignore[reportMissingImports]
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
@@ -279,6 +277,11 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         audio_sample_rate: int | None = None,
     ) -> None:
         """Encode a video output to ``dest_path``. Override to customize HDR/tone-mapping."""
+        import diffusers  # type: ignore[reportMissingImports]
+        import numpy as np
+        from diffusers.pipelines.ltx2.export_utils import encode_hdr_tensor_to_mp4  # type: ignore[reportMissingImports]
+        from diffusers.utils.export_utils import encode_video  # type: ignore[reportMissingImports]
+
         if isinstance(output, np.ndarray):
             encode_hdr_tensor_to_mp4(output[0], str(dest_path), frame_rate=fps)
         elif audio is not None and audio_sample_rate is not None:

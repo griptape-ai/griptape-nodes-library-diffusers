@@ -1,15 +1,8 @@
+from __future__ import annotations
+
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, TypeVar
-
-import numpy as np
-import torch  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
-    ModularPipeline,
-    ModularPipelineBlocks,
-    PipelineState,
-)
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -36,6 +29,15 @@ from modular_diffusion_nodes_library.misc.partial_denoise import (
 )
 from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
+from modular_diffusion_nodes_library.utils.torch_utils import inference_mode
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.modular_pipelines.modular_pipeline import (
+        ModularPipeline,  # type: ignore[reportMissingImports]
+        ModularPipelineBlocks,  # type: ignore[reportMissingImports]
+    )
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 _T = TypeVar("_T")
 
@@ -241,8 +243,12 @@ class LatentPipelineDriver(ABC):
         """
         ...
 
-    @torch.inference_mode()
+    @inference_mode
     def _call_block(self, block: ModularPipelineBlocks, **kwargs: Any) -> dict[str, Any]:
+        from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
+            PipelineState,
+        )
+
         state = PipelineState()
         for param in block.inputs:
             if param.name in kwargs:
@@ -282,6 +288,8 @@ class LatentPipelineDriver(ABC):
         raise NotImplementedError("Subclasses should implement this method")
 
     def _get_device_and_type(self) -> tuple[torch.device, torch.dtype]:
+        import torch  # type: ignore[reportMissingImports]
+
         device = getattr(self.pipe, "_execution_device", None) or self.pipe.device
         dtype = getattr(self.pipe.vae, "dtype", None) or torch.float32
         return device, dtype
@@ -358,6 +366,9 @@ class LatentPipelineDriver(ABC):
         self, image: ImageMedia, mask: MaskMedia, generator_state: GeneratorState
     ) -> LatentArtifact:
         """Encode the source image with the masked region zeroed out."""
+        import numpy as np
+        import torch  # type: ignore[reportMissingImports]
+
         image_processor = self.modular_pipe.image_processor
         if isinstance(image.image, torch.Tensor):
             height = image.image.shape[-2]
@@ -415,6 +426,10 @@ class LatentPipelineDriver(ABC):
         ``latent.source_shape`` but can be overridden by setting kwargs; useful when the
         dimensions differ from the source (e.g. pipeline expects specific resolution).
         """
+        from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
+            ModularPipeline,
+        )
+
         if isinstance(self.pipe, ModularPipeline):
             raise NotImplementedError(
                 "denoise_latent is not implemented for ModularPipelines. Subclasses should implement this method for modular pipeline."

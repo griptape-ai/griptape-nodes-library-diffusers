@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import pickle
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
-import torch  # type: ignore[reportMissingImports]
 from griptape.artifacts.base_artifact import BaseArtifact
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[reportMissingImports]
 
 
 class LatentArtifact(BaseArtifact):
@@ -94,6 +96,8 @@ class LatentArtifact(BaseArtifact):
         device: str | torch.device | None = None,
         dtype: torch.dtype | None = None,
     ) -> torch.Tensor:
+        import torch  # type: ignore[reportMissingImports]
+
         local_tensor = getattr(self, "_local_tensor", None)
         if local_tensor is None:
             return torch.Tensor()

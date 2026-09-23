@@ -1,8 +1,8 @@
-import logging
-from typing import Any
+from __future__ import annotations
 
-import diffusers  # type: ignore[reportMissingImports]
-import torch  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any
+
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
@@ -10,11 +10,14 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
     ModularDiffusionPipelineTypePipelineParameters,
 )
 
+if TYPE_CHECKING:
+    import diffusers  # type: ignore[reportMissingImports]
+
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class StableDiffusion3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-    _pipeline_cls = diffusers.StableDiffusion3Img2ImgPipeline  # type: ignore[reportAttributeAccessIssue]
+    _pipeline_cls_path = "diffusers:StableDiffusion3Img2ImgPipeline"
     text_conditioning_target_dim_key = "joint_attention_dim"
 
     @classmethod
@@ -65,8 +68,10 @@ class StableDiffusion3PipelineParameters(ModularDiffusionPipelineTypePipelinePar
     def _build_pipeline_from_repo(
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> diffusers.StableDiffusion3Img2ImgPipeline:  # type: ignore[reportAttributeAccessIssue]
+        import torch  # type: ignore[reportMissingImports]
+
         repo_id = build_data["base_repo_id"]
-        return cls._pipeline_cls.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
+        return cls.pipeline_cls().from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=repo_id,
             revision=build_data["revision"],
             torch_dtype=torch.bfloat16,

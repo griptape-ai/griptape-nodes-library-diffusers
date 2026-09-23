@@ -1,11 +1,8 @@
-import logging
-from typing import Any
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers import ComponentsManager, ModularPipeline  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.minimax_h3.modular_pipeline import (  # type: ignore[reportMissingImports]
-    MiniMaxH3ModularPipeline,
-)
+import logging
+from typing import TYPE_CHECKING, Any
+
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
@@ -13,6 +10,9 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
     ModularDiffusionPipelineTypePipelineParameters,
 )
 from modular_diffusion_nodes_library.utils.torch_utils import get_best_device
+
+if TYPE_CHECKING:
+    from diffusers import ModularPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -23,7 +23,7 @@ AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN = "12GB"
 
 
 class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-    _pipeline_cls = MiniMaxH3ModularPipeline  # type: ignore[reportAttributeAccessIssue]
+    _pipeline_cls_path = "diffusers.modular_pipelines.minimax_h3.modular_pipeline:MiniMaxH3ModularPipeline"
 
     @classmethod
     def supports_build_from_overrides_only(cls) -> bool:
@@ -81,6 +81,9 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
     def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> ModularPipeline:  # type: ignore[reportAttributeAccessIssue]
         # `from_pretrained` resolves the component specs but loads no weights; `load_components`
         # fetches them. Only the `t2va` / `fl2va` half is touched, never `transformer_ref/`.
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers import ComponentsManager, ModularPipeline  # type: ignore[reportMissingImports]
+
         manager = ComponentsManager()
         pipe = ModularPipeline.from_pretrained(
             build_data["repo_id"],
@@ -98,6 +101,9 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> ModularPipeline:
         # `from_pretrained` resolves the component specs but loads no weights; `load_components`
         # fetches them. Only the `t2va` / `fl2va` half is touched, never `transformer_ref/`.
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers import ComponentsManager, ModularPipeline  # type: ignore[reportMissingImports]
+
         manager = ComponentsManager()
         pipe = ModularPipeline.from_pretrained(
             build_data["repo_id"],

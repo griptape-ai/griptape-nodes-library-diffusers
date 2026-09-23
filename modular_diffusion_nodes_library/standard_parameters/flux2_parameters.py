@@ -1,15 +1,18 @@
+from __future__ import annotations
+
 # Copied from diffusers_nodes_library/common/parameters/diffusion/flux2/flux2_parameters.py
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import diffusers  # type: ignore[reportMissingImports]
-import torch  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
 )
+
+if TYPE_CHECKING:
+    import diffusers  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -22,7 +25,7 @@ FLUX_2_REPO_IDS = [*QUANTIZED_FLUX_2_REPO_IDS, "black-forest-labs/FLUX.2-dev", "
 
 
 class Flux2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-    _pipeline_cls = diffusers.Flux2Pipeline  # type: ignore[reportAttributeAccessIssue]
+    _pipeline_cls_path = "diffusers:Flux2Pipeline"
     latent_packing_ratio = 4
     text_conditioning_target_dim_key = "joint_attention_dim"
     # Flux.2 conditions on a concat of 3 text-encoder hidden-state layers, so
@@ -76,6 +79,9 @@ class Flux2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     def _build_pipeline_from_repo(
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> diffusers.Flux2Pipeline:  # type: ignore[reportAttributeAccessIssue]
+        import diffusers  # type: ignore[reportMissingImports]
+        import torch  # type: ignore[reportMissingImports]
+
         return diffusers.Flux2Pipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],

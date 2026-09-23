@@ -5,17 +5,21 @@ imports reach transitively has to be installed in the edit-time environment. Hea
 reaching it is what forces `torch` and friends into `pip_dependencies`, which costs a second
 multi-gigabyte install and puts every library's copy of a shared package on one `sys.path`.
 
-Run from the library root. Exits non-zero if any heavy package is reachable.
+This imports the node modules and inspects `sys.modules` rather than walking the AST. A static
+walk cannot see an import-time function call that loads a pipeline class, and reports a module
+imported as `from package import submodule` as a reference to `package` alone -- both produced
+false greens while three node modules were in fact unimportable without diffusers.
+
+Run from the library root, in the full environment. Exits non-zero if any heavy package is reached.
 """
 
 from __future__ import annotations
 
-import ast
+import importlib
 import pathlib
 import sys
 
 PACKAGE = "modular_diffusion_nodes_library"
-ROOT = pathlib.Path(PACKAGE)
 
 # Packages that belong in the execution environment only.
 HEAVY = frozenset(
@@ -27,13 +31,11 @@ HEAVY = frozenset(
         "diffusers",
         "ftfy",
         "gguf",
-        "huggingface_hub",
+        "Imath",
         "matplotlib",
-        "numpy",
-        "openexr",
+        "OpenEXR",
         "optimum",
         "peft",
-        "PIL",
         "safetensors",
         "sam2",
         "scipy",
@@ -48,69 +50,46 @@ HEAVY = frozenset(
 )
 
 
-def module_to_path(module: str) -> pathlib.Path | None:
-    """The file a dotted module name resolves to inside this library, or None."""
-    direct = ROOT.parent / (module.replace(".", "/") + ".py")
-    if direct.exists():
-        return direct
-    package_init = ROOT.parent / module.replace(".", "/") / "__init__.py"
-    if package_init.exists():
-        return package_init
-    return None
-
-
-def imports_executed_at_import_time(path: pathlib.Path) -> set[str]:
-    """Modules this file imports when it is imported.
-
-    Only module-scope imports count. An import inside a function body runs when that function
-    is called, and a `TYPE_CHECKING` block never runs at all, so neither reaches edit time.
-    """
-    try:
-        tree = ast.parse(path.read_text())
-    except SyntaxError:
-        return set()
-
-    modules: set[str] = set()
-    for node in tree.body:
-        if isinstance(node, ast.If) and "TYPE_CHECKING" in ast.dump(node.test):
-            continue
-        if isinstance(node, ast.Import):
-            modules.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-            modules.add(node.module)
-    return modules
-
-
 def main() -> int:
-    seeds = [path for path in (ROOT / "nodes").glob("*.py") if path.stem != "__init__"]
+    root = pathlib.Path(PACKAGE)
+    seeds = sorted(path.stem for path in (root / "nodes").glob("*.py") if path.stem != "__init__")
     if not seeds:
-        print(f"No node modules found under {ROOT / 'nodes'}; run this from the library root.")
+        print(f"No node modules found under {root / 'nodes'}; run this from the library root.")
         return 2
 
-    visited: set[pathlib.Path] = set()
-    queue = list(seeds)
-    external: set[str] = set()
-    while queue:
-        path = queue.pop()
-        if path in visited:
-            continue
-        visited.add(path)
-        for module in imports_executed_at_import_time(path):
-            if module.startswith(PACKAGE):
-                resolved = module_to_path(module)
-                if resolved is not None and resolved not in visited:
-                    queue.append(resolved)
-            else:
-                external.add(module.split(".")[0])
+    sys.path.insert(0, str(pathlib.Path.cwd()))
+    importlib.import_module("griptape_nodes")
+    baseline = {name.split(".")[0] for name in sys.modules}
 
-    reachable_heavy = sorted(external & HEAVY)
-    print(f"node modules:            {len(seeds)}")
-    print(f"files reached at import:  {len(visited)}")
-    print(f"heavy packages reached:   {reachable_heavy or 'none'}")
+    failed: list[str] = []
+    for stem in seeds:
+        try:
+            importlib.import_module(f"{PACKAGE}.nodes.{stem}")
+        except Exception as exc:  # noqa: BLE001 - any failure here is a reportable defect
+            failed.append(f"{stem}: {type(exc).__name__}: {exc}")
 
+    reached = {name.split(".")[0] for name in sys.modules} - baseline
+    reachable_heavy = sorted(reached & HEAVY)
+    stdlib = set(sys.stdlib_module_names)
+    third_party = sorted(n for n in reached - {PACKAGE} if not n.startswith("_") and n not in stdlib)
+
+    print(f"node modules imported:   {len(seeds) - len(failed)}/{len(seeds)}")
+    print(f"heavy packages reached:  {reachable_heavy or 'none'}")
+    print(f"third-party reached:     {len(third_party)}")
+
+    if failed:
+        print("\nThese node modules did not import:")
+        for entry in failed:
+            print(f"  {entry}")
     if reachable_heavy:
-        print("\nEach of these must be installed in the edit-time environment. To find the path that")
-        print("reaches one, grep for its module-scope import and follow the importer chain.")
+        print("\nEach of these must be installed in the edit-time environment. Move the import into")
+        print("the function that uses it, or into a `TYPE_CHECKING` block if it is only an annotation.")
+    if not failed and not reachable_heavy:
+        print("\nEdit-time third-party packages (all must be provided by the engine):")
+        for name in third_party:
+            print(f"  {name}")
+
+    if failed or reachable_heavy:
         return 1
     return 0
 

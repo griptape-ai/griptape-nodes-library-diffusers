@@ -7,10 +7,7 @@ import logging
 from abc import ABC, abstractmethod
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
-from typing import Any
-
-from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+from typing import TYPE_CHECKING, Any
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_build_steps import (
     ApplyOptimizationStep,
@@ -22,6 +19,10 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_build_steps import 
 )
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_runtime_adapter_step import PipelineRuntimeAdapterStep
+
+if TYPE_CHECKING:
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 

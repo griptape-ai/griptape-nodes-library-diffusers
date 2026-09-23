@@ -1,16 +1,11 @@
-import logging
-from typing import Any, ClassVar, cast, override
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers import LTXConditionPipeline  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar, cast, override
+
 from diffusers.modular_pipelines.ltx.before_denoise import (  # type: ignore[reportMissingImports]
     LTXPrepareLatentsStep,
     LTXSetTimestepsStep,
-)
-from diffusers.modular_pipelines.ltx.decoders import LTXVaeDecoderStep  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.ltx.modular_blocks_ltx import (  # type: ignore[reportMissingImports]
-    LTXAutoBlocks,
-    LTXAutoVaeEncoderStep,
 )
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
@@ -18,15 +13,6 @@ from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[repor
     PipelineState,
     SequentialPipelineBlocks,
 )
-from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
-    ComponentSpec,
-    InputParam,
-    OutputParam,
-)
-from diffusers.pipelines.ltx.pipeline_ltx_condition import LTXVideoCondition  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-from diffusers.schedulers import FlowMatchEulerDiscreteScheduler  # type: ignore[reportMissingImports]
-from diffusers.video_processor import VideoProcessor  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -49,6 +35,18 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     resolve_frame_index,
 )
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
+from modular_diffusion_nodes_library.utils.torch_utils import no_grad
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.modular_pipelines.modular_pipeline_utils import (
+        ComponentSpec,  # type: ignore[reportMissingImports]
+        InputParam,  # type: ignore[reportMissingImports]
+        OutputParam,  # type: ignore[reportMissingImports]
+    )
+    from diffusers.pipelines.ltx.pipeline_ltx_condition import LTXVideoCondition  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+    from diffusers.schedulers import FlowMatchEulerDiscreteScheduler  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -81,12 +79,14 @@ class LTXSetTimestepsWithStrengthStep(ModularPipelineBlocks):
 
     @property
     def intermediate_outputs(self) -> list[OutputParam]:
+        import torch  # type: ignore[reportMissingImports]
+
         return [
             OutputParam("timesteps", type_hint=torch.Tensor),
             OutputParam("num_inference_steps", type_hint=int),
         ]
 
-    @torch.no_grad()
+    @no_grad
     def __call__(self, components, state: PipelineState):
         block_state = cast(Any, self.get_block_state(state))
 
@@ -117,10 +117,19 @@ class LTXScaleNoiseStep(ModularPipelineBlocks):
 
     @property
     def expected_components(self) -> list[ComponentSpec]:
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            ComponentSpec,
+        )
+        from diffusers.schedulers import FlowMatchEulerDiscreteScheduler  # type: ignore[reportMissingImports]
+
         return [ComponentSpec("scheduler", FlowMatchEulerDiscreteScheduler)]
 
     @property
     def inputs(self) -> list[InputParam]:
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            InputParam,
+        )
+
         return [
             InputParam("latents", required=True),
             InputParam("image_latents", required=True),
@@ -129,10 +138,16 @@ class LTXScaleNoiseStep(ModularPipelineBlocks):
 
     @property
     def intermediate_outputs(self) -> list[OutputParam]:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            OutputParam,
+        )
+
         return [OutputParam("latents", type_hint=torch.Tensor)]
 
-    @torch.no_grad()
+    @no_grad
     def __call__(self, components, state: PipelineState):
+
         block_state = cast(Any, self.get_block_state(state))
 
         latent_timestep = block_state.timesteps[:1].repeat(block_state.latents.shape[0])
@@ -193,6 +208,10 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
+        from diffusers.modular_pipelines.ltx.modular_blocks_ltx import (  # type: ignore[reportMissingImports]
+            LTXAutoBlocks,
+        )
+
         return LTXAutoBlocks().init_pipeline()
 
     @classmethod
@@ -235,6 +254,8 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         Returns unpacked 5D latent ``[B, C, T, H, W]``.
         The block produces packed latents; we unpack before returning.
         """
+        import torch  # type: ignore[reportMissingImports]
+
         num_frames, height, width = source_shape[-3], source_shape[-2], source_shape[-1]
         generator = generator_state.to_generator()
         output_state = self._call_block(
@@ -268,6 +289,8 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         so the scheduler computes the correct timestep from strength
         and calls scale_noise internally.
         """
+        import torch  # type: ignore[reportMissingImports]
+
         device, dtype = self._get_device_and_type()
         source_shape = latent.source_shape
         latents = latent.to_torch(device=device, dtype=dtype)
@@ -301,6 +324,8 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
     @override
     def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
         """Decode a 5D video latent and return frames as PIL images."""
+        from diffusers.modular_pipelines.ltx.decoders import LTXVaeDecoderStep  # type: ignore[reportMissingImports]
+
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
 
@@ -327,6 +352,12 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         """Encode an image or video into a 5D latent ``[B, C, T, H, W]``."""
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.ltx.modular_blocks_ltx import (  # type: ignore[reportMissingImports]
+            LTXAutoVaeEncoderStep,
+        )
+        from diffusers.video_processor import VideoProcessor  # type: ignore[reportMissingImports]
+
         generator = generator_state.to_generator()
         if isinstance(media, ImageMedia):
             output_state = self._call_block(LTXAutoVaeEncoderStep(), image=media.image, generator=generator)
@@ -372,6 +403,8 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
 
         Pre-packs the latent (or swaps to LTXConditionPipeline) before delegating to base.
         """
+        from diffusers import LTXConditionPipeline  # type: ignore[reportMissingImports]
+
         source_shape = latent.source_shape
 
         media_gen_conditioning_payloads = normalize_to_payloads(kwargs.pop(MediaGenConditioningKey.OUTPUT, None))
@@ -436,6 +469,10 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         latents_source_shape: tuple[int, ...],
     ) -> list[LTXVideoCondition]:
         """Convert typed conditioning payloads into LTXVideoCondition objects."""
+        from diffusers.pipelines.ltx.pipeline_ltx_condition import (
+            LTXVideoCondition,  # type: ignore[reportMissingImports]
+        )
+
         video_condition_list: list[LTXVideoCondition] = []
         num_frames = latents_source_shape[-3]
         for payload in media_gen_conditioning_payloads:

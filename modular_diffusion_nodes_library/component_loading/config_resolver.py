@@ -22,11 +22,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-import diffusers  # type: ignore[reportMissingImports]
-from diffusers.loaders.single_file_model import SINGLE_FILE_LOADABLE_CLASSES  # type: ignore[reportMissingImports]
-from diffusers.loaders.single_file_utils import DIFFUSERS_DEFAULT_PIPELINE_PATHS  # type: ignore[reportMissingImports]
-from huggingface_hub import try_to_load_from_cache
-
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 HF_REPO_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+$")
@@ -60,6 +55,8 @@ def resolve_hf_repo_config_subfolder(
     Returns ``""`` when the file is at the repo root.
     Candidates are tried in the order produced by ``_subfolder_candidates``.
     """
+    from huggingface_hub import try_to_load_from_cache
+
     for subfolder in _subfolder_candidates(pipeline_slot, artifact_component):
         filename = config_filename if not subfolder else f"{subfolder}/{config_filename}"
         if isinstance(try_to_load_from_cache(repo_id, filename=filename, revision=revision), str):
@@ -74,6 +71,8 @@ def is_hf_config_cached(
     revision: str | None = None,
 ) -> bool:
     """Return True when ``config_filename`` is present in the warm HF cache at ``subfolder``."""
+    from huggingface_hub import try_to_load_from_cache
+
     filename = f"{subfolder}/{config_filename}" if subfolder else config_filename
     return isinstance(try_to_load_from_cache(repo_id, filename=filename, revision=revision), str)
 
@@ -98,6 +97,9 @@ def loadable_class_name(component_cls: type) -> str | None:
     loadable (e.g. a project-local subclass of ``FluxTransformer2DModel``)
     resolves to its registered ancestor.
     """
+    import diffusers  # type: ignore[reportMissingImports]
+    from diffusers.loaders.single_file_model import SINGLE_FILE_LOADABLE_CLASSES  # type: ignore[reportMissingImports]
+
     for name in SINGLE_FILE_LOADABLE_CLASSES:
         loadable_cls = getattr(diffusers, name, None)
         if loadable_cls is not None and issubclass(component_cls, loadable_cls):
@@ -132,6 +134,10 @@ def resolve_config_path(
         when ``pipeline_slot`` is ``"text_encoder_2"``). Used as a secondary
         subfolder candidate.
     """
+    from diffusers.loaders.single_file_utils import (
+        DIFFUSERS_DEFAULT_PIPELINE_PATHS,  # type: ignore[reportMissingImports]
+    )
+    from huggingface_hub import try_to_load_from_cache
 
     config_filename = ""
 

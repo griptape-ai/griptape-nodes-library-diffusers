@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import torch  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import DataNode
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
@@ -70,6 +69,8 @@ class SaveLatentTensorNode(DataNode):
         return exceptions if exceptions else None
 
     def process(self) -> None:
+        import torch  # type: ignore[reportMissingImports]
+
         latent_artifact = self.get_parameter_value("latent_tensor")
         file_path = self.get_parameter_value("file_path")
 

@@ -1,11 +1,7 @@
-import logging
-from typing import Any, ClassVar, override
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.hunyuan_video1_5.encoders import (  # type: ignore[reportMissingImports]
-    HunyuanVideo15VaeEncoderStep,
-)
-from PIL.Image import Image, Resampling
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar, override
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -27,6 +23,9 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
 )
 from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult
 
+if TYPE_CHECKING:
+    from PIL.Image import Image  # type: ignore[reportMissingImports]
+
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
@@ -36,6 +35,11 @@ class HunyuanVideo15ImageToVideoLatentPipelineDriver(HunyuanVideo15TextToVideoLa
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.hunyuan_video1_5.encoders import (  # type: ignore[reportMissingImports]
+            HunyuanVideo15VaeEncoderStep,
+        )
+
         if isinstance(media, VideoMedia):
             resized_height, resized_width = self._get_resize_dimensions(media.source_shape[-2], media.source_shape[-1])
             resized_frames = [frame.resize((resized_width, resized_height)) for frame in media.frames]
@@ -65,6 +69,8 @@ class HunyuanVideo15ImageToVideoLatentPipelineDriver(HunyuanVideo15TextToVideoLa
 
     @override
     def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
+        from PIL.Image import Resampling
+
         frames = super().decode_latent(latent)
         source_shape = latent.source_shape
         output_frames = [frame.resize((source_shape[-1], source_shape[-2]), Resampling.LANCZOS) for frame in frames]  # type: ignore[reportGeneralTypeIssues]
