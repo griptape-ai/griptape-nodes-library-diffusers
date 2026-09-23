@@ -57,15 +57,8 @@ version/publish: ## Create and push git tags.
 	git push -f origin stable
 
 .PHONY: deps/sync
-deps/sync: ## Sync pip_dependencies in the library JSON from pyproject.toml.
-	@uv run python -c "\
-import tomllib, json; \
-pyproject = tomllib.load(open('pyproject.toml', 'rb')); \
-deps = [d for d in pyproject['project']['dependencies'] if not d.startswith('griptape-nodes')]; \
-lib = json.load(open('$(LIBRARY_JSON)')); \
-lib['metadata'].setdefault('dependencies', {})['pip_dependencies'] = deps; \
-open('$(LIBRARY_JSON)', 'w').write(json.dumps(lib, indent=4) + '\n'); \
-print(f'Synced {len(deps)} dependencies to $(LIBRARY_JSON)')"
+deps/sync: ## Sync pip_dependencies and pip_dependencies_exec in the library JSON from pyproject.toml.
+	@uv run python scripts/sync_dependencies.py
 
 .PHONY: install
 install: ## Install all dependencies.

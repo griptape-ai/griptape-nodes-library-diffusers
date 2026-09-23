@@ -44,6 +44,19 @@ dependencies = [
     "openexr>=3.3.0",
 ]
 
+[tool.griptape-nodes]
+# The subset of `[project] dependencies` that the orchestrator needs in order to import every
+# module under `nodes/` and build the node classes. Everything else above is only reachable once a
+# node runs, so it is published as `pip_dependencies_exec` and installed into the worker's
+# execution venv instead of onto the orchestrator's shared `sys.path`.
+#
+# `scripts/check_edit_time_imports.py` is the gate on this list: it imports every node module and
+# fails if a heavy package is reached. Adding an entry here is almost always the wrong fix for that
+# failure -- move the import into the function that uses it instead.
+edit-time-dependencies = [
+    "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
