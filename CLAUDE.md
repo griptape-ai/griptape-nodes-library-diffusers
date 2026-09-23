@@ -15,7 +15,7 @@ It is consumed by the [`griptape-nodes`](../griptape-nodes) engine, which loads 
 All development is uv-backed. Run these directly from the repo root:
 
 ```bash
-uv sync --all-groups --all-extras            # install deps
+uv sync --all-groups                         # install deps (edit-time only, on purpose)
 uv run ruff format --check                   # check formatting
 uv run ruff check .                          # check linting
 uv run ruff format                           # auto-format
@@ -111,7 +111,9 @@ Prefer verifiable goals ("write a failing test for X, then make it pass") over i
 - **A node's `__init__` must not reach a pipeline class either.** Deferring an import only helps if nothing calls it at edit time, and the orchestrator constructs every node class to show it in the editor. Anything derived from a pipeline's `__init__` signature is a fact about the pinned diffusers: declare it per pipeline type and pin it with a test. `_component_slots` on [`modular_pipeline_type_parameters.py`](modular_diffusion_nodes_library/parameters/modular_pipeline_type_parameters.py) plus [tests/test_component_slots.py](tests/test_component_slots.py) is the precedent.
 - Circular imports remain the other reason to import inside a function. When that is the reason, say so in a comment naming the cycle.
 
-`uv run python scripts/check_edit_time_imports.py` is the gate: it imports every node module **and constructs every node class**, then fails if a heavy package was reached. Run it after touching imports or a node's `__init__`. Run it in the full environment — with the heavy packages installed, so an accidental import is recorded rather than crashing.
+**Two environments, on purpose.** `uv sync` installs only the edit-time set, because the engine splices that environment onto the orchestrator's `sys.path` — so a dev orchestrator behaves like a real one and a heavy package reaching it fails here too. The execution set is the `exec` extra; `make test/exec` builds a separate `.venv-test-exec` for the tests that read real diffusers or torch objects. Never add a heavy package to `[project] dependencies`: `scripts/sync_dependencies.py` refuses, and `.venv` is what the orchestrator gets.
+
+`uv run python scripts/check_edit_time_imports.py` is the gate: it imports every node module **and constructs every node class**, then fails if a heavy package was reached. Run it after touching imports or a node's `__init__`. It is worth running in both environments — on `.venv` a reach fails the way a real orchestrator would, and on the exec venv `sys.modules` catches a reach that would otherwise succeed silently. It does not wire a pipeline into a node, so validation and dynamic-parameter code is outside its reach.
 
 ## Exception Handling
 

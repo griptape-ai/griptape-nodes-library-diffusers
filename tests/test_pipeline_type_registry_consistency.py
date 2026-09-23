@@ -9,6 +9,13 @@ environment, and the registry is reached whenever the orchestrator imports a nod
 
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip(
+    "diffusers",
+    reason="Reads real diffusers classes; run `make test/exec` for the execution environment.",
+)
+
 from diffusers.loaders.single_file_utils import DIFFUSERS_DEFAULT_PIPELINE_PATHS  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import MODEL_TYPE_TO_PIPELINE_TYPE

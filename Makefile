@@ -1,6 +1,7 @@
 SHELL := /bin/bash
 
 LIBRARY_JSON := griptape-nodes-library.json
+EXEC_TEST_VENV := .venv-test-exec
 
 .PHONY: version/get
 version/get: ## Get version.
@@ -119,6 +120,13 @@ test: ## Run all tests.
 .PHONY: test/unit
 test/unit: ## Run unit tests (everything except workflow tests).
 	@uv run pytest tests --ignore=tests/workflows
+
+.PHONY: test/exec
+test/exec: ## Run the tests that need the execution environment (diffusers, torch).
+	@# A separate venv on purpose: .venv is the edit-time environment the engine splices onto the
+	@# orchestrator, and fattening it would hide exactly the bugs that separation exists to expose.
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv sync --extra exec --all-groups
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv run pytest tests --ignore=tests/workflows
 
 .PHONY: test/workflows
 test/workflows: ## Run workflow tests.

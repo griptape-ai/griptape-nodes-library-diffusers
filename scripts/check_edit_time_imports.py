@@ -15,8 +15,17 @@ Two things this checks, because each caught a real failure the other could not:
   classes reached diffusers through `get_component_slots()`, which read the pipeline's `__init__`
   signature -- 1730 heavy imports that an import-only check is structurally blind to.
 
-Run from the library root, in the full environment: heavy packages must be installed, or an
-accidental import fails loudly instead of being recorded here.
+Run from the library root, in either environment, because they catch different things:
+
+- In the **edit-time** venv (`.venv`, what `uv sync` builds and the engine splices onto the
+  orchestrator) a reach fails as an `ImportError` and is reported as a module or class that did not
+  load. That is the same failure a real orchestrator would hit.
+- In the **execution** venv (`make test/exec`) the heavy packages are installed, so a reach succeeds
+  and would go unnoticed except that `sys.modules` records it.
+
+Neither catches a reach on a path this script does not exercise: it imports the modules and builds the
+classes, but it does not wire a pipeline into a node. Validation and dynamic-parameter code that only
+runs once a connection exists is outside its reach.
 """
 
 from __future__ import annotations

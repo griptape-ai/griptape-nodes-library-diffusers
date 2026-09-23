@@ -16,10 +16,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import PIL.Image
 import pytest
-import torch
-from griptape.artifacts import ImageUrlArtifact
+
+pytest.importorskip("torch", reason="Reads real torch tensors; run `make test/exec` for the execution environment.")
+
+import PIL.Image  # noqa: E402
+import torch  # noqa: E402
+from griptape.artifacts import ImageUrlArtifact  # noqa: E402
 
 from modular_diffusion_nodes_library.latent_pipeline_drivers.wan_vace import (
     WanVaceLatentPipelineDriver,
@@ -33,6 +36,12 @@ from modular_diffusion_nodes_library.parameters.media_gen_conditioning.condition
     MediaGenConditioningPayload,
 )
 from modular_diffusion_nodes_library.utils.conditioning_utils import ConditioningMode
+
+pytest.importorskip(
+    "torch",
+    reason="Reads real diffusers classes; run `make test/exec` for the execution environment.",
+)
+
 
 # 49 frames at 1280x720 through a WAN VAE: 13 latent frames, 45x80 latent grid.
 _LATENT_FRAMES = 13

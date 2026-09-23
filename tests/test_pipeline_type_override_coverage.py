@@ -19,6 +19,11 @@ from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import (
     MODULAR_PIPELINE_TYPE_PROVIDER_MAP,
 )
 
+pytest.importorskip(
+    "diffusers",
+    reason="Reads real diffusers classes; run `make test/exec` for the execution environment.",
+)
+
 
 def _pipeline_type_classes() -> list[tuple[str, type]]:
     cases = []
