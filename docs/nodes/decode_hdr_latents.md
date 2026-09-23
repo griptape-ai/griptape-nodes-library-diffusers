@@ -31,7 +31,7 @@ Generate Media Latents → [Decode HDR Latents] → Save Image / Save Video
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `output_image` | `ImageArtifact` | Tone-mapped image. Shown for image pipelines. |
+| `output_image` | `ImageUrlArtifact` | Tone-mapped image. Shown for image pipelines. |
 | `output_video` | `VideoUrlArtifact` | Tone-mapped MP4 video. Shown for video pipelines. |
 | `logs` | str | Per-frame EXR write log. Populated only when `exr_output_folder` is set. |
 

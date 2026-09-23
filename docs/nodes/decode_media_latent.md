@@ -29,7 +29,7 @@ Generate Media Latents → [Decode Media Latent] → Save Image / Save Video
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `output_image` | `ImageArtifact` | For image pipelines. |
+| `output_image` | `ImageUrlArtifact` | For image pipelines. |
 | `output_video` | `VideoUrlArtifact` | For video pipelines. |
 
 ## Parameters
@@ -42,7 +42,7 @@ Generate Media Latents → [Decode Media Latent] → Save Image / Save Video
 
 | Provider | Behavior |
 | --- | --- |
-| Image pipelines | `output_image` as an `ImageArtifact`. |
+| Image pipelines | `output_image` as an `ImageUrlArtifact`. |
 | LTX, WAN, HunyuanVideo 1.5 | `output_video` as a silent MP4 at `fps`. |
 | LTX2 (base, video-conditioning, IC-LoRA) | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. The HDR IC-LoRA path (`Decode HDR Latents`) never produces audio. |
 | MiniMax-H3 | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. `fps` defaults to the model's fixed **24** — changing it desynchronises the soundtrack, since the audio is muxed at its own true sample rate. |
