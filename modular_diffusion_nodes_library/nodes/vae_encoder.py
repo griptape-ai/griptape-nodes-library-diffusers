@@ -13,7 +13,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DiffusionPipelineArtifact,
     normalize_diffusion_pipeline_value,
 )
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_spec
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     GeneratorState,
     ImageMedia,
@@ -134,11 +134,13 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             self.after_value_set(parameter, value)
 
     def _update_input_parameter(self) -> None:
-        driver_cls = get_driver_class(self.pipe_params.get_pipeline_class())
-        if driver_cls is None:
+        # The declared spec rather than the driver class: this runs on the orchestrator, where
+        # importing a driver would pull in the execution environment.
+        driver_spec = get_driver_spec(self.pipe_params.get_pipeline_class())
+        if driver_spec is None:
             return
 
-        if driver_cls.produces_video:
+        if driver_spec.produces_video:
             new_input_type = "video"
         else:
             new_input_type = "image"
@@ -188,25 +190,28 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         if self._current_input_type == "video":
             if self.get_parameter_value("input_video") is None:
                 errors.append(ValueError("Missing required 'input_video' input."))
-            else:
-                dimension_result = self._update_compatibility_message(build_if_needed=True)
-                auto_resize = GriptapeNodes.ConfigManager().get_config_value(
-                    "modular_diffusion_library.enable_auto_resize"
-                )
-                if dimension_result is not None and not auto_resize and dimension_result.message:
-                    errors.append(ValueError(dimension_result.message))
-        else:
-            if self.get_parameter_value("image") is None:
-                errors.append(ValueError("Missing required 'image' input."))
-            else:
-                dimension_result = self._update_compatibility_message(build_if_needed=True)
-                auto_resize = GriptapeNodes.ConfigManager().get_config_value(
-                    "modular_diffusion_library.enable_auto_resize"
-                )
-                if dimension_result is not None and not auto_resize and dimension_result.message:
-                    errors.append(ValueError(dimension_result.message))
+        elif self.get_parameter_value("image") is None:
+            errors.append(ValueError("Missing required 'image' input."))
 
         return errors or None
+
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Check the requested dimensions against the real pipeline.
+
+        `_update_compatibility_message` builds the pipeline to read its alignment requirements, so it
+        belongs in the process that holds the execution environment -- on the orchestrator it would
+        either fail to import diffusers or load a second multi-gigabyte copy of the model. When
+        auto-resize is on, the node adjusts at run time instead of refusing here.
+        """
+        media = "input_video" if self._current_input_type == "video" else "image"
+        if self.get_parameter_value(media) is None:
+            return None
+
+        dimension_result = self._update_compatibility_message(build_if_needed=True)
+        auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
+        if dimension_result is not None and not auto_resize and dimension_result.message:
+            return [ValueError(dimension_result.message)]
+        return None
 
     def process(self) -> AsyncResult:
         self._clear_execution_status()
@@ -297,7 +302,7 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             return None
 
         pipeline_class = self.pipe_params.get_pipeline_class()
-        if get_driver_class(pipeline_class) is None:
+        if get_driver_spec(pipeline_class) is None:
             self._set_compatibility_message(None)
             return None
 

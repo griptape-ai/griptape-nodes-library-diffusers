@@ -13,7 +13,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DiffusionPipelineArtifact,
     normalize_diffusion_pipeline_value,
 )
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_spec
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import GeneratorState
 from modular_diffusion_nodes_library.mixins.parameter_connection_preservation_mixin import (
     ParameterConnectionPreservationMixin,
@@ -112,8 +112,8 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
 
         # hide num_frames parameter if the pipeline doesn't produce video
         if param_name == "pipeline":
-            latent_pipeline_driver = get_driver_class(self.pipe_params.get_pipeline_class())
-            if latent_pipeline_driver and latent_pipeline_driver.produces_video:
+            driver_spec = get_driver_spec(self.pipe_params.get_pipeline_class())
+            if driver_spec is not None and driver_spec.produces_video:
                 self.show_parameter_by_name("num_frames")
             else:
                 self.hide_parameter_by_name("num_frames")
@@ -153,6 +153,16 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         if result is not None:
             return result
 
+        return None
+
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Check the requested dimensions against the real pipeline.
+
+        `_update_compatibility_message` builds the pipeline to read its alignment requirements, so it
+        belongs in the process that holds the execution environment -- on the orchestrator it would
+        either fail to import diffusers or load a second multi-gigabyte copy of the model. When
+        auto-resize is on, the node adjusts at run time instead of refusing here.
+        """
         dimension_result = self._update_compatibility_message(build_if_needed=True)
         auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
         if dimension_result is not None and not auto_resize and dimension_result.message:
@@ -166,7 +176,7 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
             return None
 
         pipeline_class = self.pipe_params.get_pipeline_class()
-        if get_driver_class(pipeline_class) is None:
+        if get_driver_spec(pipeline_class) is None:
             self._set_compatibility_message(None)
             return None
 

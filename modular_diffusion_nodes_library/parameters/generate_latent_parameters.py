@@ -20,7 +20,11 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DiffusionPipelineArtifact,
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import (
+    create_driver,
+    get_driver_class,
+    get_driver_spec,
+)
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     DecodeOutput,
     DecodeResult,
@@ -448,7 +452,13 @@ class DiffusionPipelineGenerateLatentParameters:
 
             pipe_kwargs[key] = [existing_value, value]
 
-    def validate_before_node_run(self) -> list[Exception] | None:
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Checks that need the real latent and the real driver.
+
+        `input_latent` holds a tensor the producing process is keeping, so reading it anywhere else
+        raises; `validate_run_configuration` is a driver classmethod, so reaching it imports diffusers.
+        Both are only answerable where the node runs.
+        """
         if self._node.get_parameter_by_name("input_latent") is not None:
             input_latent_artifact = self._node.get_parameter_value("input_latent")
             if input_latent_artifact is None:
@@ -486,4 +496,4 @@ class DiffusionPipelineGenerateLatentParameters:
 
     @staticmethod
     def validate_pipeline_class(pipeline_class: str | None) -> bool:
-        return get_driver_class(pipeline_class) is not None
+        return get_driver_spec(pipeline_class) is not None

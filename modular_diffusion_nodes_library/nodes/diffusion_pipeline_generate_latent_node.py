@@ -211,10 +211,6 @@ class DiffusionPipelineGenerateLatentNode(
         if result is not None:
             return result
 
-        result = self.latent_parameter.validate_before_node_run()
-        if result is not None:
-            return result
-
         input_pipeline = self.get_parameter_value("pipeline")
         control_net_parameters = self.latent_parameter.get_control_net_parameters()
         if not control_net_parameters and self.latent_parameter._is_control_net_pipeline(input_pipeline):
@@ -233,6 +229,14 @@ class DiffusionPipelineGenerateLatentNode(
             ]
 
         return self.pipe_params.runtime_parameters.validate_before_node_run()
+
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Checks that need the real latent and the real driver.
+
+        The input latent is a tensor the producing process is keeping, so it can only be inspected
+        where it lives, and the driver's own run-configuration check needs the driver class.
+        """
+        return self.latent_parameter.validate_in_execution_environment()
 
     def remove_parameter_element_by_name(self, element_name: str) -> None:
         # HACK: `node.remove_parameter_element_by_name` does not remove connections so we need to use the retained mode request which does.  # noqa: FIX004

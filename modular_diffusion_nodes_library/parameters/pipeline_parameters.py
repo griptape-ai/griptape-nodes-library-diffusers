@@ -7,7 +7,7 @@ from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_spec
 from modular_diffusion_nodes_library.runtime_parameters.ltx2_runtime_parameters import (
     LTX2PipelineRuntimeParameters,
 )
@@ -125,7 +125,7 @@ class ModularDiffusionPipelineParameters:
             ]
 
         pipeline_class = pipeline.pipeline_name
-        if get_driver_class(pipeline_class) is None:
+        if get_driver_spec(pipeline_class) is None:
             return [
                 ValueError(f"{node_name}: Pipeline class '{pipeline_class}' is not supported for latent generation.")
             ]

@@ -12,7 +12,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DiffusionPipelineArtifact,
     normalize_diffusion_pipeline_value,
 )
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class, get_driver_spec
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.controlnet_pipeline_builder_parameters import (
     LatentDiffusionPipelineBuilderControlNetParameter,
@@ -127,8 +127,7 @@ class ControlNetDiffusionPipelineBuilderNode(SuccessFailureExecutionMixin, Succe
         if result is not None:
             return result
 
-        driver_class = get_driver_class(pipeline_class)
-        if not driver_class:
+        if get_driver_spec(pipeline_class) is None:
             return [ValueError(f"{self.name}: No driver found for pipeline class: {pipeline_class}")]
 
         control_nets = self.controlnet_params.get_control_nets()
@@ -147,7 +146,21 @@ class ControlNetDiffusionPipelineBuilderNode(SuccessFailureExecutionMixin, Succe
                 )
             ]
 
-        control_net_models: list[str] = [control_net["model"] for control_net in control_nets]
+        return None
+
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Whether the driver accepts this ControlNet configuration.
+
+        Only the driver class can answer, and importing it pulls diffusers, so this cannot run on the
+        orchestrator. Everything answerable without the driver stays in `validate_before_node_run`.
+        """
+        pipeline_class = self._get_pipeline_class()
+        driver_class = get_driver_class(pipeline_class)
+        if driver_class is None:
+            return None
+
+        control_nets = self.controlnet_params.get_control_nets()
+        control_net_models: list[str] = [control_net["model"] for control_net in control_nets if "model" in control_net]
         if not driver_class.can_make_control_pipe_from_standard(control_net_models):
             return [
                 ValueError(

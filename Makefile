@@ -103,7 +103,10 @@ check/lint:
 
 .PHONY: check/types
 check/types:
-	@uv run pyright .
+	@# Type-checked against the execution environment, because that is where torch and diffusers are.
+	@# The default venv is the edit-time one, and pyright cannot resolve what is deliberately not there.
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv sync --extra exec --all-groups
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv run pyright .
 
 .PHONY: check/json
 check/json: ## Validate JSON files.
