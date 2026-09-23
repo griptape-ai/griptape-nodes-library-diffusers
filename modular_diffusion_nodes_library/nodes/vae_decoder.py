@@ -203,6 +203,27 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         if pipeline_errors is not None:
             errors.extend(pipeline_errors)
 
+        # Validate FPS parameter for video output
+        if self._current_output_type == "video":
+            fps = self.get_parameter_value("fps")
+            if fps is not None:
+                try:
+                    fps_int = int(fps)
+                    if fps_int <= 0:
+                        errors.append(ValueError(f"FPS must be a positive integer, got {fps_int}."))
+                except (ValueError, TypeError):
+                    errors.append(ValueError(f"FPS must be a valid integer, got {fps!r}."))
+
+        return errors or None
+
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Check the incoming latent.
+
+        The latent is held by the process that produced it, so reading it anywhere else raises -- which
+        means even asking whether it is connected has to happen here rather than on the orchestrator.
+        """
+        errors: list[Exception] = []
+
         latent_tensor = self.get_parameter_value("latent_tensor")
         if latent_tensor is None:
             errors.append(ValueError("Missing required 'latent_tensor' input."))
@@ -215,17 +236,6 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                     "Ensure the latent was created from an image or has image dimensions set."
                 )
             )
-
-        # Validate FPS parameter for video output
-        if self._current_output_type == "video":
-            fps = self.get_parameter_value("fps")
-            if fps is not None:
-                try:
-                    fps_int = int(fps)
-                    if fps_int <= 0:
-                        errors.append(ValueError(f"FPS must be a positive integer, got {fps_int}."))
-                except (ValueError, TypeError):
-                    errors.append(ValueError(f"FPS must be a valid integer, got {fps!r}."))
 
         return errors or None
 

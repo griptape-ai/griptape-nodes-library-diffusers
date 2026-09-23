@@ -91,7 +91,7 @@ fix: ## Fix project.
 	@uv run ruff check --fix --unsafe-fixes
 
 .PHONY: check
-check: check/format check/lint check/types check/json ## Run all checks.
+check: check/format check/lint check/types check/json check/worker-safe ## Run all checks.
 
 .PHONY: check/format
 check/format:
@@ -115,6 +115,10 @@ check/json: ## Validate JSON files.
 		! -path "./.venv/*" \
 		! -path "./node_modules/*" \
 		-exec sh -c 'jq empty "{}" > /dev/null 2>&1 || (echo "Invalid JSON: {}" && exit 1)' \;
+
+.PHONY: check/worker-safe
+check/worker-safe: ## Fail if node code reaches an engine manager it cannot have in a worker.
+	@uv run python scripts/check_worker_safe_managers.py
 
 .PHONY: test
 test: ## Run all tests.

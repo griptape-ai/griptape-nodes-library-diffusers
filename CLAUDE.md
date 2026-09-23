@@ -115,6 +115,25 @@ Prefer verifiable goals ("write a failing test for X, then make it pass") over i
 
 `uv run python scripts/check_edit_time_imports.py` is the gate: it imports every node module **and constructs every node class**, then fails if a heavy package was reached. Run it after touching imports or a node's `__init__`. It is worth running in both environments — on `.venv` a reach fails the way a real orchestrator would, and on the exec venv `sys.modules` catches a reach that would otherwise succeed silently. It does not wire a pipeline into a node, so validation and dynamic-parameter code is outside its reach.
 
+## Running in a worker
+
+A library whose nodes execute in a worker runs in two processes, and node code has to be written for
+both. Two rules, each with a gate:
+
+**Do not reach for an engine manager.** `GriptapeNodes.<Manager>()` raises during node execution in a
+worker: that process holds its own copy of the state, so an answer served locally would be silently
+wrong. Use `GriptapeNodes.handle_request(...)`, which routes to whichever process owns the state — the
+engine's error message names the request for each manager. `utils/config_utils.py` wraps the two config
+reads this library needs. A manager *construction*-time read is fine, because a worker builds its
+transient node before the guarded scope opens. `make check/worker-safe` fails on the rest.
+
+**Do not read a `serializable=False` parameter outside the process that produced it.** Those values are
+held where they were built and travel as a reference, so reading one elsewhere raises — including just
+checking whether it is set. Anything that inspects a latent, a loaded model, or a driver class belongs
+in `validate_in_execution_environment`, which runs where the node runs. `validate_before_node_run` keeps
+what the orchestrator can answer: declarations, plain values, graph shape. A worker's node is transient
+and has no connections, so a question about the graph is answerable *only* on the orchestrator.
+
 ## Exception Handling
 
 **CRITICAL: Only wrap code that actually raises exceptions** — Never add try/except speculatively:

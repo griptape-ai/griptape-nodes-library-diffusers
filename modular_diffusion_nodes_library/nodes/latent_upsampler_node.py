@@ -140,9 +140,6 @@ class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def validate_before_node_run(self) -> list[Exception] | None:
         errors: list[Exception] = []
 
-        if self.get_parameter_value("input_latent") is None:
-            errors.append(ValueError("Missing required 'input_latent' input."))
-
         if self.upsampler_params is not None:
             upsampler_errors = self.upsampler_params.validate_before_node_run()
             if upsampler_errors:
@@ -151,6 +148,16 @@ class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             errors.append(RuntimeError("Upsampler parameters are not initialized."))
 
         return errors or None
+
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Whether the incoming latent is there.
+
+        The latent is held by the process that produced it, so even asking whether it is connected has
+        to happen where it lives.
+        """
+        if self.get_parameter_value("input_latent") is None:
+            return [ValueError("Missing required 'input_latent' input.")]
+        return None
 
     def process(self) -> AsyncResult:
         self._clear_execution_status()

@@ -2,7 +2,7 @@
 
 import logging
 
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
+from griptape_nodes.retained_mode.managers.os_manager import OSManager
 
 from modular_diffusion_nodes_library.utils.config_utils import get_config_value, get_workspace_path
 
@@ -35,7 +35,11 @@ def check_cleanup_intermediates_directory() -> None:
         path = get_workspace_path() / static_files_directory / intermediates_directory
 
         max_size_gb = get_config_value("modular_diffusion_library.max_directory_size_gb")
-        GriptapeNodes.OSManager().cleanup_directory_if_needed(full_directory_path=path, max_size_gb=max_size_gb)
+        # `OSManager.cleanup_directory_if_needed` is a static method: it touches only the
+        # filesystem, which a worker shares, and holds none of the manager state the facade guard
+        # exists to protect. Imported directly because reaching it through the facade raises in a
+        # worker, and no request wraps it.
+        OSManager.cleanup_directory_if_needed(full_directory_path=path, max_size_gb=max_size_gb)
 
 
 def get_intermediates_directory_path() -> str:

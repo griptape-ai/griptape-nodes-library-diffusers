@@ -8,7 +8,11 @@ from typing import Any
 
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import BaseNode
-from griptape_nodes.retained_mode.events.connection_events import DeleteConnectionRequest
+from griptape_nodes.retained_mode.events.connection_events import (
+    DeleteConnectionRequest,
+    ListConnectionsForNodeRequest,
+    ListConnectionsForNodeResultSuccess,
+)
 from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
@@ -33,14 +37,26 @@ def drop_outgoing_connections(node: BaseNode, parameter_name: str, *, reason: st
     Returns:
         The number of connections dropped.
     """
-    connections = GriptapeNodes.FlowManager().get_connections()
-    outgoing_for_node = connections.outgoing_index.get(node.name, {})
-    connection_ids = list(outgoing_for_node.get(parameter_name, []))
+    # Asked as a request rather than off `FlowManager`: connections belong to the orchestrator, and a
+    # worker reaching for that manager raises. This runs during hydration, which is worker-side, so the
+    # manager route would fail whenever a component value arrives there.
+    result = GriptapeNodes.handle_request(ListConnectionsForNodeRequest(node_name=node.name))
+    if not isinstance(result, ListConnectionsForNodeResultSuccess):
+        logger.warning(
+            "%s: could not list connections for '%s', so none were dropped. The engine reported: %s",
+            node.name,
+            parameter_name,
+            result,
+        )
+        return 0
 
-    for connection_id in connection_ids:
-        connection = connections.connections[connection_id]
-        target_node_name = connection.target_node.name
-        target_parameter_name = connection.target_parameter.name
+    outgoing = [
+        connection for connection in result.outgoing_connections if connection.source_parameter_name == parameter_name
+    ]
+
+    for connection in outgoing:
+        target_node_name = connection.target_node_name
+        target_parameter_name = connection.target_parameter_name
 
         GriptapeNodes.handle_request(
             DeleteConnectionRequest(
@@ -70,4 +86,4 @@ def drop_outgoing_connections(node: BaseNode, parameter_name: str, *, reason: st
                 target_parameter_name,
             )
 
-    return len(connection_ids)
+    return len(outgoing)
