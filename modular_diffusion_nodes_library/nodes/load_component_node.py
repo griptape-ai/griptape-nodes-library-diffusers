@@ -240,9 +240,11 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 type=default_artifact_type,
                 output_type=default_artifact_type,
                 default_value=None,
+                # No `serializable=False`: the artifact describes where to load a component from -- ids,
+                # paths and a dtype name -- and `materialize` does the loading in whichever process
+                # needs it. Holding it would hand the builder a reference it cannot read.
                 tooltip="Artifact describing this component. Wire into a Pipeline Builder override port.",
                 allowed_modes={ParameterMode.OUTPUT},
-                serializable=False,
             )
         )
 

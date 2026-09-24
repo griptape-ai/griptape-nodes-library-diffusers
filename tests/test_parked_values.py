@@ -76,6 +76,42 @@ def test_nothing_sendable_is_parked() -> None:
     )
 
 
+class TestAComponentDescriptionTravels:
+    """A component artifact says where to load a component from; it never holds the loaded component.
+
+    Every field is a string, a `StrEnum`, or a nested dataclass of strings, and `materialize` does the
+    loading in whichever process needs it. Held instead, the pipeline builder was handed a reference it
+    could not read, and `validate_before_node_run` raised on `component_transformer`.
+    """
+
+    def test_the_artifact_arrives_as_itself(self) -> None:
+        from griptape_nodes.exe_types.local_objects import cache_outputs_for_egress, is_reference
+
+        from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
+            ComponentSourceType,
+            HFRepoRef,
+            ModelComponentArtifact,
+        )
+        from modular_diffusion_nodes_library.nodes.load_component_node import LoadComponent
+
+        node = LoadComponent(name="Load Component", metadata={"library": "Modular Diffusion"})
+        artifact = ModelComponentArtifact(
+            load_id="transformer@black-forest-labs/FLUX.1-dev",
+            source_type=ComponentSourceType.HF_REPO,
+            component="transformer",
+            repo_ref=HFRepoRef(repo_id="black-forest-labs/FLUX.1-dev"),
+        )
+        node.parameter_output_values["component_output"] = artifact
+
+        egressed = cache_outputs_for_egress(node.parameter_output_values, node=node)["component_output"]
+
+        assert not is_reference(egressed), (
+            "The component description was held in the producing process, so the pipeline builder "
+            "receives a reference and its validation raises instead of reading the artifact."
+        )
+        assert egressed == artifact
+
+
 class TestTheDecoderOutputActuallyTravels:
     """The static rule above, checked through the engine's real egress path.
 
