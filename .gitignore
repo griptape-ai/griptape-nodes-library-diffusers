@@ -152,6 +152,7 @@ activemq-data/
 .envrc
 .venv
 .venv-exec
+.venv-exec-local
 .venv-test-exec
 env/
 venv/
