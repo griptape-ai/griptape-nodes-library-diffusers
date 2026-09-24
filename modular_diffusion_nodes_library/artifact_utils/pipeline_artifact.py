@@ -392,6 +392,10 @@ class ControlNetDiffusionPipelineArtifact(BaseDiffusionPipelineArtifact):
         self._controlnet_models = list(controlnet_models)
 
     @property
+    def controlnet_models(self) -> list[str]:
+        return list(self._controlnet_models)
+
+    @property
     def metadata(self) -> dict[str, Any]:
         metadata = super().metadata
         metadata.update(
