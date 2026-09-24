@@ -2,7 +2,6 @@ SHELL := /bin/bash
 
 LIBRARY_JSON := griptape-nodes-library.json
 EXEC_TEST_VENV := .venv-test-exec
-LOCAL_EXEC_VENV := .venv-exec-local
 
 .PHONY: version/get
 version/get: ## Get version.
@@ -75,11 +74,6 @@ install/all: deps/sync ## Install all dependencies.
 	@# No `--all-extras`: that installs the `exec` extra into .venv, which the engine splices onto the
 	@# orchestrator's sys.path. A heavy import would then succeed for a developer and fail for a user.
 	@uv sync --all-groups
-
-.PHONY: install/exec
-install/exec: ## Install the execution set into a local venv, for running a pipeline outside the engine.
-	@# Not .venv-exec: the engine creates and owns that one, and a hand-synced copy would diverge from it.
-	@UV_PROJECT_ENVIRONMENT=$(LOCAL_EXEC_VENV) uv sync --extra exec
 
 .PHONY: install/dev
 install/dev: ## Install dev dependencies.
