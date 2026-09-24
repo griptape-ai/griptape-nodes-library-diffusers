@@ -84,6 +84,17 @@ def main() -> int:
         return 2
 
     guarded = guarded_managers()
+    if not guarded:
+        # Reading the list from the engine means an engine without the guards yields an empty list, and
+        # every access then looks allowed. Passing on an empty rule set is the answer this check exists
+        # to avoid, so say what is missing instead.
+        print(
+            "Attempted to check worker-safe manager access. Failed because the installed engine guards no "
+            "managers during worker execution, so there is nothing to check against and every access would "
+            "look allowed. Install an engine that has the guards."
+        )
+        return 1
+
     found = offences(root, guarded)
 
     print(f"guarded managers (from the engine): {len(guarded)}")
