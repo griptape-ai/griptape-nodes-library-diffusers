@@ -154,10 +154,10 @@ class MediaGenConditioningRuntimeParameter:
         return {self._output_key: payloads[0]}
 
     def validate_in_execution_environment(self) -> list[Exception] | None:
-        """The conditioning payload is held by the node that built it, so only that process can read it.
+        """Reject a payload whose mode this pipeline does not accept, before `process()` runs.
 
-        Reading it on the orchestrator raises instead of validating, whether the read is the direct one
-        below or the one `get_values` makes per slot.
+        The payload travels as data, so the orchestrator could answer this too; it stays here because
+        every runtime-parameters class that consumes conditioning delegates to this method.
         """
         if self._multiple:
             assert self._fixed_size_list is not None
