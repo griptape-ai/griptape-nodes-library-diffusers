@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 import torch  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact, ComponentSourceType
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import ControlNetDiffusionPipelineArtifact
 from modular_diffusion_nodes_library.component_loading.component_slots import ALLOWED_COMPONENT_SLOTS
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import get_component_class
 from modular_diffusion_nodes_library.memory_estimation.activation_formulas import (
@@ -23,12 +24,18 @@ from modular_diffusion_nodes_library.memory_estimation.activation_formulas impor
     estimate_unet_sdpa_activation_bytes,
     estimate_video_dit_joint_sdpa_activation_bytes,
 )
+from modular_diffusion_nodes_library.memory_estimation.controlnet_registry import (
+    get_controlnet_activation_family,
+    get_controlnet_class,
+    get_controlnet_denoiser_config_fields,
+)
 from modular_diffusion_nodes_library.memory_estimation.estimate_types import (
     ComponentMemoryEstimate,
     PipelineMemoryEstimate,
 )
 from modular_diffusion_nodes_library.memory_estimation.family_registry import (
     MemoryFamily,
+    UnetLevelConfig,
     get_denoiser_config_fields,
     get_memory_family,
     get_sdxl_unet_levels,
@@ -79,6 +86,8 @@ def _classify_role(component_name: str) -> str:
         return "denoiser"
     if component_name == "vae":
         return "vae"
+    if component_name == "controlnet":
+        return "controlnet"
     return "other"
 
 
@@ -150,6 +159,101 @@ def _estimate_denoiser_activation_bytes(
         return activation_bytes, None
     except (AttributeError, KeyError, TypeError, IndexError) as e:
         return 0, f"Failed to read denoiser config for pipeline '{pipeline_name}': {e}. Showing weights only."
+
+
+def _get_controlnet_unet_levels(controlnet_config: Any) -> list[UnetLevelConfig]:
+    """Read a ControlNetModel's own config as UNet-SDPA per-level shapes.
+
+    Mirrors get_sdxl_unet_levels() but reads the ControlNet's own
+    block_out_channels/transformer_layers_per_block, not the base UNet's --
+    ControlNetModel has no up-blocks, so this overestimates somewhat by
+    reusing the full-UNet level-sum formula against a down-only architecture.
+    """
+    block_out_channels = controlnet_config.block_out_channels
+    transformer_layers_per_block = controlnet_config.transformer_layers_per_block
+    if isinstance(transformer_layers_per_block, int):
+        transformer_layers_per_block = [transformer_layers_per_block] * len(block_out_channels)
+
+    levels = []
+    for level_index, (channels, num_transformer_layers) in enumerate(
+        zip(block_out_channels, transformer_layers_per_block, strict=True)
+    ):
+        levels.append(
+            UnetLevelConfig(
+                hidden_dim=channels,
+                num_transformer_layers=num_transformer_layers,
+                downsample_factor=2**level_index,
+            )
+        )
+    return levels
+
+
+def _estimate_controlnet_activation_bytes(
+    controlnet_component: torch.nn.Module,
+    pipeline_name: str,
+    latent: LatentArtifact,
+    element_size: int,
+) -> tuple[int, str | None]:
+    """Estimate a single ControlNet's own activation cost.
+
+    Reuses the same per-family formulas as the base denoiser
+    (activation_formulas.py), parameterized by the ControlNet's own config --
+    it runs its own forward pass each denoise step at the same spatial
+    resolution as the base denoiser, so the same per-token cost model
+    applies, just with the ControlNet's (usually smaller) layer count.
+    """
+    family = get_controlnet_activation_family(pipeline_name)
+    if family is None:
+        return 0, f"No memory-estimation family registered for '{pipeline_name}' ControlNet; showing weights only."
+
+    latent_shape = latent.shape
+    height_latent, width_latent = latent_shape[-2], latent_shape[-1]
+
+    try:
+        if family == MemoryFamily.UNET_SDPA:
+            levels = _get_controlnet_unet_levels(controlnet_component.config)
+            activation_bytes = estimate_unet_sdpa_activation_bytes(levels, height_latent, width_latent, element_size)
+            warning = (
+                "ControlNet activation memory is an approximation: it reuses the full UNet-SDPA formula "
+                "against the ControlNet's own config, which overestimates since the real ControlNetModel "
+                "has no up-blocks."
+            )
+            return activation_bytes, warning
+
+        fields = get_controlnet_denoiser_config_fields(pipeline_name, controlnet_component.config)
+        if fields is None:
+            return 0, f"No ControlNet config adapter registered for pipeline '{pipeline_name}'; showing weights only."
+
+        activation_bytes = estimate_image_dit_sdpa_activation_bytes(
+            height_latent,
+            width_latent,
+            fields.hidden_dim,
+            fields.patch_size_spatial,
+            element_size,
+        )
+        warning = (
+            "ControlNet activation memory is an approximation: it reuses the base denoiser's per-token "
+            "formula against the ControlNet's own (usually smaller) layer count."
+        )
+        return activation_bytes, warning
+    except (AttributeError, KeyError, TypeError, IndexError) as e:
+        return 0, f"Failed to read ControlNet config for pipeline '{pipeline_name}': {e}. Showing weights only."
+
+
+def _estimate_controlnet_component(
+    component_name: str,
+    controlnet_component: torch.nn.Module,
+    pipeline_name: str,
+    latent: LatentArtifact,
+) -> ComponentMemoryEstimate:
+    weight_bytes = get_model_memory(controlnet_component)
+    element_size = _activation_element_size(controlnet_component)
+    activation_bytes, warning = _estimate_controlnet_activation_bytes(
+        controlnet_component, pipeline_name, latent, element_size
+    )
+    return ComponentMemoryEstimate.create(
+        component_name, "controlnet", weight_bytes, activation_bytes, is_estimated=True, warning=warning
+    )
 
 
 def _estimate_component(
@@ -232,6 +336,30 @@ def _compute_estimated_peak_bytes(peak_weight_bytes: int, components: list[Compo
     return int((peak_weight_bytes + peak_activation_bytes) * MEMORY_HEADROOM_FACTOR)
 
 
+def _controlnet_components(
+    component_name: str,
+    component: torch.nn.Module,
+    pipeline_name: str,
+    latent: LatentArtifact,
+) -> list[ComponentMemoryEstimate]:
+    """Return one ComponentMemoryEstimate per stacked ControlNet.
+
+    Multi-ControlNet wrapper types (FluxMultiControlNetModel,
+    QwenImageMultiControlNetModel, MultiControlNetModel (SDXL),
+    SD3MultiControlNetModel) all expose `.nets: ModuleList[ControlNetModel]` --
+    when present, each net is estimated individually so stacked ControlNets
+    stay legible in the per-component breakdown; a single (non-stacked)
+    ControlNet is estimated as one entry named "controlnet".
+    """
+    nets = getattr(component, "nets", None)
+    if nets is None:
+        return [_estimate_controlnet_component(component_name, component, pipeline_name, latent)]
+    return [
+        _estimate_controlnet_component(f"{component_name}_{index}", net, pipeline_name, latent)
+        for index, net in enumerate(nets)
+    ]
+
+
 def estimate_pipeline_memory(
     pipe: DiffusionPipeline,
     latent: LatentArtifact,
@@ -246,6 +374,9 @@ def estimate_pipeline_memory(
         if component is None or not hasattr(component, "parameters"):
             continue
         role = _classify_role(component_name)
+        if role == "controlnet":
+            components.extend(_controlnet_components(component_name, component, pipeline_name, latent))
+            continue
         components.append(
             _estimate_component(component_name, component, role, pipe, pipeline_name, latent, optimization_kwargs)
         )
@@ -372,6 +503,69 @@ def _stored_bytes_for_base_component(
     return get_model_memory(meta_component), _element_size(meta_component), meta_component
 
 
+def _controlnet_slot_estimates(
+    artifact: ControlNetDiffusionPipelineArtifact,
+    pipeline_name: str,
+    latent: LatentArtifact,
+    quantization_mode: str,
+    transformer_layerwise_casting: bool,
+) -> list[ComponentMemoryEstimate]:
+    """Enumerate estimate entries for each stacked ControlNet on a not-yet-built pipeline.
+
+    Reads `controlnet_models` (repo ids) directly off the artifact rather than
+    `build_data` -- `ControlNetDiffusionPipelineArtifact.build_data` is inherited
+    unmodified from the base artifact (`BaseDiffusionPipelineArtifact.__init__`), so
+    it never contains ControlNet configuration.
+    """
+    controlnet_cls = get_controlnet_class(pipeline_name)
+    if controlnet_cls is None:
+        warning = (
+            f"Attempted to estimate ControlNet memory for pipeline '{pipeline_name}'. "
+            f"Failed because no ControlNet model class is registered for this pipeline."
+        )
+        return [
+            ComponentMemoryEstimate.create(f"controlnet_{i}", "controlnet", 0, 0, is_estimated=True, warning=warning)
+            for i in range(len(artifact.controlnet_models))
+        ]
+
+    estimates: list[ComponentMemoryEstimate] = []
+    for index, repo_id in enumerate(artifact.controlnet_models):
+        component_name = f"controlnet_{index}"
+        try:
+            config_dict = resolve_base_component_config(repo_id, "controlnet")
+        except ComponentConfigNotCachedError as e:
+            estimates.append(
+                ComponentMemoryEstimate.create(component_name, "controlnet", 0, 0, is_estimated=True, warning=str(e))
+            )
+            continue
+
+        meta_component = build_component_on_meta_device(controlnet_cls, config_dict, _BASE_PIPELINE_TORCH_DTYPE)
+        stored_bytes_per_element = _element_size(meta_component)
+        weight_bytes = get_model_memory(meta_component)
+        effective_bytes_per_element = resolve_effective_bytes_per_element(
+            stored_bytes_per_element,
+            slot="controlnet",
+            quantization_mode=quantization_mode,
+            transformer_layerwise_casting=transformer_layerwise_casting,
+            is_prequantized=artifact.is_prequantized,
+            supports_layerwise_casting=artifact.supports_layerwise_casting,
+        )
+        weight_bytes = int(weight_bytes / stored_bytes_per_element * effective_bytes_per_element)
+        # See the matching comment in the base-component loop below: activations are
+        # never narrower than the compute floor, regardless of how the weights are stored.
+        element_size = max(int(stored_bytes_per_element), _MIN_ACTIVATION_BYTES_PER_ELEMENT)
+
+        activation_bytes, warning = _estimate_controlnet_activation_bytes(
+            meta_component, pipeline_name, latent, element_size
+        )
+        estimates.append(
+            ComponentMemoryEstimate.create(
+                component_name, "controlnet", weight_bytes, activation_bytes, is_estimated=True, warning=warning
+            )
+        )
+    return estimates
+
+
 def estimate_pipeline_memory_from_build_data(
     artifact: DiffusionPipelineArtifact,
     latent: LatentArtifact,
@@ -489,6 +683,13 @@ def estimate_pipeline_memory_from_build_data(
         components.append(
             ComponentMemoryEstimate.create(
                 slot, role, weight_bytes, activation_bytes, is_estimated=warning is not None, warning=warning
+            )
+        )
+
+    if isinstance(artifact, ControlNetDiffusionPipelineArtifact):
+        components.extend(
+            _controlnet_slot_estimates(
+                artifact, pipeline_name, latent, quantization_mode, transformer_layerwise_casting
             )
         )
 

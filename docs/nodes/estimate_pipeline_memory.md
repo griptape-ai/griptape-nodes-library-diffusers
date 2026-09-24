@@ -39,6 +39,8 @@ Pipeline Builder → Generate Media Latents → [Estimate Pipeline Memory]
 
 Denoiser activation memory is estimated using one of three architecture families: UNet-SDPA (SDXL), Image-DiT-SDPA (Flux, Flux2, SD3, Qwen, Z-Image, ...), or Video-DiT-joint-SDPA (LTX, LTX2, WAN, HunyuanVideo 1.5, MiniMax-H3). A pipeline class without a registered family, or a component whose config can't be read (e.g. a heavily fused/custom checkpoint), falls back to a weight-only estimate with a warning in the logs rather than failing.
 
+**ControlNet (Flux, SD3, SDXL, Qwen, Z-Image).** When the connected pipeline is wrapped by a [ControlNet Pipeline](controlnet_pipeline.md) node, each stacked ControlNet appears as its own `controlnet_0`, `controlnet_1`, … component — weight bytes scale ~linearly with stack size, since each is an independent weight set regardless of the multi-ControlNet wrapper class used under the hood. Weight bytes are read from each ControlNet's own config (its own repo, not the base pipeline's), so a ControlNet's shape is never assumed to match the base denoiser's. Activation bytes reuse the base architecture family's per-token formula against the ControlNet's own (usually smaller) layer count — an approximation, always flagged `[ESTIMATED: ...]`. On SDXL specifically, this reuses the full UNet-SDPA level formula against the real ControlNetModel's down-only architecture (no up-blocks), which overestimates on purpose per this node's bias-toward-overestimate stance. Before the pipeline is built, each ControlNet's config must already be in the warm HuggingFace cache — otherwise that ControlNet's entry falls back to weights-only with a warning.
+
 This node estimates from whichever of two states the pipeline is actually in:
 
 | Pipeline state | Basis | Weight memory | Offload topology |
@@ -88,7 +90,7 @@ Note the import path: `estimate_pipeline_memory_from_artifact` is exported from 
 | Field | Type | Notes |
 | --- | --- | --- |
 | `component_name` | `str` | e.g. `"transformer"`, `"vae"`, `"text_encoder_2"`. |
-| `role` | `str` | `"denoiser"`, `"vae"`, `"text_encoder"`, or `"other"`. |
+| `role` | `str` | `"denoiser"`, `"vae"`, `"text_encoder"`, `"controlnet"`, or `"other"`. |
 | `weight_bytes` | `int` | |
 | `activation_bytes` | `int` | |
 | `total_bytes` | `int` | `weight_bytes + activation_bytes`. |
