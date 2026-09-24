@@ -167,7 +167,8 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             skip_before_value_set=skip_before_value_set,
         )
 
-    def validate_before_node_run(self) -> list[Exception] | None:
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Both inputs are held latents, so only the process running the node can read them."""
         errors: list[Exception] = []
 
         dest = self.get_parameter_value("destination_latent")
