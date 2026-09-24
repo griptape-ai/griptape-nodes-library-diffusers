@@ -90,8 +90,10 @@ fix: ## Fix project.
 	@make format
 	@uv run ruff check --fix --unsafe-fixes
 
+# `test/unit` is a prerequisite because CI runs `make check` and nothing else, so a suite outside it
+# gates nothing -- and these tests pin invariants whose violations are silent.
 .PHONY: check
-check: check/format check/lint check/types check/json check/worker-safe ## Run all checks.
+check: check/format check/lint check/types check/json check/worker-safe test/unit ## Run all checks.
 
 .PHONY: check/format
 check/format:
