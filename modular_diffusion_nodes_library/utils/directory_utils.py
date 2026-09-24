@@ -9,37 +9,28 @@ from modular_diffusion_nodes_library.utils.config_utils import get_config_value,
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
-def check_cleanup_intermediates_directory() -> None:
-    """Check if directory cleanup is enabled and perform cleanup if needed.
+def cleanup_directory_if_enabled(directory_path: str) -> None:
+    """Trim `directory_path` under the static files root, oldest first, when cleanup is enabled.
 
-    This function checks the configuration to see if directory cleanup is enabled
-    for the advanced media library. If enabled, it will clean up the intermediates
-    directory by removing the oldest files until the directory size is below the
-    configured maximum size threshold.
+    Call this immediately before writing a new file into that directory, so the space it frees is
+    still free when the write happens.
 
-    The function uses the following configuration values:
-    - modular_diffusion_library.enable_directory_cleanup: Boolean to enable/disable cleanup
-    - modular_diffusion_library.max_directory_size_gb: Maximum directory size in GB
-    - modular_diffusion_library.temp_folder_name: Name of the intermediates directory
-    - static_files_directory: Base directory for static files
-
-    Note:
-        This function is typically called before saving new intermediate files
-        to ensure sufficient space is available.
+    Reads these configuration values:
+    - modular_diffusion_library.enable_directory_cleanup: whether to clean up at all
+    - modular_diffusion_library.max_directory_size_gb: the size to trim down to
+    - static_files_directory: the root the directory sits under
     """
-    # Perform cleanup if needed before saving new file
-    cleanup_enabled = get_config_value("modular_diffusion_library.enable_directory_cleanup")
-    if cleanup_enabled:
-        static_files_directory = get_config_value("static_files_directory")
-        intermediates_directory = get_intermediates_directory_path()
-        path = get_workspace_path() / static_files_directory / intermediates_directory
+    if not get_config_value("modular_diffusion_library.enable_directory_cleanup"):
+        return
 
-        max_size_gb = get_config_value("modular_diffusion_library.max_directory_size_gb")
-        # `OSManager.cleanup_directory_if_needed` is a static method: it touches only the
-        # filesystem, which a worker shares, and holds none of the manager state the facade guard
-        # exists to protect. Imported directly because reaching it through the facade raises in a
-        # worker, and no request wraps it.
-        OSManager.cleanup_directory_if_needed(full_directory_path=path, max_size_gb=max_size_gb)
+    static_files_directory = get_config_value("static_files_directory", default="staticfiles")
+    path = get_workspace_path() / static_files_directory / directory_path
+    max_size_gb = get_config_value("modular_diffusion_library.max_directory_size_gb")
+    # `OSManager.cleanup_directory_if_needed` is a static method: it touches only the filesystem,
+    # which a worker shares, and holds none of the manager state the facade guard exists to protect.
+    # Imported directly because reaching it through the facade raises in a worker, and no request
+    # wraps it.
+    OSManager.cleanup_directory_if_needed(full_directory_path=path, max_size_gb=max_size_gb)
 
 
 def get_intermediates_directory_path() -> str:

@@ -30,10 +30,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     GeneratorState,
 )
 from modular_diffusion_nodes_library.utils.config_utils import get_config_value
-from modular_diffusion_nodes_library.utils.directory_utils import (
-    check_cleanup_intermediates_directory,
-    get_intermediates_directory_path,
-)
+from modular_diffusion_nodes_library.utils.directory_utils import get_intermediates_directory_path
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil, pil_to_image_artifact
 
@@ -339,11 +336,7 @@ class DiffusionPipelineGenerateLatentParameters:
     def publish_output_image_preview_latents(
         self, latents: torch.Tensor, source_shape: tuple[int, ...], latent_pipeline_driver: LatentPipelineDriver
     ) -> None:
-        # Check to ensure there's enough space in the intermediates directory
-        # if that setting is enabled.
         from PIL.Image import Image
-
-        check_cleanup_intermediates_directory()
 
         preview_image_pil = self.latents_to_image_pil(latents, source_shape, latent_pipeline_driver)
         if isinstance(preview_image_pil, list):
