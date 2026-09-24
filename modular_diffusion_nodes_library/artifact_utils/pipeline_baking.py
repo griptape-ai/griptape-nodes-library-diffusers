@@ -34,6 +34,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DEFAULT_BAKED_DTYPE,
     DiffusionPipelineArtifact,
 )
+from modular_diffusion_nodes_library.utils.pipeline_utils import prepare_pipeline_for_baked_save
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -79,15 +80,16 @@ def save_baked_pipeline(pipe: Any, artifact: DiffusionPipelineArtifact, folder: 
     try:
         skip_slots = skip_official_save_slots(pipe, artifact)
         assert_baked_save_feasible(pipe, artifact, skip_slots)
-        if skip_slots:
-            logger.warning(
-                "Skipping official save_pretrained for %s (GGUF); copying .gguf files.",
-                sorted(skip_slots),
-            )
-        with noop_official_saves(pipe, skip_slots):
-            pipe.save_pretrained(str(tmp_dir))
-        file_overrides = _write_skipped_slots(pipe, artifact, tmp_dir, skip_slots)
-        packed_slots = write_packed_quant_maps(pipe, tmp_dir)
+        with prepare_pipeline_for_baked_save(pipe, artifact.config_hash):
+            if skip_slots:
+                logger.warning(
+                    "Skipping official save_pretrained for %s (GGUF); copying .gguf files.",
+                    sorted(skip_slots),
+                )
+            with noop_official_saves(pipe, skip_slots):
+                pipe.save_pretrained(str(tmp_dir))
+            file_overrides = _write_skipped_slots(pipe, artifact, tmp_dir, skip_slots)
+            packed_slots = write_packed_quant_maps(pipe, tmp_dir)
         if packed_slots:
             logger.info("Wrote packed quanto maps for slots: %s", packed_slots)
         # baked-config top-level "torch_dtype": pipe.dtype at bake → _baked_dtype → from_pretrained / quanto reload.
