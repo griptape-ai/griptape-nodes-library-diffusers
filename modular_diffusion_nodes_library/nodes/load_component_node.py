@@ -7,7 +7,6 @@ from typing import Any
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import SuccessFailureNode
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
 from griptape_nodes.traits.options import Options
 
@@ -29,6 +28,7 @@ from modular_diffusion_nodes_library.parameters.file_path_parameter import FileP
 from modular_diffusion_nodes_library.parameters.user_specified_hf_repo_parameter import (
     UserSpecifiedHuggingFaceRepoParameter,
 )
+from modular_diffusion_nodes_library.utils.config_utils import get_workspace_path
 from modular_diffusion_nodes_library.utils.connection_utils import drop_outgoing_connections
 from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
 
@@ -154,7 +154,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         # ------------------------------------------------------------------
         # Local Folder branch
         # ------------------------------------------------------------------
-        workspace_path = str(GriptapeNodes.ConfigManager().workspace_path)
+        workspace_path = str(get_workspace_path())
         folder_path_param = Parameter(
             name="folder_path",
             type="str",

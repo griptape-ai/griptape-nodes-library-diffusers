@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 from griptape_nodes.exe_types.param_components.progress_bar_component import ProgressBarComponent
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
 from griptape_nodes.traits.options import Options
 
 from modular_diffusion_nodes_library.nodes.vae_decoder import VaeDecodeNode
+from modular_diffusion_nodes_library.utils.config_utils import get_workspace_path
 from modular_diffusion_nodes_library.utils.hdr_video_utils import ExrFrameWriteEvent, encode_linear_hdr_exr_sequence
 from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
 from modular_diffusion_nodes_library.utils.pillow_utils import pil_to_image_artifact
@@ -60,7 +60,7 @@ class DecodeHdrNode(VaeDecodeNode):
                         allow_directories=True,
                         multiple=False,
                         file_types=[".exr"],
-                        initial_path=str(GriptapeNodes.ConfigManager().workspace_path),
+                        initial_path=str(get_workspace_path()),
                     )
                 },
             )

@@ -288,17 +288,20 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 self._text_embeddings_path_param.validate_parameter_values()
             except RuntimeError as err:
                 return [err]
-        if self._is_ic_lora_active:
-            try:
-                self._reference_conditions_param.validate_before_node_run()
-            except RuntimeError as err:
-                return [err]
-        if self._is_hdr_lora_active or self._is_ic_lora_active:
-            try:
-                self._media_gen_conditioning_param.validate_before_node_run()
-            except RuntimeError as err:
-                return [err]
         return None
+
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Both conditioning surfaces hold their payload, so they can only be read where it lives."""
+        errors: list[Exception] = []
+        if self._is_ic_lora_active:
+            reference_errors = self._reference_conditions_param.validate_in_execution_environment()
+            if reference_errors:
+                errors.extend(reference_errors)
+        if self._is_hdr_lora_active or self._is_ic_lora_active:
+            conditioning_errors = self._media_gen_conditioning_param.validate_in_execution_environment()
+            if conditioning_errors:
+                errors.extend(conditioning_errors)
+        return errors or None
 
     def _get_pipe_kwargs(self) -> dict:
         pipe_kwargs = {

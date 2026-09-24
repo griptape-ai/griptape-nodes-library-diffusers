@@ -153,7 +153,12 @@ class MediaGenConditioningRuntimeParameter:
             raise mode_errors[0]
         return {self._output_key: payloads[0]}
 
-    def validate_before_node_run(self) -> list[Exception] | None:
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """The conditioning payload is held by the node that built it, so only that process can read it.
+
+        Reading it on the orchestrator raises instead of validating, whether the read is the direct one
+        below or the one `get_values` makes per slot.
+        """
         if self._multiple:
             assert self._fixed_size_list is not None
             values = self._fixed_size_list.get_values()
