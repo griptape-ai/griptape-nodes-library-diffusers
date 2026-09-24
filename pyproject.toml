@@ -117,7 +117,7 @@ exclude = ["workflows/", ".venv/", "**/__pycache__"]
 
 [dependency-groups]
 dev = [
-    "griptape-nodes-engine>=0.100.2",
+    "griptape-nodes-engine>=0.102.0",
     "pyright>=1.1.396",
     "ruff>=0.8.0",
     "pytest",
