@@ -81,6 +81,12 @@ Notes:
 - Add `-- --no-cleanup` to preserve per-run folders for debugging.
 - `workflow_single` runs only one parametrized workflow test, selected by template filename or path.
 
+Finding generated images/videos:
+
+- Each workflow test runs in its own per-test folder under a fresh OS temp directory (or the path passed via `-- --workflow-runs-dir <path>`), named `<timestamp>_<WorkflowName>`.
+- Generated media is written to `outputs/images/` (or `outputs/videos/`) inside that per-test folder.
+- Without `--no-cleanup`, the whole per-test folder (including its outputs) is deleted right after the test finishes — pass `-- --no-cleanup` to keep it around for inspection.
+
 Strict vs default behavior:
 
 - Default mode (`workflow_tests`) deselects workflows that miss required cached repos and runs the rest.

@@ -4,7 +4,7 @@
 # [tool.griptape-nodes]
 # name = "Flux2KleinGuidedInpainting"
 # schema_version = "0.19.1"
-# engine_version_created_with = "0.86.0"
+# engine_version_created_with = "0.89.0"
 # node_libraries_referenced = [["Griptape Nodes Library", "0.75.0"], ["Griptape Modular Diffusion Nodes Library", "0.2.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "MediaGenConditioningNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Modular Diffusion Nodes Library", "VaeMaskEncodeNode"], ["Griptape Nodes Library", "LoadImage"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
 # description = "Flux2Klein guided Inpainting workflow template using Griptape diffusers library"

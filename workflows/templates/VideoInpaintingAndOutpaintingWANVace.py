@@ -4,7 +4,7 @@
 # [tool.griptape-nodes]
 # name = "VideoInpaintingAndOutpaintingWANVace"
 # schema_version = "0.19.2"
-# engine_version_created_with = "0.88.0"
+# engine_version_created_with = "0.89.0"
 # node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.2.0"], ["Griptape Nodes Library", "0.75.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "MediaGenConditioningNode"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Library", "ExtendCanvas"], ["Griptape Nodes Library", "Group"], ["Griptape Nodes Library", "IntegerInput"], ["Griptape Nodes Library", "LoadImage"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
 # description = "Video inpainting and outpainting workflow using WAN VACE via the Modular Diffusion Library Nodes"

@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import shutil
+import subprocess
 import tempfile
 from collections.abc import AsyncGenerator, Generator
 from datetime import UTC, datetime
@@ -31,6 +32,46 @@ LEGACY_ASSETS_ALIAS = Path("/workspace/workflows/assets")
 load_dotenv()
 
 
+def _link_directory(link: Path, target: Path) -> None:
+    """Point `link` at `target` without duplicating its contents.
+
+    Tries a real symlink first. On Windows without Developer Mode/symlink
+    privilege, falls back to an NTFS junction (`mklink /J`), which requires no
+    special privilege and, unlike copying, stays in sync with `target` and
+    doesn't duplicate large binary assets on disk.
+    """
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as e:
+        if os.name == "nt" and e.winerror == 1314:  # WinError: A required privilege is not held
+            subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        else:
+            raise
+
+
+def _unlink_directory(link: Path) -> None:
+    """Remove a directory link created by `_link_directory` without touching its target.
+
+    Handles both real symlinks and NTFS junctions. `Path.is_symlink()` doesn't
+    recognize junctions (they're a distinct reparse point type), so junctions
+    are removed via `rmdir`, which detaches the reparse point without
+    recursing into the target. Falls back to `rmtree` for plain directories
+    (e.g. ones populated by a pre-existing copy).
+    """
+    if link.is_symlink():
+        link.unlink(missing_ok=True)
+        return
+    try:
+        link.rmdir()
+    except OSError:
+        shutil.rmtree(link, ignore_errors=True)
+
+
 def _get_test_workflow_name(item: pytest.Item) -> str:
     callspec = getattr(item, "callspec", None)
     if callspec is None:
@@ -58,6 +99,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     preflight_data = get_preflight_data()
     missing_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_by_workflow"]
     missing_libraries_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_libraries_by_workflow"]
+    missing_loras_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_loras_by_workflow"]
     kept_items: list[pytest.Item] = []
     deselected_items: list[pytest.Item] = []
     workflow_tests_present = False
@@ -76,7 +118,8 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         workflow_name = workflow_path.name
         missing_repos = missing_by_workflow.get(workflow_name, ())
         missing_libraries = missing_libraries_by_workflow.get(workflow_name, ())
-        if not missing_repos and not missing_libraries:
+        missing_loras = missing_loras_by_workflow.get(workflow_name, ())
+        if not missing_repos and not missing_libraries and not missing_loras:
             kept_items.append(item)
             continue
 
@@ -139,7 +182,7 @@ def workflow_runs_root(request: pytest.FixtureRequest) -> Generator[Path, None, 
 
     workflows_link = root / "workflows"
     if not workflows_link.exists():
-        workflows_link.symlink_to(LIBRARY_ROOT / "workflows", target_is_directory=True)
+        _link_directory(workflows_link, LIBRARY_ROOT / "workflows")
 
     yield root
 
@@ -147,7 +190,7 @@ def workflow_runs_root(request: pytest.FixtureRequest) -> Generator[Path, None, 
         logger.info("Preserved workflow runs root: %s", root)
         return
 
-    workflows_link.unlink(missing_ok=True)
+    _unlink_directory(workflows_link)
     if owns_root:
         shutil.rmtree(root, ignore_errors=True)
     else:
@@ -178,6 +221,12 @@ def workflow_run_workspace(
     run_directory = workflow_runs_root / _build_run_directory_name(request.node)
     run_directory.mkdir(parents=True, exist_ok=False)
 
+    # Some templates reference assets via `{workspace_dir}/libraries/<repo>/workflows/assets/...`,
+    # assuming `{workspace_dir}` is the outer GriptapeNodes workspace. Bridge that convention too.
+    assets_link = run_directory / "libraries" / LIBRARY_ROOT.name / "workflows" / "assets"
+    assets_link.parent.mkdir(parents=True, exist_ok=True)
+    _link_directory(assets_link, WORKFLOW_ASSETS_DIR)
+
     config_manager = griptape_nodes.ConfigManager()
     previous_workspace_path = config_manager.workspace_path
     previous_workspace_env = os.environ.get("GTN_CONFIG_WORKSPACE_DIRECTORY")
@@ -198,6 +247,10 @@ def workflow_run_workspace(
         logger.info("Preserved workflow test run directory: %s", run_directory)
         return
 
+    # Detach the assets link before removing the tree: `shutil.rmtree` can't
+    # tell a junction apart from a real directory, so it would happily recurse
+    # into it and delete the real assets it points at.
+    _unlink_directory(assets_link)
     shutil.rmtree(run_directory, ignore_errors=True)
 
 
