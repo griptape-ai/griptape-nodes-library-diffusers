@@ -1,10 +1,14 @@
 import contextlib
 import gc
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any
 
 import torch  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
+from modular_diffusion_nodes_library.artifact_utils.baked_file_overrides import iter_pipe_components
 from modular_diffusion_nodes_library.utils.torch_utils import (
     get_best_device,
     get_free_cuda_memory,
@@ -51,6 +55,101 @@ def detect_offload_method(pipe: DiffusionPipeline) -> str | None:
     return None
 
 
+def _drop_baked_pipeline_from_cache(config_hash: str | None) -> None:
+    """Drop a pipeline whose CPU offload could not be restored after a bake.
+
+    The next ``get_or_build_pipeline`` rebuilds it and installs offload again.
+    """
+    if not config_hash:
+        logger.error("Cannot drop the baked pipeline from the cache because it has no config hash.")
+        return
+    from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
+
+    try:
+        model_cache.remove_pipeline(config_hash)
+    except Exception:
+        logger.exception("Failed to drop pipeline %s from the cache after bake.", config_hash)
+
+
+def _apply_cpu_offload(pipe: DiffusionPipeline, offload_method: str | None, offload_device: Any = None) -> None:
+    if offload_method is None:
+        return
+    offload_kwargs = {"device": offload_device} if offload_device is not None else {}
+    if offload_method == "sequential" and hasattr(pipe, "enable_sequential_cpu_offload"):
+        pipe.enable_sequential_cpu_offload(**offload_kwargs)
+    elif offload_method == "model" and hasattr(pipe, "enable_model_cpu_offload"):
+        pipe.enable_model_cpu_offload(**offload_kwargs)
+
+
+def find_meta_weight_slots(pipe: DiffusionPipeline) -> list[str]:
+    """Move each component to CPU and return the slots whose weights are still on meta."""
+    meta_slots: list[str] = []
+    for name, component in iter_pipe_components(pipe):
+        if component is None or not hasattr(component, "to"):
+            continue
+        try:
+            component.to("cpu")
+        except NotImplementedError as exc:
+            if "meta tensor" in str(exc).lower():
+                meta_slots.append(name)
+                continue
+            raise
+        if any(param.device.type == "meta" for param in component.parameters()):
+            meta_slots.append(name)
+    return meta_slots
+
+
+@contextmanager
+def prepare_pipeline_for_baked_save(pipe: DiffusionPipeline, config_hash: str | None = None) -> Iterator[None]:
+    """Temporarily materialize weights for ``save_pretrained``, then restore CPU offload.
+
+    Sequential offload stores real weights on the hook and leaves parameters on ``meta``.
+    ``remove_all_hooks`` copies them back. Only sequential/model offload is touched.
+    """
+    offload_method = detect_offload_method(pipe)
+    if offload_method is None:
+        yield
+        return
+
+    offload_device = getattr(pipe, "_offload_device", None)
+    if not hasattr(pipe, "remove_all_hooks"):
+        msg = (
+            "Attempted Full Pipeline save. Failed because CPU offload is active "
+            f"({offload_method}) and the pipeline has no remove_all_hooks."
+        )
+        raise ValueError(msg)
+
+    try:
+        logger.info("Preparing pipeline for bake: removing %s CPU offload hooks", offload_method)
+        # Layerwise casting is installed before CPU offload in optimize_diffusion_pipeline,
+        # so the saved forward is the layerwise wrapper and this does not remove it.
+        pipe.remove_all_hooks()
+
+        meta_slots = find_meta_weight_slots(pipe)
+        if meta_slots:
+            slots = ", ".join(sorted(meta_slots))
+            msg = (
+                "Attempted Full Pipeline save. Failed because pipeline slots still have meta weights "
+                f"({slots}). Sequential or model CPU offload can leave weights unmaterialized. "
+                "Set CPU offload to None and rebuild the pipeline, or use Config Only."
+            )
+            raise ValueError(msg)
+        yield
+    finally:
+        logger.info("Restoring %s CPU offload after bake", offload_method)
+        try:
+            _apply_cpu_offload(pipe, offload_method, offload_device)
+        except Exception:
+            logger.exception(
+                "Failed to restore %s CPU offload after bake. Dropping the pipeline from the cache "
+                "so the next build installs it again.",
+                offload_method,
+            )
+            # Weights are back on the module, but the offload hook is gone. Drop the cached
+            # pipe so the next build installs offload again instead of reusing this one.
+            _drop_baked_pipeline_from_cache(config_hash)
+
+
 def create_pipe_variant(
     source_pipe: DiffusionPipeline,
     target_class: type[DiffusionPipeline],
@@ -66,13 +165,7 @@ def create_pipe_variant(
     offload_device = getattr(source_pipe, "_offload_device", None)
 
     new_pipe = target_class.from_pipe(source_pipe, torch_dtype=torch_dtype)
-
-    offload_kwargs = {"device": offload_device} if offload_device is not None else {}
-    if offload_method == "sequential":
-        new_pipe.enable_sequential_cpu_offload(**offload_kwargs)
-    elif offload_method == "model":
-        new_pipe.enable_model_cpu_offload(**offload_kwargs)
-
+    _apply_cpu_offload(new_pipe, offload_method, offload_device)
     return new_pipe
 
 
