@@ -54,6 +54,48 @@ VAE activation memory reflects whether `vae_tiling`/`vae_slicing` are configured
 
 **`memory_optimization_strategy` = `Automatic`, pipeline not yet built:** the real Automatic cascade depends on free VRAM at build time, which this node has no way to predict before loading — it does not simulate the cascade. Instead it reports a conservative upper bound (no offload assumed) and adds a warning to the widget recommending `Manual` for an exact pre-load number. Once the pipeline is actually built, re-running this node picks up whatever topology Automatic really landed on, exactly.
 
+## Command-line workflow estimation
+
+The same estimator can be run against a generated workflow `.py` file without starting Griptape Nodes or running any workflow nodes:
+
+```text
+uv run estimate-workflow-memory workflows/templates/Text2Image.py
+```
+
+Use `--json` when the result will be consumed by another tool:
+
+```text
+uv run estimate-workflow-memory workflows/templates/Text2Image.py --json
+```
+
+The command parses the workflow source, extracts pipeline configurations and dimensions associated with recognized noise nodes, resolves the public latent shape through the cached Diffusers prepare-latents path, and calls the existing memory estimator. It does not call `build_workflow()`, build the full diffusion pipeline, load model weights, or run inference. The required component configuration files must already be available in the local Hugging Face cache; if they are missing, the command fails instead of falling back to pixel-space dimensions.
+
+### Command-line arguments
+
+| Argument | Purpose |
+| --- | --- |
+| `workflow` | Path to the generated workflow `.py` file to inspect. The file is parsed as source and is never imported or executed. |
+| `--width WIDTH` | Override the raw width used for every extracted builder. Must be supplied together with `--height`. |
+| `--height HEIGHT` | Override the raw height used for every extracted builder. Must be supplied together with `--width`. |
+| `--num-frames NUM_FRAMES` | Override the raw video frame count used for every extracted builder. Required when an extracted video builder has no static frame count. It is ignored for image latent shapes and is not reported for image builders. |
+| `--json` | Print machine-readable JSON instead of the human-readable report. |
+
+For example, provide dimensions when the workflow does not contain static dimensions on a recognized noise node:
+
+```text
+uv run estimate-workflow-memory workflow.py --width 1024 --height 1024
+```
+
+For a video workflow, provide the frame count as well:
+
+```text
+uv run estimate-workflow-memory workflow.py --width 832 --height 480 --num-frames 25 --json
+```
+
+The command uses recorded or overridden dimensions as-is. It does not apply model-specific dimension snapping or validation, so the result includes a raw-dimension approximation warning. It still resolves latent-space shape through the cached Diffusers prepare-latents path, preserving the distinction between pixel-space source dimensions and public latent dimensions.
+
+The JSON result contains a top-level `warnings` list and a `builders` list. Each builder contains its pipeline name, reported dimensions, and memory estimate. Image builders omit hidden `num_frames` placeholder values; video builders include `num_frames`. `Builder 1`, `Builder 2`, and so on identify the order of extracted estimates, not necessarily workflow execution order. Overrides apply to every extracted builder.
+
 ## API reference
 
 This node is a thin wrapper — the estimate itself is a plain importable function, callable from any other node or script without going through the node at all.
