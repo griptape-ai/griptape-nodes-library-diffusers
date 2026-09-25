@@ -1,14 +1,29 @@
-import diffusers  # type: ignore[reportMissingImports]
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar
+
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
 from modular_diffusion_nodes_library.standard_parameters.flux_parameters import FluxPipelineParameters
 
+if TYPE_CHECKING:
+    pass  # type: ignore[reportMissingImports]
+
 
 class FluxFillPipelineParameters(FluxPipelineParameters):
     """FluxFillPipeline variant — only differs in model repo and pipeline class."""
 
-    _pipeline_cls = diffusers.FluxFillPipeline  # type: ignore[reportAttributeAccessIssue]
+    _pipeline_cls_path = "diffusers:FluxFillPipeline"
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "text_encoder_2",
+        "tokenizer",
+        "tokenizer_2",
+        "scheduler",
+    ]
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node, list_all_models=list_all_models)

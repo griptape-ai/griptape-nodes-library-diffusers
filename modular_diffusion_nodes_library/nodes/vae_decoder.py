@@ -1,13 +1,11 @@
+from __future__ import annotations
+
 import logging
 import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
 
-import diffusers  # type: ignore[reportMissingImports]
-import numpy as np
-from diffusers.pipelines.ltx2.export_utils import encode_hdr_tensor_to_mp4  # type: ignore[reportMissingImports]
-from diffusers.utils.export_utils import encode_video  # type: ignore[reportMissingImports]
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
@@ -16,7 +14,7 @@ from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_spec
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import DecodeOutput
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
@@ -49,7 +47,9 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 output_type="ImageUrlArtifact",
                 tooltip="Decoded image from the latent tensor.",
                 allowed_modes={ParameterMode.OUTPUT},
-                serializable=False,
+                # No `serializable=False`: a URL artifact is a string pointing at a file on the shared
+                # workspace, so it costs nothing to send. Holding it in the producing process would put a
+                # reference in the editor's hands instead of an image, and the node would render blank.
             )
         )
         self._additional_parameters()
@@ -121,11 +121,13 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             self._update_output_parameter()
 
     def _update_output_parameter(self) -> None:
-        driver_cls = get_driver_class(self.pipe_params.get_pipeline_class())
-        if driver_cls is None:
+        # The declared spec rather than the driver class: this runs on the orchestrator, where
+        # importing a driver would pull in the execution environment.
+        driver_spec = get_driver_spec(self.pipe_params.get_pipeline_class())
+        if driver_spec is None:
             return
 
-        if driver_cls.produces_video:
+        if driver_spec.produces_video:
             new_output_type = "video"
         else:
             new_output_type = "image"
@@ -142,7 +144,7 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 self.add_parameter(
                     Parameter(
                         name="fps",
-                        default_value=driver_cls.video_fps,
+                        default_value=driver_spec.video_fps,
                         type="int",
                         tooltip="Frames per second for video output.",
                         allowed_modes={ParameterMode.PROPERTY},
@@ -157,7 +159,7 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                     tooltip="Generated video.",
                     allowed_modes={ParameterMode.OUTPUT},
                     user_defined=True,
-                    serializable=False,
+                    # No `serializable=False`, for the reason given on `output_image` in `__init__`.
                 )
             )
             # Reorder to ensure fps appears before output_video
@@ -172,7 +174,7 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                     tooltip="Decoded image from the latent tensor.",
                     allowed_modes={ParameterMode.OUTPUT},
                     user_defined=True,
-                    serializable=False,
+                    # No `serializable=False`, for the reason given on this parameter in `__init__`.
                 )
             )
 
@@ -203,6 +205,27 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         if pipeline_errors is not None:
             errors.extend(pipeline_errors)
 
+        # Validate FPS parameter for video output
+        if self._current_output_type == "video":
+            fps = self.get_parameter_value("fps")
+            if fps is not None:
+                try:
+                    fps_int = int(fps)
+                    if fps_int <= 0:
+                        errors.append(ValueError(f"FPS must be a positive integer, got {fps_int}."))
+                except (ValueError, TypeError):
+                    errors.append(ValueError(f"FPS must be a valid integer, got {fps!r}."))
+
+        return errors or None
+
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Check the incoming latent.
+
+        The latent is held by the process that produced it, so reading it anywhere else raises -- which
+        means even asking whether it is connected has to happen here rather than on the orchestrator.
+        """
+        errors: list[Exception] = []
+
         latent_tensor = self.get_parameter_value("latent_tensor")
         if latent_tensor is None:
             errors.append(ValueError("Missing required 'latent_tensor' input."))
@@ -215,17 +238,6 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                     "Ensure the latent was created from an image or has image dimensions set."
                 )
             )
-
-        # Validate FPS parameter for video output
-        if self._current_output_type == "video":
-            fps = self.get_parameter_value("fps")
-            if fps is not None:
-                try:
-                    fps_int = int(fps)
-                    if fps_int <= 0:
-                        errors.append(ValueError(f"FPS must be a positive integer, got {fps_int}."))
-                except (ValueError, TypeError):
-                    errors.append(ValueError(f"FPS must be a valid integer, got {fps!r}."))
 
         return errors or None
 
@@ -284,6 +296,11 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         audio_sample_rate: int | None = None,
     ) -> None:
         """Encode a video output to ``dest_path``. Override to customize HDR/tone-mapping."""
+        import diffusers  # type: ignore[reportMissingImports]
+        import numpy as np
+        from diffusers.pipelines.ltx2.export_utils import encode_hdr_tensor_to_mp4  # type: ignore[reportMissingImports]
+        from diffusers.utils.export_utils import encode_video  # type: ignore[reportMissingImports]
+
         if isinstance(output, np.ndarray):
             encode_hdr_tensor_to_mp4(output[0], str(dest_path), frame_rate=fps)
         elif audio is not None and audio_sample_rate is not None:

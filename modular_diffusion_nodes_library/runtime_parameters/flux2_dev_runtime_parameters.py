@@ -1,7 +1,8 @@
-from typing import ClassVar
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_layout import (
     FlexibleImageConfig,
@@ -22,6 +23,9 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     MediaGenConditioningKey,
     resolve_conditioning_image,
 )
+
+if TYPE_CHECKING:
+    from PIL.Image import Image
 
 
 class Flux2DevPipelineRuntimeParameters(Flux2PipelineRuntimeParameters):
@@ -70,9 +74,9 @@ class Flux2DevPipelineRuntimeParameters(Flux2PipelineRuntimeParameters):
             kwargs["image"] = images
         return kwargs
 
-    def validate_before_node_run(self) -> list[Exception] | None:
-        errors = super().validate_before_node_run() or []
-        conditioning_errors = self._media_gen_conditioning_param.validate_before_node_run()
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        errors = super().validate_in_execution_environment() or []
+        conditioning_errors = self._media_gen_conditioning_param.validate_in_execution_environment()
         if conditioning_errors:
             errors.extend(conditioning_errors)
         return errors or None

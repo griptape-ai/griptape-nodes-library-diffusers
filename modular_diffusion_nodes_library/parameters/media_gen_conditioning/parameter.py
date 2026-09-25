@@ -46,7 +46,9 @@ class MediaGenConditioningParameter:
                 output_type=CONDITIONING_OUTPUT_TYPE,
                 allowed_modes={ParameterMode.OUTPUT},
                 tooltip="Media generation conditioning output.",
-                serializable=False,
+                # No `serializable=False`: the payload is URL artifacts, an enum and scalars, and it
+                # declares its own wire form, so it travels. Holding it would hand every consumer -- and
+                # the editor -- a reference, and the consuming node's validation would raise.
                 hide_property=True,
                 ui_options={"display_name": "Conditioning Output"},
             )

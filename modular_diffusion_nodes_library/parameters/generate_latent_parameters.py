@@ -1,14 +1,12 @@
+from __future__ import annotations
+
 import logging
 from datetime import UTC, datetime
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import torch  # type: ignore[import]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from griptape.artifacts import ImageArtifact, ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterList, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import (
     InpaintMaskArtifact,  # type: ignore[reportMissingImports]
@@ -21,18 +19,25 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DiffusionPipelineArtifact,
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import (
+    create_driver,
+    get_driver_class,
+    get_driver_spec,
+)
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     DecodeOutput,
     DecodeResult,
     GeneratorState,
 )
-from modular_diffusion_nodes_library.utils.directory_utils import (
-    check_cleanup_intermediates_directory,
-    get_intermediates_directory_path,
-)
+from modular_diffusion_nodes_library.utils.config_utils import get_config_value
+from modular_diffusion_nodes_library.utils.directory_utils import get_intermediates_directory_path
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil, pil_to_image_artifact
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[import]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+    from PIL.Image import Image  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -233,9 +238,7 @@ class DiffusionPipelineGenerateLatentParameters:
         self._node.clear_cancellation()
         num_inference_steps = self.get_num_inference_steps()
         # Default to False for better performance - preview intermediates slow down inference
-        enable_preview = GriptapeNodes.ConfigManager().get_config_value(
-            "modular_diffusion_library.enable_image_preview_intermediates", default=False
-        )
+        enable_preview = get_config_value("modular_diffusion_library.enable_image_preview_intermediates", default=False)
 
         first_iteration_time = None
         latent_pipeline_driver = create_driver(pipe, pipeline_class)
@@ -333,9 +336,7 @@ class DiffusionPipelineGenerateLatentParameters:
     def publish_output_image_preview_latents(
         self, latents: torch.Tensor, source_shape: tuple[int, ...], latent_pipeline_driver: LatentPipelineDriver
     ) -> None:
-        # Check to ensure there's enough space in the intermediates directory
-        # if that setting is enabled.
-        check_cleanup_intermediates_directory()
+        from PIL.Image import Image
 
         preview_image_pil = self.latents_to_image_pil(latents, source_shape, latent_pipeline_driver)
         if isinstance(preview_image_pil, list):
@@ -442,7 +443,13 @@ class DiffusionPipelineGenerateLatentParameters:
 
             pipe_kwargs[key] = [existing_value, value]
 
-    def validate_before_node_run(self) -> list[Exception] | None:
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Checks that need the real latent and the real driver.
+
+        `input_latent` holds a tensor the producing process is keeping, so reading it anywhere else
+        raises; `validate_run_configuration` is a driver classmethod, so reaching it imports diffusers.
+        Both are only answerable where the node runs.
+        """
         if self._node.get_parameter_by_name("input_latent") is not None:
             input_latent_artifact = self._node.get_parameter_value("input_latent")
             if input_latent_artifact is None:
@@ -480,4 +487,4 @@ class DiffusionPipelineGenerateLatentParameters:
 
     @staticmethod
     def validate_pipeline_class(pipeline_class: str | None) -> bool:
-        return get_driver_class(pipeline_class) is not None
+        return get_driver_spec(pipeline_class) is not None

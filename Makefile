@@ -1,6 +1,7 @@
 SHELL := /bin/bash
 
 LIBRARY_JSON := griptape-nodes-library.json
+EXEC_TEST_VENV := .venv-test-exec
 
 .PHONY: version/get
 version/get: ## Get version.
@@ -57,15 +58,8 @@ version/publish: ## Create and push git tags.
 	git push -f origin stable
 
 .PHONY: deps/sync
-deps/sync: ## Sync pip_dependencies in the library JSON from pyproject.toml.
-	@uv run python -c "\
-import tomllib, json; \
-pyproject = tomllib.load(open('pyproject.toml', 'rb')); \
-deps = [d for d in pyproject['project']['dependencies'] if not d.startswith('griptape-nodes')]; \
-lib = json.load(open('$(LIBRARY_JSON)')); \
-lib['metadata'].setdefault('dependencies', {})['pip_dependencies'] = deps; \
-open('$(LIBRARY_JSON)', 'w').write(json.dumps(lib, indent=4) + '\n'); \
-print(f'Synced {len(deps)} dependencies to $(LIBRARY_JSON)')"
+deps/sync: ## Sync pip_dependencies and pip_dependencies_exec in the library JSON from pyproject.toml.
+	@uv run python scripts/sync_dependencies.py
 
 .PHONY: install
 install: ## Install all dependencies.
@@ -77,7 +71,9 @@ install/core: deps/sync ## Install core dependencies.
 
 .PHONY: install/all
 install/all: deps/sync ## Install all dependencies.
-	@uv sync --all-groups --all-extras
+	@# No `--all-extras`: that installs the `exec` extra into .venv, which the engine splices onto the
+	@# orchestrator's sys.path. A heavy import would then succeed for a developer and fail for a user.
+	@uv sync --all-groups
 
 .PHONY: install/dev
 install/dev: ## Install dev dependencies.
@@ -96,8 +92,10 @@ fix: ## Fix project.
 	@make format
 	@uv run ruff check --fix --unsafe-fixes
 
+# `test/unit` is a prerequisite because CI runs `make check` and nothing else, so a suite outside it
+# gates nothing -- and these tests pin invariants whose violations are silent.
 .PHONY: check
-check: check/format check/lint check/types check/json ## Run all checks.
+check: check/format check/lint check/types check/json check/worker-safe check/edit-time-imports test/unit ## Run all checks.
 
 .PHONY: check/format
 check/format:
@@ -109,7 +107,10 @@ check/lint:
 
 .PHONY: check/types
 check/types:
-	@uv run pyright .
+	@# Type-checked against the execution environment, because that is where torch and diffusers are.
+	@# The default venv is the edit-time one, and pyright cannot resolve what is deliberately not there.
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv sync --extra exec --all-groups
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv run pyright .
 
 .PHONY: check/json
 check/json: ## Validate JSON files.
@@ -119,6 +120,16 @@ check/json: ## Validate JSON files.
 		! -path "./node_modules/*" \
 		-exec sh -c 'jq empty "{}" > /dev/null 2>&1 || (echo "Invalid JSON: {}" && exit 1)' \;
 
+.PHONY: check/worker-safe
+check/worker-safe: ## Fail if node code reaches an engine manager it cannot have in a worker.
+	@uv run python scripts/check_worker_safe_managers.py
+
+.PHONY: check/edit-time-imports
+check/edit-time-imports: ## Fail if building the node classes reaches an execution-set package.
+	@# Deliberately the edit-time venv: reaching a heavy package has to fail here the way it would on a
+	@# real orchestrator, which is the one environment where the packages are absent.
+	@uv run python scripts/check_edit_time_imports.py
+
 .PHONY: test
 test: ## Run all tests.
 	@uv run pytest tests
@@ -126,6 +137,13 @@ test: ## Run all tests.
 .PHONY: test/unit
 test/unit: ## Run unit tests (everything except workflow tests).
 	@uv run pytest tests --ignore=tests/workflows
+
+.PHONY: test/exec
+test/exec: ## Run the tests that need the execution environment (diffusers, torch).
+	@# A separate venv on purpose: .venv is the edit-time environment the engine splices onto the
+	@# orchestrator, and fattening it would hide exactly the bugs that separation exists to expose.
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv sync --extra exec --all-groups
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv run pytest tests --ignore=tests/workflows
 
 .PHONY: test/workflows
 test/workflows: ## Run workflow tests.

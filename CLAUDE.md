@@ -15,7 +15,7 @@ It is consumed by the [`griptape-nodes`](../griptape-nodes) engine, which loads 
 All development is uv-backed. Run these directly from the repo root:
 
 ```bash
-uv sync --all-groups --all-extras            # install deps
+uv sync --all-groups                         # install deps (edit-time only, on purpose)
 uv run ruff format --check                   # check formatting
 uv run ruff check .                          # check linting
 uv run ruff format                           # auto-format
@@ -98,18 +98,41 @@ Prefer verifiable goals ("write a failing test for X, then make it pass") over i
         return result
     ```
 
-**CRITICAL: Do NOT use lazy imports** — Imports MUST be at the top of the file:
+**Keep heavy dependencies out of import time** — imports at the top of the file, with one systematic exception:
 
-- All imports at the top of the file, standard order
-- NEVER use lazy imports (imports inside functions) unless required to resolve an unavoidable circular import
-- If you think you need a lazy import, STOP, explain why, and ASK for confirmation
-- If you must use one, add a comment naming the exact circular import being resolved
-- Bad:
-    ```python
-    def process_data(value):
-        from some_module import helper  # NO! Move to top
-        return helper(value)
-    ```
+- Light imports (stdlib, `griptape_nodes`, `griptape`, this library's own modules) go at the top of the file, standard order.
+- **Heavy dependencies must not be imported at module scope.** `torch`, `diffusers`, `transformers`, `accelerate`, `numpy`, `PIL`, `cv2`, `safetensors`, `peft`, `scipy`, `Imath`/`OpenEXR` and friends are declared in `pip_dependencies_exec`, not `pip_dependencies`, so they exist only in a worker's execution venv. The orchestrator imports every module under `nodes/` to build the node classes, and it does so without them installed.
+- Three ways to defer, in order of preference:
+    1. Annotation-only use → a `TYPE_CHECKING` block. The file needs `from __future__ import annotations`.
+    2. A module-scope type alias → `type Alias = ...` (PEP 695), whose right-hand side is evaluated lazily.
+    3. Runtime use → `import` inside the function that uses it.
+- A decorator is evaluated while the class body runs, so `@torch.no_grad()` imports torch at import time. Use `no_grad` / `inference_mode` from [`utils/torch_utils.py`](modular_diffusion_nodes_library/utils/torch_utils.py) instead.
+- Validation that needs a real pipeline class belongs in `tests/`, not in a module-scope guard. See [tests/test_pipeline_type_override_coverage.py](tests/test_pipeline_type_override_coverage.py).
+- **A node's `__init__` must not reach a pipeline class either.** Deferring an import only helps if nothing calls it at edit time, and the orchestrator constructs every node class to show it in the editor. Anything derived from a pipeline's `__init__` signature is a fact about the pinned diffusers: declare it per pipeline type and pin it with a test. `_component_slots` on [`modular_pipeline_type_parameters.py`](modular_diffusion_nodes_library/parameters/modular_pipeline_type_parameters.py) plus [tests/test_component_slots.py](tests/test_component_slots.py) is the precedent.
+- Circular imports remain the other reason to import inside a function. When that is the reason, say so in a comment naming the cycle.
+
+**Two environments, on purpose.** `uv sync` installs only the edit-time set, because the engine splices that environment onto the orchestrator's `sys.path` — so a dev orchestrator behaves like a real one and a heavy package reaching it fails here too. The execution set is the `exec` extra; `make test/exec` builds a separate `.venv-test-exec` for the tests that read real diffusers or torch objects. Never add a heavy package to `[project] dependencies`: `scripts/sync_dependencies.py` refuses, and `.venv` is what the orchestrator gets.
+
+`uv run python scripts/check_edit_time_imports.py` is the gate: it imports every node module **and constructs every node class**, then fails if a heavy package was reached. Run it after touching imports or a node's `__init__`. It is worth running in both environments — on `.venv` a reach fails the way a real orchestrator would, and on the exec venv `sys.modules` catches a reach that would otherwise succeed silently. It does not wire a pipeline into a node, so validation and dynamic-parameter code is outside its reach.
+
+## Running in a worker
+
+A library whose nodes execute in a worker runs in two processes, and node code has to be written for
+both. Two rules, each with a gate:
+
+**Do not reach for an engine manager.** `GriptapeNodes.<Manager>()` raises during node execution in a
+worker: that process holds its own copy of the state, so an answer served locally would be silently
+wrong. Use `GriptapeNodes.handle_request(...)`, which routes to whichever process owns the state — the
+engine's error message names the request for each manager. `utils/config_utils.py` wraps the two config
+reads this library needs. A manager *construction*-time read is fine, because a worker builds its
+transient node before the guarded scope opens. `make check/worker-safe` fails on the rest.
+
+**Do not read a `serializable=False` parameter outside the process that produced it.** Those values are
+held where they were built and travel as a reference, so reading one elsewhere raises — including just
+checking whether it is set. Anything that inspects a latent, a loaded model, or a driver class belongs
+in `validate_in_execution_environment`, which runs where the node runs. `validate_before_node_run` keeps
+what the orchestrator can answer: declarations, plain values, graph shape. A worker's node is transient
+and has no connections, so a question about the graph is answerable *only* on the orchestrator.
 
 ## Exception Handling
 

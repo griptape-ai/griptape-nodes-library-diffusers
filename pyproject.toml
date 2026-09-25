@@ -6,7 +6,19 @@ authors = [
     {name = "Griptape, Inc."}
 ]
 requires-python = "~=3.12.0"
+# What the orchestrator needs to import every node module and build the node classes. Nothing
+# heavy belongs here: the engine splices this environment onto the orchestrator's `sys.path`, so a
+# package present here is a package the orchestrator can reach -- which is how a pipeline came to be
+# built there. `uv sync` installs exactly this, so a dev orchestrator behaves like a real one.
 dependencies = [
+    "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
+]
+
+[project.optional-dependencies]
+# The execution set: what a node needs once it runs. Published as `pip_dependencies_exec` and
+# installed into the worker's execution venv, never onto the orchestrator. Install it locally with
+# `uv sync --extra exec` to run the tests that read real diffusers classes.
+exec = [
     "accelerate>=1.6.0",
     "av>=14.0.0",
     "beautifulsoup4>=4.13.4",
@@ -40,7 +52,6 @@ dependencies = [
     "scipy>=1.10.0",
     "matplotlib>=3.10.3",
     "supervision>=0.27.0",
-    "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
     "openexr>=3.3.0",
 ]
 
@@ -57,7 +68,7 @@ packages = [
     "workflows",
 ]
 
-# `uv sync` equivalent of the JSON's `--torch-backend=auto`: pull CUDA torch
+# `uv sync` equivalent of the manifest's pinned CUDA index: pull CUDA torch
 # wheels on Windows/Linux, fall back to PyPI (MPS build) on macOS.
 [tool.uv.sources]
 torch = [
@@ -106,7 +117,7 @@ exclude = ["workflows/", ".venv/", "**/__pycache__"]
 
 [dependency-groups]
 dev = [
-    "griptape-nodes-engine>=0.100.2",
+    "griptape-nodes-engine>=0.102.0",
     "pyright>=1.1.396",
     "ruff>=0.8.0",
     "pytest",

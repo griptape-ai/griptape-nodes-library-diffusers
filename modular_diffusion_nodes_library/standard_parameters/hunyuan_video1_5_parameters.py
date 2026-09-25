@@ -1,8 +1,8 @@
-import logging
-from typing import Any
+from __future__ import annotations
 
-import diffusers  # type: ignore[reportMissingImports]
-import torch  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar
+
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
@@ -10,11 +10,23 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
     ModularDiffusionPipelineTypePipelineParameters,
 )
 
+if TYPE_CHECKING:
+    import diffusers  # type: ignore[reportMissingImports]
+
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class HunyuanVideo15PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-    _pipeline_cls = diffusers.HunyuanVideo15Pipeline  # type: ignore[reportAttributeAccessIssue]
+    _pipeline_cls_path = "diffusers:HunyuanVideo15Pipeline"
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "text_encoder_2",
+        "tokenizer",
+        "tokenizer_2",
+        "scheduler",
+    ]
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
@@ -37,6 +49,8 @@ class HunyuanVideo15PipelineParameters(ModularDiffusionPipelineTypePipelineParam
         # ALLOWED_COMPONENT_SLOTS. Instantiate one with the T2V checkpoint's
         # default settings so the pipeline can still be built from component
         # overrides alone.
+        import diffusers  # type: ignore[reportMissingImports]
+
         guider = diffusers.ClassifierFreeGuidance(  # type: ignore[reportAttributeAccessIssue]
             guidance_scale=6.0,
             guidance_rescale=0.0,
@@ -91,6 +105,9 @@ class HunyuanVideo15PipelineParameters(ModularDiffusionPipelineTypePipelineParam
     def _build_pipeline_from_repo(
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> diffusers.HunyuanVideo15Pipeline:  # type: ignore[reportAttributeAccessIssue]
+        import diffusers  # type: ignore[reportMissingImports]
+        import torch  # type: ignore[reportMissingImports]
+
         repo_id = build_data["base_repo_id"]
         return diffusers.HunyuanVideo15Pipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=repo_id,

@@ -1,13 +1,12 @@
-import logging
-from typing import Any, ClassVar
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers.models.transformers.transformer_ltx2 import (  # type: ignore[reportMissingImports]
-    LTX2VideoTransformer3DModel,
-)
-from diffusers.pipelines.ltx2.pipeline_ltx2 import LTX2Pipeline  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from modular_diffusion_nodes_library.standard_parameters.ltx2_parameters import LTX2PipelineParameters
+
+if TYPE_CHECKING:
+    from diffusers.pipelines.ltx2.pipeline_ltx2 import LTX2Pipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("diffusers_nodes_library")
 
@@ -31,6 +30,11 @@ class _LTX25PipelineParametersBase(LTX2PipelineParameters):
 
     @classmethod
     def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> LTX2Pipeline:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.models.transformers.transformer_ltx2 import (  # type: ignore[reportMissingImports]
+            LTX2VideoTransformer3DModel,
+        )
+
         overrides.setdefault(
             "transformer",
             LTX2VideoTransformer3DModel.from_pretrained(

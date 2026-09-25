@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import hashlib
 import logging
 from pathlib import Path
 from typing import Any
 
-import safetensors  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.core_types import ParameterList, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
 
@@ -66,6 +67,8 @@ class LorasParameter:
         return {path: spec.weight for path, spec in self.get_lora_specs().items()}
 
     def configure_loras(self, pipe: Any) -> None:
+        import safetensors  # type: ignore[reportMissingImports]
+
         loras = self.get_loras()
 
         if not loras:

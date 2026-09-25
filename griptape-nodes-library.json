@@ -36,13 +36,23 @@
         "author": "Griptape, Inc.",
         "description": "Modular Diffusion nodes for Griptape Nodes.",
         "library_version": "0.7.0",
-        "engine_version": "0.100.2",
+        "engine_version": "0.102.0",
         "tags": [
             "Griptape",
             "AI"
         ],
         "dependencies": {
             "pip_dependencies": [
+                "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4"
+            ],
+            "pip_install_flags": [
+                "--extra-index-url",
+                "https://download.pytorch.org/whl/cu128",
+                "--index-strategy",
+                "unsafe-best-match"
+            ],
+            "pip_dependencies_exec": [
+                "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
                 "accelerate>=1.6.0",
                 "av>=14.0.0",
                 "beautifulsoup4>=4.13.4",
@@ -76,12 +86,7 @@
                 "scipy>=1.10.0",
                 "matplotlib>=3.10.3",
                 "supervision>=0.27.0",
-                "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
                 "openexr>=3.3.0"
-            ],
-            "pip_install_flags": [
-                "--preview",
-                "--torch-backend=auto"
             ]
         },
         "resources": {
@@ -994,6 +999,16 @@
                 "category": "ModularDiffusion/Pipeline",
                 "description": "Forcefully evicts all cached diffusion pipelines from GPU/CPU memory. Use this node when diagnosing out-of-memory errors or when you need a clean slate before loading a different model.",
                 "display_name": "Clear Pipeline Cache",
+                "group": "diffusion"
+            }
+        },
+        {
+            "class_name": "ReleasePipelineNode",
+            "file_path": "./modular_diffusion_nodes_library/nodes/release_pipeline_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/Pipeline",
+                "description": "Releases one diffusion pipeline from GPU/CPU memory, leaving the rest of the cache alone. Use this to free VRAM for the next pipeline while keeping others loaded. The pipeline configuration is untouched, so a node that needs it again rebuilds it.",
+                "display_name": "Release Pipeline",
                 "group": "diffusion"
             }
         },

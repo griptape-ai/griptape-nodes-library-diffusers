@@ -1,8 +1,8 @@
-import logging
-from typing import Any
+from __future__ import annotations
 
-import diffusers  # type: ignore[reportMissingImports]
-import torch  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar
+
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
@@ -10,11 +10,21 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
     ModularDiffusionPipelineTypePipelineParameters,
 )
 
+if TYPE_CHECKING:
+    import diffusers  # type: ignore[reportMissingImports]
+
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class QwenEditPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-    _pipeline_cls = diffusers.QwenImageEditPipeline  # type: ignore[reportAttributeAccessIssue]
+    _pipeline_cls_path = "diffusers:QwenImageEditPipeline"
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "tokenizer",
+        "scheduler",
+    ]
     text_conditioning_target_dim_key = "joint_attention_dim"
     latent_packing_ratio = 4
 
@@ -66,7 +76,9 @@ class QwenEditPipelineParameters(ModularDiffusionPipelineTypePipelineParameters)
     def _build_pipeline_from_repo(
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> diffusers.QwenImageEditPipeline:  # type: ignore[reportAttributeAccessIssue]
-        return cls._pipeline_cls.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
+        import torch  # type: ignore[reportMissingImports]
+
+        return cls.pipeline_cls().from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],
             torch_dtype=torch.bfloat16,

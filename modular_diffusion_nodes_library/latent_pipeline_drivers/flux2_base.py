@@ -1,20 +1,7 @@
-import logging
-from typing import override
+from __future__ import annotations
 
-import PIL.Image
-import torch  # type: ignore[reportMissingImports]
-import torchvision.transforms.functional as TF  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.flux2.before_denoise import (  # type: ignore[reportMissingImports]
-    Flux2PrepareLatentsStep,
-    Flux2SetTimestepsStep,
-)
-from diffusers.modular_pipelines.flux2.decoders import Flux2UnpackLatentsStep  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.flux2.encoders import Flux2VaeEncoderStep  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.flux2.inputs import Flux2ProcessImagesInputStep  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.flux2.modular_blocks_flux2 import Flux2AutoBlocks  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-from PIL.Image import Image
+import logging
+from typing import TYPE_CHECKING, override
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
@@ -24,6 +11,12 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     MaskMedia,
     VideoMedia,
 )
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+    from PIL.Image import Image
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -43,10 +36,22 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
+        from diffusers.modular_pipelines.flux2.modular_blocks_flux2 import (
+            Flux2AutoBlocks,  # type: ignore[reportMissingImports]
+        )
+
         return Flux2AutoBlocks().init_pipeline()
 
     @override
     def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.flux2.before_denoise import (  # type: ignore[reportMissingImports]
+            Flux2PrepareLatentsStep,
+        )
+        from diffusers.modular_pipelines.flux2.decoders import (
+            Flux2UnpackLatentsStep,  # type: ignore[reportMissingImports]
+        )
+
         device, dtype = self._get_device_and_type()
         height, width = source_shape[-2], source_shape[-1]
 
@@ -86,6 +91,14 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
 
     def _unpack_latents(self, latents: torch.Tensor, height: int, width: int) -> torch.Tensor:
         """Convert packed Flux2 latents ``[B, seq_len, C]`` to ``[B, C, H/vae/2, W/vae/2]``."""
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.flux2.before_denoise import (  # type: ignore[reportMissingImports]
+            Flux2PrepareLatentsStep,
+        )
+        from diffusers.modular_pipelines.flux2.decoders import (
+            Flux2UnpackLatentsStep,  # type: ignore[reportMissingImports]
+        )
+
         device, dtype = self._get_device_and_type()
         latents = latents.to(device=device, dtype=dtype)
 
@@ -105,6 +118,9 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        import PIL.Image
+        import torch  # type: ignore[reportMissingImports]
+
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         image = media.image
@@ -125,6 +141,14 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
     def encode_masked_image(
         self, image: ImageMedia, mask: MaskMedia, generator_state: GeneratorState
     ) -> LatentArtifact:
+        import PIL.Image
+        import torch  # type: ignore[reportMissingImports]
+        import torchvision.transforms.functional as TF  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.flux2.encoders import Flux2VaeEncoderStep  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.flux2.inputs import (
+            Flux2ProcessImagesInputStep,  # type: ignore[reportMissingImports]
+        )
+
         pil_image = image.image
         if isinstance(pil_image, torch.Tensor):
             img_np = pil_image.squeeze(0).permute(1, 2, 0).clamp(0, 1).mul(255).byte().cpu().numpy()
@@ -158,6 +182,10 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         # strength-based noise addition. Flux2PrepareLatentsStep only generates or
         # passes through latents without blending noise at a specific timestep.
         # Flux2SetTimestepsStep to handle sigmas, dynamic shifting, and mu computation
+        from diffusers.modular_pipelines.flux2.before_denoise import (  # type: ignore[reportMissingImports]
+            Flux2SetTimestepsStep,
+        )
+
         device, dtype = self._get_device_and_type()
         source_shape = latent.source_shape
         latents = latent.to_torch(device=device, dtype=dtype)

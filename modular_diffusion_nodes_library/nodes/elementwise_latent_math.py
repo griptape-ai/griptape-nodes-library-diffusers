@@ -52,36 +52,34 @@ class ElementwiseBinaryLatentNode(DataNode):
             )
         )
 
-    def validate_before_node_run(self) -> list[Exception] | None:
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Both inputs are held latents, so only the process running the node can read them.
+
+        The operation is its own check: the shape and dtype compatibility this node can fail on lives in
+        the tensors, and `_apply_operation` is where they meet. That needs torch, which the orchestrator
+        does not have.
+        """
         exceptions: list[Exception] = []
-
-        left_latent = self.get_parameter_value("left_latent")
-        if left_latent is None:
-            exceptions.append(ValueError(f"Parameter \"left_latent\" was left blank for node '{self.name}'."))  # noqa: PERF401
-        elif not isinstance(left_latent, LatentArtifact):
-            exceptions.append(
-                TypeError(
-                    f"Parameter \"left_latent\" on node '{self.name}' must be a LatentArtifact, got '{type(left_latent).__name__}'."
+        latents: dict[str, LatentArtifact] = {}
+        for name in ("left_latent", "right_latent"):
+            value = self.get_parameter_value(name)
+            if value is None:
+                exceptions.append(ValueError(f"Parameter \"{name}\" was left blank for node '{self.name}'."))
+            elif not isinstance(value, LatentArtifact):
+                exceptions.append(
+                    TypeError(
+                        f"Parameter \"{name}\" on node '{self.name}' must be a LatentArtifact, "
+                        f"got '{type(value).__name__}'."
+                    )
                 )
-            )
-
-        right_latent = self.get_parameter_value("right_latent")
-        if right_latent is None:
-            exceptions.append(
-                ValueError(f"Parameter \"right_latent\" was left blank for node '{self.name}'.")  # noqa: PERF401
-            )
-        elif not isinstance(right_latent, LatentArtifact):
-            exceptions.append(
-                TypeError(
-                    f"Parameter \"right_latent\" on node '{self.name}' must be a LatentArtifact, got '{type(right_latent).__name__}'."
-                )
-            )
+            else:
+                latents[name] = value
 
         if exceptions:
             return exceptions
 
         try:
-            self._apply_operation(left_latent, right_latent)  # type: ignore[reportArgumentType]
+            self._apply_operation(latents["left_latent"], latents["right_latent"])
         except (TypeError, ValueError, RuntimeError) as error:
             return [error]
 

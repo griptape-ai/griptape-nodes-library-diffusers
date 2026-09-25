@@ -2,21 +2,8 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import override
+from typing import TYPE_CHECKING, override
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers import AutoencoderKLLTX2Video, AutoencoderKLLTXVideo  # type: ignore[reportMissingImports]
-from diffusers.pipelines.ltx.modeling_latent_upsampler import (
-    LTXLatentUpsamplerModel,  # type: ignore[reportMissingImports]
-)
-from diffusers.pipelines.ltx.pipeline_ltx_latent_upsample import (
-    LTXLatentUpsamplePipeline,  # type: ignore[reportMissingImports]
-)
-from diffusers.pipelines.ltx2.latent_upsampler import LTX2LatentUpsamplerModel  # type: ignore[reportMissingImports]
-from diffusers.pipelines.ltx2.pipeline_ltx2 import LTX2Pipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.ltx2.pipeline_ltx2_latent_upsample import (
-    LTX2LatentUpsamplePipeline,  # type: ignore[reportMissingImports]
-)
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
@@ -25,6 +12,15 @@ from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
 )
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 from modular_diffusion_nodes_library.utils.torch_utils import get_best_device
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers import AutoencoderKLLTX2Video  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.ltx2.latent_upsampler import LTX2LatentUpsamplerModel  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.ltx2.pipeline_ltx2 import LTX2Pipeline  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.ltx2.pipeline_ltx2_latent_upsample import (
+        LTX2LatentUpsamplePipeline,  # type: ignore[reportMissingImports]
+    )
 
 logger = logging.getLogger("diffusers_nodes_library")
 
@@ -89,6 +85,8 @@ class LTX2UpsamplerParameters(BaseUpsamplerParameters):
     def _upsample(
         self, latent_artifact: LatentArtifact, repo_id: str, revision: str, device: torch.device
     ) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         latent_upsampler_model = LTX2LatentUpsamplerModel.from_pretrained(
             pretrained_model_name_or_path=repo_id,
             subfolder=SPATIAL_UPSAMPLER_SUBFOLDER,
@@ -153,6 +151,15 @@ class LTXUpsamplerParameters(BaseUpsamplerParameters):
     def _upsample(
         self, latent_artifact: LatentArtifact, repo_id: str, revision: str, device: torch.device
     ) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers import AutoencoderKLLTXVideo  # type: ignore[reportMissingImports]
+        from diffusers.pipelines.ltx.modeling_latent_upsampler import (
+            LTXLatentUpsamplerModel,  # type: ignore[reportMissingImports]
+        )
+        from diffusers.pipelines.ltx.pipeline_ltx_latent_upsample import (
+            LTXLatentUpsamplePipeline,  # type: ignore[reportMissingImports]
+        )
+
         latent_upsampler_model = LTXLatentUpsamplerModel.from_pretrained(
             pretrained_model_name_or_path=repo_id,
             subfolder=SPATIAL_UPSAMPLER_SUBFOLDER,

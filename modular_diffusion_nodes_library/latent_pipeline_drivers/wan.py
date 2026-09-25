@@ -1,26 +1,13 @@
-import logging
-from typing import Any, ClassVar, cast, override
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar, cast, override
+
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     ModularPipelineBlocks,
     PipelineState,
 )
-from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
-    InputParam,
-    OutputParam,
-)
-from diffusers.modular_pipelines.wan.before_denoise import (  # type: ignore[reportMissingImports]
-    WanPrepareLatentsStep,
-    WanSetTimestepsStep,
-)
-from diffusers.modular_pipelines.wan.decoders import WanVaeDecoderStep  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.wan.encoders import encode_vae_image  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.wan.modular_blocks_wan import WanBlocks  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.wan.modular_blocks_wan22 import Wan22Blocks  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.wan.modular_pipeline import WanModularPipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -32,6 +19,17 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     PipelineOutput,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.utils.torch_utils import no_grad
+
+if TYPE_CHECKING:
+    from diffusers.modular_pipelines.modular_pipeline_utils import (
+        InputParam,  # type: ignore[reportMissingImports]
+        OutputParam,  # type: ignore[reportMissingImports]
+    )
+    from diffusers.modular_pipelines.wan.modular_pipeline import (
+        WanModularPipeline,  # type: ignore[reportMissingImports]
+    )
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -43,10 +41,19 @@ class _WanEncodeVideoStep(ModularPipelineBlocks):
 
     @property
     def inputs(self) -> list[InputParam]:
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            InputParam,
+        )
+
         return [InputParam("frames", required=True), InputParam("generator")]
 
     @property
     def intermediate_outputs(self) -> list[OutputParam]:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            OutputParam,
+        )
+
         return [
             OutputParam(
                 "video_latents",
@@ -55,10 +62,13 @@ class _WanEncodeVideoStep(ModularPipelineBlocks):
             ),
         ]
 
-    @torch.no_grad()
+    @no_grad
     def __call__(
         self, components: WanModularPipeline, state: PipelineState
     ) -> tuple[WanModularPipeline, PipelineState]:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.wan.encoders import encode_vae_image  # type: ignore[reportMissingImports]
+
         block_state = cast(Any, self.get_block_state(state))
 
         device = components._execution_device
@@ -103,12 +113,22 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
+        from diffusers.modular_pipelines.wan.modular_blocks_wan import WanBlocks  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.wan.modular_blocks_wan22 import (
+            Wan22Blocks,  # type: ignore[reportMissingImports]
+        )
+
         if getattr(self.pipe, "transformer_2", None) is not None:
             return Wan22Blocks().init_pipeline()
         return WanBlocks().init_pipeline()
 
     @override
     def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.wan.before_denoise import (  # type: ignore[reportMissingImports]
+            WanPrepareLatentsStep,
+        )
+
         _, dtype = self._get_device_and_type()
         generator = generator_state.to_generator()
         prepare_latents = WanPrepareLatentsStep()
@@ -138,6 +158,8 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
     @override
     def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
         """Decode a 5-D WAN video latent and return the video."""
+        from diffusers.modular_pipelines.wan.decoders import WanVaeDecoderStep  # type: ignore[reportMissingImports]
+
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
         vae_decoder_step = WanVaeDecoderStep()
@@ -152,6 +174,8 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         """Encode WAN video frames as a normalised video latent (5-D ``[B, C, T, H/vsf, W/vsf]``)."""
+        import torch  # type: ignore[reportMissingImports]
+
         if isinstance(media, ImageMedia):
             raise NotImplementedError(
                 f"Pipeline '{self.pipe.__class__.__name__}' does not support image encoding. Use a video input instead."
@@ -173,6 +197,11 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
         strength: float,
     ) -> LatentArtifact:
         """Add noise to a WAN video latent using modular blocks."""
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.wan.before_denoise import (  # type: ignore[reportMissingImports]
+            WanSetTimestepsStep,
+        )
+
         device, dtype = self._get_device_and_type()
         source_shape = latent.source_shape
         latents = latent.to_torch(device=device, dtype=dtype)

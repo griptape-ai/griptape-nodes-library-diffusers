@@ -1,11 +1,7 @@
-import logging
-from typing import Any, override
+from __future__ import annotations
 
-import PIL.Image
-import torch
-from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.wan.modular_blocks_wan22 import Wan22Blocks  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, override
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -17,6 +13,11 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.wan import WanTextToVideoLatentPipelineDriver
 
+if TYPE_CHECKING:
+    import PIL.Image  # type: ignore[reportMissingImports]
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
@@ -27,6 +28,8 @@ def _video_to_mask_frames(
     width: int,
 ) -> list[PIL.Image.Image]:
     """Convert resolved video frames to grayscale mask frames; unspecified positions default to white."""
+    import PIL.Image
+
     white = PIL.Image.new("L", (width, height), 255)
     result: list[PIL.Image.Image] = [white for _ in range(num_frames)]
     for i, frame in enumerate(frames):
@@ -45,6 +48,10 @@ class WanAnimateLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         # WanAnimatePipeline is a Wan2.2-family model. Wan22Blocks VAE blocks are
         # compatible because the VAE type (AutoencoderKLWan) is unchanged; only the
         # transformer architecture differs (WanAnimateTransformer3DModel).
+        from diffusers.modular_pipelines.wan.modular_blocks_wan22 import (
+            Wan22Blocks,  # type: ignore[reportMissingImports]
+        )
+
         return Wan22Blocks().init_pipeline()
 
     @override
@@ -64,6 +71,8 @@ class WanAnimateLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        import torch
+
         base_artifact = super().encode_media(media, generator_state)
         base_tensor = base_artifact.to_torch()
         # Prepend a copy of the first encoded latent frame as the reference conditioning slot.
@@ -93,6 +102,8 @@ class WanAnimateLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         return_fully_denoised: bool = False,
         **kwargs: Any,
     ) -> LatentArtifact:
+        import torch
+
         mask_video_frames = kwargs.pop("mask_video", None)
 
         num_frames = latent.source_shape[-3]
