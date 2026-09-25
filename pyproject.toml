@@ -51,6 +51,9 @@ build-backend = "hatchling.build"
 [tool.hatch.metadata]
 allow-direct-references = true
 
+[project.scripts]
+estimate-workflow-memory = "modular_diffusion_nodes_library.tools.estimate_workflow_memory:main"
+
 [tool.hatch.build.targets.wheel]
 packages = [
     "modular_diffusion_nodes_library",

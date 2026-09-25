@@ -52,6 +52,24 @@ VAE activation memory reflects whether `vae_tiling`/`vae_slicing` are configured
 
 **`memory_optimization_strategy` = `Automatic`, pipeline not yet built:** the real Automatic cascade depends on free VRAM at build time, which this node has no way to predict before loading — it does not simulate the cascade. Instead it reports a conservative upper bound (no offload assumed) and adds a warning to the logs recommending `Manual` for an exact pre-load number. Once the pipeline is actually built, re-running this node picks up whatever topology Automatic really landed on, exactly.
 
+## Command-line workflow estimation
+
+The same estimator can be called against a generated workflow `.py` file without starting Griptape Nodes or running any workflow nodes:
+
+```text
+uv run estimate-workflow-memory workflows/templates/Text2Image.py --json
+```
+
+The command parses the workflow source, extracts its embedded pipeline configuration and static width/height/frame values, creates a metadata-only latent, and calls the existing estimator. It does not call `build_workflow()`, build the diffusion pipeline, load model weights, or run inference. The config-only path still requires the needed component `config.json` files to be present in the local Hugging Face cache.
+
+For workflows whose dimensions are connected dynamically, provide them explicitly:
+
+```text
+uv run estimate-workflow-memory workflow.py --width 1024 --height 1024 --num-frames 25
+```
+
+The first version uses the recorded dimensions as-is and does not apply model-specific dimension snapping or latent scaling, so every result includes an approximation warning. Use `--json` for machine-readable output. ControlNet and unambiguous multi-stage workflows are reported as separate pipeline stages. See the canonical design and implementation notes in [`memoryEstimationDocs/workflow_memory_estimation_cli.md`](../../memoryEstimationDocs/workflow_memory_estimation_cli.md).
+
 ## API reference
 
 This node is a thin wrapper — the estimate itself is a plain importable function, callable from any other node or script without going through the node at all.
