@@ -2,6 +2,8 @@ import logging
 
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import release_held_pipelines
+
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
@@ -19,9 +21,7 @@ class ClearPipelineCacheNode(SuccessFailureNode):
     def _process(self) -> None:
         self._clear_execution_status()
         try:
-            # Scoped to this library rather than the whole worker: the object store is shared with
-            # whatever else is hosted here, and emptying a co-tenant's objects is not this node's business.
-            pipeline_count = self.local_objects.drop_all()
+            pipeline_count = release_held_pipelines(self)
             self._set_status_results(
                 was_successful=True,
                 result_details=f"Cleared {pipeline_count} pipeline(s) from cache.",

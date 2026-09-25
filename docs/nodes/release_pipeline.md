@@ -35,7 +35,7 @@ Pipeline Builder (SDXL) → Generate Media Latents → [Release Pipeline] → Pi
 ## Tips & pitfalls
 
 - **Releasing is not destructive.** Only the loaded pipeline goes; the configuration travels on the connection. A downstream node that needs this pipeline again rebuilds it, which costs the load time again.
-- **Derived pipelines are separate.** A LoRA or ControlNet pipeline built from this one has its own configuration and its own cache entry. Releasing the base does not release the derived pipeline, and a derived pipeline still holds the components it shares with the base — so release the derived one too if you want the memory back.
+- **A derived pipeline shares the base's components.** A LoRA or ControlNet pipeline built from this one has its own configuration and its own cache entry, but its transformer, VAE and text encoders are the same loaded objects as the base's. Releasing either one takes those shared components out of GPU memory and leaves the other cached but broken, so the next generation from it fails. Release both, or reach for [Clear Pipeline Cache](clear_pipeline_cache.md), and let a later run rebuild what it needs.
 - **A missing pipeline is not an error.** The node reports success so it can sit in a workflow that runs repeatedly without failing on the second pass.
 - **Reach for [Clear Pipeline Cache](clear_pipeline_cache.md) instead** when you want a clean slate rather than targeted eviction.
 

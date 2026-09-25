@@ -50,6 +50,22 @@ _UNSENDABLE_BUILD_DATA_KEYS = frozenset({"_pipeline_cls"})
 _COMPONENT_POLYMORPHISM_DONE: set[bool] = set()
 
 
+#: The cache keys this process holds a built pipeline under. The object store cannot list what a
+#: library holds, and the library's entries are not the only ones under its name: the engine parks
+#: every `serializable=False` parameter value under the same group, so a bulk drop by group takes a
+#: downstream node's latents with it. A key dropped elsewhere stays in here until the next clear,
+#: where it simply answers "not held".
+_HELD_PIPELINE_KEYS: set[str] = set()
+
+
+def release_held_pipelines(node: BaseNode) -> int:
+    """Release every pipeline built in this process, returning how many were still held."""
+    cache = node.local_objects
+    released = sum(1 for key in sorted(_HELD_PIPELINE_KEYS) if cache.drop(key))
+    _HELD_PIPELINE_KEYS.clear()
+    return released
+
+
 def _ensure_component_polymorphism() -> None:
     """Teach the converter to tell `ComponentArtifact` subclasses apart, once.
 
@@ -296,7 +312,7 @@ class DiffusionPipelineArtifact:
 
         self._append_log(log_params, "No cached pipeline found. Building new pipeline.\n")
         pipe = self._build_pipeline(log_params=log_params)
-        cache.put(pipe, key=self.config_hash, on_drop=clear_diffusion_pipeline)
+        _HELD_PIPELINE_KEYS.add(cache.put(pipe, key=self.config_hash, on_drop=clear_diffusion_pipeline))
         return pipe
 
     # --- Crossing a process boundary ------------------------------------------------------------
@@ -407,10 +423,9 @@ class DiffusionPipelineArtifact:
     def __repr__(self) -> str:
         return f"DiffusionPipelineArtifact(config_hash={self.config_hash!r}, pipeline_name={self.pipeline_name!r})"
 
-    # No `__str__`. It used to return `config_hash`, which is what made an encoding failure invisible:
-    # the engine writes event payloads with `json.dumps(default=str)`, so an artifact it could not
-    # unstructure arrived downstream as a plausible-looking hash string instead of anything a reader
-    # would question. Leaving `__repr__` to speak means the same failure is unmistakable.
+    # No `__str__`, deliberately: the engine writes event payloads with `json.dumps(default=str)`, so
+    # one returning `config_hash` would send an artifact the converter cannot unstructure downstream as
+    # a plausible-looking hash string. `__repr__` makes that failure unmistakable instead.
 
     @contextmanager
     def _profile(self, log_params: Any | None, label: str):
@@ -526,7 +541,7 @@ class BaseDiffusionPipelineArtifact(DiffusionPipelineArtifact, ABC):
             self._append_log(log_params, "Base pipeline found in cache. Reusing its components.\n")
 
         derived_pipeline = self._build_pipeline_with_base(base_pipe_ref, log_params=log_params)
-        cache.put(derived_pipeline, key=self.config_hash, on_drop=clear_diffusion_pipeline)
+        _HELD_PIPELINE_KEYS.add(cache.put(derived_pipeline, key=self.config_hash, on_drop=clear_diffusion_pipeline))
 
         if base_pipe_ref is not None and not self._should_return_base_to_cache():
             context = self._get_reuse_log_context()

@@ -159,9 +159,7 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                     tooltip="Generated video.",
                     allowed_modes={ParameterMode.OUTPUT},
                     user_defined=True,
-                    # No `serializable=False`: a URL artifact is a string pointing at a file on the shared
-                    # workspace, so it costs nothing to send. Holding it in the producing process would put a
-                    # reference in the editor's hands instead of an image, and the node would render blank.
+                    # No `serializable=False`, for the reason given on `output_image` in `__init__`.
                 )
             )
             # Reorder to ensure fps appears before output_video
@@ -176,9 +174,7 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                     tooltip="Decoded image from the latent tensor.",
                     allowed_modes={ParameterMode.OUTPUT},
                     user_defined=True,
-                    # No `serializable=False`: a URL artifact is a string pointing at a file on the shared
-                    # workspace, so it costs nothing to send. Holding it in the producing process would put a
-                    # reference in the editor's hands instead of an image, and the node would render blank.
+                    # No `serializable=False`, for the reason given on this parameter in `__init__`.
                 )
             )
 
