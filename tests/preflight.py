@@ -1,15 +1,24 @@
 import json
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pytest
+from griptape_nodes.exe_types.param_components.huggingface.huggingface_utils import list_repo_revisions_in_cache
 from griptape_nodes.retained_mode.managers.config_manager import USER_CONFIG_PATH
 from griptape_nodes.retained_mode.managers.settings import LIBRARIES_TO_REGISTER_KEY
 from griptape_nodes.utils.dict_utils import get_dot_value
 
-from griptape_nodes.exe_types.param_components.huggingface.huggingface_utils import list_repo_revisions_in_cache
-from tests.workflows.dependencies import ExtractionBlocker, WorkflowDependencies, extract_workflow_dependencies
+from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
+from tests.workflows.dependencies import (
+    COMPONENT_FOLDER_NODE_TYPES,
+    ExtractionBlocker,
+    PathRequirement,
+    WorkflowDependencies,
+    extract_workflow_dependencies,
+)
+from tests.workflows.workflow_configs import WorkflowConfig, config_repos
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +31,11 @@ LORA_ASSETS_DIR = WORKFLOW_ASSETS_DIR / "lora"
 # workflow-parametrized tests were actually collected this session (before preflight deselection).
 # tests/conftest.py reads it to decide whether preflight reporting is relevant to this invocation.
 WORKFLOW_TESTS_PRESENT_KEY: pytest.StashKey[bool] = pytest.StashKey()
+
+# Set by the same hook (which runs trylast, after -k/-m selection): the (workflow_file_name, config_id)
+# keys that survived keyword/marker filtering, so tests/conftest.py can scope its preflight report to
+# exactly the tests this invocation targets instead of the whole matrix.
+WORKFLOW_SELECTED_KEYS_KEY: pytest.StashKey[set[tuple[str, str]]] = pytest.StashKey()
 
 _PREFLIGHT_DATA: dict[str, Any] | None = None
 
@@ -168,6 +182,66 @@ def _is_lora_path_available(path_string: str) -> bool:
     return True
 
 
+def _is_file_path_available(path_string: str) -> bool:
+    # Component weights / text embeddings / scheduler configs: available when the local file exists.
+    raw_path = path_string.strip()
+    if not raw_path:
+        return False
+    try:
+        resolved = Path(expand_path_macros(raw_path)).expanduser()
+    except (OSError, ValueError):
+        return False
+    return resolved.is_file()
+
+
+def _is_component_folder_available(path_string: str) -> bool:
+    # A diffusers component folder holds a config file: config.json, tokenizer_config.json (tokenizer),
+    # or scheduler_config.json (scheduler).
+    raw_path = path_string.strip()
+    if not raw_path:
+        return False
+    try:
+        resolved = Path(expand_path_macros(raw_path)).expanduser()
+    except (OSError, ValueError):
+        return False
+    if not resolved.is_dir():
+        return False
+    return (
+        (resolved / "config.json").is_file()
+        or (resolved / "tokenizer_config.json").is_file()
+        or (resolved / "scheduler_config.json").is_file()
+    )
+
+
+def _is_folder_available(path_string: str) -> bool:
+    # Non-component folders only need to exist on disk.
+    raw_path = path_string.strip()
+    if not raw_path:
+        return False
+    try:
+        resolved = Path(expand_path_macros(raw_path)).expanduser()
+    except (OSError, ValueError):
+        return False
+    return resolved.is_dir()
+
+
+def _is_folder_requirement_available(folder: PathRequirement) -> bool:
+    # Component/scheduler folders get the diffusers config-file check; any other folder just needs to exist.
+    if folder.node_type in COMPONENT_FOLDER_NODE_TYPES:
+        return _is_component_folder_available(folder.path)
+    return _is_folder_available(folder.path)
+
+
+def _is_path_requirement_available(requirement: PathRequirement) -> bool:
+    # Dispatch by picker kind: 'file' must be a file, 'folder' uses the node-type-aware folder check,
+    # and 'both' is satisfied by either.
+    if requirement.kind == "file":
+        return _is_file_path_available(requirement.path)
+    if requirement.kind == "folder":
+        return _is_folder_requirement_available(requirement)
+    return _is_file_path_available(requirement.path) or _is_folder_requirement_available(requirement)
+
+
 def _build_preflight_data() -> dict[str, Any]:
     # Build once per pytest session: discover templates -> extract canonical dependencies once ->
     # resolve what is locally cached -> compute missing/runnable sets.
@@ -185,6 +259,9 @@ def _build_preflight_data() -> dict[str, Any]:
     workflow_required_loras: dict[str, tuple[str, ...]] = {
         workflow_name: result.lora_file_paths for workflow_name, result in extraction_results.items()
     }
+    workflow_required_paths: dict[str, tuple[PathRequirement, ...]] = {
+        workflow_name: result.path_requirements for workflow_name, result in extraction_results.items()
+    }
 
     installed_library_manifests = _discover_installed_library_manifests()
 
@@ -200,16 +277,19 @@ def _build_preflight_data() -> dict[str, Any]:
         if not required_repos:
             workflows_with_no_repos.append(workflow_name)
 
-    unique_required_repos = {repo for repos in workflow_required_repos.values() for repo in repos}
+    # Config-declared repos are checked alongside statically-extracted ones so the collection
+    # hook can deselect a config whose model is not cached.
+    unique_required_repos = {repo for repos in workflow_required_repos.values() for repo in repos} | config_repos()
     repo_available: dict[str, bool] = {}
     for repo_id in sorted(unique_required_repos):
         repo_available[repo_id] = bool(list_repo_revisions_in_cache(repo_id))
 
-    # Keep the workflow-level checks readable: one bucket for repos, one for libraries, one for
-    # LoRAs. A workflow is skipped if any bucket is non-empty.
+    # Keep the workflow-level checks readable: one bucket each for repos, libraries, LoRAs, and
+    # file/folder paths. A workflow is skipped if any bucket is non-empty.
     missing_by_workflow: dict[str, tuple[str, ...]] = {}
     missing_libraries_by_workflow: dict[str, tuple[str, ...]] = {}
     missing_loras_by_workflow: dict[str, tuple[str, ...]] = {}
+    missing_paths_by_workflow: dict[str, tuple[str, ...]] = {}
     for workflow_name in discovered_workflows:
         required = workflow_required_repos.get(workflow_name, ())
         missing = tuple(repo for repo in required if not repo_available.get(repo, False))
@@ -225,6 +305,10 @@ def _build_preflight_data() -> dict[str, Any]:
         missing_loras = tuple(path for path in required_loras if not _is_lora_path_available(path))
         missing_loras_by_workflow[workflow_name] = missing_loras
 
+        required_paths = workflow_required_paths.get(workflow_name, ())
+        missing_paths = tuple(req.path for req in required_paths if not _is_path_requirement_available(req))
+        missing_paths_by_workflow[workflow_name] = missing_paths
+
     skipped_workflows = sorted(
         [
             workflow_name
@@ -232,6 +316,7 @@ def _build_preflight_data() -> dict[str, Any]:
             if missing_by_workflow[workflow_name]
             or missing_libraries_by_workflow[workflow_name]
             or missing_loras_by_workflow[workflow_name]
+            or missing_paths_by_workflow[workflow_name]
         ]
     )
     runnable_workflows = sorted(
@@ -241,6 +326,7 @@ def _build_preflight_data() -> dict[str, Any]:
             if not missing_by_workflow[workflow_name]
             and not missing_libraries_by_workflow[workflow_name]
             and not missing_loras_by_workflow[workflow_name]
+            and not missing_paths_by_workflow[workflow_name]
         ]
     )
 
@@ -248,6 +334,7 @@ def _build_preflight_data() -> dict[str, Any]:
         "discovered_workflows": discovered_workflows,
         "workflow_required_libraries": workflow_required_libraries,
         "workflow_required_loras": workflow_required_loras,
+        "workflow_required_paths": workflow_required_paths,
         "installed_library_manifests": installed_library_manifests,
         "workflow_required_repos": workflow_required_repos,
         "workflow_extraction_blockers": workflow_extraction_blockers,
@@ -256,6 +343,7 @@ def _build_preflight_data() -> dict[str, Any]:
         "missing_by_workflow": missing_by_workflow,
         "missing_libraries_by_workflow": missing_libraries_by_workflow,
         "missing_loras_by_workflow": missing_loras_by_workflow,
+        "missing_paths_by_workflow": missing_paths_by_workflow,
         "skipped_workflows": skipped_workflows,
         "runnable_workflows": runnable_workflows,
     }
@@ -267,3 +355,42 @@ def get_preflight_data() -> dict[str, Any]:
     if _PREFLIGHT_DATA is None:
         _PREFLIGHT_DATA = _build_preflight_data()
     return _PREFLIGHT_DATA
+
+
+@dataclass(frozen=True)
+class WorkflowSkipReasons:
+    """Missing requirements that cause one (workflow template, config) test to be deselected."""
+
+    missing_repos: tuple[str, ...] = ()
+    missing_libraries: tuple[str, ...] = ()
+    missing_loras: tuple[str, ...] = ()
+    missing_paths: tuple[str, ...] = ()
+
+    @property
+    def is_skipped(self) -> bool:
+        return bool(self.missing_repos or self.missing_libraries or self.missing_loras or self.missing_paths)
+
+
+def compute_config_skip_reasons(
+    workflow_file_name: str, config: WorkflowConfig | None, preflight_data: dict[str, Any]
+) -> WorkflowSkipReasons:
+    """Resolve missing requirements for one (template, config) pair.
+
+    Repos check the config's own declared repos if set, else the template's extracted repos.
+    Libraries/LoRAs/paths are template-level and apply to every config.
+    """
+    repo_available: dict[str, bool] = preflight_data["repo_available"]
+    if config is not None and config.repos:
+        missing_repos = tuple(repo for repo in config.repos if not repo_available.get(repo, False))
+    else:
+        missing_repos = preflight_data["missing_by_workflow"].get(workflow_file_name, ())
+
+    missing_libraries = preflight_data["missing_libraries_by_workflow"].get(workflow_file_name, ())
+    missing_loras = preflight_data["missing_loras_by_workflow"].get(workflow_file_name, ())
+    missing_paths = preflight_data["missing_paths_by_workflow"].get(workflow_file_name, ())
+    return WorkflowSkipReasons(
+        missing_repos=missing_repos,
+        missing_libraries=missing_libraries,
+        missing_loras=missing_loras,
+        missing_paths=missing_paths,
+    )

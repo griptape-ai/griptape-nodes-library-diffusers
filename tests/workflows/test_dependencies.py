@@ -12,6 +12,7 @@ import pytest
 
 from tests.workflows.dependencies import (
     ExtractionBlocker,
+    PathRequirement,
     WorkflowDependencies,
     _extract_embedded_values,
     extract_workflow_dependencies,
@@ -146,7 +147,7 @@ class TestLoraExtraction:
         result = extract_workflow_dependencies(_write_workflow(tmp_path, source))
 
         assert result.conclusive
-        assert result.lora_file_paths == ('/tmp/second.safetensors',)
+        assert result.lora_file_paths == ("/tmp/second.safetensors",)
 
     def test_dynamic_lora_path_blocks_extraction(self, tmp_path: Path) -> None:
         source = (
@@ -161,6 +162,130 @@ class TestLoraExtraction:
 
         assert not result.conclusive
         assert [blocker.code for blocker in result.blockers] == ["unresolved-lora-path"]
+
+
+class TestPathExtraction:
+    """File/folder path dependencies identified by node type + parameter name (PATH_PARAMETERS_BY_NODE_TYPE)."""
+
+    def test_load_component_single_file_is_file(self, tmp_path: Path) -> None:
+        # No Add/Alter for file_path: a param in its node default state emits none, but must still be caught.
+        source = (
+            "node0_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='LoadComponent', "
+            "specific_library_name='Library A', node_name='Load Component')) )\n"
+            "with GriptapeNodes.ContextManager().node(node0_name):\n"
+            "    SetParameterValueRequest(\n"
+            "        parameter_name='file_path', node_name=node0_name, value='/models/flux.safetensors', is_output=False\n"
+            "    )\n"
+        )
+
+        result = extract_workflow_dependencies(_write_workflow(tmp_path, source))
+
+        assert result.conclusive
+        assert result.path_requirements == (
+            PathRequirement(path="/models/flux.safetensors", node_type="LoadComponent", kind="file"),
+        )
+        assert result.lora_file_paths == ()
+
+    def test_load_component_folder_path_is_folder(self, tmp_path: Path) -> None:
+        source = (
+            "node0_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='LoadComponent', "
+            "specific_library_name='Library A', node_name='Load Component')) )\n"
+            "with GriptapeNodes.ContextManager().node(node0_name):\n"
+            "    SetParameterValueRequest(\n"
+            "        parameter_name='folder_path', node_name=node0_name, value='/models/transformer', is_output=False\n"
+            "    )\n"
+        )
+
+        result = extract_workflow_dependencies(_write_workflow(tmp_path, source))
+
+        assert result.conclusive
+        assert result.path_requirements == (
+            PathRequirement(path="/models/transformer", node_type="LoadComponent", kind="folder"),
+        )
+
+    def test_generate_node_text_embeddings_path_is_file(self, tmp_path: Path) -> None:
+        source = (
+            "node0_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest("
+            "node_type='DiffusionPipelineGenerateLatentNode', "
+            "specific_library_name='Library A', node_name='Generate')) )\n"
+            "with GriptapeNodes.ContextManager().node(node0_name):\n"
+            "    SetParameterValueRequest(\n"
+            "        parameter_name='text_embeddings_path', node_name=node0_name, "
+            "value='/emb/hdr.safetensors', is_output=False\n"
+            "    )\n"
+        )
+
+        result = extract_workflow_dependencies(_write_workflow(tmp_path, source))
+
+        assert result.conclusive
+        assert result.path_requirements == (
+            PathRequirement(path="/emb/hdr.safetensors", node_type="DiffusionPipelineGenerateLatentNode", kind="file"),
+        )
+
+    def test_config_source_is_both(self, tmp_path: Path) -> None:
+        source = (
+            "node0_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='LoadComponent', "
+            "specific_library_name='Library A', node_name='Load Component')) )\n"
+            "with GriptapeNodes.ContextManager().node(node0_name):\n"
+            "    SetParameterValueRequest(\n"
+            "        parameter_name='config_source', node_name=node0_name, value='/some/config.json', is_output=False\n"
+            "    )\n"
+        )
+
+        result = extract_workflow_dependencies(_write_workflow(tmp_path, source))
+
+        assert result.conclusive
+        assert result.path_requirements == (
+            PathRequirement(path="/some/config.json", node_type="LoadComponent", kind="both"),
+        )
+
+    def test_empty_path_value_is_skipped(self, tmp_path: Path) -> None:
+        source = (
+            "node0_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='LoadComponent', "
+            "specific_library_name='Library A', node_name='Load Component')) )\n"
+            "with GriptapeNodes.ContextManager().node(node0_name):\n"
+            "    SetParameterValueRequest(\n"
+            "        parameter_name='folder_path', node_name=node0_name, value='', is_output=False\n"
+            "    )\n"
+        )
+
+        result = extract_workflow_dependencies(_write_workflow(tmp_path, source))
+
+        assert result.conclusive
+        assert result.path_requirements == ()
+
+    def test_load_scheduler_component_config_path_is_file(self, tmp_path: Path) -> None:
+        source = (
+            "node0_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='LoadSchedulerComponent', "
+            "specific_library_name='Library A', node_name='Scheduler Config')) )\n"
+            "with GriptapeNodes.ContextManager().node(node0_name):\n"
+            "    SetParameterValueRequest(\n"
+            "        parameter_name='config_path', node_name=node0_name, value='/cfg/scheduler_config.json', "
+            "is_output=False\n"
+            "    )\n"
+        )
+
+        result = extract_workflow_dependencies(_write_workflow(tmp_path, source))
+
+        assert result.conclusive
+        assert result.path_requirements == (
+            PathRequirement(path="/cfg/scheduler_config.json", node_type="LoadSchedulerComponent", kind="file"),
+        )
+
+    def test_unlisted_node_type_path_is_ignored(self, tmp_path: Path) -> None:
+        source = (
+            "node0_name = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type='SomeOtherNode', "
+            "specific_library_name='Library A', node_name='Other')) )\n"
+            "with GriptapeNodes.ContextManager().node(node0_name):\n"
+            "    SetParameterValueRequest(\n"
+            "        parameter_name='file_path', node_name=node0_name, value='/data/thing.safetensors', is_output=False\n"
+            "    )\n"
+        )
+
+        result = extract_workflow_dependencies(_write_workflow(tmp_path, source))
+
+        assert result.conclusive
+        assert result.path_requirements == ()
 
 
 class TestValuePrecedence:
