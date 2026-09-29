@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -21,9 +22,9 @@ from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
-_SAVE_CONFIG_ONLY = "Config Only"
-_SAVE_FULL_PIPELINE = "Full Pipeline"
-_SAVE_MODE_CHOICES = [_SAVE_CONFIG_ONLY, _SAVE_FULL_PIPELINE]
+class SaveMode(StrEnum):
+    CONFIG_ONLY = "Config Only"
+    FULL_PIPELINE = "Full Pipeline"
 
 _RECIPE_DEFAULT_PATH = "{project_dir}/pipeline-config.json"
 _BAKED_DEFAULT_PATH = "{project_dir}/baked-pipeline"
@@ -40,8 +41,8 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 type="Pipeline Config",
                 input_types=["Pipeline Config"],
                 tooltip=(
-                    "Pipeline to save. Config Only stores the config; "
-                    "Full Pipeline stores fused/quantised weights via save_pretrained."
+                    "Pipeline to save. Config Only stores how to rebuild it; "
+                    "Full Pipeline stores the prepared weights."
                 ),
                 allowed_modes={ParameterMode.INPUT},
             )
@@ -49,9 +50,9 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         mode_param = Parameter(
             name="save_mode",
             type="str",
-            default_value=_SAVE_CONFIG_ONLY,
-            traits={Options(choices=_SAVE_MODE_CHOICES)},
-            tooltip="Config Only = lightweight config JSON. Full Pipeline = Diffusers repo with weights.",
+            default_value=SaveMode.CONFIG_ONLY,
+            traits={Options(choices=list(SaveMode))},
+            tooltip="Config Only = leightweight config JSON. Full Pipeline = folder with weights.",
             allowed_modes={ParameterMode.PROPERTY},
             ui_options={"display_name": "Save Mode"},
         )
@@ -60,9 +61,9 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             title="Config Only vs Full Pipeline",
             message=(
                 "**Config Only** — Saves a small JSON that records how to rebuild the pipeline "
-                "(repo ids, LoRA paths, quantisation flags). Re-fuses/re-quantises on load.\n\n"
-                "**Full Pipeline** — Calls `save_pretrained` into a folder, persisting fused LoRAs "
-                "and quantised weights as a valid Diffusers repo. No re-fusing/re-quantising on load."
+                "(model, LoRA paths, quantisation). Rebuilds, re-fuses, and re-quantises on load.\n\n"
+                "**Full Pipeline** — Saves the weights into a folder, including fused LoRAs "
+                "and quantised weights. Load does not re-fuse or re-quantise."
             ),
         )
         self.add_parameter(mode_param)
@@ -106,7 +107,7 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def _apply_save_mode(self, mode: str) -> None:
         """Reshape the destination picker to match the selected save mode."""
         param = self.get_parameter_by_name("file_path")
-        if mode == _SAVE_FULL_PIPELINE:
+        if mode == SaveMode.FULL_PIPELINE:
             self._file_path_param.set_picker_mode(allow_files=False, allow_directories=True, file_types=None)
             if param is not None:
                 param.ui_options = {**param.ui_options, "display_name": "Output Folder"}
@@ -122,7 +123,7 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         pipeline = normalize_diffusion_pipeline_value(self.get_parameter_value("pipeline"))
         if pipeline is None:
             exceptions.append(ValueError(f"Parameter 'pipeline' on node '{self.name}' must be a Pipeline Config."))
-        elif self.get_parameter_value("save_mode") == _SAVE_FULL_PIPELINE:
+        elif self.get_parameter_value("save_mode") == SaveMode.FULL_PIPELINE:
             try:
                 pipeline.check_full_pipeline_bake_policy()
             except ValueError as e:
@@ -154,7 +155,7 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             workspace_path = GriptapeNodes.ConfigManager().workspace_path
             resolved_path = resolve_workspace_path(Path(expanded_path), workspace_path)
 
-            if self.get_parameter_value("save_mode") == _SAVE_FULL_PIPELINE:
+            if self.get_parameter_value("save_mode") == SaveMode.FULL_PIPELINE:
                 pipeline.check_full_pipeline_bake_policy()
                 pipe = pipeline.get_or_build_pipeline()
                 save_baked_pipeline(pipe, pipeline, resolved_path)
@@ -166,7 +167,7 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             temp_path.replace(resolved_path)
             return resolved_path
 
-        if self.get_parameter_value("save_mode") == _SAVE_FULL_PIPELINE:
+        if self.get_parameter_value("save_mode") == SaveMode.FULL_PIPELINE:
             success_msg = "Full pipeline saved successfully."
             failure_log = "Full pipeline save failed"
         else:

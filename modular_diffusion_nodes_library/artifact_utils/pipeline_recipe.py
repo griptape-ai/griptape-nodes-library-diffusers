@@ -134,8 +134,6 @@ def format_baked_pipeline_summary(artifact: DiffusionPipelineArtifact) -> str:
     """Load Pipeline status for a baked folder."""
     build_data = artifact.build_data
     lines = [
-        "Loaded baked pipeline",
-        "",
         f"Type: {artifact.pipeline_name}",
         f"Path: {build_data.get('_baked_path', '')}",
         f"Dtype: {build_data.get('_baked_dtype', DEFAULT_BAKED_DTYPE)}",
