@@ -290,7 +290,7 @@ WORKFLOW_CONFIGS: dict[str, tuple[WorkflowConfig, ...]] = {
                     "HunyuanVideo 1.5",
                     "HunyuanVideo15ImageToVideoPipeline",
                     "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_i2v_distilled",
-                    conditioning_param="conditioning_images"
+                    conditioning_param="conditioning_images",
                 ),
                 ParamOverride("Media Generation Conditioning", "image_preset", "First frame"),
                 ConnectOverride(

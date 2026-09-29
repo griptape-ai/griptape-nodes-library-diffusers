@@ -264,6 +264,10 @@ def _build_preflight_data() -> dict[str, Any]:
     }
 
     installed_library_manifests = _discover_installed_library_manifests()
+    local_manifest_path = LIBRARY_ROOT / "griptape-nodes-library.json"
+    local_library_name = _read_library_name_from_manifest(local_manifest_path)
+    if local_library_name is not None:
+        installed_library_manifests[local_library_name] = local_manifest_path
 
     workflow_required_repos: dict[str, tuple[str, ...]] = {}
     workflow_extraction_blockers: dict[str, tuple[ExtractionBlocker, ...]] = {}

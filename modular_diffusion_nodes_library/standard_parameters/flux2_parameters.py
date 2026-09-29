@@ -85,28 +85,24 @@ class Flux2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         base_revision = build_data["base_revision"]
 
         if base_repo_id == BNB4BIT_TRANSFORMER_REPO_ID:
-            overrides.setdefault(
-                "transformer",
-                diffusers.Flux2Transformer2DModel.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
+            if "transformer" not in overrides:
+                overrides["transformer"] = diffusers.Flux2Transformer2DModel.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
                     pretrained_model_name_or_path=base_repo_id,
                     subfolder="transformer",
                     revision=base_revision,
                     torch_dtype=torch.bfloat16,
                     local_files_only=True,
                     device_map="cpu",
-                ),
-            )
-            overrides.setdefault(
-                "text_encoder",
-                Mistral3ForConditionalGeneration.from_pretrained(
+                )
+            if "text_encoder" not in overrides:
+                overrides["text_encoder"] = Mistral3ForConditionalGeneration.from_pretrained(
                     pretrained_model_name_or_path=base_repo_id,
                     subfolder="text_encoder",
                     revision=base_revision,
                     dtype=torch.bfloat16,
                     local_files_only=True,
                     device_map="cpu",
-                ),
-            )
+                )
 
         return diffusers.Flux2Pipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=base_repo_id,

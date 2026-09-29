@@ -40,8 +40,7 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def align_dimensions(self, height: int, width: int, num_frames: int | None = None) -> DimensionAlignmentResult:
-        """Flux2 internally resizes images to a <=1024² area and rounds both sides down to 32px multiples.
-        """
+        """Flux2 internally resizes images to a <=1024² area and rounds both sides down to 32px multiples."""
         adjusted_h = height
         adjusted_w = width
 
@@ -55,8 +54,8 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         adjusted_h = (adjusted_h // multiple_of) * multiple_of
         adjusted_w = (adjusted_w // multiple_of) * multiple_of
 
-        adjusted_h = max(1, adjusted_h)
-        adjusted_w = max(1, adjusted_w)
+        adjusted_h = max(multiple_of, adjusted_h)
+        adjusted_w = max(multiple_of, adjusted_w)
         return DimensionAlignmentResult(adjusted_h, adjusted_w, num_frames, None)
 
     @override

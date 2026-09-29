@@ -32,8 +32,8 @@ Four methods — `encode_media`, `decode_latent`, `create_noise_latent`, `add_no
 
 ```python
 FORWARDABLE_METHOD_POSITIONAL: dict[str, tuple[str, ...]] = {
-    "encode_media":        ("media", "generator_state"),
-    "decode_latent":       ("latent",),
+    "encode_media": ("media", "generator_state"),
+    "decode_latent": ("latent",),
     "create_noise_latent": ("source_shape", "generator_state"),
     "add_noise_to_latent": ("latent", "generator_state", "num_inference_steps", "strength"),
 }

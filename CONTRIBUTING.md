@@ -137,7 +137,7 @@ export XDG_CONFIG_HOME="$HOME/Library/Application Support/Griptape Nodes/xdg_con
 export XDG_CONFIG_HOME="$HOME/.config/Griptape Nodes/xdg_config_home"
 ```
 
-## 
+## Code quality
 
 1. **Check code quality:**
 

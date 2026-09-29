@@ -6,7 +6,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, TypeGuard
 
 
 @dataclass(frozen=True, order=True)
@@ -62,14 +62,18 @@ type EmbeddedValues = dict[str, _EmbeddedValue]
 
 
 def _source_location(node: ast.AST) -> SourceLocation:
-    return SourceLocation(line=node.lineno, column=node.col_offset)
+    line = getattr(node, "lineno", None)
+    column = getattr(node, "col_offset", None)
+    if not isinstance(line, int) or not isinstance(column, int):
+        raise ValueError("AST node has no source location")
+    return SourceLocation(line=line, column=column)
 
 
-def _is_named_call(node: ast.AST, name: str) -> bool:
+def _is_named_call(node: ast.AST, name: str) -> TypeGuard[ast.Call]:
     return isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == name
 
 
-def _is_pickle_loads_bytes(node: ast.AST) -> bool:
+def _is_pickle_loads_bytes(node: ast.AST) -> TypeGuard[ast.Call]:
     if not isinstance(node, ast.Call) or len(node.args) != 1 or node.keywords:
         return False
     if not isinstance(node.func, ast.Attribute) or node.func.attr != "loads":
@@ -100,7 +104,11 @@ def _extract_embedded_values(module: ast.Module) -> EmbeddedValues:
                 values[key_node.value] = _EmbeddedValue(error="unsupported embedded value expression")
                 continue
 
-            payload = value_node.args[0].value
+            payload_node = value_node.args[0]
+            if not isinstance(payload_node, ast.Constant) or not isinstance(payload_node.value, bytes):
+                values[key_node.value] = _EmbeddedValue(error="unsupported embedded value expression")
+                continue
+            payload = payload_node.value
             try:
                 value = pickle.loads(payload)  # noqa: S301 - literal bytes from a trusted, version-controlled template
             except (EOFError, pickle.UnpicklingError, ValueError) as error:

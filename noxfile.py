@@ -74,6 +74,7 @@ def workflow_single(session: nox.Session) -> None:
 
     template_arg, *pytest_args = session.posargs
     template_path = _resolve_template_path(session, template_arg)
-    node_id = f"{WORKFLOW_TEST_FILE}::test_workflow_runs[{template_path}]"
+    node_id = f"{WORKFLOW_TEST_FILE}::test_workflow_runs"
+    keyword_filter = f"{template_path.stem}-"
 
-    _run_pytest(session, node_id, *pytest_args)
+    _run_pytest(session, node_id, "-k", keyword_filter, *pytest_args)

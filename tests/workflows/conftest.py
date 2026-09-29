@@ -13,6 +13,7 @@ import pytest
 import pytest_asyncio  # type: ignore[reportMissingImports]
 from dotenv import load_dotenv
 from griptape_nodes.bootstrap.workflow_executors.local_workflow_executor import LocalWorkflowExecutor
+from griptape_nodes.retained_mode.engine import Engine
 from griptape_nodes.retained_mode.events.connection_events import CreateConnectionRequest, DeleteConnectionRequest
 from griptape_nodes.retained_mode.events.object_events import ClearAllObjectStateRequest
 from griptape_nodes.retained_mode.events.parameter_events import SetParameterValueRequest
@@ -211,7 +212,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 
 @pytest.fixture(scope="session")
-def griptape_nodes() -> GriptapeNodes:
+def griptape_nodes() -> Engine:
     """Initialize GriptapeNodes before tests and clean up afterwards."""
     return GriptapeNodes()
 
@@ -309,7 +310,7 @@ async def workflow_executor() -> AsyncGenerator[ConfigurableWorkflowExecutor, An
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
-async def setup_test_library(griptape_nodes: GriptapeNodes) -> AsyncGenerator[None, Any]:
+async def setup_test_library(griptape_nodes: Engine) -> AsyncGenerator[None, Any]:
     """Set up this library for testing and restore original state afterwards."""
     config_manager = griptape_nodes.ConfigManager()
 
@@ -350,7 +351,7 @@ async def setup_test_library(griptape_nodes: GriptapeNodes) -> AsyncGenerator[No
 
 
 @pytest_asyncio.fixture(autouse=True)
-async def clear_state_before_each_test(griptape_nodes: GriptapeNodes) -> AsyncGenerator[None, Any]:
+async def clear_state_before_each_test(griptape_nodes: Engine) -> AsyncGenerator[None, Any]:
     """Clear all object state before each test to ensure clean starting conditions."""
     clear_request = ClearAllObjectStateRequest(i_know_what_im_doing=True)
     await griptape_nodes.ahandle_request(clear_request)
@@ -365,7 +366,9 @@ async def clear_state_before_each_test(griptape_nodes: GriptapeNodes) -> AsyncGe
 
 
 @pytest.fixture(autouse=True)
-def workflow_config_settings(request: pytest.FixtureRequest, griptape_nodes: GriptapeNodes) -> Generator[None, None, None]:
+def workflow_config_settings(
+    request: pytest.FixtureRequest, griptape_nodes: GriptapeNodes
+) -> Generator[None, None, None]:
     callspec = getattr(request.node, "callspec", None)
     if callspec is None:
         yield

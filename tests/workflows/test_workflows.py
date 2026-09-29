@@ -15,6 +15,7 @@ from tests.workflows.workflow_configs import (
 if TYPE_CHECKING:
     from tests.workflows.conftest import ConfigurableWorkflowExecutor
 
+
 def test_workflow_configs_reference_existing_templates() -> None:
     """Every WORKFLOW_CONFIGS key must match a template stem, or its configs are silently dropped."""
     template_stems = {Path(path).stem for path in get_workflow_paths()}

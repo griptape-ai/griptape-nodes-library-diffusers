@@ -58,6 +58,7 @@ Always use a built-in parameter component when one exists for the use case. Only
 **HuggingFace model selection** - any input whose values are HuggingFace repo IDs (listed in the spec's `## HuggingFace Models` section):
 ```python
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
+
 # Usage in __init__:
 self._model_param = HuggingFaceRepoParameter(self, repo_ids=["org/model-a", "org/model-b"], parameter_name="model")
 self._model_param.add_input_parameters()
@@ -75,6 +76,7 @@ Note: `get_repo_revision()` returns a `(repo_id, revision)` tuple. Always unpack
 ```python
 from huggingface_hub import HfApi, hf_hub_download
 
+
 def resolve_checkpoint(repo_id: str, suffix: str = ".pt2") -> str:
     """Download the single checkpoint file matching `suffix` from the repo."""
     files = HfApi().list_repo_files(repo_id)
@@ -89,6 +91,7 @@ This keeps the node resilient to upstream filename changes.
 **Seed** - any input named `seed` in the spec MUST use `SeedParameter` regardless of what type the spec table says. Never create a raw `Parameter(name="seed", ...)`. The `SeedParameter` adds both a `randomize_seed` bool and a `seed` int as a unit:
 ```python
 from griptape_nodes.exe_types.param_components.seed_parameter import SeedParameter
+
 # Usage in __init__:
 # IMPORTANT: create SeedParameter FIRST, before any other add_parameter calls.
 # after_value_set can be called during parameter initialization, so _seed_param
@@ -96,10 +99,14 @@ from griptape_nodes.exe_types.param_components.seed_parameter import SeedParamet
 self._seed_param = SeedParameter(self)
 # ... add all other parameters ...
 self._seed_param.add_input_parameters()  # call add_input_parameters in position order
+
+
 # Usage in after_value_set (add this method if the node doesn't already have it):
 def after_value_set(self, parameter: Parameter, value: Any) -> None:
     super().after_value_set(parameter, value)
     self._seed_param.after_value_set(parameter, value)
+
+
 # Usage before inference (replaces any manual seed read from parameter_values):
 self._seed_param.preprocess()
 seed = self._seed_param.get_seed()
@@ -108,6 +115,7 @@ seed = self._seed_param.get_seed()
 **Output file path** - whenever the node writes an output file (audio, video, image) to disk:
 ```python
 from griptape_nodes.exe_types.param_components.project_file_parameter import ProjectFileParameter
+
 # Usage in __init__:
 self._output_file = ProjectFileParameter(self, name="output_file", default_filename="output.wav")
 self._output_file.add_parameter()

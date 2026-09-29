@@ -41,41 +41,39 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
-    # Strict mode fails fast if any workflow would be deselected by preflight.
+    # Strict mode fails fast if any workflow/config pair would be deselected by preflight. It walks
+    # the same per-config logic collection uses, so a config whose matrix repo is uncached fails here
+    # even when the template's own shipped model is present.
     # It prints the exact repo/library/LoRA gaps that caused the deselection so the issue is easy to
     # diagnose before the workflow test run starts.
     if not session.config.getoption("--preflight-strict"):
         return
 
     preflight_data = get_preflight_data()
-    skipped_workflows: list[str] = preflight_data["skipped_workflows"]
-    if not skipped_workflows:
-        return
 
-    missing_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_by_workflow"]
-    missing_libraries_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_libraries_by_workflow"]
-    missing_loras_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_loras_by_workflow"]
-    missing_paths_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_paths_by_workflow"]
-    missing_repo_lines = []
-    missing_library_lines = []
-    missing_lora_lines = []
-    missing_path_lines = []
-    for workflow_name in skipped_workflows:
-        missing_repos = missing_by_workflow.get(workflow_name, ())
-        if missing_repos:
-            missing_repo_lines.append(f"  - {workflow_name}: {', '.join(missing_repos)}")
+    missing_repo_lines: list[str] = []
+    missing_library_lines: list[str] = []
+    missing_lora_lines: list[str] = []
+    missing_path_lines: list[str] = []
+    for param in workflow_test_params():
+        workflow_path, config_obj = param.values
+        if not isinstance(config_obj, WorkflowConfig):
+            continue
 
-        missing_libraries = missing_libraries_by_workflow.get(workflow_name, ())
-        if missing_libraries:
-            missing_library_lines.append(f"  - {workflow_name}: {', '.join(missing_libraries)}")
+        workflow_file_name = Path(str(workflow_path)).name
+        reasons = compute_config_skip_reasons(workflow_file_name, config_obj, preflight_data)
+        if not reasons.is_skipped:
+            continue
 
-        missing_loras = missing_loras_by_workflow.get(workflow_name, ())
-        if missing_loras:
-            missing_lora_lines.append(f"  - {workflow_name}: {', '.join(missing_loras)}")
-
-        missing_paths = missing_paths_by_workflow.get(workflow_name, ())
-        if missing_paths:
-            missing_path_lines.append(f"  - {workflow_name}: {', '.join(missing_paths)}")
+        label = f"  - {workflow_file_name}[{config_obj.config_id}]"
+        if reasons.missing_repos:
+            missing_repo_lines.append(f"{label}: {', '.join(reasons.missing_repos)}")
+        if reasons.missing_libraries:
+            missing_library_lines.append(f"{label}: {', '.join(reasons.missing_libraries)}")
+        if reasons.missing_loras:
+            missing_lora_lines.append(f"{label}: {', '.join(reasons.missing_loras)}")
+        if reasons.missing_paths:
+            missing_path_lines.append(f"{label}: {', '.join(reasons.missing_paths)}")
 
     details_sections: list[str] = []
     if missing_repo_lines:
@@ -86,6 +84,9 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         details_sections.append("Missing or unreadable LoRA files:\n" + "\n".join(missing_lora_lines))
     if missing_path_lines:
         details_sections.append("Missing local files or folders:\n" + "\n".join(missing_path_lines))
+
+    if not details_sections:
+        return
 
     details = "\n\n".join(details_sections)
     raise pytest.UsageError(
