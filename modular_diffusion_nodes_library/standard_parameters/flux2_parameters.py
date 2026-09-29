@@ -6,6 +6,7 @@ import diffusers  # type: ignore[reportMissingImports]
 import torch  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
+from transformers import Mistral3ForConditionalGeneration  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
@@ -13,12 +14,16 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
+# This repo's transformer and text_encoder are bnb-4bit quantized (vae is not); bnb-quantized
+# weights can't be bulk dtype-cast, so both must be loaded separately with an explicit device_map
+# and passed as overrides rather than letting from_pretrained cast the whole pipeline.
+BNB4BIT_TRANSFORMER_REPO_ID = "diffusers/FLUX.2-dev-bnb-4bit"
+
 QUANTIZED_FLUX_2_REPO_IDS = [
-    "diffusers/FLUX.2-dev-bnb-4bit",
-    "black-forest-labs/FLUX.2-dev-NVFP4",
+    BNB4BIT_TRANSFORMER_REPO_ID,
 ]
 
-FLUX_2_REPO_IDS = [*QUANTIZED_FLUX_2_REPO_IDS, "black-forest-labs/FLUX.2-dev", "fal/FLUX.2-dev-Turbo"]
+FLUX_2_REPO_IDS = [*QUANTIZED_FLUX_2_REPO_IDS, "black-forest-labs/FLUX.2-dev"]
 
 
 class Flux2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
@@ -76,9 +81,36 @@ class Flux2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     def _build_pipeline_from_repo(
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> diffusers.Flux2Pipeline:  # type: ignore[reportAttributeAccessIssue]
+        base_repo_id = build_data["base_repo_id"]
+        base_revision = build_data["base_revision"]
+
+        if base_repo_id == BNB4BIT_TRANSFORMER_REPO_ID:
+            overrides.setdefault(
+                "transformer",
+                diffusers.Flux2Transformer2DModel.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
+                    pretrained_model_name_or_path=base_repo_id,
+                    subfolder="transformer",
+                    revision=base_revision,
+                    torch_dtype=torch.bfloat16,
+                    local_files_only=True,
+                    device_map="cpu",
+                ),
+            )
+            overrides.setdefault(
+                "text_encoder",
+                Mistral3ForConditionalGeneration.from_pretrained(
+                    pretrained_model_name_or_path=base_repo_id,
+                    subfolder="text_encoder",
+                    revision=base_revision,
+                    dtype=torch.bfloat16,
+                    local_files_only=True,
+                    device_map="cpu",
+                ),
+            )
+
         return diffusers.Flux2Pipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
-            pretrained_model_name_or_path=build_data["base_repo_id"],
-            revision=build_data["base_revision"],
+            pretrained_model_name_or_path=base_repo_id,
+            revision=base_revision,
             torch_dtype=torch.bfloat16,
             local_files_only=True,
             **overrides,

@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import override
 
 import PIL.Image
@@ -24,6 +25,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     MaskMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -35,6 +37,38 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
     @override
     def _get_spatial_alignment(self) -> int:
         return self.pipe.image_processor.vae_scale_factor
+
+    @override
+    def align_dimensions(self, height: int, width: int, num_frames: int | None = None) -> DimensionAlignmentResult:
+        """Flux2 internally resizes images to a <=1024² area and rounds both sides down to 32px multiples.
+        """
+        adjusted_h = height
+        adjusted_w = width
+
+        max_area = 1024 * 1024
+        if adjusted_h * adjusted_w > max_area:
+            scale = math.sqrt(max_area / (adjusted_h * adjusted_w))
+            adjusted_h = int(adjusted_h * scale)
+            adjusted_w = int(adjusted_w * scale)
+
+        multiple_of = self._get_spatial_alignment() * 2
+        adjusted_h = (adjusted_h // multiple_of) * multiple_of
+        adjusted_w = (adjusted_w // multiple_of) * multiple_of
+
+        adjusted_h = max(1, adjusted_h)
+        adjusted_w = max(1, adjusted_w)
+        return DimensionAlignmentResult(adjusted_h, adjusted_w, num_frames, None)
+
+    @override
+    def validate_dimensions(self, height: int, width: int, num_frames: int | None = None) -> list[str]:
+        aligned = self.align_dimensions(height, width, num_frames)
+        messages: list[str] = []
+        if height != aligned.height or width != aligned.width:
+            messages.append(
+                f"height={height}, width={width} do not match Flux2's internally processed dimensions. "
+                f"Suggested values: height={aligned.height}, width={aligned.width}."
+            )
+        return messages
 
     @classmethod
     @override
