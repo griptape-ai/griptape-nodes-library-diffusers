@@ -999,6 +999,28 @@
             }
         }
     ],
+    "workflow_nodes": [
+        {
+            "node_type": "Text2ImageNode",
+            "workflow_path": "workflows/templates/Text2Image.py",
+            "metadata": {
+                "category": "ModularDiffusion/Workflows",
+                "description": "Generate an image from a text prompt using a preconfigured Modular Diffusion pipeline.",
+                "display_name": "Text to Image",
+                "group": "diffusion"
+            }
+        },
+        {
+            "node_type": "InpaintingNode",
+            "workflow_path": "workflows/templates/Inpainting.py",
+            "metadata": {
+                "category": "ModularDiffusion/Workflows",
+                "description": "Inpaint a masked region of an image using a preconfigured Modular Diffusion pipeline.",
+                "display_name": "Inpainting",
+                "group": "diffusion"
+            }
+        }
+    ],
     "workflows": [
         "workflows/templates/Image2Image.py",
         "workflows/templates/MultistageText2Image.py",
