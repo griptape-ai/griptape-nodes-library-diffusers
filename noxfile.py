@@ -1,5 +1,6 @@
-import nox
 from pathlib import Path
+
+import nox
 
 nox.options.sessions = ["workflow_collect", "workflow_tests"]
 
@@ -8,8 +9,8 @@ WORKFLOW_TEST_FILE = REPO_ROOT / "tests" / "workflows" / "test_workflows.py"
 WORKFLOW_TEMPLATE_DIR = REPO_ROOT / "workflows" / "templates"
 
 
-def _run_pytest(session: nox.Session, *pytest_args: str) -> None:
-    session.run("uv", "run", "pytest", "-q", "-ra", *pytest_args)
+def _run_pytest(session: nox.Session, *pytest_args: str, success_codes: tuple[int, ...] = (0,)) -> None:
+    session.run("uv", "run", "pytest", "-q", "-ra", *pytest_args, success_codes=list(success_codes))
 
 
 def _resolve_template_path(session: nox.Session, template_arg: str) -> Path:
@@ -32,7 +33,20 @@ def _resolve_template_path(session: nox.Session, template_arg: str) -> Path:
 @nox.session(venv_backend="none")
 def workflow_collect(session: nox.Session) -> None:
     """Collect workflow tests with preflight deselection and show summary."""
-    _run_pytest(session, "tests/workflows", "--collect-only", *session.posargs)
+    _run_pytest(session, "tests/workflows", "--collect-only", *session.posargs, success_codes=(0, 5))
+
+
+@nox.session(venv_backend="none")
+def workflow_collect_config(session: nox.Session) -> None:
+    """Collect workflow tests and show the selected workflow/config hierarchy."""
+    _run_pytest(
+        session,
+        "tests/workflows",
+        "--collect-only",
+        "--collect-workflow-config-only",
+        *session.posargs,
+        success_codes=(0, 5),
+    )
 
 
 @nox.session(venv_backend="none")

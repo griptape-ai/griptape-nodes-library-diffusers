@@ -13,14 +13,26 @@ import pytest
 import pytest_asyncio  # type: ignore[reportMissingImports]
 from dotenv import load_dotenv
 from griptape_nodes.bootstrap.workflow_executors.local_workflow_executor import LocalWorkflowExecutor
+from griptape_nodes.retained_mode.events.connection_events import CreateConnectionRequest, DeleteConnectionRequest
 from griptape_nodes.retained_mode.events.object_events import ClearAllObjectStateRequest
 from griptape_nodes.retained_mode.events.parameter_events import SetParameterValueRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.retained_mode.managers.settings import LIBRARIES_TO_REGISTER_KEY
 from griptape_nodes.utils import install_file_url_support
 
-from tests.preflight import WORKFLOW_TESTS_PRESENT_KEY, get_preflight_data
-from tests.workflows.workflow_configs import ParamOverride, WorkflowConfig
+from tests.preflight import (
+    WORKFLOW_SELECTED_KEYS_KEY,
+    WORKFLOW_TESTS_PRESENT_KEY,
+    compute_config_skip_reasons,
+    get_preflight_data,
+)
+from tests.workflows.workflow_configs import (
+    ConnectOverride,
+    DisconnectOverride,
+    ParamOverride,
+    WorkflowConfig,
+    WorkflowOverride,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +41,7 @@ install_file_url_support()
 
 LIBRARY_ROOT = Path(__file__).parents[2]
 WORKFLOW_ASSETS_DIR = LIBRARY_ROOT / "workflows" / "assets"
-LEGACY_ASSETS_ALIAS = Path("/workspace/workflows/assets")
+AUTO_RESIZE_CONFIG_KEY = "modular_diffusion_library.enable_auto_resize"
 
 load_dotenv()
 
@@ -42,25 +54,58 @@ class ConfigurableWorkflowExecutor(LocalWorkflowExecutor):
     """
 
     async def aprepare_workflow_for_run(self, flow_input: Any, **kwargs: Any) -> str:
-        overrides: tuple[ParamOverride, ...] = kwargs.pop("parameter_overrides", ())
+        overrides: tuple[WorkflowOverride, ...] = kwargs.pop("parameter_overrides", ())
         flow_name = await super().aprepare_workflow_for_run(flow_input, **kwargs)
         for override in overrides:
-            # initial_setup=False so the builder node rebuilds dependent params (pipeline_type, model).
-            result = await GriptapeNodes.ahandle_request(
-                SetParameterValueRequest(
+            await self._apply_override(override)
+        return flow_name
+
+    @staticmethod
+    async def _apply_override(override: WorkflowOverride) -> None:
+        match override:
+            case ParamOverride():
+                # initial_setup=False so the builder node rebuilds dependent params (pipeline_type, model).
+                request = SetParameterValueRequest(
                     parameter_name=override.parameter_name,
                     node_name=override.node_name,
                     value=override.value,
                     initial_setup=False,
                 )
-            )
-            if result.failed():
-                msg = (
-                    f"Attempted to override parameter '{override.parameter_name}' on node "
-                    f"'{override.node_name}' with value {override.value!r}. Failed with result: {result}."
+                description = (
+                    f"override parameter '{override.parameter_name}' on node "
+                    f"'{override.node_name}' with value {override.value!r}"
                 )
-                raise RuntimeError(msg)
-        return flow_name
+            case DisconnectOverride():
+                request = DeleteConnectionRequest(
+                    source_node_name=override.source_node_name,
+                    source_parameter_name=override.source_parameter_name,
+                    target_node_name=override.target_node_name,
+                    target_parameter_name=override.target_parameter_name,
+                )
+                description = (
+                    f"disconnect '{override.source_node_name}.{override.source_parameter_name}' from "
+                    f"'{override.target_node_name}.{override.target_parameter_name}'"
+                )
+            case ConnectOverride():
+                request = CreateConnectionRequest(
+                    source_node_name=override.source_node_name,
+                    source_parameter_name=override.source_parameter_name,
+                    target_node_name=override.target_node_name,
+                    target_parameter_name=override.target_parameter_name,
+                    initial_setup=False,
+                )
+                description = (
+                    f"connect '{override.source_node_name}.{override.source_parameter_name}' to "
+                    f"'{override.target_node_name}.{override.target_parameter_name}'"
+                )
+            case _:
+                msg = f"Unknown workflow override type: {type(override).__name__}"
+                raise TypeError(msg)
+
+        result = await GriptapeNodes.ahandle_request(request)
+        if result.failed():
+            msg = f"Attempted to {description}. Failed with result: {result}."
+            raise RuntimeError(msg)
 
 
 def _link_directory(link: Path, target: Path) -> None:
@@ -124,17 +169,15 @@ def _build_run_directory_name(item: pytest.Item) -> str:
     return f"{timestamp}_{workflow_slug}"
 
 
+@pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    # Deselect (not skip) tests whose required repos are missing so they disappear
-    # from the active run set entirely.
+    # Deselect (not skip) tests with missing repos/libraries/LoRAs/paths. Runs trylast (after -k/-m)
+    # and records which (workflow, config) keys survived, so the preflight report can scope to them.
     preflight_data = get_preflight_data()
-    missing_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_by_workflow"]
-    missing_libraries_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_libraries_by_workflow"]
-    missing_loras_by_workflow: dict[str, tuple[str, ...]] = preflight_data["missing_loras_by_workflow"]
-    repo_available: dict[str, bool] = preflight_data["repo_available"]
     kept_items: list[pytest.Item] = []
     deselected_items: list[pytest.Item] = []
     workflow_tests_present = False
+    selected_keys: set[tuple[str, str]] = set()
 
     for item in items:
         callspec = getattr(item, "callspec", None)
@@ -146,27 +189,21 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             continue
 
         workflow_tests_present = True
-        workflow_path = Path(str(callspec.params["workflow_path"]))
-        workflow_name = workflow_path.name
-        missing_libraries = missing_libraries_by_workflow.get(workflow_name, ())
-        missing_loras = missing_loras_by_workflow.get(workflow_name, ())
-
-        # A config that declares its own repos is checked against those; otherwise fall back to
-        # the repos statically extracted from the template as-shipped.
+        workflow_file_name = Path(str(callspec.params["workflow_path"])).name
         config_param = callspec.params.get("config")
-        if isinstance(config_param, WorkflowConfig) and config_param.repos:
-            missing_repos = tuple(repo for repo in config_param.repos if not repo_available.get(repo, False))
+        config_obj = config_param if isinstance(config_param, WorkflowConfig) else None
+        config_id = config_obj.config_id if config_obj is not None else "default"
+        selected_keys.add((workflow_file_name, config_id))
+        reasons = compute_config_skip_reasons(workflow_file_name, config_obj, preflight_data)
+
+        # Keep detailed reasoning in the preflight report; collection here just filters.
+        if reasons.is_skipped:
+            deselected_items.append(item)
         else:
-            missing_repos = missing_by_workflow.get(workflow_name, ())
-
-        if not missing_repos and not missing_libraries and not missing_loras:
             kept_items.append(item)
-            continue
-
-        # Keep reasoning in preflight data/reporting; collection here just filters.
-        deselected_items.append(item)
 
     config.stash[WORKFLOW_TESTS_PRESENT_KEY] = workflow_tests_present
+    config.stash[WORKFLOW_SELECTED_KEYS_KEY] = selected_keys
 
     if deselected_items:
         config.hook.pytest_deselected(items=deselected_items)
@@ -179,37 +216,12 @@ def griptape_nodes() -> GriptapeNodes:
     return GriptapeNodes()
 
 
-@pytest.fixture(scope="session", autouse=True)
-def legacy_assets_path_bridge() -> None:
-    """Provide compatibility for templates using `{project_dir}/../workflows/assets`.
-
-    Some generated templates reference assets through a legacy macro expansion
-    path that resolves to `/workspace/workflows/assets` in local test runs.
-    Creating a symlink bridge keeps templates immutable while making those
-    references resolvable during tests.
-    """
-    if LEGACY_ASSETS_ALIAS.exists():
-        return
-
-    try:
-        LEGACY_ASSETS_ALIAS.parent.mkdir(parents=True, exist_ok=True)
-        LEGACY_ASSETS_ALIAS.symlink_to(WORKFLOW_ASSETS_DIR, target_is_directory=True)
-    except OSError:
-        logger.warning(
-            "Could not create legacy assets alias '%s' -> '%s'. Templates using project_dir asset macros may fail.",
-            LEGACY_ASSETS_ALIAS,
-            WORKFLOW_ASSETS_DIR,
-        )
-
-
 @pytest.fixture(scope="session")
 def workflow_runs_root(request: pytest.FixtureRequest) -> Generator[Path, None, None]:
     """Base directory holding per-test workflow run folders for this session.
 
     Defaults to a fresh OS temp directory; pass --workflow-runs-dir to use a
-    specific location instead. A `workflows` symlink is created here so templates
-    using the `{workspace_dir}/../workflows/assets/...}` macro keep resolving
-    correctly regardless of where the run folder actually lives.
+    specific location instead.
     """
     configured_dir = request.config.getoption("--workflow-runs-dir")
     if configured_dir:
@@ -220,17 +232,12 @@ def workflow_runs_root(request: pytest.FixtureRequest) -> Generator[Path, None, 
         root = Path(tempfile.mkdtemp(prefix="griptape-workflow-runs-"))
         owns_root = True
 
-    workflows_link = root / "workflows"
-    if not workflows_link.exists():
-        _link_directory(workflows_link, LIBRARY_ROOT / "workflows")
-
     yield root
 
     if request.config.getoption("--no-cleanup"):
         logger.info("Preserved workflow runs root: %s", root)
         return
 
-    _unlink_directory(workflows_link)
     if owns_root:
         shutil.rmtree(root, ignore_errors=True)
     else:
@@ -355,3 +362,25 @@ async def clear_state_before_each_test(griptape_nodes: GriptapeNodes) -> AsyncGe
     # Clean up after test.
     clear_request = ClearAllObjectStateRequest(i_know_what_im_doing=True)
     await griptape_nodes.ahandle_request(clear_request)
+
+
+@pytest.fixture(autouse=True)
+def workflow_config_settings(request: pytest.FixtureRequest, griptape_nodes: GriptapeNodes) -> Generator[None, None, None]:
+    callspec = getattr(request.node, "callspec", None)
+    if callspec is None:
+        yield
+        return
+
+    config_param = callspec.params.get("config")
+    config_obj = config_param if isinstance(config_param, WorkflowConfig) else None
+    if config_obj is None or config_obj.enable_auto_resize is None:
+        yield
+        return
+
+    config_manager = griptape_nodes.ConfigManager()
+    previous_auto_resize = config_manager.get_config_value(AUTO_RESIZE_CONFIG_KEY)
+    config_manager.set_config_value(AUTO_RESIZE_CONFIG_KEY, config_obj.enable_auto_resize)
+
+    yield
+
+    config_manager.set_config_value(AUTO_RESIZE_CONFIG_KEY, previous_auto_resize)

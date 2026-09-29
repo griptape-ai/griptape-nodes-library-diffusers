@@ -1,5 +1,6 @@
 import json
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +18,7 @@ from tests.workflows.dependencies import (
     WorkflowDependencies,
     extract_workflow_dependencies,
 )
-from tests.workflows.workflow_configs import config_repos
+from tests.workflows.workflow_configs import WorkflowConfig, config_repos
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,11 @@ LORA_ASSETS_DIR = WORKFLOW_ASSETS_DIR / "lora"
 # workflow-parametrized tests were actually collected this session (before preflight deselection).
 # tests/conftest.py reads it to decide whether preflight reporting is relevant to this invocation.
 WORKFLOW_TESTS_PRESENT_KEY: pytest.StashKey[bool] = pytest.StashKey()
+
+# Set by the same hook (which runs trylast, after -k/-m selection): the (workflow_file_name, config_id)
+# keys that survived keyword/marker filtering, so tests/conftest.py can scope its preflight report to
+# exactly the tests this invocation targets instead of the whole matrix.
+WORKFLOW_SELECTED_KEYS_KEY: pytest.StashKey[set[tuple[str, str]]] = pytest.StashKey()
 
 _PREFLIGHT_DATA: dict[str, Any] | None = None
 
@@ -349,3 +355,42 @@ def get_preflight_data() -> dict[str, Any]:
     if _PREFLIGHT_DATA is None:
         _PREFLIGHT_DATA = _build_preflight_data()
     return _PREFLIGHT_DATA
+
+
+@dataclass(frozen=True)
+class WorkflowSkipReasons:
+    """Missing requirements that cause one (workflow template, config) test to be deselected."""
+
+    missing_repos: tuple[str, ...] = ()
+    missing_libraries: tuple[str, ...] = ()
+    missing_loras: tuple[str, ...] = ()
+    missing_paths: tuple[str, ...] = ()
+
+    @property
+    def is_skipped(self) -> bool:
+        return bool(self.missing_repos or self.missing_libraries or self.missing_loras or self.missing_paths)
+
+
+def compute_config_skip_reasons(
+    workflow_file_name: str, config: WorkflowConfig | None, preflight_data: dict[str, Any]
+) -> WorkflowSkipReasons:
+    """Resolve missing requirements for one (template, config) pair.
+
+    Repos check the config's own declared repos if set, else the template's extracted repos.
+    Libraries/LoRAs/paths are template-level and apply to every config.
+    """
+    repo_available: dict[str, bool] = preflight_data["repo_available"]
+    if config is not None and config.repos:
+        missing_repos = tuple(repo for repo in config.repos if not repo_available.get(repo, False))
+    else:
+        missing_repos = preflight_data["missing_by_workflow"].get(workflow_file_name, ())
+
+    missing_libraries = preflight_data["missing_libraries_by_workflow"].get(workflow_file_name, ())
+    missing_loras = preflight_data["missing_loras_by_workflow"].get(workflow_file_name, ())
+    missing_paths = preflight_data["missing_paths_by_workflow"].get(workflow_file_name, ())
+    return WorkflowSkipReasons(
+        missing_repos=missing_repos,
+        missing_libraries=missing_libraries,
+        missing_loras=missing_loras,
+        missing_paths=missing_paths,
+    )

@@ -141,12 +141,13 @@ REPO_ID_PATTERN = re.compile(r"\b[\w.-]+/[\w.-]+\b")
 # Mirrors HuggingFaceModelParameter._key_to_repo_revision's key format (griptape_nodes engine):
 # saved model selections may be pinned to a revision as "{repo_id} ({40-hex commit hash})".
 REPO_REVISION_KEY_PATTERN = re.compile(r"^(.+) \(([a-f0-9]{40})\)$")
-REPO_PARAMETERS = {"model", "controlnet_model", "upsampler_model"}
+REPO_PARAMETERS = {"model", "controlnet_model", "upsampler_model", "repo_id"}
 LORA_PARAMETERS = {"file_path"}
 ROLE_BY_PARAMETER = {
     "model": "primary",
     "controlnet_model": "controlnet",
     "upsampler_model": "upscaler",
+    "repo_id": "component",
 }
 # LoadLora's `file_path` is a LoRA asset.
 LORA_NODE_TYPES = frozenset({"LoadLora"})
