@@ -1,6 +1,5 @@
 import logging
 import tempfile
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +10,7 @@ from diffusers.utils.export_utils import encode_video  # type: ignore[reportMiss
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
+from griptape_nodes.files.project_file import ProjectFileDestination
 from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
@@ -307,6 +307,6 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.parameter_output_values["output_image"] = image_artifact
 
     def _publish_output_video(self, video_path: Path) -> None:
-        filename = f"{uuid.uuid4()}{video_path.suffix}"
-        url = GriptapeNodes.StaticFilesManager().save_static_file(video_path.read_bytes(), filename)
-        self.parameter_output_values["output_video"] = VideoUrlArtifact(url)
+        dest = ProjectFileDestination.from_situation(filename=f"video{video_path.suffix}", situation="save_node_output")
+        saved = dest.write_bytes(video_path.read_bytes())
+        self.parameter_output_values["output_video"] = VideoUrlArtifact(saved.location)
