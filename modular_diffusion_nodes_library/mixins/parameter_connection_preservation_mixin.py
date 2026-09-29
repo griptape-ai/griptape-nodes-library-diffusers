@@ -199,12 +199,18 @@ class ParameterConnectionPreservationMixin:
         """Reorder parameters to maintain consistent layout with START/END groups."""
         excluded_params = {*self.START_PARAMS, *self.END_PARAMS}
 
+        current_names = {element.name for element in self.root_ui_element._children}  # type: ignore[attr-defined]
+        # START/END groups are dynamically added/removed (e.g. component_overrides has no
+        # slots for some pipeline types), so only reorder the ones currently present.
+        start_params = [name for name in self.START_PARAMS if name in current_names]
+        end_params = [name for name in self.END_PARAMS if name in current_names]
+
         middle_elements = [
             element.name
             for element in self.root_ui_element._children  # type: ignore[attr-defined]
             if element.name not in excluded_params
         ]
-        sorted_parameters = [*self.START_PARAMS, *middle_elements, *self.END_PARAMS]
+        sorted_parameters = [*start_params, *middle_elements, *end_params]
 
         self.reorder_elements(sorted_parameters)  # type: ignore[attr-defined]
 
