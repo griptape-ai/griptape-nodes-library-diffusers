@@ -121,9 +121,12 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
     def _success_status_details(self, pipeline: Any) -> str:
         if self._loaded_from_baked_dir:
-            return format_baked_pipeline_summary(pipeline)
-        summary = format_pipeline_artifact_summary(pipeline)
-        return f"Loaded successfully\n\n{summary}"
+            lead_in = "Loaded baked pipeline"
+            body = format_baked_pipeline_summary(pipeline)
+        else:
+            lead_in = "Loaded successfully"
+            body = format_pipeline_artifact_summary(pipeline)
+        return f"{lead_in}\n\n{body}"
 
     def _publish_from_committed_path(self) -> None:
         """Load and publish when the editor commits a path. Never reject the path change."""
