@@ -1009,6 +1009,13 @@
             }
         }
     ],
+    "widgets": [
+        {
+            "name": "MemoryBreakdown",
+            "path": "widgets/MemoryBreakdown.js",
+            "description": "Read-only segmented visualization of diffusion pipeline memory estimates."
+        }
+    ],
     "workflows": [
         "workflows/templates/Image2Image.py",
         "workflows/templates/MultistageText2Image.py",
