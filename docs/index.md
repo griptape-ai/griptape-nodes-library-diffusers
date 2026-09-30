@@ -17,6 +17,8 @@ Node groups mirror the categories in [`griptape-nodes-library.json`](../griptape
 - [Modular Diffusion Pipeline Builder](nodes/pipeline_builder.md)
 - [ControlNet Pipeline](nodes/controlnet_pipeline.md)
 - [Load LoRA](nodes/load_lora.md)
+- [Load Pipeline](nodes/load_pipeline.md)
+- [Save Pipeline](nodes/save_pipeline.md)
 - [Load Pipeline Component](nodes/load_component.md)
 - [Load Scheduler](nodes/load_scheduler.md)
 - [LoRA Pipeline](nodes/lora_pipeline.md)
