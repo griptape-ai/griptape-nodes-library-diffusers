@@ -31,13 +31,15 @@ Pipeline Builder → Generate Media Latents → [Estimate Pipeline Memory]
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `logs` | `str` | Multiline per-component breakdown (weights, activations, total) plus the estimated peak. |
+| `memory_breakdown` | `dict` | Read-only visual breakdown of component totals, weights, activations, warnings, and the separate estimated peak value. |
 | `was_successful` | `bool` | `True` when the estimate completed without exception. |
 | `result_details` | `str` | Summary line with the estimated peak and component count. |
 
 ## Provider / model behavior
 
-Denoiser activation memory is estimated using one of three architecture families: UNet-SDPA (SDXL), Image-DiT-SDPA (Flux, Flux2, SD3, Qwen, Z-Image, ...), or Video-DiT-joint-SDPA (LTX, LTX2, WAN, HunyuanVideo 1.5, MiniMax-H3). A pipeline class without a registered family, or a component whose config can't be read (e.g. a heavily fused/custom checkpoint), falls back to a weight-only estimate with a warning in the logs rather than failing.
+Denoiser activation memory is estimated using one of three architecture families: UNet-SDPA (SDXL), Image-DiT-SDPA (Flux, Flux2, SD3, Qwen, Z-Image, ...), or Video-DiT-joint-SDPA (LTX, LTX2, WAN, HunyuanVideo 1.5, MiniMax-H3). A pipeline class without a registered family, or a component whose config can't be read (e.g. a heavily fused/custom checkpoint), falls back to a weight-only estimate with a warning in the widget rather than failing.
+
+The `memory_breakdown` output renders the estimate as a segmented bar and a labeled component list inside the node. Segment widths use the sum of component totals; the estimated peak is shown separately because it applies offload topology, non-overlapping activation phases, and safety headroom. The widget remains read-only and reports loading, unavailable, and warning states without changing the estimate.
 
 **ControlNet (Flux, SD3, SDXL, Qwen, Z-Image).** When the connected pipeline is wrapped by a [ControlNet Pipeline](controlnet_pipeline.md) node, each stacked ControlNet appears as its own `controlnet_0`, `controlnet_1`, … component — weight bytes scale ~linearly with stack size, since each is an independent weight set regardless of the multi-ControlNet wrapper class used under the hood. Weight bytes are read from each ControlNet's own config (its own repo, not the base pipeline's), so a ControlNet's shape is never assumed to match the base denoiser's. Activation bytes reuse the base architecture family's per-token formula against the ControlNet's own (usually smaller) layer count — an approximation, always flagged `[ESTIMATED: ...]`. On SDXL specifically, this reuses the full UNet-SDPA level formula against the real ControlNetModel's down-only architecture (no up-blocks), which overestimates on purpose per this node's bias-toward-overestimate stance. Before the pipeline is built, each ControlNet's config must already be in the warm HuggingFace cache — otherwise that ControlNet's entry falls back to weights-only with a warning.
 
@@ -50,7 +52,7 @@ This node estimates from whichever of two states the pipeline is actually in:
 
 VAE activation memory reflects whether `vae_tiling`/`vae_slicing` are configured, in both states.
 
-**`memory_optimization_strategy` = `Automatic`, pipeline not yet built:** the real Automatic cascade depends on free VRAM at build time, which this node has no way to predict before loading — it does not simulate the cascade. Instead it reports a conservative upper bound (no offload assumed) and adds a warning to the logs recommending `Manual` for an exact pre-load number. Once the pipeline is actually built, re-running this node picks up whatever topology Automatic really landed on, exactly.
+**`memory_optimization_strategy` = `Automatic`, pipeline not yet built:** the real Automatic cascade depends on free VRAM at build time, which this node has no way to predict before loading — it does not simulate the cascade. Instead it reports a conservative upper bound (no offload assumed) and adds a warning to the widget recommending `Manual` for an exact pre-load number. Once the pipeline is actually built, re-running this node picks up whatever topology Automatic really landed on, exactly.
 
 ## API reference
 
@@ -78,9 +80,8 @@ Note the import path: `estimate_pipeline_memory_from_artifact` is exported from 
 | Field | Type | Notes |
 | --- | --- | --- |
 | `pipeline_name` | `str` | |
-| `basis` | `str` | `"loaded"` or `"config_only"` — see Provider / model behavior above. |
 | `offload_mode` | `str \| None` | `"model"`, `"sequential"`, or `None`. |
-| `estimated_peak_bytes` | `int` | The number this node's `result_details` output surfaces. |
+| `estimated_peak_bytes` | `int` | Estimated peak memory after the estimator's 20% safety-headroom factor; the node displays the value with the applied optimization settings. |
 | `components` | `list[ComponentMemoryEstimate]` | One entry per weight-bearing component. |
 | `warnings` | `list[str]` | Pipeline-level caveats, e.g. the `Automatic`-strategy warning. |
 | `to_dict()` | `dict` | JSON-shaped, GB-rounded — the intended API output boundary. Fields on the dataclass itself stay byte-precise for further math. |
@@ -110,7 +111,7 @@ Also exported from `pipeline_memory_estimator`, for callers that don't want to g
 
 - **A pre-load estimate is a lower bound on accuracy, not a guess.** Before the pipeline is built, the estimate comes from real config-derived shapes and dtypes (via a meta-device build), not a rough guess — but `Automatic`-strategy topology is unresolved until the pipeline is actually loaded.
 - **Switching to `Automatic` hides Manual knobs, it doesn't reset them.** If `quantization_mode` or `transformer_layerwise_casting` were set while on `Manual`, they stay set (just hidden) after switching to `Automatic` — and a pre-load estimate will still apply them, even though the real `Automatic` build never quantizes weights at all (only `Manual` does). Re-check those values, or rebuild the pipeline, before trusting a pre-load `Automatic` estimate's weight numbers.
-- **Watch for `[ESTIMATED: ...]` warnings in the logs.** These flag components whose activation memory could not be computed (unrecognized component, unregistered pipeline family, or an unreadable transformer/VAE config) — only weight memory is shown for those.
+- **Watch for estimated warnings in the widget.** These flag components whose activation memory could not be computed (unrecognized component, unregistered pipeline family, or an unreadable transformer/VAE config) — only weight memory is shown for those.
 - **Treat the number as a guide, not a guarantee.** Estimates are analytical (no GPU profiling) and biased to overestimate; expect divergence from true peak usage.
 
 ## See also

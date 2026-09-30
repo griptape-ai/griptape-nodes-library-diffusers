@@ -67,18 +67,12 @@ class ComponentMemoryEstimate:
 
 @dataclass(frozen=True)
 class PipelineMemoryEstimate:
-    """Per-component memory estimate for an entire pipeline, loaded or not.
-
-    `basis` records which estimator produced this: "loaded" (exact weights, walked off
-    a resident pipeline) or "config_only" (pre-load, meta-device-derived weights).
-
-    """
+    """Per-component memory estimate for an entire pipeline, loaded or not."""
 
     pipeline_name: str
     offload_mode: str | None
     components: list[ComponentMemoryEstimate]
     estimated_peak_bytes: int
-    basis: str = "loaded"
     warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -87,6 +81,5 @@ class PipelineMemoryEstimate:
             "offload_mode": self.offload_mode,
             "components": [component.to_dict() for component in self.components],
             "estimated_peak_gb": _bytes_to_gb(self.estimated_peak_bytes),
-            "basis": self.basis,
             "warnings": list(self.warnings),
         }

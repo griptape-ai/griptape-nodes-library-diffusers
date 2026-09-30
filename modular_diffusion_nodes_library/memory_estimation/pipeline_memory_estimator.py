@@ -722,7 +722,6 @@ def estimate_pipeline_memory_from_build_data(
         offload_mode=offload_mode,
         components=components,
         estimated_peak_bytes=estimated_peak_bytes,
-        basis="config_only",
         warnings=warnings,
     )
 
