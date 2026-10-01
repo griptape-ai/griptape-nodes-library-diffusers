@@ -503,10 +503,16 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         return False
 
     def _check_unknown_config_keys(self, config: dict[str, Any], scheduler_class_name: str) -> None:
-        import diffusers  # type: ignore[reportMissingImports]
-
         config_class_name = config.get("_class_name")
         if isinstance(config_class_name, str) and self._update_family_message(config_class_name):
+            return
+
+        # Reading the scheduler's accepted parameters needs diffusers, which the orchestrator lacks.
+        # Without it the valid set is unknowable, same as the two exits below.
+        try:
+            import diffusers  # type: ignore[reportMissingImports]
+        except ImportError:
+            self._hide_message()
             return
 
         scheduler_cls = getattr(diffusers, scheduler_class_name, None)

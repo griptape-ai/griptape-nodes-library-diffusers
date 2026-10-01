@@ -71,15 +71,26 @@ def test_clearing_releases_every_pipeline_this_library_built(monkeypatch: pytest
     monkeypatch.setattr(pipeline_artifact, "clear_diffusion_pipeline", lambda pipe: released.append(pipe.label))
     node = _clear_node()
     _build(node, "flux-cfg")
-    _build(node, "sdxl-cfg")
 
     _run(node)
 
     assert node.parameter_output_values["was_successful"] is True
-    assert "Cleared 2 pipeline(s)" in node.parameter_output_values["result_details"]
-    assert sorted(released) == ["flux-cfg", "sdxl-cfg"]
+    assert "Cleared 1 pipeline(s)" in node.parameter_output_values["result_details"]
+    assert released == ["flux-cfg"]
     assert node.local_objects.get(node.local_objects.key_for("flux-cfg")) is None
-    assert node.local_objects.get(node.local_objects.key_for("sdxl-cfg")) is None
+
+
+def test_building_a_pipeline_releases_the_previous_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    """One pipeline resident at a time, so switching models does not need two models' worth of VRAM."""
+    released: list[str] = []
+    monkeypatch.setattr(pipeline_artifact, "clear_diffusion_pipeline", lambda pipe: released.append(pipe.label))
+    node = _clear_node()
+    _build(node, "flux-cfg")
+    _build(node, "sdxl-cfg")
+
+    assert released == ["flux-cfg"]
+    assert node.local_objects.get(node.local_objects.key_for("flux-cfg")) is None
+    assert node.local_objects.get(node.local_objects.key_for("sdxl-cfg")) is not None
 
 
 def test_clearing_leaves_a_parked_latent_alone(monkeypatch: pytest.MonkeyPatch) -> None:

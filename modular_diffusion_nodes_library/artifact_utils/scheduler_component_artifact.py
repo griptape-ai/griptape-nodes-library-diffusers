@@ -31,18 +31,17 @@ class SchedulerComponentArtifact(ComponentArtifact):
     @override
     def materialize(self, *, pipeline_cls: type, slot: str | None = None) -> Any:  # noqa: ARG002
         scheduler_cls = self._resolve_scheduler_class()
-        config = self._load_config_dict(scheduler_cls)
+        config = self._load_config_dict()
         return scheduler_cls.from_config(config)
 
     def read_config(self) -> dict[str, Any]:
         """Load the scheduler config dict from the source. Raises if it cannot be read.
 
-        Raises ``FileNotFoundError`` / ``OSError`` when the source has no
-        ``scheduler_config.json``, ``json.JSONDecodeError`` if it is malformed,
-        and ``ValueError`` for an unknown scheduler class.
+        Reads the config without resolving the scheduler class, so the orchestrator can call this
+        without diffusers. Raises ``FileNotFoundError`` / ``OSError`` when the source has no
+        ``scheduler_config.json`` and ``json.JSONDecodeError`` if it is malformed.
         """
-        scheduler_cls = self._resolve_scheduler_class()
-        return self._load_config_dict(scheduler_cls)
+        return self._load_config_dict()
 
     def read_config_class_name(self) -> str | None:
         """Return the ``_class_name`` recorded in the source config, or ``None``.
@@ -66,11 +65,11 @@ class SchedulerComponentArtifact(ComponentArtifact):
             raise ValueError(msg)
         return scheduler_cls
 
-    def _load_config_dict(self, scheduler_cls: type) -> dict[str, Any]:
+    def _load_config_dict(self) -> dict[str, Any]:
         if self.source_type == ComponentSourceType.LOCAL_DIR:
             return self._load_local_config()
         if self.source_type == ComponentSourceType.HF_REPO:
-            return self._load_hf_config(scheduler_cls)
+            return self._load_hf_config()
         if self.source_type == ComponentSourceType.RAW_CONFIG:
             return self._load_text_config()
         msg = f"Unsupported scheduler source type '{self.source_type}' for config loading."
@@ -100,7 +99,12 @@ class SchedulerComponentArtifact(ComponentArtifact):
         with config_file.open(encoding="utf-8") as f:
             return json.load(f)
 
-    def _load_hf_config(self, scheduler_cls: type) -> dict[str, Any]:
+    def _load_hf_config(self) -> dict[str, Any]:
+        # Reads the cached `scheduler_config.json` directly rather than through the scheduler class's
+        # `load_config`: every diffusers scheduler names that same file, and going through the class
+        # would require diffusers on the orchestrator.
+        from huggingface_hub import try_to_load_from_cache
+
         if self.repo_ref is None:
             msg = (
                 "HuggingFace scheduler config loading requires repo_ref, but none was provided "
@@ -108,13 +112,18 @@ class SchedulerComponentArtifact(ComponentArtifact):
             )
             raise ValueError(msg)
 
-        config = scheduler_cls.load_config(
+        subfolder = self.repo_ref.subfolder or "scheduler"
+        cached_path = try_to_load_from_cache(
             self.repo_ref.repo_id,
-            subfolder=self.repo_ref.subfolder or "scheduler",
+            filename=f"{subfolder}/scheduler_config.json",
             revision=self.repo_ref.revision,
-            local_files_only=True,
         )
-        # load_config returns the config dict by default; unwrap if a tuple slips through.
-        if isinstance(config, tuple):
-            config = config[0]
-        return config
+        if not isinstance(cached_path, str):
+            msg = (
+                f"No 'scheduler_config.json' in the HuggingFace cache for repo "
+                f"'{self.repo_ref.repo_id}' at subfolder '{subfolder}'."
+            )
+            raise FileNotFoundError(msg)
+
+        with Path(cached_path).open(encoding="utf-8") as f:
+            return json.load(f)

@@ -34,7 +34,6 @@ component:
 
 from __future__ import annotations
 
-import inspect
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -121,12 +120,10 @@ class _ConfigResolver:
     def __init__(
         self,
         overrides: dict[str, ComponentArtifact],
-        pipeline_cls: type,
         base_repo_id: str | None,
         base_revision: str | None = None,
     ) -> None:
         self._overrides = overrides
-        self._pipeline_cls = pipeline_cls
         self._base_repo_id = base_repo_id
         self._base_revision = base_revision
         self._override_cache: dict[str, dict[str, Any] | None] = {}
@@ -137,9 +134,7 @@ class _ConfigResolver:
         if slot not in self._override_cache:
             artifact = self._overrides.get(slot)
             if isinstance(artifact, ModelComponentArtifact):
-                self._override_cache[slot] = artifact.try_read_config(
-                    pipeline_cls=self._pipeline_cls,
-                )
+                self._override_cache[slot] = artifact.try_read_config()
             elif isinstance(artifact, SchedulerComponentArtifact):
                 self._override_cache[slot] = self._try_read_scheduler_config(artifact)
             else:
@@ -374,25 +369,31 @@ def _check_vae_denoiser(
     return None
 
 
-def _find_denoiser_slot(pipeline_cls: type) -> str | None:
-    """Return ``'transformer'`` or ``'unet'`` depending on which the pipeline declares."""
-    params = set(inspect.signature(pipeline_cls.__init__).parameters.keys())
-    if "transformer" in params:
+def _find_denoiser_slot(pipeline_params_cls: type | None) -> str | None:
+    """Return ``'transformer'`` or ``'unet'`` depending on which the pipeline type declares.
+
+    Reads the declared slots instead of the pipeline's ``__init__`` signature, which would need
+    diffusers. `tests/test_component_slots.py` checks the two against each other, but only under
+    `make test/exec`, so a declaration that drifts from the signature silently loses this check.
+    """
+    if pipeline_params_cls is None:
+        return None
+    slots = pipeline_params_cls._component_slots  # noqa: SLF001
+    if "transformer" in slots:
         return "transformer"
-    if "unet" in params:
+    if "unet" in slots:
         return "unet"
     return None
 
 
 def _run_dimensional_checks(
     resolver: _ConfigResolver,
-    pipeline_cls: type,
     pipeline_params_cls: type | None,
 ) -> list[ComponentCompatibilityFinding]:
     """VAE / text-encoder vs denoiser dimensional checks."""
     findings: list[ComponentCompatibilityFinding] = []
 
-    denoiser_slot = _find_denoiser_slot(pipeline_cls)
+    denoiser_slot = _find_denoiser_slot(pipeline_params_cls)
     if denoiser_slot is None:
         return findings
 
@@ -595,29 +596,32 @@ def _run_config_consistency_checks(
 
 def evaluate_component_compatibility(
     overrides: dict[str, ComponentArtifact],
-    pipeline_cls: type,
     base_repo_id: str | None,
     *,
     base_revision: str | None = None,
-    pipeline_params_cls: type | None = None,
+    pipeline_params_cls: type,
 ) -> list[ComponentCompatibilityFinding]:
     """Run every config-only compatibility check in a single pass.
+
+    Reads only cached configs and declared pipeline facts, so this runs on the orchestrator, which
+    the builder node needs as it refreshes findings on every override edit.
 
     Parameters
     ----------
     overrides:
         Component overrides from the builder node (slot name → artifact).
-    pipeline_cls:
-        The target diffusers pipeline class.
     base_repo_id:
         The base HF repo for non-overridden components, or ``None`` when
         building entirely from overrides.
     base_revision:
         The revision of ``base_repo_id`` to read cached configs from.
+    pipeline_params_cls:
+        The pipeline-type params class, which declares the overridable slots and the
+        latent/text-conditioning facts the dimensional checks compare against.
     """
     try:
-        resolver = _ConfigResolver(overrides, pipeline_cls, base_repo_id, base_revision)
-        findings = _run_dimensional_checks(resolver, pipeline_cls, pipeline_params_cls)
+        resolver = _ConfigResolver(overrides, base_repo_id, base_revision)
+        findings = _run_dimensional_checks(resolver, pipeline_params_cls)
         findings.extend(_run_config_consistency_checks(resolver, overrides))
         return findings
     except Exception:

@@ -303,7 +303,6 @@ class LatentDiffusionPipelineBuilderNode(
         pipeline_params = self.params.pipeline_type_parameters.pipeline_type_pipeline_params
         if pipeline_params is None:
             return []
-        pipeline_cls = pipeline_params.pipeline_cls()
 
         if self._build_pipeline_from_component_overrides_only():
             base_repo_id = None
@@ -319,7 +318,6 @@ class LatentDiffusionPipelineBuilderNode(
 
         return evaluate_component_compatibility(
             overrides,
-            pipeline_cls,
             base_repo_id,
             base_revision=base_revision,
             pipeline_params_cls=type(pipeline_params),

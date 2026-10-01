@@ -118,6 +118,37 @@ class TestAComponentDescriptionTravels:
         )
         assert egressed == artifact
 
+    def test_the_builder_reads_the_artifact_after_it_is_encoded(self) -> None:
+        """Not parked is only half the journey: egress does not encode, and the wire form is a dict.
+
+        A dict is not a `ComponentArtifact`, so `get_component_overrides` drops it -- silently, and out
+        of the cache key too, which builds the default component under the hash that claims the
+        override. This drives the engine's real encoding rather than the egress check above.
+        """
+        import json
+
+        from griptape_nodes.retained_mode.events.event_converter import safe_unstructure
+
+        from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
+            ComponentSourceType,
+            HFRepoRef,
+            ModelComponentArtifact,
+            is_encoded_component_artifact,
+            structure_component_artifact,
+        )
+
+        artifact = ModelComponentArtifact(
+            load_id="transformer@black-forest-labs/FLUX.1-dev",
+            source_type=ComponentSourceType.HF_REPO,
+            component="transformer",
+            repo_ref=HFRepoRef(repo_id="black-forest-labs/FLUX.1-dev"),
+        )
+
+        wire = json.loads(json.dumps(safe_unstructure(artifact), default=str))
+
+        assert is_encoded_component_artifact(wire), f"The builder cannot recognise this as an artifact: {wire}"
+        assert structure_component_artifact(wire) == artifact
+
 
 class TestTheDecoderOutputActuallyTravels:
     """The static rule above, checked through the engine's real egress path.

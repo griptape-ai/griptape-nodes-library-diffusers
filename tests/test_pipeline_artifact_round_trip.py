@@ -18,6 +18,10 @@ from typing import Any
 import pytest
 from griptape_nodes.retained_mode.events.event_converter import safe_unstructure
 
+from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
+    ComponentSourceType,
+    ModelComponentArtifact,
+)
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
@@ -112,11 +116,42 @@ def test_a_derived_artifact_keeps_its_own_class_and_its_base() -> None:
     assert restored._base_artifact.build_data == base.build_data  # noqa: SLF001
 
 
+def test_a_component_override_keeps_its_subclass() -> None:
+    """Wiring any component override puts one of these in `build_data`, so it has to encode.
+
+    The subclass has to come back, not just the fields: the builder reads `is_quantized` off it, and
+    the subclasses are indistinguishable by shape, every field of every one of them having a default.
+    """
+    override = ModelComponentArtifact(
+        load_id="gguf-1",
+        source_type=ComponentSourceType.SINGLE_FILE,
+        component="transformer",
+        file_path="/models/flux-q8.gguf",
+    )
+    artifact = _base_artifact(build_data={"base_repo_id": "org/z", "_component_overrides": {"transformer": override}})
+
+    restored = _round_trip(artifact)
+
+    assert restored is not None
+    rebuilt = restored.build_data["_component_overrides"]["transformer"]
+    assert isinstance(rebuilt, ModelComponentArtifact)
+    assert rebuilt == override
+    # Read off `file_path`, and it decides whether the build applies a GGUF quantization config.
+    assert rebuilt.is_quantized is True
+
+
 def test_an_unknown_tag_is_refused_rather_than_guessed() -> None:
     from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import structure_pipeline_artifact
 
     with pytest.raises(ValueError, match="no artifact class declares it"):
         structure_pipeline_artifact({"__pipeline_artifact__": "from-a-newer-library"})
+
+
+def test_an_unknown_component_tag_is_refused_rather_than_guessed() -> None:
+    from modular_diffusion_nodes_library.artifact_utils.component_artifact import structure_component_artifact
+
+    with pytest.raises(ValueError, match="no component artifact class declares it"):
+        structure_component_artifact({"__component_artifact__": "from-a-newer-library"})
 
 
 def test_a_genuinely_wrong_type_is_still_rejected() -> None:

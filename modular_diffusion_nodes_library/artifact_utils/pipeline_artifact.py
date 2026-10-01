@@ -9,9 +9,9 @@ from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from griptape_nodes.retained_mode.events.event_converter import converter, register_polymorphic_dataclass
+from griptape_nodes.retained_mode.events.event_converter import converter
 
-from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact
+from modular_diffusion_nodes_library.artifact_utils.component_artifact import structure_component_artifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_build_steps import (
     ApplyOptimizationStep,
     AttachControlNetStep,
@@ -46,10 +46,6 @@ _ARTIFACT_CLASSES: dict[str, type[DiffusionPipelineArtifact]] = {}
 _UNSENDABLE_BUILD_DATA_KEYS = frozenset({"_pipeline_cls"})
 
 
-#: Sentinel for the one-time registration below.
-_COMPONENT_POLYMORPHISM_DONE: set[bool] = set()
-
-
 #: The cache keys this process holds a built pipeline under. The object store cannot list what a
 #: library holds, and the library's entries are not the only ones under its name: the engine parks
 #: every `serializable=False` parameter value under the same group, so a bulk drop by group takes a
@@ -58,26 +54,19 @@ _COMPONENT_POLYMORPHISM_DONE: set[bool] = set()
 _HELD_PIPELINE_KEYS: set[str] = set()
 
 
-def release_held_pipelines(node: BaseNode) -> int:
-    """Release every pipeline built in this process, returning how many were still held."""
-    cache = node.local_objects
-    released = sum(1 for key in sorted(_HELD_PIPELINE_KEYS) if cache.drop(key))
-    _HELD_PIPELINE_KEYS.clear()
-    return released
+def release_held_pipelines(node: BaseNode, *, keep: str | None = None) -> int:
+    """Release every pipeline built in this process, returning how many were still held.
 
-
-def _ensure_component_polymorphism() -> None:
-    """Teach the converter to tell `ComponentArtifact` subclasses apart, once.
-
-    They are frozen dataclasses, which the converter already handles, but only as the exact declared
-    type: without this a `ModelComponentArtifact` comes back as its abstract base with its own fields
-    dropped. Registered on first use rather than at import because the subclasses live in sibling
-    modules and cattrs has to see every one of them -- by the time an artifact is encoded the library's
-    node modules have all been imported, so they all exist.
+    `keep` names a config hash to leave held, for a build that reuses that pipeline's components:
+    releasing it runs `clear_diffusion_pipeline`, which moves those shared components to the CPU
+    underneath the pipeline being built from them.
     """
-    if not _COMPONENT_POLYMORPHISM_DONE:
-        register_polymorphic_dataclass(ComponentArtifact)
-        _COMPONENT_POLYMORPHISM_DONE.add(True)
+    cache = node.local_objects
+    keep_key = cache.key_for(keep) if keep is not None else None
+    targets = sorted(_HELD_PIPELINE_KEYS - {keep_key})
+    released = sum(1 for key in targets if cache.drop(key))
+    _HELD_PIPELINE_KEYS.difference_update(targets)
+    return released
 
 
 def _unstructure_build_data(build_data: dict[str, Any]) -> dict[str, Any]:
@@ -87,7 +76,6 @@ def _unstructure_build_data(build_data: dict[str, Any]) -> dict[str, Any]:
         if key in _UNSENDABLE_BUILD_DATA_KEYS:
             continue
         if key == "_component_overrides":
-            _ensure_component_polymorphism()
             out[key] = {slot: converter.unstructure(artifact) for slot, artifact in value.items()}
         else:
             out[key] = value
@@ -99,8 +87,7 @@ def _structure_build_data(build_data: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for key, value in build_data.items():
         if key == "_component_overrides":
-            _ensure_component_polymorphism()
-            out[key] = {slot: converter.structure(raw, ComponentArtifact) for slot, raw in value.items()}
+            out[key] = {slot: structure_component_artifact(raw) for slot, raw in value.items()}
         else:
             out[key] = value
     return out
@@ -311,6 +298,8 @@ class DiffusionPipelineArtifact:
             return pipe
 
         self._append_log(log_params, "No cached pipeline found. Building new pipeline.\n")
+        # One pipeline resident at a time: free the previous one's VRAM before allocating the next.
+        release_held_pipelines(node)
         pipe = self._build_pipeline(log_params=log_params)
         _HELD_PIPELINE_KEYS.add(cache.put(pipe, key=self.config_hash, on_drop=clear_diffusion_pipeline))
         return pipe
@@ -540,6 +529,7 @@ class BaseDiffusionPipelineArtifact(DiffusionPipelineArtifact, ABC):
         if base_pipe_ref is not None:
             self._append_log(log_params, "Base pipeline found in cache. Reusing its components.\n")
 
+        release_held_pipelines(node, keep=base_config_hash if base_pipe_ref is not None else None)
         derived_pipeline = self._build_pipeline_with_base(base_pipe_ref, log_params=log_params)
         _HELD_PIPELINE_KEYS.add(cache.put(derived_pipeline, key=self.config_hash, on_drop=clear_diffusion_pipeline))
 
