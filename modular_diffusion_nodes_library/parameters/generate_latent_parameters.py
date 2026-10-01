@@ -443,6 +443,10 @@ class DiffusionPipelineGenerateLatentParameters:
             pipe_kwargs[key] = [existing_value, value]
 
     def validate_before_node_run(self) -> list[Exception] | None:
+        step_errors = self._validate_step_configuration()
+        if step_errors:
+            return step_errors
+
         if self._node.get_parameter_by_name("input_latent") is not None:
             input_latent_artifact = self._node.get_parameter_value("input_latent")
             if input_latent_artifact is None:
@@ -460,6 +464,55 @@ class DiffusionPipelineGenerateLatentParameters:
             input_latent_artifact = None
 
         return self._validate_driver_run_configuration(input_latent_artifact)
+
+    def _validate_step_configuration(self) -> list[Exception] | None:
+        # No pipeline bound yet, so there is no step schedule to validate.
+        if self._node.get_parameter_by_name("num_inference_steps") is None:
+            return None
+
+        node_name = self._node.name
+        num_inference_steps = self._node.get_parameter_value("num_inference_steps")
+        start_step = self._node.get_parameter_value("start_step")
+        end_step = self._node.get_parameter_value("end_step")
+
+        if num_inference_steps is None or num_inference_steps < 1:
+            return [
+                ValueError(
+                    f"{node_name}: num_inference_steps={num_inference_steps} is invalid: must be a positive integer."
+                )
+            ]
+        if start_step is None or start_step < 0:
+            return [ValueError(f"{node_name}: start_step={start_step} is invalid: must be 0 or greater.")]
+        if end_step is None or end_step < -1:
+            return [
+                ValueError(
+                    f"{node_name}: end_step={end_step} is invalid: must be -1 (run all remaining steps) or 0 or greater."
+                )
+            ]
+        if end_step > num_inference_steps:
+            return [
+                ValueError(
+                    f"{node_name}: end_step={end_step} is invalid: must be -1 or no greater than "
+                    f"num_inference_steps={num_inference_steps}."
+                )
+            ]
+        if start_step >= num_inference_steps:
+            return [
+                ValueError(
+                    f"{node_name}: start_step={start_step} is invalid: must be less than "
+                    f"num_inference_steps={num_inference_steps}."
+                )
+            ]
+        is_noise_only_shortcut = end_step == 0 and self.add_noise()
+        if end_step != -1 and start_step >= end_step and not is_noise_only_shortcut:
+            return [
+                ValueError(
+                    f"{node_name}: start_step={start_step} is invalid: must be less than end_step={end_step} "
+                    "(use end_step=-1 to run all remaining steps)."
+                )
+            ]
+
+        return None
 
     def _validate_driver_run_configuration(
         self, input_latent_artifact: LatentArtifact | None
