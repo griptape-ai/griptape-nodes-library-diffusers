@@ -118,6 +118,7 @@ class DecodeHdrNode(VaeDecodeNode):
         audio: Any = None,
         audio_sample_rate: int | None = None,
     ) -> None:
+        import numpy as np
         from diffusers.pipelines.ltx2.export_utils import encode_hdr_tensor_to_mp4  # type: ignore[reportMissingImports]
 
         if not isinstance(output, np.ndarray):
@@ -130,6 +131,7 @@ class DecodeHdrNode(VaeDecodeNode):
         encode_hdr_tensor_to_mp4(frames, str(dest_path), frame_rate=fps, tone_mapping_fn=tone_fn)
 
     def _handle_image_output(self, output: Any) -> None:
+        import numpy as np
         from PIL import Image
 
         if not isinstance(output, np.ndarray):
@@ -194,6 +196,8 @@ class DecodeHdrNode(VaeDecodeNode):
 
     @staticmethod
     def _apply_srgb_oetf(x: np.ndarray) -> np.ndarray:
+        import numpy as np
+
         x = np.clip(x, 0.0, 1.0)
         return np.where(x <= 0.0031308, 12.92 * x, 1.055 * np.power(x, 1.0 / 2.4) - 0.055)
 
@@ -204,6 +208,7 @@ class DecodeHdrNode(VaeDecodeNode):
     @staticmethod
     def _get_hdr_tone_mapping_fn(name: str | None) -> ToneMapFn:
         import cv2  # type: ignore[reportMissingImports]
+        import numpy as np
 
         tone_name = name or DEFAULT_TONE_MAPPING
         if tone_name == "reinhard":
@@ -227,6 +232,7 @@ class DecodeHdrNode(VaeDecodeNode):
     @staticmethod
     def _wrap_cv2_tonemapper(tonemapper: Any) -> ToneMapFn:
         """Wrap an OpenCV tonemapper so its RGB↔BGR colorspace expectation is hidden from callers."""
+        import numpy as np
 
         def apply(rgb: np.ndarray) -> np.ndarray:
             bgr = rgb[..., ::-1]

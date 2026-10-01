@@ -70,7 +70,6 @@ if TYPE_CHECKING:
         InputParam,  # type: ignore[reportMissingImports]
         OutputParam,  # type: ignore[reportMissingImports]
     )
-    from diffusers.utils.torch_utils import randn_tensor  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -172,6 +171,7 @@ class _MiniMaxH3PrepareNoiseStep(ModularPipelineBlocks):
         self, components: MiniMaxH3ModularPipeline, state: PipelineState
     ) -> tuple[MiniMaxH3ModularPipeline, PipelineState]:
         import torch  # type: ignore[reportMissingImports]
+        from diffusers.utils.torch_utils import randn_tensor  # type: ignore[reportMissingImports]
 
         block_state = cast(Any, self.get_block_state(state))
         device = components._execution_device

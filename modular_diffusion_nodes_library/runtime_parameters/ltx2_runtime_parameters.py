@@ -91,8 +91,6 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
         super().after_value_set(parameter, value)
         self._text_embeddings_path_param.on_after_value_set(parameter, value)
-        if parameter.name == "use_stage_2":
-            self._sync_num_inference_steps_for_distillation()
 
     def preprocess(self) -> None:
         super().preprocess()
@@ -247,7 +245,12 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         return False
 
     def _sync_num_inference_steps_for_distillation(self) -> None:
-        """Keep the (hidden, when distilled) num_inference_steps parameter matching the fixed sigma schedule."""
+        """Keep the (hidden, when distilled) num_inference_steps parameter matching the fixed sigma schedule.
+
+        Runs only from `preprocess`: reading the schedule imports diffusers, which the orchestrator cannot
+        do. `LTX2PipelineDriver._update_args_for_distilled_pipeline` derives the step count from that same
+        schedule, so a value left stale by an edit never reaches the pipeline.
+        """
         if not self._is_distilled:
             return
 

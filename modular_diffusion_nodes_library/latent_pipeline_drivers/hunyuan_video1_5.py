@@ -41,11 +41,18 @@ class _HunyuanVideo15EncodeVideoStep(ModularPipelineBlocks):
 
     @property
     def inputs(self) -> list[InputParam]:
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            InputParam,
+        )
+
         return [InputParam("frames", required=True), InputParam("generator")]
 
     @property
     def intermediate_outputs(self) -> list[OutputParam]:
         import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            OutputParam,
+        )
 
         return [
             OutputParam(

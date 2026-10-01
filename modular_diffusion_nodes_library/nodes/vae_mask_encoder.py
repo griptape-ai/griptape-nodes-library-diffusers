@@ -255,6 +255,10 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             self._set_compatibility_message(None)
             return None
 
+        # `build_if_needed` is really "I am in the execution environment": True comes only from
+        # `validate_in_execution_environment`, and everything past this point reaches diffusers. A
+        # resident pipeline is the proxy, `local_objects` being process-local, so a miss means either no
+        # pipeline or the wrong process.
         if not build_if_needed:
             if (
                 not pipeline_value.config_hash

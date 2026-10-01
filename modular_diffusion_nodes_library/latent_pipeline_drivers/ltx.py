@@ -47,7 +47,6 @@ if TYPE_CHECKING:
     )
     from diffusers.pipelines.ltx.pipeline_ltx_condition import LTXVideoCondition  # type: ignore[reportMissingImports]
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-    from diffusers.schedulers import FlowMatchEulerDiscreteScheduler  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -68,10 +67,19 @@ class LTXSetTimestepsWithStrengthStep(ModularPipelineBlocks):
 
     @property
     def expected_components(self) -> list[ComponentSpec]:
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            ComponentSpec,
+        )
+        from diffusers.schedulers import FlowMatchEulerDiscreteScheduler  # type: ignore[reportMissingImports]
+
         return [ComponentSpec("scheduler", FlowMatchEulerDiscreteScheduler)]
 
     @property
     def inputs(self) -> list[InputParam]:
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            InputParam,
+        )
+
         return [
             InputParam("timesteps", required=True),
             InputParam("num_inference_steps", required=True),
@@ -81,6 +89,9 @@ class LTXSetTimestepsWithStrengthStep(ModularPipelineBlocks):
     @property
     def intermediate_outputs(self) -> list[OutputParam]:
         import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            OutputParam,
+        )
 
         return [
             OutputParam("timesteps", type_hint=torch.Tensor),
