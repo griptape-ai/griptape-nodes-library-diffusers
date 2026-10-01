@@ -12,6 +12,10 @@ requires-python = "~=3.12.0"
 # built there. `uv sync` installs exactly this, so a dev orchestrator behaves like a real one.
 dependencies = [
     "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
+    # Reads a model's cached config at edit time, which is how the loader and builder nodes answer
+    # questions about a component without diffusers. Declared because the orchestrator imports it: the
+    # host engine happens to provide it today, and that is not a guarantee this library can rely on.
+    "huggingface-hub",
 ]
 
 [project.optional-dependencies]
@@ -68,8 +72,9 @@ packages = [
     "workflows",
 ]
 
-# `uv sync` equivalent of the manifest's pinned CUDA index: pull CUDA torch
-# wheels on Windows/Linux, fall back to PyPI (MPS build) on macOS.
+# This repo's own venvs: CUDA torch wheels on Windows/Linux, PyPI (MPS build) on macOS. A fixed cu128,
+# not the JSON's `--torch-backend=auto`, which resolves per driver -- so a developer venv can hold a
+# different torch build than a user install.
 [tool.uv.sources]
 torch = [
     { index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
@@ -100,6 +105,7 @@ select = [
     "B",      # flake8-bugbear
     "C4",     # flake8-comprehensions
     "UP",     # pyupgrade
+    "TC004",  # a TYPE_CHECKING import used at runtime, which pyright cannot see
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)

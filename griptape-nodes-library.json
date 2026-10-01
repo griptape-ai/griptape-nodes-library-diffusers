@@ -43,16 +43,16 @@
         ],
         "dependencies": {
             "pip_dependencies": [
-                "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4"
+                "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
+                "huggingface-hub"
             ],
             "pip_install_flags": [
-                "--extra-index-url",
-                "https://download.pytorch.org/whl/cu128",
-                "--index-strategy",
-                "unsafe-best-match"
+                "--preview",
+                "--torch-backend=auto"
             ],
             "pip_dependencies_exec": [
                 "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
+                "huggingface-hub",
                 "accelerate>=1.6.0",
                 "av>=14.0.0",
                 "beautifulsoup4>=4.13.4",

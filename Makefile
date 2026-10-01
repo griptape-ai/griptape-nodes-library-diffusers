@@ -92,10 +92,13 @@ fix: ## Fix project.
 	@make format
 	@uv run ruff check --fix --unsafe-fixes
 
-# `test/unit` is a prerequisite because CI runs `make check` and nothing else, so a suite outside it
-# gates nothing -- and these tests pin invariants whose violations are silent.
+# Both test suites are prerequisites because CI runs `make check` and nothing else, so a suite outside
+# it gates nothing -- and these tests pin invariants whose violations are silent. `test/exec` is where
+# the declarations this library restates (driver specs, component slots) get checked against real
+# diffusers; left out, a signature change upstream surfaces as wrong ports instead of a failing test.
+# It needs no extra install: `check/types` already builds the same venv.
 .PHONY: check
-check: check/format check/lint check/types check/json check/worker-safe check/edit-time-imports test/unit ## Run all checks.
+check: check/format check/lint check/types check/json check/worker-safe check/edit-time-imports test/unit test/exec ## Run all checks.
 
 .PHONY: check/format
 check/format:

@@ -144,6 +144,7 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
 
         `tests/test_component_slots.py` checks every declaration against the pinned diffusers, so a
         signature change upstream surfaces as a failing test rather than wrong ports in the builder.
+        That test needs diffusers, so it runs under `make test/exec` and not in `make check`.
         """
         return list(self._component_slots)
 

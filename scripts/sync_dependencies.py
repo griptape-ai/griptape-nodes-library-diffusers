@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import sys
 import tomllib
 
@@ -52,6 +53,16 @@ HEAVY_PREFIXES = (
     "ultralytics",
 )
 
+#: Everything PEP 508 allows between a requirement's name and the rest of it: extras, a version
+#: specifier of any operator, or a marker. Splitting on `=` and `>` alone leaves the operator attached
+#: to the name, so `torch~=2.7` reads as a package called `torch~` and passes the guard below.
+_REQUIREMENT_NAME_END = re.compile(r"[\[<>=!~;\s@]")
+
+
+def requirement_name(dep: str) -> str:
+    """The distribution name `dep` declares, normalized per PEP 503."""
+    return _REQUIREMENT_NAME_END.split(dep, maxsplit=1)[0].strip().lower().replace("_", "-")
+
 
 def main() -> int:
     pyproject = tomllib.loads(PYPROJECT.read_text())
@@ -64,7 +75,7 @@ def main() -> int:
     # A worker imports the node modules as well as running them, so it needs both sets.
     exec_deps = edit_deps + [d for d in heavy_deps if d not in edit_deps]
 
-    smuggled = [d for d in edit_deps if d.split("[")[0].split(">")[0].split("=")[0].strip() in HEAVY_PREFIXES]
+    smuggled = [d for d in edit_deps if requirement_name(d).startswith(HEAVY_PREFIXES)]
     if smuggled:
         print(
             "Attempted to sync dependencies. Failed because these belong to the execution set but are "

@@ -961,6 +961,7 @@ version = "0.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "griptape", extra = ["drivers-prompt-amazon-bedrock", "drivers-prompt-anthropic", "drivers-prompt-cohere", "drivers-prompt-ollama", "drivers-web-scraper-trafilatura", "drivers-web-search-duckduckgo", "drivers-web-search-exa", "loaders-image"] },
+    { name = "huggingface-hub" },
 ]
 
 [package.optional-dependencies]
@@ -1029,6 +1030,7 @@ requires-dist = [
     { name = "ftfy", marker = "extra == 'exec'", specifier = ">=6.3.1" },
     { name = "gguf", marker = "extra == 'exec'", specifier = ">=0.10.0" },
     { name = "griptape", extras = ["drivers-prompt-amazon-bedrock", "drivers-prompt-anthropic", "drivers-prompt-cohere", "drivers-prompt-ollama", "drivers-web-scraper-trafilatura", "drivers-web-search-duckduckgo", "drivers-web-search-exa", "loaders-image"], specifier = ">=1.9.4" },
+    { name = "huggingface-hub" },
     { name = "imageio", extras = ["ffmpeg"], marker = "extra == 'exec'", specifier = ">=2.37.2" },
     { name = "matplotlib", marker = "extra == 'exec'", specifier = ">=3.10.3" },
     { name = "ninja", marker = "extra == 'exec'", specifier = ">=1.13.0" },
