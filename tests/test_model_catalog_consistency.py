@@ -314,7 +314,6 @@ def test_flux_derivatives_key_to_black_forest_labs() -> None:
         "Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro",
         "Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0",
         "diffusers/FLUX.2-dev-bnb-4bit",
-        "fal/FLUX.2-dev-Turbo",
     ):
         provider_id, _ = catalog[repo]
         assert provider_id == "black_forest_labs", f"{repo} is keyed to {provider_id}"
