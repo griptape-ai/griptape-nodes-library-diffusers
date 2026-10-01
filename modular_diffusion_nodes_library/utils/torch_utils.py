@@ -1,12 +1,49 @@
+from __future__ import annotations
+
+import functools
 import logging
 import os
 import platform
 import sys
+from typing import TYPE_CHECKING
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
+
+
+def no_grad[**P, T](func: Callable[P, T]) -> Callable[P, T]:
+    """`torch.no_grad()`, entered when the call happens rather than when the decorator runs.
+
+    A bare `@torch.no_grad()` is evaluated while the class body executes, which imports torch as
+    soon as the module is imported.
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+        import torch
+
+        with torch.no_grad():
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
+def inference_mode[**P, T](func: Callable[P, T]) -> Callable[P, T]:
+    """`torch.inference_mode()`, deferred for the same reason as `no_grad`."""
+
+    @functools.wraps(func)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+        import torch
+
+        with torch.inference_mode():
+            return func(*args, **kwargs)
+
+    return wrapper
 
 
 def to_human_readable_size(size_in_bytes: float) -> str:
@@ -87,6 +124,8 @@ def print_pipeline_memory_footprint(pipe: DiffusionPipeline, component_names: li
 
 def get_best_device(*, quiet: bool = False) -> torch.device:  # noqa: C901 PLR0911 PLR0912
     """Gets the best torch device using heuristics."""
+    import torch  # type: ignore[reportMissingImports]
+
     system = platform.system()
     machine = platform.machine().lower()
     python_version = sys.version.split()[0]
@@ -159,6 +198,8 @@ def get_best_device(*, quiet: bool = False) -> torch.device:  # noqa: C901 PLR09
 
 def get_free_cuda_memory() -> int:
     """Get free memory on the current CUDA device."""
+    import torch  # type: ignore[reportMissingImports]
+
     if not torch.cuda.is_available():
         return 0
 
@@ -170,6 +211,8 @@ def get_free_cuda_memory() -> int:
 
 def should_enable_attention_slicing(device: torch.device) -> bool:  # noqa: PLR0911
     """Decide whether to enable attention slicing based on the device and platform."""
+    import torch  # type: ignore[reportMissingImports]
+
     system = platform.system()
 
     # Special logic for macOS

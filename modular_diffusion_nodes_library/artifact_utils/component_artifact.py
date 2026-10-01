@@ -7,14 +7,6 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, override
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers import GGUFQuantizationConfig  # type: ignore[reportMissingImports]
-from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingImports]
-    infer_diffusers_model_type,
-    load_single_file_checkpoint,
-)
-from huggingface_hub import try_to_load_from_cache
-
 from modular_diffusion_nodes_library.component_loading.component_slots import component_config_filename
 from modular_diffusion_nodes_library.component_loading.config_resolver import (
     loadable_class_name,
@@ -151,6 +143,8 @@ class ModelComponentArtifact(ComponentArtifact):
         pipeline_cls: type | None = None,
     ) -> dict[str, Any] | None:
         """Read this artifact's config file without materializing weights."""
+        from huggingface_hub import try_to_load_from_cache
+
         config_name = component_config_filename(self.component)
         if self.source_type == ComponentSourceType.HF_REPO:
             if self.repo_ref is None:
@@ -185,6 +179,10 @@ class ModelComponentArtifact(ComponentArtifact):
 
     def _infer_single_file_model_type(self, *, pipeline_cls: type, checkpoint: Any) -> tuple[str, str]:
         """Infer the checkpoint model type and the effective config lookup model type."""
+        from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingImports]
+            infer_diffusers_model_type,
+        )
+
         inferred_model_type = infer_diffusers_model_type(checkpoint)
         if inferred_model_type in MODEL_TYPE_TO_PIPELINE_TYPE:
             model_type = inferred_model_type
@@ -223,6 +221,8 @@ class ModelComponentArtifact(ComponentArtifact):
         return None
 
     def _materialize_hf_repo(self, *, pipeline_cls: type, effective_slot: str) -> Any:
+        import torch  # type: ignore[reportMissingImports]
+
         if not self.repo_ref:
             msg = (
                 f"Attempted to materialize {self.component}. "
@@ -265,6 +265,12 @@ class ModelComponentArtifact(ComponentArtifact):
         return component_cls.from_pretrained(**kwargs)
 
     def _materialize_single_file(self, *, pipeline_cls: type, effective_slot: str) -> Any:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers import GGUFQuantizationConfig  # type: ignore[reportMissingImports]
+        from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingImports]
+            load_single_file_checkpoint,
+        )
+
         if not self.file_path:
             msg = (
                 f"Attempted to materialize {self.component}. "
@@ -343,6 +349,8 @@ class ModelComponentArtifact(ComponentArtifact):
         raise ValueError(msg)
 
     def _materialize_local_dir(self, *, pipeline_cls: type, effective_slot: str) -> Any:
+        import torch  # type: ignore[reportMissingImports]
+
         if not self.file_path:
             msg = (
                 f"Attempted to materialize {self.component}. "

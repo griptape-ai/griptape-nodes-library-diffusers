@@ -7,11 +7,11 @@ import logging
 from abc import ABC, abstractmethod
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+from griptape_nodes.retained_mode.events.event_converter import converter, register_polymorphic_dataclass
 
+from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_build_steps import (
     ApplyOptimizationStep,
     AttachControlNetStep,
@@ -20,10 +20,113 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_build_steps import 
     LoadPipelineStep,
     run_build_steps,
 )
-from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
-from modular_diffusion_nodes_library.utils.pipeline_runtime_adapter_step import PipelineRuntimeAdapterStep
+from modular_diffusion_nodes_library.utils.pipeline_runtime_adapter_step import (
+    PipelineRuntimeAdapterStep,
+    rebuild_runtime_adapter_step,
+)
+from modular_diffusion_nodes_library.utils.pipeline_utils import clear_diffusion_pipeline
+
+if TYPE_CHECKING:
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+    from griptape_nodes.exe_types.node_types import BaseNode
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
+
+
+#: Marks a dict as an encoded artifact and names which class to rebuild. Present in the wire form only.
+_ARTIFACT_TAG = "__pipeline_artifact__"
+
+#: Every declared `_CATTRS_TAG`, so `structure_pipeline_artifact` can rebuild the right class.
+_ARTIFACT_CLASSES: dict[str, type[DiffusionPipelineArtifact]] = {}
+
+#: Build-data entries that are live objects rather than description. `_pipeline_cls` is redundant with
+#: the owning parameter class's `_pipeline_cls_path`, which `build_pipeline_from_build_data` already
+#: falls back to, so dropping it loses nothing.
+_UNSENDABLE_BUILD_DATA_KEYS = frozenset({"_pipeline_cls"})
+
+
+#: Sentinel for the one-time registration below.
+_COMPONENT_POLYMORPHISM_DONE: set[bool] = set()
+
+
+#: The cache keys this process holds a built pipeline under. The object store cannot list what a
+#: library holds, and the library's entries are not the only ones under its name: the engine parks
+#: every `serializable=False` parameter value under the same group, so a bulk drop by group takes a
+#: downstream node's latents with it. A key dropped elsewhere stays in here until the next clear,
+#: where it simply answers "not held".
+_HELD_PIPELINE_KEYS: set[str] = set()
+
+
+def release_held_pipelines(node: BaseNode) -> int:
+    """Release every pipeline built in this process, returning how many were still held."""
+    cache = node.local_objects
+    released = sum(1 for key in sorted(_HELD_PIPELINE_KEYS) if cache.drop(key))
+    _HELD_PIPELINE_KEYS.clear()
+    return released
+
+
+def _ensure_component_polymorphism() -> None:
+    """Teach the converter to tell `ComponentArtifact` subclasses apart, once.
+
+    They are frozen dataclasses, which the converter already handles, but only as the exact declared
+    type: without this a `ModelComponentArtifact` comes back as its abstract base with its own fields
+    dropped. Registered on first use rather than at import because the subclasses live in sibling
+    modules and cattrs has to see every one of them -- by the time an artifact is encoded the library's
+    node modules have all been imported, so they all exist.
+    """
+    if not _COMPONENT_POLYMORPHISM_DONE:
+        register_polymorphic_dataclass(ComponentArtifact)
+        _COMPONENT_POLYMORPHISM_DONE.add(True)
+
+
+def _unstructure_build_data(build_data: dict[str, Any]) -> dict[str, Any]:
+    """`build_data` with live objects dropped and component descriptors encoded."""
+    out: dict[str, Any] = {}
+    for key, value in build_data.items():
+        if key in _UNSENDABLE_BUILD_DATA_KEYS:
+            continue
+        if key == "_component_overrides":
+            _ensure_component_polymorphism()
+            out[key] = {slot: converter.unstructure(artifact) for slot, artifact in value.items()}
+        else:
+            out[key] = value
+    return out
+
+
+def _structure_build_data(build_data: dict[str, Any]) -> dict[str, Any]:
+    """Invert `_unstructure_build_data`."""
+    out: dict[str, Any] = {}
+    for key, value in build_data.items():
+        if key == "_component_overrides":
+            _ensure_component_polymorphism()
+            out[key] = {slot: converter.structure(raw, ComponentArtifact) for slot, raw in value.items()}
+        else:
+            out[key] = value
+    return out
+
+
+def is_encoded_pipeline_artifact(value: Any) -> bool:
+    """Whether `value` is an artifact that crossed a process boundary and needs rebuilding."""
+    return isinstance(value, dict) and _ARTIFACT_TAG in value
+
+
+def structure_pipeline_artifact(data: dict[str, Any]) -> DiffusionPipelineArtifact:
+    """Rebuild the artifact class named by `data`'s tag.
+
+    Raises:
+        ValueError: if the tag names a class this process does not have, which means the artifact came
+            from a process running a different version of this library.
+    """
+    tag = data.get(_ARTIFACT_TAG)
+    artifact_cls = _ARTIFACT_CLASSES.get(tag) if isinstance(tag, str) else None
+    if artifact_cls is None:
+        msg = (
+            f"Attempted to rebuild a pipeline artifact. Failed with tag='{tag}' because no artifact "
+            f"class declares it. Known tags: {sorted(_ARTIFACT_CLASSES)}."
+        )
+        raise ValueError(msg)
+    return artifact_cls._structure_fields(data)  # noqa: SLF001 - the inverse of this module's own encoding
 
 
 def _digest(parts: dict[str, Any]) -> str:
@@ -61,12 +164,15 @@ class DiffusionPipelineArtifact:
 
     The artifact itself is not a built pipeline; it captures only the
     information required to reproduce one (`build_data`, LoRAs, optimization
-    flags, etc.) plus a config hash used as the model cache key. The actual
-    pipeline instance is built lazily by `get_or_build_pipeline()`, which
-    delegates to the global `model_cache`.
+    flags, etc.) plus a config hash used as the cache key. The actual pipeline
+    instance is built lazily by `get_or_build_pipeline()`, which holds it in the
+    worker's local object store under that hash. The artifact stays reproducible
+    rather than becoming a reference, so an evicted pipeline can be rebuilt.
 
     Subclasses (e.g. `ControlNetDiffusionPipelineArtifact`) layer additional
-    configuration on top of a base artifact.
+    configuration on top of a base artifact. A subclass that adds state must
+    declare its own `_CATTRS_TAG` and override `_cattrs_unstructure` /
+    `_structure_fields`, or that state is dropped crossing a process boundary.
 
     Field mutability
     -------------------------
@@ -77,6 +183,36 @@ class DiffusionPipelineArtifact:
     settable from outside the class — i.e. not protected by such a property —
     `with_additional_runtime_adapter_steps()` must be updated to use `copy.deepcopy()` instead.
     """
+
+    #: Names this class in the wire form, so the receiving process rebuilds the same class.
+    _CATTRS_TAG: ClassVar[str] = "diffusion_pipeline"
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        # Only a class that declares its own tag registers: an intermediate subclass that inherits one
+        # would otherwise displace its parent and be rebuilt in its place.
+        tag = cls.__dict__.get("_CATTRS_TAG")
+        if tag is not None:
+            _ARTIFACT_CLASSES[tag] = cls
+
+    @classmethod
+    def _structure_fields(cls, data: dict[str, Any]) -> DiffusionPipelineArtifact:
+        """Build an instance of this class from its wire form."""
+        artifact = cls(
+            pipeline_name=data["pipeline_name"],
+            config_hash=data["config_hash"],
+            builder_module=data["builder_module"],
+            builder_class_name=data["builder_class_name"],
+            build_data=_structure_build_data(data["build_data"]),
+            build_data_error=data["build_data_error"],
+            loras=data["loras"],
+            optimization_kwargs=data["optimization_kwargs"],
+            is_prequantized=data["is_prequantized"],
+            supports_layerwise_casting=data["supports_layerwise_casting"],
+            requires_device_map=data["requires_device_map"],
+        )
+        artifact._restore_runtime_adapter_steps(data.get("runtime_adapter_steps", []))
+        return artifact
 
     def __init__(
         self,
@@ -162,16 +298,59 @@ class DiffusionPipelineArtifact:
             "runtime_adapter_steps": [step.metadata for step in self.runtime_adapter_steps()],
         }
 
-    def get_or_build_pipeline(self, log_params: Any | None = None) -> ModularPipeline | DiffusionPipeline | Any:
+    def get_or_build_pipeline(
+        self, node: BaseNode, log_params: Any | None = None
+    ) -> ModularPipeline | DiffusionPipeline | Any:
         if not self.config_hash:
             raise ValueError("Config hash is required to get or build pipeline from artifact.")
 
-        if model_cache.has_pipeline(self.config_hash):
+        cache = node.local_objects
+        pipe = cache.get(cache.key_for(self.config_hash))
+        if pipe is not None:
             self._append_log(log_params, "Using cached pipeline.\n")
-            return model_cache.get_pipeline(self.config_hash)
+            return pipe
 
         self._append_log(log_params, "No cached pipeline found. Building new pipeline.\n")
-        return model_cache.get_or_build_pipeline(self.config_hash, lambda: self._build_pipeline(log_params=log_params))
+        pipe = self._build_pipeline(log_params=log_params)
+        _HELD_PIPELINE_KEYS.add(cache.put(pipe, key=self.config_hash, on_drop=clear_diffusion_pipeline))
+        return pipe
+
+    # --- Crossing a process boundary ------------------------------------------------------------
+    #
+    # The built pipeline lives in the worker's object store; this artifact is only the description of
+    # it, and both processes need that description: the worker to build, the orchestrator to validate
+    # and to decide which parameters to show. So the artifact travels as data.
+    #
+    # The engine encodes event payloads with `json.dumps(default=str)`, so a type it cannot
+    # unstructure is silently replaced by its `str()`. Without the hooks below this artifact reached a
+    # consumer as a bare string and failed two nodes later as a type error. `_cattrs_unstructure` and
+    # `_cattrs_structure` are the engine's documented seam for a class that knows its own wire form.
+
+    def _cattrs_unstructure(self) -> dict[str, Any]:
+        """The wire form: every field `_cattrs_structure` needs, and nothing that cannot be encoded."""
+        return {
+            _ARTIFACT_TAG: type(self)._CATTRS_TAG,
+            "pipeline_name": self.pipeline_name,
+            "config_hash": self.config_hash,
+            "builder_module": self._builder_module,
+            "builder_class_name": self._builder_class_name,
+            "build_data": _unstructure_build_data(self._build_data),
+            "build_data_error": self._build_data_error,
+            "loras": self.loras,
+            "optimization_kwargs": self.optimization_kwargs,
+            "is_prequantized": self._is_prequantized,
+            "supports_layerwise_casting": self._supports_layerwise_casting,
+            "requires_device_map": self._requires_device_map,
+            "runtime_adapter_steps": [step.metadata for step in self.runtime_adapter_steps()],
+        }
+
+    @classmethod
+    def _cattrs_structure(cls, data: dict[str, Any], _type: Any = None) -> DiffusionPipelineArtifact:
+        """Rebuild whichever artifact class produced `data`, not necessarily `cls`."""
+        return structure_pipeline_artifact(data)
+
+    def _restore_runtime_adapter_steps(self, recorded: list[dict[str, Any]]) -> None:
+        self._extra_runtime_adapter_steps = [rebuild_runtime_adapter_step(entry) for entry in recorded]
 
     def runtime_adapter_steps(self) -> list[PipelineRuntimeAdapterStep]:
         """Per-generation context-managed transformations applied around each generation call."""
@@ -230,8 +409,8 @@ class DiffusionPipelineArtifact:
             is_reuse=is_reuse,
         )
 
-    def __call__(self) -> ModularPipeline | DiffusionPipeline | Any:
-        return self.get_or_build_pipeline()
+    def __call__(self, node: BaseNode) -> ModularPipeline | DiffusionPipeline | Any:
+        return self.get_or_build_pipeline(node)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, DiffusionPipelineArtifact):
@@ -244,8 +423,9 @@ class DiffusionPipelineArtifact:
     def __repr__(self) -> str:
         return f"DiffusionPipelineArtifact(config_hash={self.config_hash!r}, pipeline_name={self.pipeline_name!r})"
 
-    def __str__(self) -> str:
-        return self.config_hash or f"DiffusionPipelineArtifact({self.pipeline_name})"
+    # No `__str__`, deliberately: the engine writes event payloads with `json.dumps(default=str)`, so
+    # one returning `config_hash` would send an artifact the converter cannot unstructure downstream as
+    # a plausible-looking hash string. `__repr__` makes that failure unmistakable instead.
 
     @contextmanager
     def _profile(self, log_params: Any | None, label: str):
@@ -274,6 +454,12 @@ def normalize_diffusion_pipeline_value(
     if isinstance(value, DiffusionPipelineArtifact):
         return value
 
+    # An artifact that crossed a process boundary arrives as its wire form. Rebuilding it here rather
+    # than at each call site means every reader and every `set_parameter_value` override gets a real
+    # artifact without knowing a boundary was involved.
+    if is_encoded_pipeline_artifact(value):
+        return structure_pipeline_artifact(value)
+
     message = f"Invalid 'pipeline' value type '{type(value).__name__}'. Expected DiffusionPipelineArtifact."
     if node_name is not None:
         message = f"{node_name}: {message}"
@@ -285,6 +471,10 @@ def normalize_diffusion_pipeline_value(
         logger.warning("%s: ignoring 'pipeline' value of type %s.", node_name, type(value).__name__)
 
     return None
+
+
+_ARTIFACT_CLASSES[DiffusionPipelineArtifact._CATTRS_TAG] = DiffusionPipelineArtifact  # noqa: SLF001
+"""`__init_subclass__` does not fire for the class that declares the tag, so the root registers here."""
 
 
 class BaseDiffusionPipelineArtifact(DiffusionPipelineArtifact, ABC):
@@ -328,36 +518,39 @@ class BaseDiffusionPipelineArtifact(DiffusionPipelineArtifact, ABC):
         """Return context string for reuse log messages (e.g., 'control net', 'LoRA pipeline')."""
         ...
 
-    def get_or_build_pipeline(self, log_params: Any | None = None) -> ModularPipeline | DiffusionPipeline | Any:
+    def get_or_build_pipeline(
+        self, node: BaseNode, log_params: Any | None = None
+    ) -> ModularPipeline | DiffusionPipeline | Any:
         if not self.config_hash:
             raise ValueError("Config hash is required to get or build pipeline from artifact.")
 
-        if model_cache.has_pipeline(self.config_hash):
-            self._append_log(log_params, "Using cached pipeline.\n")
-            return model_cache.get_pipeline(self.config_hash)
-
-        self._append_log(log_params, "No cached pipeline found. Building new pipeline.\n")
-        base_pipe_ref = None
         base_config_hash = self._base_artifact.config_hash
         if not base_config_hash:
             raise ValueError("Base artifact config hash is required to get or build pipeline from artifact.")
 
-        if model_cache.has_pipeline(base_config_hash):
-            self._append_log(log_params, "Base pipeline found in cache. Capturing reference for reuse.\n")
-            base_pipe_ref = model_cache.get_pipeline(base_config_hash)
-            model_cache.take_pipeline(base_config_hash)
+        cache = node.local_objects
+        derived_pipeline = cache.get(cache.key_for(self.config_hash))
+        if derived_pipeline is not None:
+            self._append_log(log_params, "Using cached pipeline.\n")
+            return derived_pipeline
 
-        try:
-            derived_pipeline = model_cache.get_or_build_pipeline(
-                self.config_hash,
-                lambda: self._build_pipeline_with_base(base_pipe_ref, log_params=log_params),
-            )
-        finally:
-            if base_pipe_ref is not None and not model_cache.has_pipeline(base_config_hash):
-                if self._should_return_base_to_cache():
-                    context = self._get_reuse_log_context()
-                    self._append_log(log_params, f"Re-adding base pipeline to cache after {context} build.\n")
-                    model_cache.add_pipeline(base_config_hash, base_pipe_ref)
+        self._append_log(log_params, "No cached pipeline found. Building new pipeline.\n")
+        base_key = cache.key_for(base_config_hash)
+        base_pipe_ref = cache.get(base_key)
+        if base_pipe_ref is not None:
+            self._append_log(log_params, "Base pipeline found in cache. Reusing its components.\n")
+
+        derived_pipeline = self._build_pipeline_with_base(base_pipe_ref, log_params=log_params)
+        _HELD_PIPELINE_KEYS.add(cache.put(derived_pipeline, key=self.config_hash, on_drop=clear_diffusion_pipeline))
+
+        if base_pipe_ref is not None and not self._should_return_base_to_cache():
+            context = self._get_reuse_log_context()
+            self._append_log(log_params, f"Dropping the contaminated base pipeline after {context} build.\n")
+            # Re-registering the same object clears its release hook without running it, which is what
+            # makes the drop below forget the entry rather than tear it down: `clear_diffusion_pipeline`
+            # moves every component to CPU, and the derived pipeline shares those components.
+            cache.put(base_pipe_ref, key=base_config_hash, on_drop=None)
+            cache.drop(base_key)
 
         return derived_pipeline
 
@@ -378,6 +571,8 @@ class BaseDiffusionPipelineArtifact(DiffusionPipelineArtifact, ABC):
 
 
 class ControlNetDiffusionPipelineArtifact(BaseDiffusionPipelineArtifact):
+    _CATTRS_TAG: ClassVar[str] = "controlnet_diffusion_pipeline"
+
     def __init__(
         self,
         *,
@@ -390,6 +585,28 @@ class ControlNetDiffusionPipelineArtifact(BaseDiffusionPipelineArtifact):
             config_hash=config_hash,
         )
         self._controlnet_models = list(controlnet_models)
+
+    def _cattrs_unstructure(self) -> dict[str, Any]:
+        """The base form plus this class's own state: the base artifact and the ControlNet models.
+
+        The base artifact is encoded whole rather than by hash. A hash is only a cache key, and the
+        receiving process may not be holding that entry -- rebuilding the derived pipeline needs the
+        base's full description.
+        """
+        encoded = super()._cattrs_unstructure()
+        encoded["base_artifact"] = self._base_artifact._cattrs_unstructure()  # noqa: SLF001 - same class family
+        encoded["controlnet_models"] = list(self._controlnet_models)
+        return encoded
+
+    @classmethod
+    def _structure_fields(cls, data: dict[str, Any]) -> ControlNetDiffusionPipelineArtifact:
+        artifact = cls(
+            base_artifact=structure_pipeline_artifact(data["base_artifact"]),
+            controlnet_models=data["controlnet_models"],
+            config_hash=data["config_hash"],
+        )
+        artifact._restore_runtime_adapter_steps(data.get("runtime_adapter_steps", []))
+        return artifact
 
     @property
     def metadata(self) -> dict[str, Any]:

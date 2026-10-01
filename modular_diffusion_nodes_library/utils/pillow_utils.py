@@ -1,20 +1,26 @@
-import io
+from __future__ import annotations
 
-import PIL.Image
-import PIL.ImageOps
+import io
+from typing import TYPE_CHECKING
+
 from griptape.artifacts import ImageArtifact, ImageUrlArtifact
-from PIL.Image import Image
+
+from modular_diffusion_nodes_library.utils.directory_utils import cleanup_directory_if_enabled
+
+if TYPE_CHECKING:
+    from PIL.Image import Image
 
 
 def image_artifact_to_pil(image_artifact: ImageArtifact) -> Image:
     """Converts Griptape ImageArtifact to Pillow Image."""
+    import PIL.Image
+    import PIL.ImageOps
+
     return PIL.Image.open(io.BytesIO(image_artifact.value))
 
 
 def pil_to_image_artifact(pil_image: Image, directory_path: str = "") -> ImageUrlArtifact:
     """Converts Pillow Image to Griptape ImageArtifact."""
-    from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
-
     image_io = io.BytesIO()
     pil_image.save(image_io, "PNG")
     image_bytes = image_io.getvalue()
@@ -22,20 +28,7 @@ def pil_to_image_artifact(pil_image: Image, directory_path: str = "") -> ImageUr
     from griptape_nodes.files.project_file import ProjectFileDestination
 
     if directory_path:
-        # Perform cleanup if needed before saving new file
-        cleanup_enabled = GriptapeNodes.ConfigManager().get_config_value(
-            "modular_diffusion_library.enable_directory_cleanup"
-        )
-        if cleanup_enabled:
-            static_files_directory = GriptapeNodes.ConfigManager().get_config_value(
-                "static_files_directory", default="staticfiles"
-            )
-            path = GriptapeNodes.ConfigManager().workspace_path / static_files_directory / directory_path
-
-            max_size_gb = GriptapeNodes.ConfigManager().get_config_value(
-                "modular_diffusion_library.max_directory_size_gb"
-            )
-            GriptapeNodes.OSManager().cleanup_directory_if_needed(full_directory_path=path, max_size_gb=max_size_gb)
+        cleanup_directory_if_enabled(directory_path)
 
         dest = ProjectFileDestination.from_situation(
             filename=f"{directory_path}/image.png", situation="save_node_output"
@@ -58,6 +51,9 @@ def pad_mirror(image: Image, target_size: tuple[int, int]) -> Image:
     Returns:
     - A new Image of size target_size, filled with mirrored tiles of the original
     """
+    import PIL.Image
+    import PIL.ImageOps
+
     orig_w, orig_h = image.size
     target_w, target_h = target_size
 

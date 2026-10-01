@@ -1,13 +1,16 @@
+from __future__ import annotations
+
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from griptape.artifacts import ImageArtifact, ImageUrlArtifact
-from PIL import Image as PILImage
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
 from modular_diffusion_nodes_library.utils.video_utils import load_video_frames_from_url_artifact
+
+if TYPE_CHECKING:
+    from PIL.Image import Image
 
 
 class ConditioningMode(StrEnum):
@@ -68,6 +71,8 @@ def resolve_conditioning_video(video_artifact: Any) -> list[Image]:
 
 
 def resolve_conditioning_image(image_value: Any) -> Image:
+    from PIL import Image as PILImage
+
     if isinstance(image_value, PILImage.Image):
         return image_value.convert("RGB")
 
@@ -132,6 +137,8 @@ def resize_frames_scale_to_fill(
     target_width: int,
 ) -> list[Image]:
     """Scale-to-fill then center-crop frames to exact target dimensions."""
+    from PIL import Image as PILImage
+
     if not frames or not isinstance(frames[0], PILImage.Image):
         return frames
 

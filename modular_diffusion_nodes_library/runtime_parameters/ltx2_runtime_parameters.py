@@ -1,10 +1,6 @@
 import logging
 from typing import Any, ClassVar
 
-from diffusers.pipelines.ltx2.utils import (  # type: ignore[reportMissingImports]
-    DISTILLED_SIGMA_VALUES,
-    STAGE_2_DISTILLED_SIGMA_VALUES,
-)
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import BaseNode
 
@@ -254,6 +250,12 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         """Keep the (hidden, when distilled) num_inference_steps parameter matching the fixed sigma schedule."""
         if not self._is_distilled:
             return
+
+        from diffusers.pipelines.ltx2.utils import (  # type: ignore[reportMissingImports]
+            DISTILLED_SIGMA_VALUES,
+            STAGE_2_DISTILLED_SIGMA_VALUES,
+        )
+
         use_stage_2 = bool(self._node.get_parameter_value("use_stage_2"))
         sigmas = STAGE_2_DISTILLED_SIGMA_VALUES if use_stage_2 else DISTILLED_SIGMA_VALUES
         self._node.set_parameter_value("num_inference_steps", len(sigmas), emit_change=False)
@@ -286,17 +288,20 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 self._text_embeddings_path_param.validate_parameter_values()
             except RuntimeError as err:
                 return [err]
-        if self._is_ic_lora_active:
-            try:
-                self._reference_conditions_param.validate_before_node_run()
-            except RuntimeError as err:
-                return [err]
-        if self._is_hdr_lora_active or self._is_ic_lora_active:
-            try:
-                self._media_gen_conditioning_param.validate_before_node_run()
-            except RuntimeError as err:
-                return [err]
         return None
+
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Both conditioning surfaces hold their payload, so they can only be read where it lives."""
+        errors: list[Exception] = []
+        if self._is_ic_lora_active:
+            reference_errors = self._reference_conditions_param.validate_in_execution_environment()
+            if reference_errors:
+                errors.extend(reference_errors)
+        if self._is_hdr_lora_active or self._is_ic_lora_active:
+            conditioning_errors = self._media_gen_conditioning_param.validate_in_execution_environment()
+            if conditioning_errors:
+                errors.extend(conditioning_errors)
+        return errors or None
 
     def _get_pipe_kwargs(self) -> dict:
         pipe_kwargs = {

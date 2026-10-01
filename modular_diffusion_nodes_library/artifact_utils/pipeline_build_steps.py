@@ -8,15 +8,18 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from importlib import import_module
-from typing import Any, Protocol, runtime_checkable
-
-from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from modular_diffusion_nodes_library.utils.lora_apply_utils import configure_loras_on_pipeline
 from modular_diffusion_nodes_library.utils.pipeline_utils import optimize_diffusion_pipeline
 
-Pipe = ModularPipeline | DiffusionPipeline | Any
+if TYPE_CHECKING:
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+
+# `type` rather than a plain assignment: the right-hand side is evaluated only when something
+# introspects the alias, so naming a pipe does not import diffusers.
+type Pipe = ModularPipeline | DiffusionPipeline | Any
 
 
 def _append_log(log_params: Any | None, message: str) -> None:

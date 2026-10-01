@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import logging
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import BaseNode
@@ -9,7 +11,9 @@ from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_file
 )
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 from griptape_nodes.traits.options import Options
-from PIL.Image import Image
+
+if TYPE_CHECKING:
+    from PIL.Image import Image
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 CONTROLNET_MODEL_PARAMETER_NAME = "controlnet_model"

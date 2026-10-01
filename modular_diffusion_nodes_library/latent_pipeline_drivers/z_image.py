@@ -1,8 +1,8 @@
-import logging
-from typing import Any, ClassVar, override
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers.models.controlnets.controlnet_z_image import ZImageControlNetModel  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar, override
+
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     SequentialPipelineBlocks,
@@ -13,21 +13,12 @@ from diffusers.modular_pipelines.z_image.before_denoise import (  # type: ignore
     ZImageSetTimestepsStep,
     ZImageSetTimestepsWithStrengthStep,
 )
-from diffusers.modular_pipelines.z_image.modular_blocks_z_image import (
-    ZImageAutoBlocks,  # type: ignore[reportMissingImports]
-)
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.z_image.pipeline_z_image_controlnet import (  # type: ignore[reportMissingImports]
-    ZImageControlNetPipeline,
-)
 from diffusers.pipelines.z_image.pipeline_z_image_controlnet_inpaint import (  # type: ignore[reportMissingImports]
     ZImageControlNetInpaintPipeline,
 )
 from diffusers.pipelines.z_image.pipeline_z_image_inpaint import (  # type: ignore[reportMissingImports]
     ZImageInpaintPipeline,
 )
-from huggingface_hub import hf_hub_download  # type: ignore[reportMissingImports]
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -38,6 +29,10 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
 )
 from modular_diffusion_nodes_library.utils.pipeline_utils import detect_offload_method
+
+if TYPE_CHECKING:
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+    from PIL.Image import Image
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -81,6 +76,10 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
+        from diffusers.modular_pipelines.z_image.modular_blocks_z_image import (
+            ZImageAutoBlocks,  # type: ignore[reportMissingImports]
+        )
+
         return ZImageAutoBlocks().init_pipeline()
 
     @classmethod
@@ -101,6 +100,14 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
     def control_pipe_from_standard(
         cls, pipe: ModularPipeline | DiffusionPipeline, control_net_model_lists: list[str] | str | None
     ):
+        from diffusers.models.controlnets.controlnet_z_image import (
+            ZImageControlNetModel,  # type: ignore[reportMissingImports]
+        )
+        from diffusers.pipelines.z_image.pipeline_z_image_controlnet import (  # type: ignore[reportMissingImports]
+            ZImageControlNetPipeline,
+        )
+        from huggingface_hub import hf_hub_download  # type: ignore[reportMissingImports]
+
         if not control_net_model_lists:
             return pipe
         offload_method = detect_offload_method(pipe)  # type: ignore[reportArgumentType]
@@ -151,6 +158,8 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
     @override
     def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         """Create a raw noise latent via modular pipeline block."""
+        import torch  # type: ignore[reportMissingImports]
+
         prepare_latents = ZImagePrepareLatentsStep()
         generator = generator_state.to_generator()
         output_state = self._call_block(
@@ -177,6 +186,8 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
         strength: float,
     ) -> LatentArtifact:
         """Add noise to image latents via modular pipeline blocks."""
+        import torch  # type: ignore[reportMissingImports]
+
         device, dtype = self._get_device_and_type()
         source_shape = latent.source_shape
         latents = latent.to_torch(device=device, dtype=dtype)
@@ -209,6 +220,8 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         generator = generator_state.to_generator()

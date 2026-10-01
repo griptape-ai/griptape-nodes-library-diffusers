@@ -1,12 +1,16 @@
-from typing import Any, ClassVar, override
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, ClassVar, override
 
 from diffusers import FluxFillPipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import GeneratorState
 from modular_diffusion_nodes_library.latent_pipeline_drivers.flux import FluxLatentPipelineDriver
+
+if TYPE_CHECKING:
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 
 class FluxFillLatentPipelineDriver(FluxLatentPipelineDriver):

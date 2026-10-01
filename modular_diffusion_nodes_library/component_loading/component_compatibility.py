@@ -42,8 +42,6 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, ClassVar
 
-from huggingface_hub import try_to_load_from_cache
-
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ComponentArtifact,
     ModelComponentArtifact,
@@ -104,6 +102,8 @@ def _check_text_conditioning_denoiser(
 
 def _read_base_repo_config(base_repo_id: str, slot: str, revision: str | None) -> dict[str, Any] | None:
     """Read a non-overridden component's config from the base repo cache."""
+    from huggingface_hub import try_to_load_from_cache
+
     filename = f"{slot}/{component_config_filename(slot)}"
     cached = try_to_load_from_cache(base_repo_id, filename, revision=revision)
     if not isinstance(cached, str):

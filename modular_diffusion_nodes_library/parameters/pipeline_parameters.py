@@ -1,12 +1,13 @@
-import logging
-from typing import Any, cast
+from __future__ import annotations
 
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, cast
+
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_spec
 from modular_diffusion_nodes_library.runtime_parameters.ltx2_runtime_parameters import (
     LTX2PipelineRuntimeParameters,
 )
@@ -15,6 +16,9 @@ from modular_diffusion_nodes_library.runtime_parameters.runtime_parameters impor
     DiffusionPipelineRuntimeParameters,
 )
 from modular_diffusion_nodes_library.runtime_parameters.runtime_params_registry import get_runtime_params_class
+
+if TYPE_CHECKING:
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -81,6 +85,8 @@ class ModularDiffusionPipelineParameters:
         return self._get_pipeline_class_from_value(pipeline_value)
 
     def get_pipeline(self) -> DiffusionPipeline:
+        from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+
         node_name = self._node.name
         pipeline_value = self._node.get_parameter_value("pipeline")
         if pipeline_value is None:
@@ -90,7 +96,7 @@ class ModularDiffusionPipelineParameters:
                 f"{node_name}: Pipeline value must be DiffusionPipelineArtifact. "
                 f"Got type '{type(pipeline_value).__name__}'."
             )
-        pipeline = pipeline_value.get_or_build_pipeline()
+        pipeline = pipeline_value.get_or_build_pipeline(self._node)
         if pipeline is None:
             raise RuntimeError(f"{node_name}: Pipeline build returned None.")
         return cast(DiffusionPipeline, pipeline)
@@ -119,7 +125,7 @@ class ModularDiffusionPipelineParameters:
             ]
 
         pipeline_class = pipeline.pipeline_name
-        if get_driver_class(pipeline_class) is None:
+        if get_driver_spec(pipeline_class) is None:
             return [
                 ValueError(f"{node_name}: Pipeline class '{pipeline_class}' is not supported for latent generation.")
             ]
