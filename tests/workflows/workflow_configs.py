@@ -259,6 +259,7 @@ WORKFLOW_CONFIGS: dict[str, tuple[WorkflowConfig, ...]] = {
             overrides=first_last_conditioning_overrides(
                 "LTX", "LTXPipeline", "Lightricks/LTX-Video-0.9.7-distilled", conditioning_param="media_conditions_0"
             ),
+            enable_auto_resize=True,
         ),
         WorkflowConfig(
             config_id="ltx2-distilled",
@@ -300,6 +301,7 @@ WORKFLOW_CONFIGS: dict[str, tuple[WorkflowConfig, ...]] = {
                     target_parameter_name="image_0",
                 ),
             ),
+            enable_auto_resize=True,
         ),
     ),
     # Edit-pipeline templates (Kontext, Klein, QwenImageEdit) are locked to one pipeline_type each,
