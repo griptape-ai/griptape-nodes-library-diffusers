@@ -53,7 +53,7 @@ def test_serialize_base_pipeline_artifact() -> None:
     }
 
 
-def test_serialize_controlnet_pipeline_artifact() -> None:
+def test_serialize_controlnet_pipeline_artifact_is_refused() -> None:
     base_artifact = DiffusionPipelineArtifact(
         pipeline_name="TestPipeline",
         config_hash="base-hash",
@@ -66,12 +66,8 @@ def test_serialize_controlnet_pipeline_artifact() -> None:
         config_hash="controlnet-hash",
     )
 
-    document = json.loads(serialize_pipeline_artifact(artifact))
-
-    assert document["artifact"]["type"] == "controlnet"
-    assert document["artifact"]["config_hash"] == "controlnet-hash"
-    assert document["artifact"]["controlnet_models"] == ["org/controlnet"]
-    assert document["artifact"]["base"]["type"] == "base"
+    with pytest.raises(ValueError, match="ControlNet pipelines cannot be saved"):
+        serialize_pipeline_artifact(artifact)
 
 
 def test_serialize_pipeline_with_runtime_adapters_fails() -> None:
@@ -150,20 +146,15 @@ def test_validate_pipeline_recipe_dependencies_reports_unavailable_items(monkeyp
         return []
 
     monkeypatch.setattr(pipeline_recipe, "_list_cached_repo_revisions", cached_revisions)
-    artifact = ControlNetDiffusionPipelineArtifact(
-        base_artifact=DiffusionPipelineArtifact(
-            pipeline_name="TestPipeline",
-            build_data={"base_repo_id": "org/base", "base_revision": "missing-revision"},
-            loras={"/missing/style.safetensors": 0.8},
-        ),
-        controlnet_models=["org/controlnet"],
-        config_hash="controlnet-hash",
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        build_data={"base_repo_id": "org/base", "base_revision": "missing-revision"},
+        loras={"/missing/style.safetensors": 0.8},
     )
 
     issues = validate_pipeline_recipe_dependencies(artifact)
 
     assert issues == [
-        "ControlNet repository is unavailable locally: org/controlnet",
         "LoRA file is unavailable: /missing/style.safetensors",
         "Repository revision is unavailable locally: org/base (missing-revision)",
     ]

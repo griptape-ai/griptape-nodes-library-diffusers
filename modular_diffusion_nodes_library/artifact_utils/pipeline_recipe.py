@@ -16,10 +16,7 @@ from modular_diffusion_nodes_library.artifact_utils import (
     tokenizer_component_artifact as _tokenizer_component_artifact,  # noqa: F401
 )
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact
-from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
-    ControlNetDiffusionPipelineArtifact,
-    DiffusionPipelineArtifact,
-)
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
     PIPELINE_RECIPE_SCHEMA_VERSION,
     require_dict,
@@ -56,13 +53,6 @@ def deserialize_pipeline_artifact(recipe_json: str) -> DiffusionPipelineArtifact
 
 def validate_pipeline_recipe_dependencies(artifact: DiffusionPipelineArtifact) -> list[str]:
     """Return local files and pinned Hugging Face revisions unavailable for an artifact."""
-    if isinstance(artifact, ControlNetDiffusionPipelineArtifact):
-        issues = []
-        for repo_id in artifact.controlnet_models:
-            if not _list_cached_repo_revisions(repo_id):
-                issues.append(f"ControlNet repository is unavailable locally: {repo_id}")
-        return [*issues, *validate_pipeline_recipe_dependencies(artifact.base_artifact)]
-
     issues = []
     for lora_path in artifact.loras:
         if not Path(lora_path).is_file():
@@ -73,19 +63,14 @@ def validate_pipeline_recipe_dependencies(artifact: DiffusionPipelineArtifact) -
 
 def format_pipeline_artifact_summary(artifact: DiffusionPipelineArtifact) -> str:
     """Format the persisted pipeline configuration for a Load Pipeline status message."""
-    base_artifact = artifact.base_artifact if isinstance(artifact, ControlNetDiffusionPipelineArtifact) else artifact
-    build_data = base_artifact.build_data
+    build_data = artifact.build_data
     repo_id = build_data.get("base_repo_id") or build_data.get("repo_id") or "Unknown"
     revision = build_data.get("base_revision") or build_data.get("revision") or "Unpinned"
-    lines = ["Pipeline", f"  Type: {base_artifact.pipeline_name}", f"  Model: {repo_id}", f"  Revision: {revision}"]
+    lines = ["Pipeline", f"  Type: {artifact.pipeline_name}", f"  Model: {repo_id}", f"  Revision: {revision}"]
 
-    if isinstance(artifact, ControlNetDiffusionPipelineArtifact):
-        lines.extend(["", "ControlNets"])
-        lines.extend(f"  {index}. {model}" for index, model in enumerate(artifact.controlnet_models, start=1))
-
-    if base_artifact.loras:
+    if artifact.loras:
         lines.extend(["", "LoRAs"])
-        for index, (path, weight) in enumerate(base_artifact.loras.items(), start=1):
+        for index, (path, weight) in enumerate(artifact.loras.items(), start=1):
             lines.extend([f"  {index}. {Path(path).name}", f"     Path: {path}", f"     Weight: {weight:g}"])
 
     component_overrides = build_data.get("_component_overrides", {})
