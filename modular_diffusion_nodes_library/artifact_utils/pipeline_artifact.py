@@ -28,7 +28,6 @@ from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
     require_dict,
     require_loras,
     require_string,
-    require_string_list,
     resolve_recipe_value,
 )
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
@@ -301,10 +300,8 @@ class DiffusionPipelineArtifact:
 
     @classmethod
     def from_recipe_dict(cls, data: dict[str, Any]) -> DiffusionPipelineArtifact:
-        """Reconstruct a pipeline artifact, dispatching on its recorded type."""
+        """Reconstruct a base pipeline artifact from its recipe dict."""
         artifact_type = data.get("type")
-        if artifact_type == "controlnet":
-            return ControlNetDiffusionPipelineArtifact.from_recipe_dict(data)
         if artifact_type != "base":
             msg = f"Unsupported pipeline recipe artifact type: {artifact_type!r}"
             raise ValueError(msg)
@@ -634,10 +631,6 @@ class ControlNetDiffusionPipelineArtifact(BaseDiffusionPipelineArtifact):
         return artifact
 
     @property
-    def controlnet_models(self) -> list[str]:
-        return list(self._controlnet_models)
-
-    @property
     def metadata(self) -> dict[str, Any]:
         metadata = super().metadata
         metadata.update(
@@ -648,24 +641,9 @@ class ControlNetDiffusionPipelineArtifact(BaseDiffusionPipelineArtifact):
         )
         return metadata
 
-    def to_recipe_dict(self) -> dict[str, Any]:
-        self._ensure_recipe_serializable()
-        return {
-            "type": "controlnet",
-            "base": self.base_artifact.to_recipe_dict(),
-            "config_hash": self.config_hash,
-            "controlnet_models": json_safe(self.controlnet_models),
-        }
-
-    @classmethod
-    def from_recipe_dict(cls, data: dict[str, Any]) -> ControlNetDiffusionPipelineArtifact:
-        return cls(
-            base_artifact=DiffusionPipelineArtifact.from_recipe_dict(
-                require_dict(data.get("base"), "ControlNet base artifact")
-            ),
-            controlnet_models=require_string_list(data.get("controlnet_models"), "ControlNet models"),
-            config_hash=require_string(data.get("config_hash"), "ControlNet config hash"),
-        )
+    def _ensure_recipe_serializable(self) -> None:
+        msg = "ControlNet pipelines cannot be saved. Save the base pipeline and reconnect ControlNet after loading."
+        raise ValueError(msg)
 
     def _get_reuse_log_context(self) -> str:
         return "control net"
