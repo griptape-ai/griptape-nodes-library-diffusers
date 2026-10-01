@@ -18,6 +18,10 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import (
     serialize_pipeline_artifact,
     validate_pipeline_recipe_dependencies,
 )
+from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact import SchedulerComponentArtifact
+from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
+    ModularDiffusionPipelineTypePipelineParameters,
+)
 
 
 def test_serialize_base_pipeline_artifact() -> None:
@@ -192,3 +196,50 @@ def test_validate_pipeline_recipe_dependencies_checks_base_repo_revision(monkeyp
         "Repository revision is unavailable locally: org/base (missing-revision)"
     ]
 
+
+
+
+class _OverridesOnlyPipeline:
+    def __init__(self, **components) -> None:
+        self.components = components
+
+
+class _OverridesOnlyBuilder(ModularDiffusionPipelineTypePipelineParameters):
+    _pipeline_cls = _OverridesOnlyPipeline
+
+    def add_input_parameters(self) -> None: ...
+
+    def remove_input_parameters(self) -> None: ...
+
+    def get_config_kwargs(self) -> dict: ...
+
+    def validate_before_node_run(self) -> None: ...
+
+    def get_build_data(self) -> dict: ...
+
+    @classmethod
+    def _build_pipeline_from_repo(cls, build_data, overrides): ...
+
+
+def test_overrides_only_pipeline_saves_and_rebuilds_with_builder_class() -> None:
+    scheduler = SchedulerComponentArtifact(
+        load_id="scheduler-load-id",
+        source_type=ComponentSourceType.RAW_CONFIG,
+        component="scheduler",
+        scheduler_class="FlowMatchEulerDiscreteScheduler",
+        text_config={"num_train_timesteps": 1000, "shift": 5.0},
+    )
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        config_hash="overrides-only-hash",
+        builder_module=__name__,
+        builder_class_name=_OverridesOnlyBuilder.__name__,
+        build_data={"_component_overrides": {"scheduler": scheduler}, "_all_overrides": True},
+    )
+
+    loaded = deserialize_pipeline_artifact(serialize_pipeline_artifact(artifact))
+    pipe = _OverridesOnlyBuilder.build_pipeline_from_build_data(loaded.build_data)
+
+    assert isinstance(pipe, _OverridesOnlyPipeline)
+    assert type(pipe.components["scheduler"]).__name__ == "FlowMatchEulerDiscreteScheduler"
+    assert pipe.components["scheduler"].config.shift == 5.0

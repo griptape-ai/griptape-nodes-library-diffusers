@@ -203,7 +203,7 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> ModularPipeline | DiffusionPipeline | Any | None:
         """Build pipeline directly from materialized component overrides."""
-        pipeline_cls = build_data.get("_pipeline_cls") or cls.pipeline_cls()
+        pipeline_cls = cls.pipeline_cls()
         return pipeline_cls(**overrides)
 
     @classmethod
@@ -211,8 +211,7 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         cls, build_data: dict[str, Any]
     ) -> ModularPipeline | DiffusionPipeline | Any | None:
         """Build pipeline from build_data. Routes to overrides-only or repo path."""
-        pipeline_cls = build_data.get("_pipeline_cls") or cls.pipeline_cls()
-        overrides = cls._materialize_overrides(build_data, pipeline_cls=pipeline_cls)
+        overrides = cls._materialize_overrides(build_data, pipeline_cls=cls.pipeline_cls())
 
         if build_data.get("_all_overrides"):
             return cls._build_pipeline_from_overrides_only(build_data, overrides)
