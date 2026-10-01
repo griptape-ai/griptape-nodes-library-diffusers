@@ -149,26 +149,12 @@
                                 "key_support": "REQUIRES_CUSTOMER_KEY",
                                 "notes": "Gated repo under the FLUX.2 [dev] Non-Commercial License."
                             },
-                            "md_flux_2_dev_nvfp4": {
-                                "display_name": "FLUX.2 [dev] NVFP4",
-                                "provider_model_id": "black-forest-labs/FLUX.2-dev-NVFP4",
-                                "family": "FLUX.2",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "NVFP4 quantization of FLUX.2 [dev]; inherits its Non-Commercial License."
-                            },
                             "md_flux_2_dev_bnb_4bit": {
                                 "display_name": "FLUX.2 [dev] bnb 4-bit",
                                 "provider_model_id": "diffusers/FLUX.2-dev-bnb-4bit",
                                 "family": "FLUX.2",
                                 "key_support": "REQUIRES_CUSTOMER_KEY",
                                 "notes": "Hosted under the diffusers org but a bitsandbytes 4-bit quantization of FLUX.2 [dev]; inherits its Non-Commercial License, so it is keyed to black_forest_labs."
-                            },
-                            "md_flux_2_dev_turbo": {
-                                "display_name": "FLUX.2 [dev] Turbo",
-                                "provider_model_id": "fal/FLUX.2-dev-Turbo",
-                                "family": "FLUX.2",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Hosted by fal but a distillation of FLUX.2 [dev]; inherits its Non-Commercial License, so it is keyed to black_forest_labs."
                             },
                             "md_flux_2_klein_4b": {
                                 "display_name": "FLUX.2 [klein] 4B",
@@ -727,8 +713,6 @@
                             "md_flux_1_schnell",
                             "md_flux_2_dev",
                             "md_flux_2_dev_bnb_4bit",
-                            "md_flux_2_dev_nvfp4",
-                            "md_flux_2_dev_turbo",
                             "md_flux_2_klein_4b",
                             "md_flux_2_klein_4b_fp8",
                             "md_flux_2_klein_4b_nvfp4",

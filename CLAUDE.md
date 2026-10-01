@@ -108,6 +108,7 @@ Prefer verifiable goals ("write a failing test for X, then make it pass") over i
     ```python
     def process_data(value):
         from some_module import helper  # NO! Move to top
+
         return helper(value)
     ```
 

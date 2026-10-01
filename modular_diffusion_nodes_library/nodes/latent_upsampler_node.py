@@ -113,12 +113,10 @@ class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def add_parameter(self, param: Parameter) -> None:
         """Add a parameter to the node.
 
-        Only `upsampler_model` may be added dynamically (on a provider switch) after
-        initialization; any other post-init add is dropped. This closes off the path
-        that let a stray renamed duplicate (e.g. `upsampler_model_2`) slip through the
-        `does_name_exist` guard on a subsequent workflow load.
+        Only `upsampler_model`/`upsampler_model_download` may be added post-init (on a provider
+        switch); this blocks stray renamed duplicates (e.g. `upsampler_model_2`) from workflow loads.
         """
-        is_dynamic_param = param.name == "upsampler_model"
+        is_dynamic_param = param.name in {"upsampler_model", "upsampler_model_download"}
         if not self._initializing and not is_dynamic_param:
             return
 

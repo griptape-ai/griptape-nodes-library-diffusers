@@ -1,0 +1,4 @@
+# User-local LoRA installs for workflow tests.
+# Keep this directory in the repo, but never commit downloaded files.
+*
+!.gitignore

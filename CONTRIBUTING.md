@@ -60,6 +60,85 @@ Top-level layout of this repository:
     make test/workflows
     ```
 
+### Workflow Test Commands (Nox)
+
+Each workflow template is parametrized against every configuration declared in
+`tests/workflows/workflow_configs.py`, producing one test per workflow × config (e.g.
+`Text2Image-z-image`, `Text2Image-flux1-schnell`). Run these commands from the repository root:
+
+```shell
+# All workflow tests (every workflow × every config)
+uv run --group dev nox -s workflow_tests
+uv run --group dev nox -s workflow_tests_strict
+uv run --group dev nox -s workflow_tests -- --no-cleanup
+
+# A single workflow, all its configs
+uv run --group dev nox -s workflow_tests -- -k Text2Image
+
+# A single specific config (use the generated id)
+uv run --group dev nox -s workflow_tests -- -k "Text2Image-flux1-schnell"
+
+# One workflow template by file name or path (all its configs)
+uv run --group dev nox -s workflow_single -- Text2Image.py
+uv run --group dev nox -s workflow_single -- workflows/templates/Text2Image.py
+
+# See exactly what would run vs. deselect, without executing
+uv run --group dev nox -s workflow_collect
+uv run --group dev nox -s workflow_collect -- -k Text2Image
+uv run --group dev nox -s workflow_collect_config
+```
+
+Notes:
+
+- `workflow_collect` runs pytest in collect-only mode and still applies preflight deselection.
+- `workflow_collect_config` shows the selected workflow/config tree instead of missing-dependency details.
+- `workflow_tests` runs the full workflow test set with automatic per-run folder cleanup.
+- `workflow_tests_strict` fails fast when any required model repo is not present in local cache.
+- Add `-- --no-cleanup` to preserve per-run folders for debugging.
+- `workflow_single` runs only one parametrized workflow test, selected by template filename or path.
+
+Finding generated images/videos:
+
+- Each workflow test runs in its own per-test folder under a fresh OS temp directory (or the path passed via `-- --workflow-runs-dir <path>`), named `<timestamp>_<WorkflowName>`.
+- Generated media is written to `outputs/images/` (or `outputs/videos/`) inside that per-test folder.
+- Without `--no-cleanup`, the whole per-test folder (including its outputs) is deleted right after the test finishes — pass `-- --no-cleanup` to keep it around for inspection.
+
+Strict vs default behavior:
+
+- Default mode (`workflow_tests`) deselects workflows that miss required cached repos and runs the rest.
+- Strict mode (`workflow_tests_strict`) aborts immediately with a missing-repos summary.
+
+Passing extra pytest arguments:
+
+- Use `--` after the Nox session name to forward flags to pytest.
+- Example: `uv run --group dev nox -s workflow_tests -- -k Text2Image --maxfail=1`
+- Example: `uv run --group dev nox -s workflow_tests_strict -- --collect-only`
+
+#### Testing against the desktop app's libraries
+
+Preflight discovers installed libraries by reading the engine config at
+`$XDG_CONFIG_HOME/griptape_nodes/griptape_nodes_config.json`. A plain shell has no
+`XDG_CONFIG_HOME` set, so it falls back to `~/.config`, which may not list the libraries the
+Griptape Nodes desktop app registered. To run the tests against the same libraries the desktop
+app uses, point `XDG_CONFIG_HOME` at the desktop app's config home before invoking nox:
+
+```powershell
+# Windows (PowerShell)
+$env:XDG_CONFIG_HOME = "$env:APPDATA\Griptape Nodes\xdg_config_home"
+```
+
+```shell
+# macOS
+export XDG_CONFIG_HOME="$HOME/Library/Application Support/Griptape Nodes/xdg_config_home"
+```
+
+```shell
+# Linux
+export XDG_CONFIG_HOME="$HOME/.config/Griptape Nodes/xdg_config_home"
+```
+
+## Code quality
+
 1. **Check code quality:**
 
     ```shell

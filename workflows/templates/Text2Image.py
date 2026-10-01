@@ -4,7 +4,7 @@
 # [tool.griptape-nodes]
 # name = "Text2Image"
 # schema_version = "0.19.0"
-# engine_version_created_with = "0.83.0"
+# engine_version_created_with = "0.89.0"
 # node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.1.0"], ["Griptape Nodes Library", "0.79.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
 # description = "T2I workflow using the Modular Diffusion Library Nodes"
@@ -612,15 +612,6 @@ async def build_workflow() -> None:
                     parameter_name="num_frames",
                     node_name=node0_name,
                     value=top_level_unique_values_dict["df572ea8-0a34-401d-9e24-84350168a121"],
-                    initial_setup=True,
-                    is_output=False,
-                )
-            )
-            await GriptapeNodes.ahandle_request(
-                SetParameterValueRequest(
-                    parameter_name="num_inference_steps",
-                    node_name=node0_name,
-                    value=top_level_unique_values_dict["e422e707-236c-4162-b670-35f32300929a"],
                     initial_setup=True,
                     is_output=False,
                 )
