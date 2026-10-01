@@ -32,6 +32,13 @@ def _is_sendable(type_name: str) -> bool:
     return type_name.endswith(SENDABLE_SUFFIXES) or type_name.lower() in SENDABLE_TYPES
 
 
+def _literal_str(node: ast.expr | None) -> str:
+    """A keyword's string literal, or `<computed>` when the source does not spell one out."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return "<computed>"
+
+
 def _parked_parameters() -> list[tuple[str, int, str, str]]:
     """Every `serializable=False` parameter, as (file, line, name, declared type)."""
     found: list[tuple[str, int, str, str]] = []
@@ -55,8 +62,8 @@ def _parked_parameters() -> list[tuple[str, int, str, str]]:
                 (
                     str(path.relative_to(PACKAGE.parent)),
                     node.lineno,
-                    name.value if isinstance(name, ast.Constant) else "<computed>",
-                    declared.value if isinstance(declared, ast.Constant) else "<computed>",
+                    _literal_str(name),
+                    _literal_str(declared),
                 )
             )
     return found
