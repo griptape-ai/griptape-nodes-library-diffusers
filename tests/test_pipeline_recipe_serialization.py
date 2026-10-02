@@ -15,6 +15,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
 )
 from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import (
     deserialize_pipeline_artifact,
+    format_pipeline_artifact_summary,
     serialize_pipeline_artifact,
     validate_pipeline_recipe_dependencies,
 )
@@ -198,6 +199,46 @@ def test_validate_pipeline_recipe_dependencies_checks_base_repo_revision(monkeyp
 
 
 
+
+
+@pytest.mark.parametrize(
+    ("scheduler_kwargs", "expected_lines"),
+    [
+        (
+            {"source_type": ComponentSourceType.RAW_CONFIG, "text_config": {"shift": 5.0}},
+            ["    Config: Inline"],
+        ),
+        (
+            {"source_type": ComponentSourceType.LOCAL_DIR, "config_source": "/models/scheduler_config.json"},
+            ["    Path: /models/scheduler_config.json"],
+        ),
+        (
+            {
+                "source_type": ComponentSourceType.HF_REPO,
+                "repo_ref": HFRepoRef(repo_id="org/model", revision="commit-hash", subfolder="scheduler"),
+            },
+            ["    Model: org/model", "    Revision: commit-hash", "    Subfolder: scheduler"],
+        ),
+    ],
+)
+def test_loaded_summary_describes_scheduler_override(scheduler_kwargs, expected_lines) -> None:
+    scheduler = SchedulerComponentArtifact(
+        load_id="scheduler-load-id",
+        component="scheduler",
+        scheduler_class="FlowMatchEulerDiscreteScheduler",
+        **scheduler_kwargs,
+    )
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        config_hash="scheduler-hash",
+        build_data={"_component_overrides": {"scheduler": scheduler}, "_all_overrides": True},
+    )
+
+    summary = format_pipeline_artifact_summary(deserialize_pipeline_artifact(serialize_pipeline_artifact(artifact)))
+
+    assert "    Class: FlowMatchEulerDiscreteScheduler" in summary.splitlines()
+    for line in expected_lines:
+        assert line in summary.splitlines()
 
 class _OverridesOnlyPipeline:
     def __init__(self, **components) -> None:
