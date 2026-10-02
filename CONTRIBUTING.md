@@ -114,28 +114,18 @@ Passing extra pytest arguments:
 - Example: `uv run --group dev nox -s workflow_tests -- -k Text2Image --maxfail=1`
 - Example: `uv run --group dev nox -s workflow_tests_strict -- --collect-only`
 
-#### Testing against the desktop app's libraries
+#### Required sibling checkout
 
-Preflight discovers installed libraries by reading the engine config at
-`$XDG_CONFIG_HOME/griptape_nodes/griptape_nodes_config.json`. A plain shell has no
-`XDG_CONFIG_HOME` set, so it falls back to `~/.config`, which may not list the libraries the
-Griptape Nodes desktop app registered. To run the tests against the same libraries the desktop
-app uses, point `XDG_CONFIG_HOME` at the desktop app's config home before invoking nox:
-
-```powershell
-# Windows (PowerShell)
-$env:XDG_CONFIG_HOME = "$env:APPDATA\Griptape Nodes\xdg_config_home"
-```
+Workflow tests register exactly two libraries: this one and the standard library. The standard
+library must be checked out next to this repository so that
+`../griptape-nodes-library-standard/griptape_nodes_library.json` exists:
 
 ```shell
-# macOS
-export XDG_CONFIG_HOME="$HOME/Library/Application Support/Griptape Nodes/xdg_config_home"
+git clone https://github.com/griptape-ai/griptape-nodes-library-standard.git ../griptape-nodes-library-standard
 ```
 
-```shell
-# Linux
-export XDG_CONFIG_HOME="$HOME/.config/Griptape Nodes/xdg_config_home"
-```
+If either manifest is missing, the workflow tests fail at setup with the missing path. The
+engine's registered-libraries config is not consulted.
 
 ## Code quality
 

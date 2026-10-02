@@ -24,7 +24,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--preflight-strict",
         action="store_true",
         default=False,
-        help="Fail test collection if any workflow is missing required cached model repos.",
+        help="Fail test collection if any workflow is missing required cached model repos, LoRAs, or local paths.",
     )
     parser.addoption(
         "--collect-workflow-config-only",
@@ -44,7 +44,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     # Strict mode fails fast if any workflow/config pair would be deselected by preflight. It walks
     # the same per-config logic collection uses, so a config whose matrix repo is uncached fails here
     # even when the template's own shipped model is present.
-    # It prints the exact repo/library/LoRA gaps that caused the deselection so the issue is easy to
+    # It prints the exact repo/LoRA/path gaps that caused the deselection so the issue is easy to
     # diagnose before the workflow test run starts.
     if not session.config.getoption("--preflight-strict"):
         return
@@ -52,7 +52,6 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     preflight_data = get_preflight_data()
 
     missing_repo_lines: list[str] = []
-    missing_library_lines: list[str] = []
     missing_lora_lines: list[str] = []
     missing_path_lines: list[str] = []
     for param in workflow_test_params():
@@ -68,8 +67,6 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         label = f"  - {workflow_file_name}[{config_obj.config_id}]"
         if reasons.missing_repos:
             missing_repo_lines.append(f"{label}: {', '.join(reasons.missing_repos)}")
-        if reasons.missing_libraries:
-            missing_library_lines.append(f"{label}: {', '.join(reasons.missing_libraries)}")
         if reasons.missing_loras:
             missing_lora_lines.append(f"{label}: {', '.join(reasons.missing_loras)}")
         if reasons.missing_paths:
@@ -78,8 +75,6 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     details_sections: list[str] = []
     if missing_repo_lines:
         details_sections.append("Missing cached model repos:\n" + "\n".join(missing_repo_lines))
-    if missing_library_lines:
-        details_sections.append("Missing installed node libraries:\n" + "\n".join(missing_library_lines))
     if missing_lora_lines:
         details_sections.append("Missing or unreadable LoRA files:\n" + "\n".join(missing_lora_lines))
     if missing_path_lines:
@@ -92,7 +87,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     raise pytest.UsageError(
         "Workflow preflight strict mode failed.\n"
         f"{details}\n"
-        "Disable strict mode to run only cached workflows (default deselection behavior)."
+        "Disable strict mode to run only workflows with available models and assets (default deselection behavior)."
     )
 
 
@@ -162,10 +157,12 @@ def pytest_report_collectionfinish(config: pytest.Config) -> list[str]:
         cleanup_detail = "per-test workflow run folders are deleted after the test (pass --no-cleanup to keep them)"
 
     if config.getoption("--preflight-strict"):
-        preflight_detail = "the run fails immediately if any workflow is missing required repos/libraries"
+        preflight_detail = (
+            "the run fails immediately if any workflow is missing required model repos, LoRAs, or local paths"
+        )
     else:
         preflight_detail = (
-            "workflows missing required repos/libraries/dependencies are skipped, not failed "
+            "workflows missing required model repos, LoRAs, or local paths are skipped, not failed "
             "(pass --preflight-strict to fail the run instead)"
         )
 
@@ -206,10 +203,6 @@ def pytest_report_collectionfinish(config: pytest.Config) -> list[str]:
                 if reasons.missing_repos:
                     reason_nodes.append(
                         (tw.markup(f"missing model repos: {', '.join(reasons.missing_repos)}", yellow=True), [])
-                    )
-                if reasons.missing_libraries:
-                    reason_nodes.append(
-                        (tw.markup(f"missing libraries: {', '.join(reasons.missing_libraries)}", yellow=True), [])
                     )
                 if reasons.missing_loras:
                     reason_nodes.append(

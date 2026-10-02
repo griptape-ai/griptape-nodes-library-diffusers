@@ -1,14 +1,9 @@
-import json
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pytest
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_utils import list_repo_revisions_in_cache
-from griptape_nodes.retained_mode.managers.config_manager import USER_CONFIG_PATH
-from griptape_nodes.retained_mode.managers.settings import LIBRARIES_TO_REGISTER_KEY
-from griptape_nodes.utils.dict_utils import get_dot_value
 
 from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
 from tests.workflows.dependencies import (
@@ -19,8 +14,6 @@ from tests.workflows.dependencies import (
     extract_workflow_dependencies,
 )
 from tests.workflows.workflow_configs import WorkflowConfig, config_repos
-
-logger = logging.getLogger(__name__)
 
 LIBRARY_ROOT = Path(__file__).parents[1]
 WORKFLOW_TEMPLATES_DIR = LIBRARY_ROOT / "workflows" / "templates"
@@ -52,47 +45,6 @@ def _discover_workflow_templates() -> list[str]:
         if f.is_file() and f.suffix == ".py" and not f.name.startswith("__")
     ]
     return sorted(templates)
-
-
-def _read_library_name_from_manifest(manifest_path: Path) -> str | None:
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        logger.exception("Failed to read library manifest: %s", manifest_path)
-        return None
-
-    library_name = manifest.get("name")
-    if not isinstance(library_name, str):
-        logger.warning("Library manifest missing string 'name': %s", manifest_path)
-        return None
-
-    return library_name
-
-
-def _discover_installed_library_manifests() -> dict[str, Path]:
-    """Find libraries the griptape_nodes engine has registered, keyed by display name."""
-    manifests_by_name: dict[str, Path] = {}
-    if not USER_CONFIG_PATH.is_file():
-        return manifests_by_name
-
-    try:
-        user_config = json.loads(USER_CONFIG_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        logger.exception("Failed to read engine config: %s", USER_CONFIG_PATH)
-        return manifests_by_name
-
-    registered_paths = get_dot_value(user_config, LIBRARIES_TO_REGISTER_KEY, default=[])
-    for manifest_path_string in registered_paths:
-        manifest_path = Path(manifest_path_string)
-        if not manifest_path.is_file():
-            continue
-
-        library_name = _read_library_name_from_manifest(manifest_path)
-        if library_name is None:
-            continue
-        manifests_by_name.setdefault(library_name, manifest_path)
-
-    return manifests_by_name
 
 
 def _resolve_lora_path(path_string: str) -> Path | None:
@@ -245,7 +197,7 @@ def _is_path_requirement_available(requirement: PathRequirement) -> bool:
 def _build_preflight_data() -> dict[str, Any]:
     # Build once per pytest session: discover templates -> extract canonical dependencies once ->
     # resolve what is locally cached -> compute missing/runnable sets.
-    # The LoRA check is intentionally part of the same gating pass as model repo/library checks.
+    # The LoRA check is intentionally part of the same gating pass as model repo checks.
     discovered_workflows = _discover_workflow_templates()
 
     extraction_results: dict[str, WorkflowDependencies] = {}
@@ -253,21 +205,12 @@ def _build_preflight_data() -> dict[str, Any]:
         workflow_path = WORKFLOW_TEMPLATES_DIR / workflow_name
         extraction_results[workflow_name] = extract_workflow_dependencies(workflow_path)
 
-    workflow_required_libraries: dict[str, tuple[str, ...]] = {
-        workflow_name: result.library_names for workflow_name, result in extraction_results.items()
-    }
     workflow_required_loras: dict[str, tuple[str, ...]] = {
         workflow_name: result.lora_file_paths for workflow_name, result in extraction_results.items()
     }
     workflow_required_paths: dict[str, tuple[PathRequirement, ...]] = {
         workflow_name: result.path_requirements for workflow_name, result in extraction_results.items()
     }
-
-    installed_library_manifests = _discover_installed_library_manifests()
-    local_manifest_path = LIBRARY_ROOT / "griptape-nodes-library.json"
-    local_library_name = _read_library_name_from_manifest(local_manifest_path)
-    if local_library_name is not None:
-        installed_library_manifests[local_library_name] = local_manifest_path
 
     workflow_required_repos: dict[str, tuple[str, ...]] = {}
     workflow_extraction_blockers: dict[str, tuple[ExtractionBlocker, ...]] = {}
@@ -288,22 +231,15 @@ def _build_preflight_data() -> dict[str, Any]:
     for repo_id in sorted(unique_required_repos):
         repo_available[repo_id] = bool(list_repo_revisions_in_cache(repo_id))
 
-    # Keep the workflow-level checks readable: one bucket each for repos, libraries, LoRAs, and
+    # Keep the workflow-level checks readable: one bucket each for repos, LoRAs, and
     # file/folder paths. A workflow is skipped if any bucket is non-empty.
     missing_by_workflow: dict[str, tuple[str, ...]] = {}
-    missing_libraries_by_workflow: dict[str, tuple[str, ...]] = {}
     missing_loras_by_workflow: dict[str, tuple[str, ...]] = {}
     missing_paths_by_workflow: dict[str, tuple[str, ...]] = {}
     for workflow_name in discovered_workflows:
         required = workflow_required_repos.get(workflow_name, ())
         missing = tuple(repo for repo in required if not repo_available.get(repo, False))
         missing_by_workflow[workflow_name] = missing
-
-        required_libraries = workflow_required_libraries.get(workflow_name, ())
-        missing_libraries = tuple(
-            library_name for library_name in required_libraries if library_name not in installed_library_manifests
-        )
-        missing_libraries_by_workflow[workflow_name] = missing_libraries
 
         required_loras = workflow_required_loras.get(workflow_name, ())
         missing_loras = tuple(path for path in required_loras if not _is_lora_path_available(path))
@@ -318,7 +254,6 @@ def _build_preflight_data() -> dict[str, Any]:
             workflow_name
             for workflow_name in discovered_workflows
             if missing_by_workflow[workflow_name]
-            or missing_libraries_by_workflow[workflow_name]
             or missing_loras_by_workflow[workflow_name]
             or missing_paths_by_workflow[workflow_name]
         ]
@@ -328,7 +263,6 @@ def _build_preflight_data() -> dict[str, Any]:
             workflow_name
             for workflow_name in discovered_workflows
             if not missing_by_workflow[workflow_name]
-            and not missing_libraries_by_workflow[workflow_name]
             and not missing_loras_by_workflow[workflow_name]
             and not missing_paths_by_workflow[workflow_name]
         ]
@@ -336,16 +270,13 @@ def _build_preflight_data() -> dict[str, Any]:
 
     return {
         "discovered_workflows": discovered_workflows,
-        "workflow_required_libraries": workflow_required_libraries,
         "workflow_required_loras": workflow_required_loras,
         "workflow_required_paths": workflow_required_paths,
-        "installed_library_manifests": installed_library_manifests,
         "workflow_required_repos": workflow_required_repos,
         "workflow_extraction_blockers": workflow_extraction_blockers,
         "workflows_with_no_repos": sorted(workflows_with_no_repos),
         "repo_available": repo_available,
         "missing_by_workflow": missing_by_workflow,
-        "missing_libraries_by_workflow": missing_libraries_by_workflow,
         "missing_loras_by_workflow": missing_loras_by_workflow,
         "missing_paths_by_workflow": missing_paths_by_workflow,
         "skipped_workflows": skipped_workflows,
@@ -366,13 +297,12 @@ class WorkflowSkipReasons:
     """Missing requirements that cause one (workflow template, config) test to be deselected."""
 
     missing_repos: tuple[str, ...] = ()
-    missing_libraries: tuple[str, ...] = ()
     missing_loras: tuple[str, ...] = ()
     missing_paths: tuple[str, ...] = ()
 
     @property
     def is_skipped(self) -> bool:
-        return bool(self.missing_repos or self.missing_libraries or self.missing_loras or self.missing_paths)
+        return bool(self.missing_repos or self.missing_loras or self.missing_paths)
 
 
 def compute_config_skip_reasons(
@@ -381,7 +311,7 @@ def compute_config_skip_reasons(
     """Resolve missing requirements for one (template, config) pair.
 
     Repos check the config's own declared repos if set, else the template's extracted repos.
-    Libraries/LoRAs/paths are template-level and apply to every config.
+    LoRAs/paths are template-level and apply to every config.
     """
     repo_available: dict[str, bool] = preflight_data["repo_available"]
     if config is not None and config.repos:
@@ -389,12 +319,10 @@ def compute_config_skip_reasons(
     else:
         missing_repos = preflight_data["missing_by_workflow"].get(workflow_file_name, ())
 
-    missing_libraries = preflight_data["missing_libraries_by_workflow"].get(workflow_file_name, ())
     missing_loras = preflight_data["missing_loras_by_workflow"].get(workflow_file_name, ())
     missing_paths = preflight_data["missing_paths_by_workflow"].get(workflow_file_name, ())
     return WorkflowSkipReasons(
         missing_repos=missing_repos,
-        missing_libraries=missing_libraries,
         missing_loras=missing_loras,
         missing_paths=missing_paths,
     )
