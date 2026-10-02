@@ -15,12 +15,13 @@ from modular_diffusion_nodes_library.artifact_utils import (
 from modular_diffusion_nodes_library.artifact_utils import (
     tokenizer_component_artifact as _tokenizer_component_artifact,  # noqa: F401
 )
-from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact
+from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact, ComponentSourceType
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
     PIPELINE_RECIPE_SCHEMA_VERSION,
     require_dict,
 )
+from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact import SchedulerComponentArtifact
 
 
 def serialize_pipeline_artifact(artifact: DiffusionPipelineArtifact) -> str:
@@ -81,14 +82,19 @@ def format_pipeline_artifact_summary(artifact: DiffusionPipelineArtifact) -> str
                 lines.append(f"  {slot}: Unsupported override configuration")
                 continue
             lines.extend([f"  {slot.title()}", f"    Type: {type(override).__name__}", f"    Source: {override.source_type.value}"])
+            if isinstance(override, SchedulerComponentArtifact):
+                lines.append(f"    Class: {override.scheduler_class or 'Unknown'}")
             if override.repo_ref is not None:
                 lines.append(f"    Model: {override.repo_ref.repo_id}")
                 if override.repo_ref.revision:
                     lines.append(f"    Revision: {override.repo_ref.revision}")
                 if override.repo_ref.subfolder:
                     lines.append(f"    Subfolder: {override.repo_ref.subfolder}")
+            elif override.source_type == ComponentSourceType.RAW_CONFIG:
+                lines.append("    Config: Inline")
             else:
-                lines.append(f"    Path: {override.file_path or override.config_source or 'Unknown'}")
+                path = getattr(override, "file_path", None) or getattr(override, "config_source", None)
+                lines.append(f"    Path: {path or 'Unknown'}")
             if override.torch_dtype:
                 lines.append(f"    Dtype: {override.torch_dtype}")
 
