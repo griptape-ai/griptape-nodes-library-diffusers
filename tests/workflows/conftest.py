@@ -303,7 +303,7 @@ def workflow_run_workspace(
 
 
 @pytest_asyncio.fixture(scope="session")
-async def workflow_executor() -> AsyncGenerator[ConfigurableWorkflowExecutor, Any]:
+async def workflow_executor(setup_test_library: None) -> AsyncGenerator[ConfigurableWorkflowExecutor, Any]:
     """Create and manage a single ConfigurableWorkflowExecutor for all tests."""
     async with ConfigurableWorkflowExecutor() as executor:
         yield executor
@@ -317,37 +317,25 @@ async def setup_test_library(griptape_nodes: Engine) -> AsyncGenerator[None, Any
     # Save the original libraries state.
     original_libraries = config_manager.get_config_value(key=LIBRARIES_TO_REGISTER_KEY, default=[])
 
-    preflight_data = get_preflight_data()
-    required_library_names = {
-        library_name
-        for library_names in preflight_data["workflow_required_libraries"].values()
-        for library_name in library_names
-    }
-    installed_library_manifests: dict[str, Path] = preflight_data["installed_library_manifests"]
+    manifest_paths = [
+        LIBRARY_ROOT / "griptape-nodes-library.json",
+        LIBRARY_ROOT.parent / "griptape-nodes-library-standard" / "griptape_nodes_library.json",
+    ]
+    missing_paths = [str(path) for path in manifest_paths if not path.is_file()]
+    if missing_paths:
+        pytest.fail(f"Workflow tests require diffusers and sibling standard library manifests: {missing_paths}")
 
-    library_paths_to_register: list[str] = [str(LIBRARY_ROOT / "griptape-nodes-library.json")]
-    for library_name in sorted(required_library_names):
-        manifest_path = installed_library_manifests.get(library_name)
-        if manifest_path is None:
-            continue
-        manifest_path_string = str(manifest_path)
-        if manifest_path_string in library_paths_to_register:
-            continue
-        library_paths_to_register.append(manifest_path_string)
-
-    # Set discovered workflow-required libraries for testing.
     config_manager.set_config_value(
         key=LIBRARIES_TO_REGISTER_KEY,
-        value=library_paths_to_register,
+        value=[str(path) for path in manifest_paths],
     )
-
-    yield
-
-    # Restore original libraries state.
-    config_manager.set_config_value(
-        key=LIBRARIES_TO_REGISTER_KEY,
-        value=original_libraries,
-    )
+    try:
+        yield
+    finally:
+        config_manager.set_config_value(
+            key=LIBRARIES_TO_REGISTER_KEY,
+            value=original_libraries,
+        )
 
 
 @pytest_asyncio.fixture(autouse=True)
