@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from griptape_nodes.bootstrap.workflow_executors.local_workflow_executor import LocalWorkflowExecutor
 from griptape_nodes.retained_mode.engine import Engine
 from griptape_nodes.retained_mode.events.connection_events import CreateConnectionRequest, DeleteConnectionRequest
+from griptape_nodes.retained_mode.events.node_events import DeleteNodeRequest
 from griptape_nodes.retained_mode.events.object_events import ClearAllObjectStateRequest
 from griptape_nodes.retained_mode.events.parameter_events import SetParameterValueRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
@@ -29,6 +30,7 @@ from tests.preflight import (
 )
 from tests.workflows.workflow_configs import (
     ConnectOverride,
+    DeleteNodeOverride,
     DisconnectOverride,
     ParamOverride,
     WorkflowConfig,
@@ -99,6 +101,9 @@ class ConfigurableWorkflowExecutor(LocalWorkflowExecutor):
                     f"connect '{override.source_node_name}.{override.source_parameter_name}' to "
                     f"'{override.target_node_name}.{override.target_parameter_name}'"
                 )
+            case DeleteNodeOverride():
+                request = DeleteNodeRequest(node_name=override.node_name)
+                description = f"delete node '{override.node_name}'"
             case _:
                 msg = f"Unknown workflow override type: {type(override).__name__}"
                 raise TypeError(msg)
