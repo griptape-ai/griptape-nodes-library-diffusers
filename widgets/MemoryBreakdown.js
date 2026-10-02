@@ -164,6 +164,7 @@ export default function MemoryBreakdown(container, props) {
             activation: numberOrZero(component?.activation_bytes),
             estimated: component?.is_estimated === true,
             warning: text(component?.warning),
+            tooltip: text(component?.tooltip),
           };
         })
       : [];
@@ -193,6 +194,7 @@ export default function MemoryBreakdown(container, props) {
       status: text(raw.status, "waiting"),
       pipelineName: text(raw.pipeline_name, "Memory estimate"),
       components,
+      loraAdapters: Array.isArray(raw.lora_adapters) ? raw.lora_adapters : [],
       total,
       peak: numberOrZero(raw.estimated_peak_bytes),
       device,
@@ -254,7 +256,8 @@ export default function MemoryBreakdown(container, props) {
       const segment = document.createElement("div");
       const share = barTotal > 0 ? (component.total / barTotal) * 100 : 0;
       segment.tabIndex = 0;
-      segment.title = `${component.label}: ${formatBytes(component.total)} (${share.toFixed(1)}%)`;
+      const shortTitle = `${component.label}: ${formatBytes(component.total)} (${share.toFixed(1)}%)`;
+      segment.title = component.tooltip ? `${component.tooltip}\n${shortTitle}` : shortTitle;
       segment.setAttribute("aria-label", segment.title);
       segment.style.cssText = `flex: 0 0 ${Math.max(0, share)}%; min-width: ${share > 0 ? "2px" : "0"}; background:${COLORS[index % COLORS.length]}; border-radius:3px; outline-offset:2px;`;
       bar.appendChild(segment);
@@ -306,7 +309,9 @@ export default function MemoryBreakdown(container, props) {
     report.components.forEach((component, index) => {
       const row = document.createElement("div");
       row.tabIndex = 0;
-      row.title = `${component.label}: ${formatBytes(component.total)}`;
+      const shortTitle = `${component.label}: ${formatBytes(component.total)}`;
+      row.title = component.tooltip ? `${component.tooltip}\n${shortTitle}` : shortTitle;
+      row.setAttribute("aria-label", row.title);
       row.style.cssText = "display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:4px 8px; border-top:1px solid var(--line); padding-top:5px; outline-offset:2px;";
       const label = document.createElement("div");
       label.style.cssText = "min-width:0; display:flex; align-items:center; gap:6px;";

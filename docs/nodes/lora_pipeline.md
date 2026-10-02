@@ -39,6 +39,7 @@ Pipeline Builder ──→ [LoRA Pipeline] ←── Load LoRA
 - **Activation LoRAs vs. fused LoRAs are not equivalent.** Fused LoRAs (baked via the Pipeline Builder `loras` input) are permanently merged into weights; activation LoRAs (this node) are applied transiently. Changing a fused LoRA evicts the entire pipeline cache. Changing an activation LoRA does not.
 - **Connect at least one LoRA.** The node requires at least one entry in `loras` to activate — wire one or more [Load LoRA](load_lora.md) nodes before running.
 - **The `lora_pipeline` output shares the cache with the input `pipeline`.** You can wire both to separate Generate Media Latents nodes (one with LoRAs, one without) without loading the model twice.
+- **Memory estimates include runtime adapter weights.** When the LoRA Pipeline output is connected to Estimate Pipeline Memory, each distinct connected adapter contributes its header-derived weight bytes to the transformer estimate. Multiple adapters are aggregated in that visible transformer row; the detailed adapter list is available to the source-only CLI.
 - **LoRA weights are applied per run.** Unlike fused LoRAs, changing `weight` on a Load LoRA node between runs does not rebuild the pipeline.
 
 ## See also
