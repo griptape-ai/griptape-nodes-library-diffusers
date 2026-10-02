@@ -36,6 +36,7 @@ def _empty_memory_report(status: str, *, message: str | None = None) -> dict[str
         "total_bytes": 0,
         "estimated_peak_bytes": 0,
         "warnings": [],
+        "lora_adapters": [],
     }
     if message is not None:
         report["message"] = message
@@ -58,6 +59,7 @@ def _memory_report_from_estimate(estimate: Any, optimization_summary: str) -> di
                 "total_bytes": component_total,
                 "is_estimated": component.is_estimated,
                 "warning": component.warning,
+                "tooltip": component.tooltip,
             }
         )
 
@@ -88,6 +90,7 @@ def _memory_report_from_estimate(estimate: Any, optimization_summary: str) -> di
         "headroom_factor": MEMORY_HEADROOM_FACTOR,
         "headroom_percent": round((MEMORY_HEADROOM_FACTOR - 1) * 100),
         "components": components,
+        "lora_adapters": [adapter.to_dict() for adapter in estimate.lora_adapters],
         "total_bytes": total_bytes,
         "estimated_peak_bytes": max(0, int(estimate.estimated_peak_bytes)),
         "warnings": list(estimate.warnings),

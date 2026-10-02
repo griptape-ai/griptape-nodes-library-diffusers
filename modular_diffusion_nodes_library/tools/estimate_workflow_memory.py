@@ -37,6 +37,8 @@ from modular_diffusion_nodes_library.memory_estimation.meta_device_builder impor
 from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator import (
     estimate_pipeline_memory_from_artifact,
 )
+from modular_diffusion_nodes_library.utils.lora_apply_utils import LoraPipelineRuntimeAdapterStep
+from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec
 
 _ALLOWED_GLOBALS = {
     "modular_diffusion_nodes_library.artifact_utils.pipeline_artifact": {
@@ -47,6 +49,12 @@ _ALLOWED_GLOBALS = {
         "ModelComponentArtifact": ModelComponentArtifact,
         "ComponentSourceType": ComponentSourceType,
         "HFRepoRef": HFRepoRef,
+    },
+    "modular_diffusion_nodes_library.utils.lora_apply_utils": {
+        "LoraPipelineRuntimeAdapterStep": LoraPipelineRuntimeAdapterStep,
+    },
+    "modular_diffusion_nodes_library.utils.lora_spec": {
+        "LoraSpec": LoraSpec,
     },
     "enum": {"Enum": Enum, "StrEnum": StrEnum},
 }
@@ -149,6 +157,9 @@ def _relevant_unique_keys(tree: ast.Module) -> set[str]:
             keys.add(value_key)
             continue
         if parameter_name in {"width", "height", "num_frames"}:
+            keys.add(value_key)
+            continue
+        if parameter_name in {"lora_pipeline", "loras", "pipeline"}:
             keys.add(value_key)
     return keys
 
@@ -258,14 +269,16 @@ def _extract_request_values(
         if node_name is None or parameter_name is None or value_key is None:
             continue
 
-        is_noise_dimension = node_types.get(node_name) == "NoiseLatentNode" and parameter_name in {
+        is_noise_dimension = node_types.get(node_name) in {"NoiseLatentNode", "EmptyLatentNode"} and parameter_name in {
             "width",
             "height",
             "num_frames",
         }
         is_generation_pipeline = parameter_name == "pipeline" and node_types.get(node_name) in {
             "NoiseLatentNode",
+            "EmptyLatentNode",
             "DiffusionPipelineGenerateLatentNode",
+            "PipelineMemoryEstimateNode",
         }
         if not is_noise_dimension and not is_generation_pipeline:
             continue
@@ -582,6 +595,13 @@ def _format_human(result: dict[str, Any]) -> str:
                 f"  {component['component_name']}: {component['total_gb']} GB "
                 f"(weights {component['weight_gb']} GB, activations {component['activation_gb']} GB)"
             )
+        lora_adapters = estimate.get("lora_adapters", [])
+        if lora_adapters:
+            lines.append("  LoRA adapters:")
+            for adapter in lora_adapters:
+                lines.append(f"    {adapter['adapter_name']}: {adapter['weight_bytes']} bytes ({adapter['path']})")
+            total_lora_bytes = sum(adapter.get("weight_bytes", 0) for adapter in lora_adapters)
+            lines.append(f"    Total LoRA weights: {total_lora_bytes} bytes")
         for warning in estimate["warnings"]:
             lines.append(f"  Warning: {warning}")
     return "\n".join(lines)

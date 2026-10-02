@@ -8,6 +8,7 @@ family_registry) is pure/testable with synthetic inputs.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
@@ -39,6 +40,10 @@ from modular_diffusion_nodes_library.memory_estimation.family_registry import (
     get_denoiser_config_fields,
     get_memory_family,
     get_sdxl_unet_levels,
+)
+from modular_diffusion_nodes_library.memory_estimation.lora_memory import (
+    LoraAdapterMemoryEstimate,
+    collect_runtime_lora_memory,
 )
 from modular_diffusion_nodes_library.memory_estimation.meta_device_builder import (
     ComponentConfigNotCachedError,
@@ -298,6 +303,7 @@ def _compute_peak_weight_topology(
     components: list[ComponentMemoryEstimate],
     offload_mode: str | None,
     denoiser_num_layers: int | None,
+    resident_denoiser_bytes: int = 0,
 ) -> int:
     if not components:
         return 0
@@ -309,10 +315,13 @@ def _compute_peak_weight_topology(
     # rest. Rough approximation, flagged for revisit if real-world accuracy misses target.
     largest = max(components, key=lambda c: c.weight_bytes)
     if largest.role == "denoiser" and denoiser_num_layers:
-        per_layer = largest.weight_bytes // denoiser_num_layers
+        base_denoiser_bytes = max(0, largest.weight_bytes - resident_denoiser_bytes)
+        per_layer = base_denoiser_bytes // denoiser_num_layers
         others = [c.weight_bytes for c in components if c is not largest]
-        return per_layer + max(others, default=0)
-    return max(c.weight_bytes for c in components)
+        return per_layer + max(others, default=0) + resident_denoiser_bytes
+    if largest.role == "denoiser":
+        return max(c.weight_bytes for c in components)
+    return max(c.weight_bytes for c in components) + resident_denoiser_bytes
 
 
 def _compute_estimated_peak_bytes(peak_weight_bytes: int, components: list[ComponentMemoryEstimate]) -> int:
@@ -360,11 +369,63 @@ def _controlnet_components(
     ]
 
 
+def _primary_denoiser_index(components: list[ComponentMemoryEstimate]) -> int | None:
+    for preferred_name in ("transformer", "unet"):
+        for index, component in enumerate(components):
+            if component.component_name == preferred_name and component.role == "denoiser":
+                return index
+    for index, component in enumerate(components):
+        if component.role == "denoiser":
+            return index
+    return None
+
+
+def _lora_percentage(part: int, whole: int) -> str:
+    if whole <= 0:
+        return "N/A"
+    return f"{part / whole * 100:.2f}%"
+
+
+def _apply_lora_weights_to_components(
+    components: list[ComponentMemoryEstimate], lora_adapters: list[LoraAdapterMemoryEstimate]
+) -> tuple[list[ComponentMemoryEstimate], list[str], int]:
+    if not lora_adapters:
+        return components, [], 0
+
+    adapter_warnings = [adapter.warning for adapter in lora_adapters if adapter.warning is not None]
+    adapter_bytes = sum(adapter.weight_bytes for adapter in lora_adapters)
+    denoiser_index = _primary_denoiser_index(components)
+    if denoiser_index is None:
+        warning = "Unfused LoRA weights could not be added because no transformer or UNet component was estimated."
+        return components, [*adapter_warnings, warning], 0
+
+    transformer = components[denoiser_index]
+    base_weight_bytes = transformer.weight_bytes
+    merged_weight_bytes = base_weight_bytes + adapter_bytes
+    adapter_details = ", ".join(f"{adapter.adapter_name}: {adapter.weight_bytes} bytes" for adapter in lora_adapters)
+    tooltip = (
+        f"Transformer weights: {base_weight_bytes} bytes. Unfused LoRA weights: {adapter_bytes} bytes "
+        f"({_lora_percentage(adapter_bytes, base_weight_bytes)} of base transformer weights; "
+        f"{_lora_percentage(adapter_bytes, merged_weight_bytes)} of combined transformer weights). "
+        f"Adapters: {adapter_details}."
+    )
+    updated_components = list(components)
+    updated_components[denoiser_index] = replace(
+        transformer,
+        weight_bytes=merged_weight_bytes,
+        total_bytes=merged_weight_bytes + transformer.activation_bytes,
+        tooltip=tooltip,
+    )
+    return updated_components, adapter_warnings, adapter_bytes
+
+
 def estimate_pipeline_memory(
     pipe: DiffusionPipeline,
     latent: LatentArtifact,
     optimization_kwargs: dict[str, Any],
     pipeline_name: str,
+    *,
+    lora_adapters: list[LoraAdapterMemoryEstimate] | None = None,
 ) -> PipelineMemoryEstimate:
     """Estimate per-component memory usage for an already-loaded pipeline. Never executes the pipeline."""
     offload_mode = detect_offload_method(pipe)
@@ -395,6 +456,13 @@ def estimate_pipeline_memory(
     estimated_peak_bytes = _compute_estimated_peak_bytes(peak_weight_bytes, components)
 
     warnings = [c.warning for c in components if c.warning is not None]
+    lora_adapters = lora_adapters or []
+    components, lora_warnings, adapter_bytes = _apply_lora_weights_to_components(components, lora_adapters)
+    warnings.extend(lora_warnings)
+    peak_weight_bytes = _compute_peak_weight_topology(
+        components, offload_mode, denoiser_num_layers, resident_denoiser_bytes=adapter_bytes
+    )
+    estimated_peak_bytes = _compute_estimated_peak_bytes(peak_weight_bytes, components)
 
     return PipelineMemoryEstimate(
         pipeline_name=pipeline_name,
@@ -402,6 +470,7 @@ def estimate_pipeline_memory(
         components=components,
         estimated_peak_bytes=estimated_peak_bytes,
         warnings=warnings,
+        lora_adapters=lora_adapters,
     )
 
 
@@ -569,6 +638,8 @@ def _controlnet_slot_estimates(
 def estimate_pipeline_memory_from_build_data(
     artifact: DiffusionPipelineArtifact,
     latent: LatentArtifact,
+    *,
+    lora_adapters: list[LoraAdapterMemoryEstimate] | None = None,
 ) -> PipelineMemoryEstimate:
     """Estimate memory for a pipeline that has not been built yet.
 
@@ -716,6 +787,13 @@ def estimate_pipeline_memory_from_build_data(
     warnings = [c.warning for c in components if c.warning is not None]
     if automatic_warning is not None:
         warnings.append(automatic_warning)
+    lora_adapters = lora_adapters or []
+    components, lora_warnings, adapter_bytes = _apply_lora_weights_to_components(components, lora_adapters)
+    warnings.extend(lora_warnings)
+    peak_weight_bytes = _compute_peak_weight_topology(
+        components, offload_mode, denoiser_num_layers, resident_denoiser_bytes=adapter_bytes
+    )
+    estimated_peak_bytes = _compute_estimated_peak_bytes(peak_weight_bytes, components)
 
     return PipelineMemoryEstimate(
         pipeline_name=pipeline_name,
@@ -723,6 +801,7 @@ def estimate_pipeline_memory_from_build_data(
         components=components,
         estimated_peak_bytes=estimated_peak_bytes,
         warnings=warnings,
+        lora_adapters=lora_adapters,
     )
 
 
@@ -737,7 +816,14 @@ def estimate_pipeline_memory_from_artifact(
     in model_cache under artifact.config_hash, otherwise to the pre-load, config-only
     estimator. See docs/spikes/memory_estimation_preload_api_plan.md, Decision 1.
     """
+    lora_adapters = collect_runtime_lora_memory(artifact)
     if artifact.config_hash and model_cache.has_pipeline(artifact.config_hash):
         pipe = model_cache.get_pipeline(artifact.config_hash)
-        return estimate_pipeline_memory(pipe, latent, artifact.optimization_kwargs, artifact.pipeline_name)
-    return estimate_pipeline_memory_from_build_data(artifact, latent)
+        return estimate_pipeline_memory(
+            pipe,
+            latent,
+            artifact.optimization_kwargs,
+            artifact.pipeline_name,
+            lora_adapters=lora_adapters,
+        )
+    return estimate_pipeline_memory_from_build_data(artifact, latent, lora_adapters=lora_adapters)
