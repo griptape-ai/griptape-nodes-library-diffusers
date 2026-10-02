@@ -6,6 +6,7 @@ Category: `ModularDiffusion/Pipeline`
 
 ## TL;DR
 - Breaks down memory into weights and activations for each resident component (text encoders, transformer/UNet, VAE).
+- Folds unfused LoRA adapter weights from a connected LoRA Pipeline into the transformer/UNet estimate; the widget does not add a separate LoRA component row.
 - Uses the latent's shape to size the denoiser's and VAE's activation-memory estimate, so it must be wired to a real latent.
 - Works whether or not the pipeline has been built yet: if it's already loaded (e.g. after a Generate Media Latents node has run) the estimate is exact; otherwise it's derived from the pipeline's config alone. This node never triggers a pipeline build itself.
 - Estimates are analytical, biased to overestimate, and target ~20% relative accuracy — not measured, exact byte counts.
@@ -38,6 +39,8 @@ Pipeline Builder → Generate Media Latents → [Estimate Pipeline Memory]
 ## Provider / model behavior
 
 Denoiser activation memory is estimated using one of three architecture families: UNet-SDPA (SDXL), Image-DiT-SDPA (Flux, Flux2, SD3, Qwen, Z-Image, ...), or Video-DiT-joint-SDPA (LTX, LTX2, WAN, HunyuanVideo 1.5, MiniMax-H3). A pipeline class without a registered family, or a component whose config can't be read (e.g. a heavily fused/custom checkpoint), falls back to a weight-only estimate with a warning in the widget rather than failing.
+
+**Unfused LoRA.** When the connected pipeline comes from a [LoRA Pipeline](lora_pipeline.md) node, each distinct runtime adapter file is counted once and its header-derived weight bytes are folded into the primary transformer/UNet estimate. The transformer hover text reports the total LoRA bytes as both a percentage of the base transformer weights and a percentage of the combined transformer-plus-LoRA weights. LoRA activation workspace is not separately modeled. The source-only CLI keeps the detailed adapter list in a separate `lora_adapters` section.
 
 The `memory_breakdown` output renders the estimate as a segmented bar and a labeled component list inside the node. Segment widths use the sum of component totals; the estimated peak is shown separately because it applies offload topology, non-overlapping activation phases, and safety headroom. The widget remains read-only and reports loading, unavailable, and warning states without changing the estimate.
 
@@ -126,6 +129,7 @@ Note the import path: `estimate_pipeline_memory_from_artifact` is exported from 
 | `estimated_peak_bytes` | `int` | Estimated peak memory after the estimator's 20% safety-headroom factor; the node displays the value with the applied optimization settings. |
 | `components` | `list[ComponentMemoryEstimate]` | One entry per weight-bearing component. |
 | `warnings` | `list[str]` | Pipeline-level caveats, e.g. the `Automatic`-strategy warning. |
+| `lora_adapters` | `list[dict]` | Detailed distinct unfused runtime adapters and their header-derived weight bytes; exposed separately for API and CLI consumers. |
 | `to_dict()` | `dict` | JSON-shaped, GB-rounded — the intended API output boundary. Fields on the dataclass itself stay byte-precise for further math. |
 
 `ComponentMemoryEstimate` fields (each entry in `components`):
@@ -139,6 +143,7 @@ Note the import path: `estimate_pipeline_memory_from_artifact` is exported from 
 | `total_bytes` | `int` | `weight_bytes + activation_bytes`. |
 | `is_estimated` | `bool` | `True` when a formula couldn't run and only weights are shown for this component. |
 | `warning` | `str \| None` | Reason, present when `is_estimated` is `True`. |
+| `tooltip` | `str \| None` | Optional hover text, including the transformer and LoRA percentage details when runtime adapters are present. |
 
 ### Lower-level functions
 

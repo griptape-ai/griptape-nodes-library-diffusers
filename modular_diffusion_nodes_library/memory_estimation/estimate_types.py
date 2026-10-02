@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from modular_diffusion_nodes_library.memory_estimation.lora_memory import LoraAdapterMemoryEstimate
+
 _BYTES_PER_GB = 1024**3
 
 
@@ -31,6 +33,7 @@ class ComponentMemoryEstimate:
     total_bytes: int
     is_estimated: bool = False
     warning: str | None = None
+    tooltip: str | None = None
 
     @classmethod
     def create(
@@ -42,6 +45,7 @@ class ComponentMemoryEstimate:
         *,
         is_estimated: bool = False,
         warning: str | None = None,
+        tooltip: str | None = None,
     ) -> ComponentMemoryEstimate:
         return cls(
             component_name=component_name,
@@ -51,6 +55,7 @@ class ComponentMemoryEstimate:
             total_bytes=weight_bytes + activation_bytes,
             is_estimated=is_estimated,
             warning=warning,
+            tooltip=tooltip,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -62,6 +67,7 @@ class ComponentMemoryEstimate:
             "total_gb": _bytes_to_gb(self.total_bytes),
             "is_estimated": self.is_estimated,
             "warning": self.warning,
+            "tooltip": self.tooltip,
         }
 
 
@@ -74,6 +80,7 @@ class PipelineMemoryEstimate:
     components: list[ComponentMemoryEstimate]
     estimated_peak_bytes: int
     warnings: list[str] = field(default_factory=list)
+    lora_adapters: list[LoraAdapterMemoryEstimate] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -82,4 +89,5 @@ class PipelineMemoryEstimate:
             "components": [component.to_dict() for component in self.components],
             "estimated_peak_gb": _bytes_to_gb(self.estimated_peak_bytes),
             "warnings": list(self.warnings),
+            "lora_adapters": [adapter.to_dict() for adapter in self.lora_adapters],
         }
