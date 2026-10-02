@@ -153,7 +153,12 @@ class MediaGenConditioningRuntimeParameter:
             raise mode_errors[0]
         return {self._output_key: payloads[0]}
 
-    def validate_before_node_run(self) -> list[Exception] | None:
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Reject a payload whose mode this pipeline does not accept, before `process()` runs.
+
+        The payload travels as data, so the orchestrator could answer this too; it stays here because
+        every runtime-parameters class that consumes conditioning delegates to this method.
+        """
         if self._multiple:
             assert self._fixed_size_list is not None
             values = self._fixed_size_list.get_values()

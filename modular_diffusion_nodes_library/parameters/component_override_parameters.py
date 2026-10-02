@@ -7,7 +7,11 @@ from typing import TYPE_CHECKING
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterGroup, ParameterMode
 
-from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact
+from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
+    ComponentArtifact,
+    is_encoded_component_artifact,
+    structure_component_artifact,
+)
 from modular_diffusion_nodes_library.component_loading.component_slots import (
     ALLOWED_COMPONENT_SLOTS,
     SLOT_DISPLAY_NAMES,
@@ -112,6 +116,12 @@ class ComponentOverrideParameters:
         overrides: dict[str, ComponentArtifact] = {}
         for slot in self.current_slots:
             value = self._node.get_parameter_value(f"component_{slot}")
+            if is_encoded_component_artifact(value):
+                # An artifact that crossed a process boundary arrives as its wire form. Rebuilding it
+                # here rather than at each reader keeps this the only place that knows: an unrebuilt
+                # dict is not an instance, so it would be dropped below and also omitted from the
+                # cache key, leaving the pipeline silently built with the default component.
+                value = structure_component_artifact(value)
             if isinstance(value, ComponentArtifact):
                 overrides[slot] = value
         return overrides

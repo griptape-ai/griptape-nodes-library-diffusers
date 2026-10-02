@@ -12,13 +12,12 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DiffusionPipelineArtifact,
     normalize_diffusion_pipeline_value,
 )
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class, get_driver_spec
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.controlnet_pipeline_builder_parameters import (
     LatentDiffusionPipelineBuilderControlNetParameter,
 )
 from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import find_provider_for_pipeline_type
-from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -128,8 +127,7 @@ class ControlNetDiffusionPipelineBuilderNode(SuccessFailureExecutionMixin, Succe
         if result is not None:
             return result
 
-        driver_class = get_driver_class(pipeline_class)
-        if not driver_class:
+        if get_driver_spec(pipeline_class) is None:
             return [ValueError(f"{self.name}: No driver found for pipeline class: {pipeline_class}")]
 
         control_nets = self.controlnet_params.get_control_nets()
@@ -148,7 +146,21 @@ class ControlNetDiffusionPipelineBuilderNode(SuccessFailureExecutionMixin, Succe
                 )
             ]
 
-        control_net_models: list[str] = [control_net["model"] for control_net in control_nets]
+        return None
+
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Whether the driver accepts this ControlNet configuration.
+
+        Only the driver class can answer, and importing it pulls diffusers, so this cannot run on the
+        orchestrator. Everything answerable without the driver stays in `validate_before_node_run`.
+        """
+        pipeline_class = self._get_pipeline_class()
+        driver_class = get_driver_class(pipeline_class)
+        if driver_class is None:
+            return None
+
+        control_nets = self.controlnet_params.get_control_nets()
+        control_net_models: list[str] = [control_net["model"] for control_net in control_nets if "model" in control_net]
         if not driver_class.can_make_control_pipe_from_standard(control_net_models):
             return [
                 ValueError(
@@ -241,11 +253,11 @@ class ControlNetDiffusionPipelineBuilderNode(SuccessFailureExecutionMixin, Succe
 
         def build() -> Any:
             with self.log_params.append_profile_to_logs("Pipeline building/caching"):
-                return pipeline_artifact.get_or_build_pipeline(log_params=self.log_params)
+                return pipeline_artifact.get_or_build_pipeline(self, log_params=self.log_params)
 
         def cleanup() -> None:
             self.log_params.append_to_logs("Pipeline building failed.\n")
-            model_cache.remove_pipeline(pipeline_artifact.config_hash)
+            self.local_objects.drop(self.local_objects.key_for(pipeline_artifact.config_hash))
             cleanup_memory_caches()
 
         return self._run_with_status(

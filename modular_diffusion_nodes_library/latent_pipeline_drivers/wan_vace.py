@@ -1,12 +1,7 @@
-import logging
-from typing import Any, override
+from __future__ import annotations
 
-import PIL.Image
-import torch  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.wan.modular_blocks_wan import WanBlocks  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-from diffusers.utils.torch_utils import randn_tensor  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, override
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -19,6 +14,12 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     resolve_conditioning_video,
     resolve_frame_index,
 )
+
+if TYPE_CHECKING:
+    import PIL.Image  # type: ignore[reportMissingImports]
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -49,6 +50,8 @@ def _payload_to_frames(
     image_mode controls the PIL mode of every frame in the returned list ("RGB" for video /
     source frames, "L" for mask frames). Placed images are converted to image_mode.
     """
+    import PIL.Image
+
     payloads = normalize_to_payloads(payload_value)
     if payloads is None:
         return []
@@ -96,6 +99,8 @@ def _derive_mask_from_source_media(
     VIDEO payload: black (preserve) for the covered frame range, white (generate) elsewhere.
     IMAGE payload: black at explicitly placed frame positions, white elsewhere.
     """
+    import PIL.Image
+
     payloads = normalize_to_payloads(payload_value)
     if payloads is None:
         return None
@@ -155,6 +160,9 @@ def _prepend_reference_noise(
 
     VACE encodes each reference image as an extra leading frame on the control branch.
     """
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.utils.torch_utils import randn_tensor  # type: ignore[reportMissingImports]
+
     shape = list(base_latents.shape)
     shape[2] = num_reference_images
     reference_noise = randn_tensor(
@@ -173,6 +181,8 @@ class WanVaceLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         # VACE always uses WAN 2.1 block architecture. transformer_2 on a VACE pipeline
         # is an optional second VACE transformer — not a WAN 2.2 transformer — so we
         # must not use Wan22Blocks regardless of its presence.
+        from diffusers.modular_pipelines.wan.modular_blocks_wan import WanBlocks  # type: ignore[reportMissingImports]
+
         return WanBlocks().init_pipeline()
 
     @override

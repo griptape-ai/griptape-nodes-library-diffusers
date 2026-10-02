@@ -1,27 +1,30 @@
+from __future__ import annotations
+
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
-import cv2  # type: ignore[reportMissingImports]
-import numpy as np
-from diffusers.pipelines.ltx2.export_utils import encode_hdr_tensor_to_mp4  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 from griptape_nodes.exe_types.param_components.progress_bar_component import ProgressBarComponent
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
 from griptape_nodes.traits.options import Options
-from PIL import Image
 
 from modular_diffusion_nodes_library.nodes.vae_decoder import VaeDecodeNode
+from modular_diffusion_nodes_library.utils.config_utils import get_workspace_path
 from modular_diffusion_nodes_library.utils.hdr_video_utils import ExrFrameWriteEvent, encode_linear_hdr_exr_sequence
 from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
 from modular_diffusion_nodes_library.utils.pillow_utils import pil_to_image_artifact
 
+if TYPE_CHECKING:
+    import numpy as np
+
 logger = logging.getLogger(__name__)
 
-ToneMapFn = Callable[[np.ndarray], np.ndarray]
+# `type` rather than a plain assignment: the right-hand side is evaluated only when something
+# introspects the alias, so naming a tone-map function does not import numpy.
+type ToneMapFn = Callable[[np.ndarray], np.ndarray]
 DEFAULT_TONE_MAPPING = "aces_filmic"
 TONE_MAPPING_CHOICES = ["clip", "reinhard", "aces_filmic", "cv2_reinhard", "cv2_mantiuk"]
 
@@ -57,7 +60,7 @@ class DecodeHdrNode(VaeDecodeNode):
                         allow_directories=True,
                         multiple=False,
                         file_types=[".exr"],
-                        initial_path=str(GriptapeNodes.ConfigManager().workspace_path),
+                        initial_path=str(get_workspace_path()),
                     )
                 },
             )
@@ -115,6 +118,9 @@ class DecodeHdrNode(VaeDecodeNode):
         audio: Any = None,
         audio_sample_rate: int | None = None,
     ) -> None:
+        import numpy as np
+        from diffusers.pipelines.ltx2.export_utils import encode_hdr_tensor_to_mp4  # type: ignore[reportMissingImports]
+
         if not isinstance(output, np.ndarray):
             super()._encode_video_output(output, dest_path, fps, audio=audio, audio_sample_rate=audio_sample_rate)
             return
@@ -125,6 +131,9 @@ class DecodeHdrNode(VaeDecodeNode):
         encode_hdr_tensor_to_mp4(frames, str(dest_path), frame_rate=fps, tone_mapping_fn=tone_fn)
 
     def _handle_image_output(self, output: Any) -> None:
+        import numpy as np
+        from PIL import Image
+
         if not isinstance(output, np.ndarray):
             super()._handle_image_output(output)
             return
@@ -187,6 +196,8 @@ class DecodeHdrNode(VaeDecodeNode):
 
     @staticmethod
     def _apply_srgb_oetf(x: np.ndarray) -> np.ndarray:
+        import numpy as np
+
         x = np.clip(x, 0.0, 1.0)
         return np.where(x <= 0.0031308, 12.92 * x, 1.055 * np.power(x, 1.0 / 2.4) - 0.055)
 
@@ -196,6 +207,9 @@ class DecodeHdrNode(VaeDecodeNode):
 
     @staticmethod
     def _get_hdr_tone_mapping_fn(name: str | None) -> ToneMapFn:
+        import cv2  # type: ignore[reportMissingImports]
+        import numpy as np
+
         tone_name = name or DEFAULT_TONE_MAPPING
         if tone_name == "reinhard":
             return lambda x: x / (1.0 + x)
@@ -218,6 +232,7 @@ class DecodeHdrNode(VaeDecodeNode):
     @staticmethod
     def _wrap_cv2_tonemapper(tonemapper: Any) -> ToneMapFn:
         """Wrap an OpenCV tonemapper so its RGB↔BGR colorspace expectation is hidden from callers."""
+        import numpy as np
 
         def apply(rgb: np.ndarray) -> np.ndarray:
             bgr = rgb[..., ::-1]

@@ -102,10 +102,10 @@ class QwenEditPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         self._node.remove_parameter_element_by_name("guidance_scale")
         self._image_references.remove_input_parameters()
 
-    def validate_before_node_run(self) -> list[Exception] | None:
+    def validate_in_execution_environment(self) -> list[Exception] | None:
         if self._node.get_parameter_value("image_references") is None:
             return [ValueError("image_references must be connected to use Qwen Edit.")]
-        return self._image_references.validate_before_node_run()
+        return self._image_references.validate_in_execution_environment()
 
     def _get_pipe_kwargs(self) -> dict:
         base = {

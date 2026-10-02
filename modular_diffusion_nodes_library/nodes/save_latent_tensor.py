@@ -3,15 +3,14 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import torch  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import DataNode
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.utils import resolve_workspace_path
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
     LatentArtifact,  # type: ignore[reportMissingImports]
 )
+from modular_diffusion_nodes_library.utils.config_utils import get_workspace_path
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -53,27 +52,37 @@ class SaveLatentTensorNode(DataNode):
     def validate_before_node_run(self) -> list[Exception] | None:
         exceptions: list[Exception] = []
 
-        latent_tensor = self.get_parameter_value("latent_tensor")
-        if latent_tensor is None:
-            error = ValueError(f"Parameter \"latent_tensor\" was left blank for node '{self.name}'.")  # noqa: PERF401
-            exceptions.append(error)
-        elif not isinstance(latent_tensor, LatentArtifact):
-            error = TypeError(
-                f"Parameter \"latent_tensor\" on node '{self.name}' must be a LatentArtifact, got '{type(latent_tensor).__name__}'."
-            )
-            exceptions.append(error)
-
         file_path = self.get_parameter_value("file_path")
         if not isinstance(file_path, str) or not file_path.strip():
             exceptions.append(ValueError(f"Parameter \"file_path\" on node '{self.name}' must be a non-empty string."))
 
         return exceptions if exceptions else None
 
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Check the latent about to be saved.
+
+        The latent is held by the process that produced it, so even asking whether it is connected has
+        to happen where it lives.
+        """
+        latent_tensor = self.get_parameter_value("latent_tensor")
+        if latent_tensor is None:
+            return [ValueError(f"Parameter \"latent_tensor\" was left blank for node '{self.name}'.")]
+        if not isinstance(latent_tensor, LatentArtifact):
+            return [
+                TypeError(
+                    f"Parameter \"latent_tensor\" on node '{self.name}' must be a LatentArtifact, "
+                    f"got '{type(latent_tensor).__name__}'."
+                )
+            ]
+        return None
+
     def process(self) -> None:
+        import torch  # type: ignore[reportMissingImports]
+
         latent_artifact = self.get_parameter_value("latent_tensor")
         file_path = self.get_parameter_value("file_path")
 
-        workspace_path = GriptapeNodes.ConfigManager().workspace_path
+        workspace_path = get_workspace_path()
         resolved_path = resolve_workspace_path(Path(file_path), workspace_path)
         resolved_path.parent.mkdir(parents=True, exist_ok=True)
 
