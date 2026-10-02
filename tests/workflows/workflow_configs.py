@@ -52,8 +52,15 @@ class DisconnectOverride:
     target_parameter_name: str
 
 
+@dataclass(frozen=True)
+class DeleteNodeOverride:
+    """Delete an unused template node and its connections before run."""
+
+    node_name: str
+
+
 # Any operation the executor applies after load; order within a config's tuple is preserved.
-WorkflowOverride = ParamOverride | ConnectOverride | DisconnectOverride
+WorkflowOverride = ParamOverride | ConnectOverride | DisconnectOverride | DeleteNodeOverride
 
 
 @dataclass(frozen=True)
@@ -110,8 +117,92 @@ def first_last_conditioning_overrides(
     )
 
 
+def controlnet_overrides(
+    provider: str, pipeline_type: str, repo: str, *, pose_repo: str, depth_repo: str | None = None
+) -> tuple[WorkflowOverride, ...]:
+    """Retarget the dual-ControlNet template; drops the Flux-specific Load Component text-encoder nodes."""
+    builder = "Modular Diffusion Pipeline Builder_1"
+    overrides: list[WorkflowOverride] = [
+        DeleteNodeOverride("Load Pipeline Component"),
+        DeleteNodeOverride("Load Pipeline Component_1"),
+    ]
+    if depth_repo is None:
+        overrides.extend(
+            (
+                DeleteNodeOverride("Configure ControlNet_1"),
+                DeleteNodeOverride("Load Image_1"),
+            )
+        )
+    overrides.extend(builder_overrides(provider, pipeline_type, repo, node_name=builder))
+    controls = {"Configure ControlNet": pose_repo}
+    if depth_repo is not None:
+        controls["Configure ControlNet_1"] = depth_repo
+    for node_name, control_repo in controls.items():
+        overrides.extend(
+            (
+                ParamOverride(node_name, "provider", provider),
+                ParamOverride(node_name, "controlnet_model", control_repo),
+            )
+        )
+    return tuple(overrides)
+
+
 # Keyed by template filename stem; templates not listed get one default as-shipped run.
 WORKFLOW_CONFIGS: dict[str, tuple[WorkflowConfig, ...]] = {
+    "ControlnetText2Image": (
+        # No repos: preflight falls back to the template's own extracted dependencies.
+        WorkflowConfig(config_id="flux1-dev-default"),
+        WorkflowConfig(
+            config_id="sdxl-base-dual-controlnet",
+            repos=(
+                "stabilityai/stable-diffusion-xl-base-1.0",
+                "xinsir/controlnet-openpose-sdxl-1.0",
+                "xinsir/controlnet-depth-sdxl-1.0",
+            ),
+            overrides=controlnet_overrides(
+                "Stable Diffusion",
+                "StableDiffusionXLPipeline",
+                "stabilityai/stable-diffusion-xl-base-1.0",
+                pose_repo="xinsir/controlnet-openpose-sdxl-1.0",
+                depth_repo="xinsir/controlnet-depth-sdxl-1.0",
+            ),
+        ),
+        WorkflowConfig(
+            config_id="qwen-image-controlnet",
+            repos=("Qwen/Qwen-Image", "InstantX/Qwen-Image-ControlNet-Union"),
+            overrides=controlnet_overrides(
+                "Qwen",
+                "QwenImagePipeline",
+                "Qwen/Qwen-Image",
+                pose_repo="InstantX/Qwen-Image-ControlNet-Union",
+            ),
+        ),
+        WorkflowConfig(
+            config_id="sd3-medium-dual-controlnet",
+            repos=(
+                "stabilityai/stable-diffusion-3-medium-diffusers",
+                "InstantX/SD3-Controlnet-Pose",
+                "InstantX/SD3-Controlnet-Depth",
+            ),
+            overrides=controlnet_overrides(
+                "Stable Diffusion 3",
+                "StableDiffusion3Pipeline",
+                "stabilityai/stable-diffusion-3-medium-diffusers",
+                pose_repo="InstantX/SD3-Controlnet-Pose",
+                depth_repo="InstantX/SD3-Controlnet-Depth",
+            ),
+        ),
+        WorkflowConfig(
+            config_id="z-image-turbo-single-controlnet",
+            repos=("Tongyi-MAI/Z-Image-Turbo", "alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union"),
+            overrides=controlnet_overrides(
+                "Z-Image",
+                "ZImagePipeline",
+                "Tongyi-MAI/Z-Image-Turbo",
+                pose_repo="alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union",
+            ),
+        ),
+    ),
     # Pipelines registered in driver_factory._DRIVER_REGISTRY.
     "Text2Image": (
         WorkflowConfig(config_id="z-image", repos=("Tongyi-MAI/Z-Image-Turbo",)),
