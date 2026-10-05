@@ -17,7 +17,7 @@ from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import DecodeOutput
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import DecodeResult, DecodeOutputType
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.pillow_utils import pil_to_image_artifact
@@ -61,6 +61,10 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         Called while ``self._initializing`` is still ``True`` so subclasses can add
         parameters through the normal ``add_parameter`` path.
         """
+
+    def _get_decode_output_type(self) -> DecodeOutputType:
+        """Select the driver decode format; subclasses may request raw arrays."""
+        return "pil"
 
     def add_parameter(self, param: Parameter) -> None:
         """Add a parameter to the node.
@@ -158,8 +162,6 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                     user_defined=True,
                 )
             )
-            # Reorder to ensure fps appears before output_video
-            self._reorder_parameters_for_video()
         else:
             self.remove_parameter_element_by_name("output_video")
             self.remove_parameter_element_by_name("fps")
@@ -174,9 +176,10 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             )
 
         self._current_output_type = new_output_type
+        self._reorder_parameters_for_dynamic_output()
 
-    def _reorder_parameters_for_video(self) -> None:
-        """Reorder parameters to ensure fps appears before output_video in the GUI."""
+    def _reorder_parameters_for_dynamic_output(self) -> None:
+        """Keep video controls ordered and pin the Status group to the bottom."""
         all_params = [element.name for element in self.root_ui_element.children]
         tail = [name for name in self._tail_parameter_names() if name in all_params]
         for name in tail:
@@ -191,7 +194,7 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
     def _tail_parameter_names(self) -> list[str]:
         """Names of parameters that must remain pinned to the bottom on reorder."""
-        return []
+        return ["Status"]
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors: list[Exception] = []
@@ -237,15 +240,13 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         latent_artifact = self.get_parameter_value("latent_tensor")
 
         latents_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
-        decoded = latents_pipeline_driver.decode_latent(latent_artifact)
-        if isinstance(decoded, DecodeOutput):
-            output = decoded.media
-            audio = decoded.audio
-            audio_sample_rate = decoded.audio_sample_rate
-        else:
-            output = decoded
-            audio = None
-            audio_sample_rate = None
+        decoded = latents_pipeline_driver.decode_latent(
+            latent_artifact,
+            output_type=self._get_decode_output_type(),
+        )
+        output = decoded.media
+        audio = decoded.audio
+        audio_sample_rate = decoded.audio_sample_rate
 
         if latents_pipeline_driver.produces_video:
             with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_file_obj:

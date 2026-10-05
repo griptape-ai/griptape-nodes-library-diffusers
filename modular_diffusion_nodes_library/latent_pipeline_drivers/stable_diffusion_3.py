@@ -31,6 +31,7 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutputType,
     DecodeResult,
     GeneratorState,
     ImageMedia,
@@ -213,12 +214,12 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
         decode_block = self.modular_pipe.blocks.sub_blocks["decode"]
-        output_state = self._call_block(decode_block, latents=latents, output_type="pil")
-        return self._get_required(output_state, "images", list)[0]
+        output_state = self._call_block(decode_block, latents=latents, output_type=output_type)
+        return self._get_decoded_media(output_state, "images", output_type, is_video=False)
 
     @override
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:

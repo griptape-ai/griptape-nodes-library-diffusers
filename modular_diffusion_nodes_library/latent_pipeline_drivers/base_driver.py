@@ -23,6 +23,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers._base_driver_forwar
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     META_DRIVER_KEY,
+    DecodeOutputType,
     DecodeResult,
     GeneratorState,
     ImageMedia,
@@ -335,9 +336,32 @@ class LatentPipelineDriver(ABC):
         return PipelineOutput(media=pipe_output.images)
 
     @abstractmethod
-    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         """Return decoded image. See class docstring for the input latent shape contract."""
         ...
+
+    @staticmethod
+    def _get_decoded_media(
+        state: dict[str, Any],
+        key: str,
+        output_type: DecodeOutputType,
+        *,
+        is_video: bool,
+    ) -> DecodeResult:
+        value = state.get(key)
+        media_kind = "video" if is_video else "image"
+        if output_type == "np":
+            expected_ndim = 5 if is_video else 4
+            if not isinstance(value, np.ndarray) or value.ndim != expected_ndim or value.shape[0] < 1:
+                raise ValueError(
+                    f"Expected a batched NumPy {media_kind} array for state key '{key}', got {type(value).__name__}."
+                )
+            return DecodeResult(media=value[0])
+        if not isinstance(value, list) or not value:
+            raise ValueError(
+                f"Expected a non-empty PIL {media_kind} batch for state key '{key}', got {type(value).__name__}."
+            )
+        return DecodeResult(media=value[0])
 
     @abstractmethod
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:

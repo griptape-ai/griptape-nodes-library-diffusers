@@ -5,7 +5,7 @@ driver.
 """
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch  # type: ignore[reportMissingImports]
@@ -15,13 +15,13 @@ TextEncodings = dict[str, Any]
 
 
 @dataclass(frozen=True)
-class DecodeOutput:
+class DecodeResult:
     media: Image | list[Image] | np.ndarray
     audio: torch.Tensor | None = None
     audio_sample_rate: int | None = None
 
 
-DecodeResult = DecodeOutput | Image | list[Image] | np.ndarray
+DecodeOutputType = Literal["pil", "np"]
 
 
 @dataclass(frozen=True)

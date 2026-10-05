@@ -30,6 +30,7 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutputType,
     DecodeResult,
     GeneratorState,
     ImageMedia,
@@ -176,14 +177,13 @@ class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         """Decode a 5-D HunyuanVideo latent and return the video frames."""
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
         vae_decoder_step = HunyuanVideo15VaeDecoderStep()
-        output_state = self._call_block(vae_decoder_step, latents=latents, output_type="pil")
-        video_frames = self._get_required(output_state, "videos", list)[0]
-        return video_frames
+        output_state = self._call_block(vae_decoder_step, latents=latents, output_type=output_type)
+        return self._get_decoded_media(output_state, "videos", output_type, is_video=True)
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:

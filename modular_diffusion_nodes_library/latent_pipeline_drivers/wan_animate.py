@@ -10,6 +10,7 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutputType,
     DecodeResult,
     GeneratorState,
     ImageMedia,
@@ -73,13 +74,13 @@ class WanAnimateLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         return self._make_latent_artifact(extended, source_shape=base_artifact.source_shape, upstream=base_artifact)
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         device, dtype = self._get_device_and_type()
         tensor = latent.to_torch(device=device, dtype=dtype)
         # Strip the reference conditioning slot at pos 0 before VAE decoding.
         stripped = tensor[:, :, 1:, :, :]
         stripped_artifact = self._make_latent_artifact(stripped, source_shape=latent.source_shape)
-        return super().decode_latent(stripped_artifact)
+        return super().decode_latent(stripped_artifact, output_type=output_type)
 
     @override
     def denoise_latent(
