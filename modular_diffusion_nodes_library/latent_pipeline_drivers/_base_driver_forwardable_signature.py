@@ -21,7 +21,7 @@ FORWARDABLE_METHODS: tuple[str, ...] = (
 
 FORWARDABLE_METHOD_POSITIONAL: dict[str, tuple[str, ...]] = {
     "encode_media": ("media", "generator_state"),
-    "decode_latent": ("latent",),
+    "decode_latent": ("latent", "output_type"),
     "create_noise_latent": ("source_shape", "generator_state"),
     "add_noise_to_latent": ("latent", "generator_state", "num_inference_steps", "strength"),
     "encode_masked_image": ("image", "mask", "generator_state"),

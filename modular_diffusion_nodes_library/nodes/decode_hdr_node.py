@@ -11,6 +11,7 @@ from griptape_nodes.exe_types.param_components.progress_bar_component import Pro
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
 from griptape_nodes.traits.options import Options
 
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import DecodeOutputType
 from modular_diffusion_nodes_library.nodes.vae_decoder import VaeDecodeNode
 from modular_diffusion_nodes_library.utils.config_utils import get_workspace_path
 from modular_diffusion_nodes_library.utils.hdr_video_utils import ExrFrameWriteEvent, encode_linear_hdr_exr_sequence
@@ -102,7 +103,7 @@ class DecodeHdrNode(VaeDecodeNode):
         self.log_params.add_output_parameters()
 
     def _tail_parameter_names(self) -> list[str]:
-        return ["progress", "logs"]
+        return ["progress", "logs", "Status"]
 
     def _decode(self) -> None:
         self.log_params.clear_logs()
@@ -241,3 +242,6 @@ class DecodeHdrNode(VaeDecodeNode):
             return np.clip(tone_rgb, 0.0, 1.0)
 
         return apply
+
+    def _get_decode_output_type(self) -> DecodeOutputType:
+        return "np"
