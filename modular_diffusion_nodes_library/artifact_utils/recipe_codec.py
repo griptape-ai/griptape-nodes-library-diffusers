@@ -115,6 +115,20 @@ def require_loras(value: Any) -> dict[str, float]:
     return {path: float(weight) for path, weight in loras.items()}
 
 
+def require_runtime_loras(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        msg = "Pipeline runtime LoRAs must be a list."
+        raise ValueError(msg)
+    for entry in value:
+        if not isinstance(entry, dict):
+            msg = "Pipeline runtime LoRAs must be objects with 'path' and 'weight'."
+            raise ValueError(msg)
+        if not isinstance(entry.get("path"), str) or not isinstance(entry.get("weight"), int | float):
+            msg = "Pipeline runtime LoRAs must map a string 'path' to a numeric 'weight'."
+            raise ValueError(msg)
+    return value
+
+
 def optional_dict(value: Any, label: str) -> dict[str, Any] | None:
     if value is None:
         return None
