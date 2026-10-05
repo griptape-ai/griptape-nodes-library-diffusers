@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, override
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutputType,
     DecodeResult,
     GeneratorState,
     ImageMedia,
@@ -22,6 +23,7 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     resolve_frame_index,
 )
 from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult
+from modular_diffusion_nodes_library.utils.video_utils import resize_video_frames_torch
 
 if TYPE_CHECKING:
     from PIL.Image import Image  # type: ignore[reportMissingImports]
@@ -68,13 +70,21 @@ class HunyuanVideo15ImageToVideoLatentPipelineDriver(HunyuanVideo15TextToVideoLa
         )
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
+        import numpy as np
         from PIL.Image import Resampling
 
-        frames = super().decode_latent(latent)
+        decoded = super().decode_latent(latent, output_type=output_type)
         source_shape = latent.source_shape
-        output_frames = [frame.resize((source_shape[-1], source_shape[-2]), Resampling.LANCZOS) for frame in frames]  # type: ignore[reportGeneralTypeIssues]
-        return output_frames
+        if isinstance(decoded.media, np.ndarray):
+            resized_frames = resize_video_frames_torch(decoded.media, source_shape[-2], source_shape[-1])
+            return DecodeResult(media=resized_frames)
+        if not isinstance(decoded.media, list):
+            raise ValueError("Unexpected media type for decoded result.")
+        output_frames = [
+            frame.resize((source_shape[-1], source_shape[-2]), Resampling.LANCZOS) for frame in decoded.media
+        ]
+        return DecodeResult(media=output_frames)
 
     @override
     def denoise_latent(
