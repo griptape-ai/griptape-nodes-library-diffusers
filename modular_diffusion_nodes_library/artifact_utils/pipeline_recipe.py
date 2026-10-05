@@ -58,6 +58,9 @@ def validate_pipeline_recipe_dependencies(artifact: DiffusionPipelineArtifact) -
     for lora_path in artifact.loras:
         if not Path(lora_path).is_file():
             issues.append(f"LoRA file is unavailable: {lora_path}")
+    for lora_path in artifact.runtime_loras():
+        if not Path(lora_path).is_file():
+            issues.append(f"Runtime LoRA file is unavailable: {lora_path}")
 
     return [*issues, *_validate_build_data_repositories(artifact.build_data)]
 
@@ -73,6 +76,12 @@ def format_pipeline_artifact_summary(artifact: DiffusionPipelineArtifact) -> str
         lines.extend(["", "LoRAs"])
         for index, (path, weight) in enumerate(artifact.loras.items(), start=1):
             lines.extend([f"  {index}. {Path(path).name}", f"     Path: {path}", f"     Weight: {weight:g}"])
+
+    runtime_loras = artifact.runtime_loras()
+    if runtime_loras:
+        lines.extend(["", "Runtime LoRAs"])
+        for index, spec in enumerate(runtime_loras.values(), start=1):
+            lines.extend([f"  {index}. {Path(spec.path).name}", f"     Path: {spec.path}", f"     Weight: {spec.weight:g}"])
 
     component_overrides = build_data.get("_component_overrides", {})
     if isinstance(component_overrides, dict) and component_overrides:

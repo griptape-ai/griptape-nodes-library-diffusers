@@ -140,6 +140,10 @@ class LoraPipelineRuntimeAdapterStep(PipelineRuntimeAdapterStep):
         raw: dict[str, Any] = data.get("loras", {})
         return cls({key: LoraSpec.from_raw(spec) for key, spec in raw.items()})
 
+    @property
+    def loras(self) -> dict[str, LoraSpec]:
+        return dict(self._loras)
+
     @contextmanager
     def activate(self, pipe: Any, *, node_name: str | None = None) -> Iterator[Any]:
         if not self._loras:

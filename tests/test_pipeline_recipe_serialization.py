@@ -23,6 +23,9 @@ from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
 )
+from modular_diffusion_nodes_library.utils.lora_apply_utils import LoraPipelineRuntimeAdapterStep
+from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec
+from modular_diffusion_nodes_library.utils.pipeline_runtime_adapter_step import PipelineRuntimeAdapterStep
 
 
 def test_serialize_base_pipeline_artifact() -> None:
@@ -48,6 +51,7 @@ def test_serialize_base_pipeline_artifact() -> None:
             "build_data": {"repo_id": "org/model", "revision": "commit-hash"},
             "build_data_error": None,
             "loras": {"/tmp/style.safetensors": 0.8},
+            "runtime_loras": [],
             "optimization": {"vae_slicing": True},
             "flags": {
                 "is_prequantized": False,
@@ -75,11 +79,60 @@ def test_serialize_controlnet_pipeline_artifact_is_refused() -> None:
         serialize_pipeline_artifact(artifact)
 
 
-def test_serialize_pipeline_with_runtime_adapters_fails() -> None:
-    artifact = DiffusionPipelineArtifact(pipeline_name="TestPipeline")
-    artifact._extra_runtime_adapter_steps = [object()]
+def _with_runtime_lora(artifact: DiffusionPipelineArtifact, path: str, weight: float = 1.0) -> DiffusionPipelineArtifact:
+    step = LoraPipelineRuntimeAdapterStep({path: LoraSpec(path=path, weight=weight)})
+    return artifact.with_additional_runtime_adapter_steps([step])
 
-    with pytest.raises(ValueError, match="runtime adapter steps"):
+
+def test_runtime_loras_round_trip_through_recipe() -> None:
+    artifact = _with_runtime_lora(
+        DiffusionPipelineArtifact(pipeline_name="TestPipeline", config_hash="base-hash", loras={"/tmp/style.safetensors": 0.8}),
+        "/tmp/hdr-ic-lora.safetensors",
+        weight=0.9,
+    )
+
+    document = json.loads(serialize_pipeline_artifact(artifact))
+    loaded = deserialize_pipeline_artifact(serialize_pipeline_artifact(artifact))
+
+    assert document["artifact"]["runtime_loras"] == [{"path": "/tmp/hdr-ic-lora.safetensors", "weight": 0.9}]
+    assert loaded.config_hash == "base-hash"
+    assert loaded.loras == {"/tmp/style.safetensors": 0.8}
+    assert loaded.runtime_loras() == {
+        "/tmp/hdr-ic-lora.safetensors": LoraSpec(path="/tmp/hdr-ic-lora.safetensors", weight=0.9)
+    }
+    (step,) = loaded.runtime_adapter_steps()
+    assert isinstance(step, LoraPipelineRuntimeAdapterStep)
+
+
+def test_recipe_without_runtime_loras_loads_with_none() -> None:
+    document = json.loads(serialize_pipeline_artifact(DiffusionPipelineArtifact(pipeline_name="TestPipeline", config_hash="h")))
+    del document["artifact"]["runtime_loras"]
+
+    assert deserialize_pipeline_artifact(json.dumps(document)).runtime_adapter_steps() == []
+
+
+def test_serialize_chained_lora_pipeline_nodes_is_refused() -> None:
+    artifact = _with_runtime_lora(
+        _with_runtime_lora(DiffusionPipelineArtifact(pipeline_name="TestPipeline"), "/tmp/a.safetensors"),
+        "/tmp/b.safetensors",
+    )
+
+    with pytest.raises(ValueError, match="more than one LoRA Pipeline node"):
+        serialize_pipeline_artifact(artifact)
+
+
+def test_serialize_non_lora_runtime_adapter_is_refused() -> None:
+    class _OtherStep(PipelineRuntimeAdapterStep):
+        KIND = "other_adapter"
+
+        def _metadata(self) -> dict:
+            return {}
+
+        def activate(self, pipe, *, node_name=None): ...
+
+    artifact = DiffusionPipelineArtifact(pipeline_name="TestPipeline").with_additional_runtime_adapter_steps([_OtherStep()])
+
+    with pytest.raises(ValueError, match="'other_adapter' runtime adapter cannot be saved"):
         serialize_pipeline_artifact(artifact)
 
 
@@ -156,11 +209,13 @@ def test_validate_pipeline_recipe_dependencies_reports_unavailable_items(monkeyp
         build_data={"base_repo_id": "org/base", "base_revision": "missing-revision"},
         loras={"/missing/style.safetensors": 0.8},
     )
+    artifact = _with_runtime_lora(artifact, "/missing/ic-lora.safetensors")
 
     issues = validate_pipeline_recipe_dependencies(artifact)
 
     assert issues == [
         "LoRA file is unavailable: /missing/style.safetensors",
+        "Runtime LoRA file is unavailable: /missing/ic-lora.safetensors",
         "Repository revision is unavailable locally: org/base (missing-revision)",
     ]
 
