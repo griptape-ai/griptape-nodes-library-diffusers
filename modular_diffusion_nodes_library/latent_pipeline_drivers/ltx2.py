@@ -30,6 +30,7 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     resolve_conditioning_video,
     resolve_frame_index,
 )
+from modular_diffusion_nodes_library.utils.hdr_video_utils import linear_to_srgb
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
 
 if TYPE_CHECKING:
@@ -309,7 +310,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             extra_meta = {AUDIO_LATENTS_META_KEY: audio}
         return PipelineOutput(media=pipe_output.frames, extra_meta=extra_meta)
 
-    def _decode_hdr_to_linear_np(self, video: torch.Tensor) -> torch.Tensor | np.ndarray:
+    def _decode_hdr_to_linear_np(self, video: torch.Tensor) -> np.ndarray:
         """Convert decoded LogC3-compressed VAE output to linear HDR np.ndarray.
 
         Returns shape ``(B, F, H, W, 3)`` float32 with linear HDR values in ``[0, ∞)``.
@@ -319,7 +320,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
         vae_spatial_ratio = getattr(self.pipe.vae, "spatial_compression_ratio", 32)
         hdr_processor = LTX2VideoHDRProcessor(vae_scale_factor=vae_spatial_ratio, hdr_transform="logc3")
-        hdr = hdr_processor.postprocess_hdr_video(video, output_type="np")
+        hdr = np.asarray(hdr_processor.postprocess_hdr_video(video, output_type="np"))
 
         logger.info(
             "LTX2PipelineDriver._decode_hdr_to_linear_np: linear HDR stats — "
@@ -349,7 +350,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
                 import numpy as np
                 from PIL import Image
 
-                media = [Image.fromarray((np.clip(frame, 0.0, 1.0) * 255.0).astype(np.uint8)) for frame in hdr_video]
+                media = [Image.fromarray((linear_to_srgb(frame) * 255.0).astype(np.uint8)) for frame in hdr_video]
         else:
             video_processor = getattr(self.pipe, "video_processor", None)
             if video_processor is None:
