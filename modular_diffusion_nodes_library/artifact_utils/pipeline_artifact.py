@@ -111,7 +111,7 @@ def structure_pipeline_artifact(data: dict[str, Any]) -> DiffusionPipelineArtifa
 
 def _optimization_kwargs_for_baked(data: dict[str, Any]) -> dict[str, Any]:
     """Never re-apply UI quant on load when the folder already holds packed tensors."""
-    kwargs = dict(data.get("optimization_kwargs") or {})
+    kwargs = dict(data.get("optimization") or {})
     if data.get("baked_quantization_mode") or data.get("packed_quant_slots"):
         kwargs["quantization_mode"] = "None"
     return kwargs
@@ -381,7 +381,7 @@ class DiffusionPipelineArtifact:
             "pipeline_name": self.pipeline_name,
             "builder_module": self.builder_module,
             "builder_class_name": self.builder_class_name,
-            "optimization_kwargs": optimization_kwargs,
+            "optimization": optimization_kwargs,
             "baked_quantization_mode": baked_quantization_mode if baked_quantization_mode != "None" else None,
             "supports_layerwise_casting": self.supports_layerwise_casting,
             "requires_device_map": self.requires_device_map,
