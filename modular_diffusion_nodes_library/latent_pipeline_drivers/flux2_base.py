@@ -15,11 +15,12 @@ from diffusers.modular_pipelines.flux2.inputs import Flux2ProcessImagesInputStep
 from diffusers.modular_pipelines.flux2.modular_blocks_flux2 import Flux2AutoBlocks  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeResult,
+    DecodeOutputType,
     GeneratorState,
     ImageMedia,
     MaskMedia,
@@ -108,14 +109,14 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> Image:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
 
         decode_block = self.modular_pipe.blocks.sub_blocks["decode"]
-        output_state = self._call_block(decode_block, latents=latents, output_type="pil")
+        output_state = self._call_block(decode_block, latents=latents, output_type=output_type)
 
-        return self._get_required(output_state, "images", list)[0]
+        return self._get_decoded_media(output_state, "images", output_type, is_video=False)
 
     def _unpack_latents(self, latents: torch.Tensor, height: int, width: int) -> torch.Tensor:
         """Convert packed Flux2 latents ``[B, seq_len, C]`` to ``[B, C, H/vae/2, W/vae/2]``."""

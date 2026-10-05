@@ -23,7 +23,6 @@ from diffusers.modular_pipelines.qwenimage.modular_blocks_qwenimage import (
 )
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_model_parameter import HuggingFaceModelParameter
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -33,6 +32,8 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeResult,
+    DecodeOutputType,
     GeneratorState,
     ImageMedia,
     VideoMedia,
@@ -152,16 +153,14 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> Image:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
         latents = latents.unsqueeze(2)
 
         decode_pipeline = self.modular_pipe.blocks.sub_blocks["decode"]
-        output_state = self._call_block(decode_pipeline, latents=latents, output_type="pil")
-
-        output_image = self._get_required(output_state, "images", list)
-        return output_image[0]
+        output_state = self._call_block(decode_pipeline, latents=latents, output_type=output_type)
+        return self._get_decoded_media(output_state, "images", output_type, is_video=False)
 
     @override
     def add_noise_to_latent(

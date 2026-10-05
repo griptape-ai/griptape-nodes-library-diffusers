@@ -226,3 +226,6 @@ class DecodeHdrNode(VaeDecodeNode):
             return np.clip(tone_rgb, 0.0, 1.0)
 
         return apply
+
+    def _get_decode_output_type(self) -> DecodeOutputType:
+        return "np"

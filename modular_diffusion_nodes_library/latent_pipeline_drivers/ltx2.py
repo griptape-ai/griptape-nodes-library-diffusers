@@ -32,7 +32,8 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
-    DecodeOutput,
+    DecodeResult,
+    DecodeOutputType,
     GeneratorState,
     ImageMedia,
     PipelineOutput,
@@ -326,7 +327,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         return read_driver_meta(latent, AUDIO_LATENTS_META_KEY, self.driver_namespace)
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> DecodeOutput:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=torch.float32)
 
@@ -348,28 +349,37 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         with torch.no_grad():
             video = self.pipe.vae.decode(latents, timestep, return_dict=False)[0]
 
+        audio: torch.Tensor | None = None
+        audio_sample_rate: int | None = None
+        if audio_latents is not None:
+            with torch.no_grad():
+                audio_latents = audio_latents.to(device=device, dtype=self.pipe.audio_vae.dtype)
+                generated_mel_spectrograms = self.pipe.audio_vae.decode(audio_latents, return_dict=False)[0]
+                audio = self.pipe.vocoder(generated_mel_spectrograms)
+                audio_sample_rate = self.pipe.vocoder.config.output_sampling_rate
+
+        frames: Image | list[Image] | np.ndarray | None = None
         if self._latent_was_produced_for_hdr(latent):
             # HDR IC-LoRA path: return raw linear HDR for encode_hdr_tensor_to_mp4 in vae_decoder.
             # LTX2HDRPipeline never produces audio, so audio_latents is always None here.
-            return DecodeOutput(media=self._decode_hdr_to_linear_np(video))  # type: ignore[reportArgumentType]
+            frames = self._decode_hdr_to_linear_np(video)  # type: ignore[reportArgumentType]
+        else:
+            frames = self.pipe.video_processor.postprocess_video(video, output_type=output_type)[0]
 
-        frames = self.pipe.video_processor.postprocess_video(video, output_type="pil")[0]
+        if not frames:
+            raise ValueError("Failed to decode video frames.")
 
         if audio_latents is None:
             logger.debug(
                 "%s: decoding video only because the latent carries no audio latents in driver meta.",
                 self.driver_namespace,
             )
-            return DecodeOutput(media=frames)
+            return DecodeResult(media=frames)
 
-        with torch.no_grad():
-            audio_latents = audio_latents.to(device=device, dtype=self.pipe.audio_vae.dtype)
-            generated_mel_spectrograms = self.pipe.audio_vae.decode(audio_latents, return_dict=False)[0]
-            audio = self.pipe.vocoder(generated_mel_spectrograms)
-        return DecodeOutput(
+        return DecodeResult(
             media=frames,
             audio=audio,
-            audio_sample_rate=self.pipe.vocoder.config.output_sampling_rate,
+            audio_sample_rate=audio_sample_rate,
         )
 
     @override

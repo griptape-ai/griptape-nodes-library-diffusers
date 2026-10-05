@@ -4,8 +4,31 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 import cv2  # type: ignore[reportMissingImports]
+import numpy as np
+import torch  # type: ignore[reportMissingImports]
+import torch.nn.functional as F  # type: ignore[reportMissingImports]
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
 from griptape_nodes.files.file import File
+
+
+def resize_video_frames_torch(frames: np.ndarray, height: int, width: int) -> np.ndarray:
+    """Resize an FHWC float video array with antialiased bicubic interpolation.
+
+    Interpolation is computed in float32 and the input floating dtype is
+    restored on return. Values are not clipped or quantized.
+    """
+    if frames.ndim != 4 or frames.shape[-1] != 3:
+        raise ValueError(f"Expected RGB video frames with shape (F, H, W, 3), got {frames.shape}.")
+    if frames.dtype not in (np.dtype(np.float16), np.dtype(np.float32)):
+        raise TypeError(f"Expected float16 or float32 video frames, got {frames.dtype}.")
+    if height <= 0 or width <= 0:
+        raise ValueError(f"Resize dimensions must be positive, got height={height}, width={width}.")
+
+    input_tensor = torch.from_numpy(np.array(frames, copy=True, order="C"))
+    input_tensor = input_tensor.permute(0, 3, 1, 2).to(dtype=torch.float32)
+    resized_tensor = F.interpolate(input_tensor, size=(height, width), mode="bicubic", antialias=True)
+    resized_frames = resized_tensor.permute(0, 2, 3, 1).contiguous().numpy()
+    return resized_frames.astype(frames.dtype, copy=False)
 
 
 def download_video_to_temp_file(video_url_artifact: VideoUrlArtifact) -> Path:
