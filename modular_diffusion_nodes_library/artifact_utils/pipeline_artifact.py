@@ -27,10 +27,13 @@ from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
     require_bool,
     require_dict,
     require_loras,
+    require_runtime_loras,
     require_string,
     resolve_recipe_value,
 )
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
+from modular_diffusion_nodes_library.utils.lora_apply_utils import LoraPipelineRuntimeAdapterStep
+from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec
 from modular_diffusion_nodes_library.utils.pipeline_runtime_adapter_step import (
     PipelineRuntimeAdapterStep,
     rebuild_runtime_adapter_step,
@@ -272,9 +275,25 @@ class DiffusionPipelineArtifact:
         }
 
     def _ensure_recipe_serializable(self) -> None:
-        if self.runtime_adapter_steps():
-            msg = "Pipelines with runtime adapter steps cannot be saved. Save the base pipeline and reconnect the adapter."
+        steps = self.runtime_adapter_steps()
+        if len(steps) > 1:
+            msg = (
+                "Pipelines with more than one LoRA Pipeline node cannot be saved. "
+                "Connect all runtime LoRAs to a single LoRA Pipeline node."
+            )
             raise ValueError(msg)
+        for step in steps:
+            if not isinstance(step, LoraPipelineRuntimeAdapterStep):
+                msg = f"Pipelines with a '{step.KIND}' runtime adapter cannot be saved."
+                raise ValueError(msg)
+
+    def runtime_loras(self) -> dict[str, LoraSpec]:
+        """LoRAs activated per generation by a LoRA Pipeline node; empty when there are none."""
+        specs: dict[str, LoraSpec] = {}
+        for step in self.runtime_adapter_steps():
+            if isinstance(step, LoraPipelineRuntimeAdapterStep):
+                specs.update(step.loras)
+        return specs
 
     def to_recipe_dict(self) -> dict[str, Any]:
         """Render this pipeline configuration as a JSON-safe recipe dict."""
@@ -290,6 +309,9 @@ class DiffusionPipelineArtifact:
             "build_data": json_safe(self.build_data),
             "build_data_error": self.build_data_error,
             "loras": json_safe(self.loras),
+            "runtime_loras": json_safe(
+                [{"path": spec.path, "weight": float(spec.weight)} for spec in self.runtime_loras().values()]
+            ),
             "optimization": json_safe(self.optimization_kwargs),
             "flags": {
                 "is_prequantized": self.is_prequantized,
@@ -307,7 +329,8 @@ class DiffusionPipelineArtifact:
             raise ValueError(msg)
         builder = require_dict(data.get("builder"), "Pipeline builder")
         flags = require_dict(data.get("flags"), "Pipeline flags")
-        return cls(
+        runtime_loras = require_runtime_loras(resolve_recipe_value(data.get("runtime_loras", [])))
+        artifact = cls(
             pipeline_name=require_string(data.get("pipeline_name"), "Pipeline name"),
             config_hash=require_string(data.get("config_hash"), "Pipeline config hash"),
             builder_module=optional_string(builder.get("module"), "Pipeline builder module"),
@@ -322,6 +345,10 @@ class DiffusionPipelineArtifact:
             ),
             requires_device_map=require_bool(flags.get("requires_device_map"), "Pipeline requires_device_map flag"),
         )
+        if not runtime_loras:
+            return artifact
+        specs = {entry["path"]: LoraSpec(path=entry["path"], weight=float(entry["weight"])) for entry in runtime_loras}
+        return artifact.with_additional_runtime_adapter_steps([LoraPipelineRuntimeAdapterStep(specs)])
 
     def get_or_build_pipeline(self, log_params: Any | None = None) -> ModularPipeline | DiffusionPipeline | Any:
         if not self.config_hash:
