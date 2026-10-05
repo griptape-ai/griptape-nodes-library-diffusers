@@ -835,6 +835,16 @@
             }
         },
         {
+            "class_name": "SaveExrNode",
+            "file_path": "./modular_diffusion_nodes_library/nodes/save_exr_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/IO",
+                "description": "Write FloatMediaArtifact RGB frames to an OpenEXR sequence, optionally expanding DiffHDR log-gamma values back to linear radiance.",
+                "display_name": "Save EXR Sequence",
+                "group": "diffusion"
+            }
+        },
+        {
             "class_name": "VaeEncodeNode",
             "file_path": "./modular_diffusion_nodes_library/nodes/vae_encoder.py",
             "metadata": {
@@ -869,7 +879,7 @@
             "file_path": "./modular_diffusion_nodes_library/nodes/decode_hdr_node.py",
             "metadata": {
                 "category": "ModularDiffusion/Encode\\Decode",
-                "description": "Decode HDR VAE latent, apply tone mapping, and optionally save a raw EXR sequence.",
+                "description": "Decode VAE latents to float RGB media, publish a tone-mapped SDR preview, and expose raw media for EXR export.",
                 "display_name": "Decode HDR Latents",
                 "group": "diffusion"
             }

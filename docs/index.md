@@ -40,4 +40,5 @@ Node groups mirror the categories in [`griptape_nodes_library.json`](../griptape
 - [Decode HDR Latents](nodes/decode_hdr_latents.md)
 
 ### IO
+- [Save EXR Sequence](nodes/save_exr_sequence.md)
 - [Save Latent Tensor](nodes/save_latent_tensor.md)

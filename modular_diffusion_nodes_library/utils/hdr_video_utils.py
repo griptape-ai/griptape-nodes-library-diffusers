@@ -6,6 +6,35 @@ import Imath  # type: ignore[reportMissingImports]
 import numpy as np
 import OpenEXR  # type: ignore[reportMissingImports]
 
+LOG_GAMMA_DENOMINATOR = float(np.log(3.2))
+
+
+def srgb_to_linear(srgb: np.ndarray) -> np.ndarray:
+    """Convert normalized sRGB values in [0, 1] to linear light."""
+    if srgb.ndim < 1 or srgb.shape[-1] != 3:
+        raise ValueError(f"Expected an RGB array ending in 3 channels, got shape {srgb.shape}.")
+
+    srgb = np.clip(srgb.astype(np.float32, copy=False), 0.0, 1.0)
+    return np.where(srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055) ** 2.4)
+
+
+def linear_to_log_gamma(linear: np.ndarray) -> np.ndarray:
+    """Compress linear-light RGB values into DiffHDR's normalized log-gamma range."""
+    if linear.ndim < 1 or linear.shape[-1] != 3:
+        raise ValueError(f"Expected an RGB array ending in 3 channels, got shape {linear.shape}.")
+
+    linear = np.maximum(linear.astype(np.float32, copy=False), 0.0)
+    return np.log(2.2 * linear + 1.0) / LOG_GAMMA_DENOMINATOR
+
+
+def inverse_log_gamma(log_gamma: np.ndarray) -> np.ndarray:
+    """Expand DiffHDR log-gamma RGB values into linear-light radiance."""
+    if log_gamma.ndim < 1 or log_gamma.shape[-1] != 3:
+        raise ValueError(f"Expected an RGB array ending in 3 channels, got shape {log_gamma.shape}.")
+
+    values = log_gamma.astype(np.float32, copy=False)
+    return (np.exp(values * LOG_GAMMA_DENOMINATOR) - 1.0) / 2.2
+
 
 @dataclass(frozen=True)
 class ExrFrameWriteEvent:
