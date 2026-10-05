@@ -1,6 +1,6 @@
 # /// script
 # dependencies = []
-# 
+#
 # [tool.griptape-nodes]
 # name = "SavePipelineConfig"
 # schema_version = "0.20.0"
@@ -13,7 +13,7 @@
 # is_template = true
 # creation_date = 2026-09-09T17:09:35.390419Z
 # last_modified_date = 2026-09-09T17:19:16.504683Z
-# 
+#
 # ///
 
 import pickle

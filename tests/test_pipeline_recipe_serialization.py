@@ -47,17 +47,16 @@ def test_serialize_base_pipeline_artifact() -> None:
             "type": "base",
             "pipeline_name": "TestPipeline",
             "config_hash": "pipeline-hash",
-            "builder": {"module": "test.module", "class_name": "TestParameters"},
+            "builder_module": "test.module",
+            "builder_class_name": "TestParameters",
             "build_data": {"repo_id": "org/model", "revision": "commit-hash"},
             "build_data_error": None,
             "loras": {"/tmp/style.safetensors": 0.8},
             "runtime_loras": [],
             "optimization": {"vae_slicing": True},
-            "flags": {
-                "is_prequantized": False,
-                "supports_layerwise_casting": True,
-                "requires_device_map": False,
-            },
+            "is_prequantized": False,
+            "supports_layerwise_casting": True,
+            "requires_device_map": False,
         },
     }
 
@@ -127,6 +126,10 @@ def test_serialize_non_lora_runtime_adapter_is_refused() -> None:
 
         def _metadata(self) -> dict:
             return {}
+
+        @classmethod
+        def _from_metadata(cls, data: dict) -> "_OtherStep":
+            return cls()
 
         def activate(self, pipe, *, node_name=None): ...
 
@@ -301,7 +304,7 @@ class _OverridesOnlyPipeline:
 
 
 class _OverridesOnlyBuilder(ModularDiffusionPipelineTypePipelineParameters):
-    _pipeline_cls = _OverridesOnlyPipeline
+    _pipeline_cls_path = f"{__name__}:_OverridesOnlyPipeline"
 
     def add_input_parameters(self) -> None: ...
 
