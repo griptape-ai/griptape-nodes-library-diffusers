@@ -305,7 +305,8 @@ class DiffusionPipelineArtifact:
             "type": "base",
             "pipeline_name": self.pipeline_name,
             "config_hash": self.config_hash,
-            "builder": {"module": self.builder_module, "class_name": self.builder_class_name},
+            "builder_module": self.builder_module,
+            "builder_class_name": self.builder_class_name,
             "build_data": json_safe(self.build_data),
             "build_data_error": self.build_data_error,
             "loras": json_safe(self.loras),
@@ -313,11 +314,9 @@ class DiffusionPipelineArtifact:
                 [{"path": spec.path, "weight": float(spec.weight)} for spec in self.runtime_loras().values()]
             ),
             "optimization": json_safe(self.optimization_kwargs),
-            "flags": {
-                "is_prequantized": self.is_prequantized,
-                "supports_layerwise_casting": self.supports_layerwise_casting,
-                "requires_device_map": self.requires_device_map,
-            },
+            "is_prequantized": self.is_prequantized,
+            "supports_layerwise_casting": self.supports_layerwise_casting,
+            "requires_device_map": self.requires_device_map,
         }
 
     @classmethod
@@ -327,23 +326,21 @@ class DiffusionPipelineArtifact:
         if artifact_type != "base":
             msg = f"Unsupported pipeline recipe artifact type: {artifact_type!r}"
             raise ValueError(msg)
-        builder = require_dict(data.get("builder"), "Pipeline builder")
-        flags = require_dict(data.get("flags"), "Pipeline flags")
         runtime_loras = require_runtime_loras(resolve_recipe_value(data.get("runtime_loras", [])))
         artifact = cls(
             pipeline_name=require_string(data.get("pipeline_name"), "Pipeline name"),
             config_hash=require_string(data.get("config_hash"), "Pipeline config hash"),
-            builder_module=optional_string(builder.get("module"), "Pipeline builder module"),
-            builder_class_name=optional_string(builder.get("class_name"), "Pipeline builder class name"),
+            builder_module=optional_string(data.get("builder_module"), "Pipeline builder module"),
+            builder_class_name=optional_string(data.get("builder_class_name"), "Pipeline builder class name"),
             build_data=require_dict(resolve_recipe_value(data.get("build_data")), "Pipeline build data"),
             build_data_error=optional_string(data.get("build_data_error"), "Pipeline build data error"),
             loras=require_loras(resolve_recipe_value(data.get("loras"))),
             optimization_kwargs=require_dict(resolve_recipe_value(data.get("optimization")), "Pipeline optimization"),
-            is_prequantized=require_bool(flags.get("is_prequantized"), "Pipeline is_prequantized flag"),
+            is_prequantized=require_bool(data.get("is_prequantized"), "Pipeline is_prequantized flag"),
             supports_layerwise_casting=require_bool(
-                flags.get("supports_layerwise_casting"), "Pipeline supports_layerwise_casting flag"
+                data.get("supports_layerwise_casting"), "Pipeline supports_layerwise_casting flag"
             ),
-            requires_device_map=require_bool(flags.get("requires_device_map"), "Pipeline requires_device_map flag"),
+            requires_device_map=require_bool(data.get("requires_device_map"), "Pipeline requires_device_map flag"),
         )
         if not runtime_loras:
             return artifact
