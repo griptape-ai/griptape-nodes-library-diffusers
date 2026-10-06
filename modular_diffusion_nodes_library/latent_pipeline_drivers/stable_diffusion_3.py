@@ -75,7 +75,7 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def _get_spatial_alignment(self) -> int:
-        return self.pipe.vae_scale_factor * self.pipe.patch_size
+        return self.pipe.vae_scale_factor * self.pipe.transformer.config.patch_size
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
