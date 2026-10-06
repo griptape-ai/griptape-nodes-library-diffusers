@@ -42,7 +42,6 @@ class PathRequirement(NamedTuple):
 class WorkflowDependencies:
     workflow_path: Path
     model_dependencies: tuple[ModelDependency, ...] = ()
-    library_names: tuple[str, ...] = ()
     lora_file_paths: tuple[str, ...] = ()
     path_requirements: tuple[PathRequirement, ...] = ()
     blockers: tuple[ExtractionBlocker, ...] = ()
@@ -118,31 +117,6 @@ def _extract_embedded_values(module: ast.Module) -> EmbeddedValues:
             values[key_node.value] = _EmbeddedValue(value=value)
 
     return values
-
-
-def _extract_library_names(module: ast.Module) -> tuple[tuple[str, ...], tuple[ExtractionBlocker, ...]]:
-    """Extract every literal specific_library_name from CreateNodeRequest calls."""
-    library_names: set[str] = set()
-    blockers: list[ExtractionBlocker] = []
-
-    calls = [node for node in ast.walk(module) if _is_named_call(node, "CreateNodeRequest")]
-    calls.sort(key=lambda node: (node.lineno, node.col_offset))
-    for call in calls:
-        for keyword in call.keywords:
-            if keyword.arg != "specific_library_name":
-                continue
-            if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
-                library_names.add(keyword.value.value)
-                continue
-            blockers.append(
-                ExtractionBlocker(
-                    code="unresolved-library-name",
-                    detail="CreateNodeRequest specific_library_name is not a string literal",
-                    source=_source_location(keyword.value),
-                )
-            )
-
-    return tuple(sorted(library_names)), tuple(sorted(blockers))
 
 
 REPO_ID_PATTERN = re.compile(r"\b[\w.-]+/[\w.-]+\b")
@@ -727,15 +701,13 @@ def extract_workflow_dependencies(workflow_path: Path) -> WorkflowDependencies:
 
     embedded_values = _extract_embedded_values(module)
     node_types = _collect_node_types(module)
-    library_names, library_blockers = _extract_library_names(module)
     model_dependencies, model_blockers = _extract_model_dependencies(module, embedded_values)
     lora_file_paths, lora_blockers = _extract_lora_file_paths(module, embedded_values, node_types)
     path_requirements, path_blockers = _extract_path_dependencies(module, embedded_values, node_types)
-    blockers = tuple(sorted(library_blockers + model_blockers + lora_blockers + path_blockers))
+    blockers = tuple(sorted(model_blockers + lora_blockers + path_blockers))
     return WorkflowDependencies(
         workflow_path=workflow_path,
         model_dependencies=model_dependencies,
-        library_names=library_names,
         lora_file_paths=lora_file_paths,
         path_requirements=path_requirements,
         blockers=blockers,

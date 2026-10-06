@@ -78,7 +78,8 @@ class LatentDiffusionPipelineBuilderControlNetParameter:
 
     def get_control_nets(self) -> list[dict[str, Any]]:
         control_nets_list = self._node.get_parameter_value(self._control_nets_parameter_name) or []
-        return control_nets_list
+        # A disconnected slot keeps its empty-list default; empty dicts are kept so validation can report them.
+        return [control_net for control_net in control_nets_list if control_net != []]
 
     @staticmethod
     def get_control_net_parameters(control_nets: list[dict[str, Any]]) -> list[dict[str, Any]] | None:

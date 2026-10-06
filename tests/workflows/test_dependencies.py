@@ -28,7 +28,6 @@ class TestTemplateBoundary:
 
         assert result.conclusive
         assert result.model_dependencies == ()
-        assert result.library_names == ()
         assert result.blockers == ()
 
     def test_missing_template_has_read_blocker(self, tmp_path: Path) -> None:
@@ -95,34 +94,6 @@ class TestEmbeddedValues:
         values = _extract_embedded_values(module)
 
         assert values["key"].error == "unsupported embedded value expression"
-
-
-class TestLibraryExtraction:
-    def test_literal_library_names_are_exact_sorted_and_deduplicated(self, tmp_path: Path) -> None:
-        workflow_path = tmp_path / "workflow.py"
-        workflow_path.write_text(
-            "CreateNodeRequest(node_type='A', specific_library_name='Library B')\n"
-            "CreateNodeRequest(node_type='B', specific_library_name='Library A')\n"
-            "CreateNodeRequest(node_type='C', specific_library_name='Library B')\n",
-            encoding="utf-8",
-        )
-
-        result = extract_workflow_dependencies(workflow_path)
-
-        assert result.conclusive
-        assert result.library_names == ("Library A", "Library B")
-
-    def test_dynamic_library_name_blocks_extraction(self, tmp_path: Path) -> None:
-        workflow_path = tmp_path / "workflow.py"
-        workflow_path.write_text(
-            "CreateNodeRequest(node_type='A', specific_library_name=library_name)\n",
-            encoding="utf-8",
-        )
-
-        result = extract_workflow_dependencies(workflow_path)
-
-        assert not result.conclusive
-        assert [blocker.code for blocker in result.blockers] == ["unresolved-library-name"]
 
 
 def _write_workflow(tmp_path: Path, source: str) -> Path:
@@ -666,7 +637,6 @@ class TestPreflightAdapter:
 
         monkeypatch.setattr(preflight, "_discover_workflow_templates", lambda: sorted(canonical_results))
         monkeypatch.setattr(preflight, "extract_workflow_dependencies", _fake_extract_workflow_dependencies)
-        monkeypatch.setattr(preflight, "_discover_installed_library_manifests", lambda: {})
         monkeypatch.setattr(preflight, "list_repo_revisions_in_cache", lambda repo_id: [])  # noqa: ARG005
 
         preflight_data = preflight._build_preflight_data()
@@ -687,7 +657,6 @@ class TestPreflightAdapter:
         )
         monkeypatch.setattr(preflight, "_discover_workflow_templates", lambda: [workflow_path.name])
         monkeypatch.setattr(preflight, "extract_workflow_dependencies", lambda _: result)
-        monkeypatch.setattr(preflight, "_discover_installed_library_manifests", lambda: {})
         monkeypatch.setattr(preflight, "list_repo_revisions_in_cache", lambda repo_id: [])
 
         preflight_data = preflight._build_preflight_data()
