@@ -18,6 +18,7 @@ from modular_diffusion_nodes_library.parameters.controlnet_pipeline_builder_para
     LatentDiffusionPipelineBuilderControlNetParameter,
 )
 from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import find_provider_for_pipeline_type
+from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -253,11 +254,11 @@ class ControlNetDiffusionPipelineBuilderNode(SuccessFailureExecutionMixin, Succe
 
         def build() -> Any:
             with self.log_params.append_profile_to_logs("Pipeline building/caching"):
-                return pipeline_artifact.get_or_build_pipeline(self, log_params=self.log_params)
+                return pipeline_artifact.get_or_build_pipeline(log_params=self.log_params)
 
         def cleanup() -> None:
             self.log_params.append_to_logs("Pipeline building failed.\n")
-            self.local_objects.drop(self.local_objects.key_for(pipeline_artifact.config_hash))
+            model_cache.remove_pipeline(pipeline_artifact.config_hash)
             cleanup_memory_caches()
 
         return self._run_with_status(

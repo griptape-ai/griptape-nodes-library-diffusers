@@ -25,6 +25,7 @@ from modular_diffusion_nodes_library.parameters.pipeline_parameters import (
 )
 from modular_diffusion_nodes_library.utils.config_utils import get_config_value
 from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
+from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -182,13 +183,10 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
 
         # `build_if_needed` is really "I am in the execution environment": True comes only from
         # `validate_in_execution_environment`, and everything past this point reaches diffusers. A
-        # resident pipeline is the proxy, `local_objects` being process-local, so a miss means either no
+        # resident pipeline is the proxy, `model_cache` being process-local, so a miss means either no
         # pipeline or the wrong process.
         if not build_if_needed:
-            if (
-                not pipeline_value.config_hash
-                or self.local_objects.get(self.local_objects.key_for(pipeline_value.config_hash)) is None
-            ):
+            if not pipeline_value.config_hash or not model_cache.has_pipeline(pipeline_value.config_hash):
                 self._set_compatibility_message(None)
                 return None
 

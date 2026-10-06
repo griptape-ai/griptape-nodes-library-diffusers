@@ -96,7 +96,7 @@ class ModularDiffusionPipelineParameters:
                 f"{node_name}: Pipeline value must be DiffusionPipelineArtifact. "
                 f"Got type '{type(pipeline_value).__name__}'."
             )
-        pipeline = pipeline_value.get_or_build_pipeline(self._node)
+        pipeline = pipeline_value.get_or_build_pipeline()
         if pipeline is None:
             raise RuntimeError(f"{node_name}: Pipeline build returned None.")
         return cast(DiffusionPipeline, pipeline)

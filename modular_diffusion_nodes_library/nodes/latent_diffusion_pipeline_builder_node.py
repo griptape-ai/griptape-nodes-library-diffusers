@@ -2,7 +2,7 @@ import logging
 from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage
-from griptape_nodes.exe_types.node_types import AsyncResult, BaseNode, SuccessFailureNode
+from griptape_nodes.exe_types.node_types import AsyncResult, BaseNode, NodeResolutionState, SuccessFailureNode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
@@ -26,6 +26,7 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
 from modular_diffusion_nodes_library.parameters.pipeline_builder_parameters import (
     LatentDiffusionPipelineBuilderParameters,
 )
+from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.lora_utils import LorasParameter
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
@@ -87,11 +88,20 @@ class LatentDiffusionPipelineBuilderNode(
         self.params.refresh_component_override_ports(initial_setup=True)
         self.set_pipeline_artifact()
 
-    # No `state` override that reports UNRESOLVED on a cache miss: node state is read on the
-    # orchestrator, while the pipeline is held in the worker under keys namespaced to that process, so
-    # the answer would always be "not cached" and this node would reload the model on every execution.
-    # `get_or_build_pipeline` rebuilds on a miss in the process that holds the cache, which is the only
-    # place eviction can be observed.
+    @property
+    def state(self) -> NodeResolutionState:
+        """Overrides BaseNode.state @property to compute state based on pipeline's existence in model_cache, ensuring pipeline rebuild if missing."""
+        pipeline_artifact = self.get_pipeline_artifact()
+        if pipeline_artifact is None or pipeline_artifact.config_hash is None:
+            return super().state
+        if self._state == NodeResolutionState.RESOLVED and not model_cache.has_pipeline(pipeline_artifact.config_hash):
+            logger.debug("Pipeline not found in cache, marking node as UNRESOLVED")
+            return NodeResolutionState.UNRESOLVED
+        return super().state
+
+    @state.setter
+    def state(self, new_state: NodeResolutionState) -> None:
+        self._state = new_state
 
     def set_pipeline_artifact(self) -> None:
         pipeline_artifact = self.build_pipeline_artifact()
@@ -382,12 +392,12 @@ class LatentDiffusionPipelineBuilderNode(
 
         def build() -> Any:
             with self.log_params.append_profile_to_logs("Pipeline building/caching"):
-                return pipeline_artifact.get_or_build_pipeline(self, log_params=self.log_params)
+                return pipeline_artifact.get_or_build_pipeline(log_params=self.log_params)
 
         def cleanup() -> None:
             self.log_params.append_to_logs("Pipeline building failed.\n")
             if pipeline_artifact.config_hash is not None:
-                self.local_objects.drop(self.local_objects.key_for(pipeline_artifact.config_hash))
+                model_cache.remove_pipeline(pipeline_artifact.config_hash)
             cleanup_memory_caches()
 
         return self._run_with_status(

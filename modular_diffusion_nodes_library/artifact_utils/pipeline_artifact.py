@@ -20,16 +20,15 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_build_steps import 
     LoadPipelineStep,
     run_build_steps,
 )
+from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_runtime_adapter_step import (
     PipelineRuntimeAdapterStep,
     rebuild_runtime_adapter_step,
 )
-from modular_diffusion_nodes_library.utils.pipeline_utils import clear_diffusion_pipeline
 
 if TYPE_CHECKING:
     from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-    from griptape_nodes.exe_types.node_types import BaseNode
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -44,29 +43,6 @@ _ARTIFACT_CLASSES: dict[str, type[DiffusionPipelineArtifact]] = {}
 #: the owning parameter class's `_pipeline_cls_path`, which `build_pipeline_from_build_data` already
 #: falls back to, so dropping it loses nothing.
 _UNSENDABLE_BUILD_DATA_KEYS = frozenset({"_pipeline_cls"})
-
-
-#: The cache keys this process holds a built pipeline under. The object store cannot list what a
-#: library holds, and the library's entries are not the only ones under its name: the engine parks
-#: every `serializable=False` parameter value under the same group, so a bulk drop by group takes a
-#: downstream node's latents with it. A key dropped elsewhere stays in here until the next clear,
-#: where it simply answers "not held".
-_HELD_PIPELINE_KEYS: set[str] = set()
-
-
-def release_held_pipelines(node: BaseNode, *, keep: str | None = None) -> int:
-    """Release every pipeline built in this process, returning how many were still held.
-
-    `keep` names a config hash to leave held, for a build that reuses that pipeline's components:
-    releasing it runs `clear_diffusion_pipeline`, which moves those shared components to the CPU
-    underneath the pipeline being built from them.
-    """
-    cache = node.local_objects
-    keep_key = cache.key_for(keep) if keep is not None else None
-    targets = sorted(_HELD_PIPELINE_KEYS - {keep_key})
-    released = sum(1 for key in targets if cache.drop(key))
-    _HELD_PIPELINE_KEYS.difference_update(targets)
-    return released
 
 
 def _unstructure_build_data(build_data: dict[str, Any]) -> dict[str, Any]:
@@ -151,10 +127,9 @@ class DiffusionPipelineArtifact:
 
     The artifact itself is not a built pipeline; it captures only the
     information required to reproduce one (`build_data`, LoRAs, optimization
-    flags, etc.) plus a config hash used as the cache key. The actual pipeline
-    instance is built lazily by `get_or_build_pipeline()`, which holds it in the
-    worker's local object store under that hash. The artifact stays reproducible
-    rather than becoming a reference, so an evicted pipeline can be rebuilt.
+    flags, etc.) plus a config hash used as the model cache key. The actual
+    pipeline instance is built lazily by `get_or_build_pipeline()`, which
+    delegates to the global `model_cache`.
 
     Subclasses (e.g. `ControlNetDiffusionPipelineArtifact`) layer additional
     configuration on top of a base artifact. A subclass that adds state must
@@ -285,24 +260,16 @@ class DiffusionPipelineArtifact:
             "runtime_adapter_steps": [step.metadata for step in self.runtime_adapter_steps()],
         }
 
-    def get_or_build_pipeline(
-        self, node: BaseNode, log_params: Any | None = None
-    ) -> ModularPipeline | DiffusionPipeline | Any:
+    def get_or_build_pipeline(self, log_params: Any | None = None) -> ModularPipeline | DiffusionPipeline | Any:
         if not self.config_hash:
             raise ValueError("Config hash is required to get or build pipeline from artifact.")
 
-        cache = node.local_objects
-        pipe = cache.get(cache.key_for(self.config_hash))
-        if pipe is not None:
+        if model_cache.has_pipeline(self.config_hash):
             self._append_log(log_params, "Using cached pipeline.\n")
-            return pipe
+            return model_cache.get_pipeline(self.config_hash)
 
         self._append_log(log_params, "No cached pipeline found. Building new pipeline.\n")
-        # One pipeline resident at a time: free the previous one's VRAM before allocating the next.
-        release_held_pipelines(node)
-        pipe = self._build_pipeline(log_params=log_params)
-        _HELD_PIPELINE_KEYS.add(cache.put(pipe, key=self.config_hash, on_drop=clear_diffusion_pipeline))
-        return pipe
+        return model_cache.get_or_build_pipeline(self.config_hash, lambda: self._build_pipeline(log_params=log_params))
 
     # --- Crossing a process boundary ------------------------------------------------------------
     #
@@ -398,8 +365,8 @@ class DiffusionPipelineArtifact:
             is_reuse=is_reuse,
         )
 
-    def __call__(self, node: BaseNode) -> ModularPipeline | DiffusionPipeline | Any:
-        return self.get_or_build_pipeline(node)
+    def __call__(self) -> ModularPipeline | DiffusionPipeline | Any:
+        return self.get_or_build_pipeline()
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, DiffusionPipelineArtifact):
@@ -507,40 +474,36 @@ class BaseDiffusionPipelineArtifact(DiffusionPipelineArtifact, ABC):
         """Return context string for reuse log messages (e.g., 'control net', 'LoRA pipeline')."""
         ...
 
-    def get_or_build_pipeline(
-        self, node: BaseNode, log_params: Any | None = None
-    ) -> ModularPipeline | DiffusionPipeline | Any:
+    def get_or_build_pipeline(self, log_params: Any | None = None) -> ModularPipeline | DiffusionPipeline | Any:
         if not self.config_hash:
             raise ValueError("Config hash is required to get or build pipeline from artifact.")
 
+        if model_cache.has_pipeline(self.config_hash):
+            self._append_log(log_params, "Using cached pipeline.\n")
+            return model_cache.get_pipeline(self.config_hash)
+
+        self._append_log(log_params, "No cached pipeline found. Building new pipeline.\n")
+        base_pipe_ref = None
         base_config_hash = self._base_artifact.config_hash
         if not base_config_hash:
             raise ValueError("Base artifact config hash is required to get or build pipeline from artifact.")
 
-        cache = node.local_objects
-        derived_pipeline = cache.get(cache.key_for(self.config_hash))
-        if derived_pipeline is not None:
-            self._append_log(log_params, "Using cached pipeline.\n")
-            return derived_pipeline
+        if model_cache.has_pipeline(base_config_hash):
+            self._append_log(log_params, "Base pipeline found in cache. Capturing reference for reuse.\n")
+            base_pipe_ref = model_cache.get_pipeline(base_config_hash)
+            model_cache.take_pipeline(base_config_hash)
 
-        self._append_log(log_params, "No cached pipeline found. Building new pipeline.\n")
-        base_key = cache.key_for(base_config_hash)
-        base_pipe_ref = cache.get(base_key)
-        if base_pipe_ref is not None:
-            self._append_log(log_params, "Base pipeline found in cache. Reusing its components.\n")
-
-        release_held_pipelines(node, keep=base_config_hash if base_pipe_ref is not None else None)
-        derived_pipeline = self._build_pipeline_with_base(base_pipe_ref, log_params=log_params)
-        _HELD_PIPELINE_KEYS.add(cache.put(derived_pipeline, key=self.config_hash, on_drop=clear_diffusion_pipeline))
-
-        if base_pipe_ref is not None and not self._should_return_base_to_cache():
-            context = self._get_reuse_log_context()
-            self._append_log(log_params, f"Dropping the contaminated base pipeline after {context} build.\n")
-            # Re-registering the same object clears its release hook without running it, which is what
-            # makes the drop below forget the entry rather than tear it down: `clear_diffusion_pipeline`
-            # moves every component to CPU, and the derived pipeline shares those components.
-            cache.put(base_pipe_ref, key=base_config_hash, on_drop=None)
-            cache.drop(base_key)
+        try:
+            derived_pipeline = model_cache.get_or_build_pipeline(
+                self.config_hash,
+                lambda: self._build_pipeline_with_base(base_pipe_ref, log_params=log_params),
+            )
+        finally:
+            if base_pipe_ref is not None and not model_cache.has_pipeline(base_config_hash):
+                if self._should_return_base_to_cache():
+                    context = self._get_reuse_log_context()
+                    self._append_log(log_params, f"Re-adding base pipeline to cache after {context} build.\n")
+                    model_cache.add_pipeline(base_config_hash, base_pipe_ref)
 
         return derived_pipeline
 
