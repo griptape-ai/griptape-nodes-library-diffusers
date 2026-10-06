@@ -153,6 +153,15 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         if result is not None:
             return result
 
+        driver_spec = get_driver_spec(self.pipe_params.get_pipeline_class())
+        if driver_spec is not None:
+            non_positive_dimension_message = self._get_non_positive_dimension_message(driver_spec.produces_video)
+            if non_positive_dimension_message:
+                self._set_compatibility_message(non_positive_dimension_message)
+                return [
+                    ValueError(f"Attempted to create noise latent on '{self.name}'. {non_positive_dimension_message}")
+                ]
+
         return None
 
     def validate_in_execution_environment(self) -> list[Exception] | None:
@@ -176,8 +185,14 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
             return None
 
         pipeline_class = self.pipe_params.get_pipeline_class()
-        if get_driver_spec(pipeline_class) is None:
+        driver_spec = get_driver_spec(pipeline_class)
+        if driver_spec is None:
             self._set_compatibility_message(None)
+            return None
+
+        non_positive_dimension_message = self._get_non_positive_dimension_message(driver_spec.produces_video)
+        if non_positive_dimension_message:
+            self._set_compatibility_message(non_positive_dimension_message)
             return None
 
         # `build_if_needed` is really "I am in the execution environment": True comes only from
@@ -194,12 +209,33 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
 
         pipe = self.pipe_params.get_pipeline()
         latent_pipeline_driver = create_driver(pipe, pipeline_class)
-        num_frames = self.get_parameter_value("num_frames") or 1
-        height = self.get_parameter_value("height") or 1
-        width = self.get_parameter_value("width") or 1
+        num_frames = self._get_video_num_frames(latent_pipeline_driver.produces_video)
+        height = self.get_parameter_value("height")
+        width = self.get_parameter_value("width")
         result = snap_dimensions(latent_pipeline_driver, height, width, num_frames)
         self._set_compatibility_message(result.message)
         return result
+
+    def _get_video_num_frames(self, for_video: bool) -> int | None:
+        if not for_video:
+            return None
+        num_frames = self.get_parameter_value("num_frames")
+        if num_frames is None:
+            return 0
+        return num_frames
+
+    def _get_non_positive_dimension_message(self, produces_video: bool) -> str | None:
+        names = ["width", "height"]
+        if produces_video:
+            names.append("num_frames")
+        invalid = []
+        for name in names:
+            value = self.get_parameter_value(name)
+            if value is None or value < 1:
+                invalid.append(f"{name}={value}")
+        if not invalid:
+            return None
+        return f"{', '.join(invalid)} is invalid: must be a positive integer (greater than 0)."
 
     def _set_compatibility_message(self, message_str: str | None) -> None:
         if message_str:
@@ -237,7 +273,7 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         width = self.get_parameter_value("width")
         seed = self.get_parameter_value("seed") or 0
         generator_state = GeneratorState.from_seed(seed)
-        num_frames = self.get_parameter_value("num_frames") or None
+        num_frames = self._get_video_num_frames(latent_pipeline_driver.produces_video)
 
         result = snap_dimensions(latent_pipeline_driver, height, width, num_frames)
         if result.message:

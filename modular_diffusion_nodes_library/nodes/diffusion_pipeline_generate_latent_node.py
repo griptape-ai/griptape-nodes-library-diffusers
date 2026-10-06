@@ -211,6 +211,10 @@ class DiffusionPipelineGenerateLatentNode(
         if result is not None:
             return result
 
+        result = self.latent_parameter.validate_before_node_run()
+        if result is not None:
+            return result
+
         input_pipeline = self.get_parameter_value("pipeline")
         control_net_parameters = self.latent_parameter.get_control_net_parameters()
         if not control_net_parameters and self.latent_parameter._is_control_net_pipeline(input_pipeline):
