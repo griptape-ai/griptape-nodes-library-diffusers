@@ -366,7 +366,11 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         else:
             frames = self.pipe.video_processor.postprocess_video(video, output_type=output_type)[0]
 
-        if not frames:
+        if (
+            frames is None
+            or (isinstance(frames, np.ndarray) and frames.size == 0)
+            or (isinstance(frames, list) and not frames)
+        ):
             raise ValueError("Failed to decode video frames.")
 
         if audio_latents is None:

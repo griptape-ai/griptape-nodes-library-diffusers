@@ -164,8 +164,6 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                     serializable=False,
                 )
             )
-            # Reorder to ensure fps appears before output_video
-            self._reorder_parameters_for_video()
         else:
             self.remove_parameter_element_by_name("output_video")
             self.remove_parameter_element_by_name("fps")
@@ -181,9 +179,10 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             )
 
         self._current_output_type = new_output_type
+        self._reorder_parameters_for_dynamic_output()
 
-    def _reorder_parameters_for_video(self) -> None:
-        """Reorder parameters to ensure fps appears before output_video in the GUI."""
+    def _reorder_parameters_for_dynamic_output(self) -> None:
+        """Keep video controls ordered and pin the Status group to the bottom."""
         all_params = [element.name for element in self.root_ui_element.children]
         tail = [name for name in self._tail_parameter_names() if name in all_params]
         for name in tail:
@@ -198,7 +197,7 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
     def _tail_parameter_names(self) -> list[str]:
         """Names of parameters that must remain pinned to the bottom on reorder."""
-        return []
+        return ["Status"]
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors: list[Exception] = []
