@@ -21,7 +21,6 @@ Node groups mirror the categories in [`griptape-nodes-library.json`](../griptape
 - [Load Scheduler](nodes/load_scheduler.md)
 - [LoRA Pipeline](nodes/lora_pipeline.md)
 - [Clear Pipeline Cache](nodes/clear_pipeline_cache.md)
-- [Release Pipeline](nodes/release_pipeline.md)
 
 ### Create
 - [Create Noise Latents](nodes/create-noise-latents.md)
