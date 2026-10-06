@@ -203,7 +203,7 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> ModularPipeline | DiffusionPipeline | Any | None:
         """Build pipeline directly from materialized component overrides."""
-        pipeline_cls = build_data["_pipeline_cls"]
+        pipeline_cls = build_data.get("_pipeline_cls") or cls.pipeline_cls()
         return pipeline_cls(**overrides)
 
     @classmethod
