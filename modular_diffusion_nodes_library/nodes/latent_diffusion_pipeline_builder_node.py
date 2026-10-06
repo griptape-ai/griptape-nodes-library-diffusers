@@ -87,12 +87,6 @@ class LatentDiffusionPipelineBuilderNode(
         self.params.refresh_component_override_ports(initial_setup=True)
         self.set_pipeline_artifact()
 
-    # No `state` override that reports UNRESOLVED on a cache miss: node state is read on the
-    # orchestrator, while the pipeline is held in the worker under keys namespaced to that process, so
-    # the answer would always be "not cached" and this node would reload the model on every execution.
-    # `get_or_build_pipeline` rebuilds on a miss in the process that holds the cache, which is the only
-    # place eviction can be observed.
-
     def set_pipeline_artifact(self) -> None:
         pipeline_artifact = self.build_pipeline_artifact()
         if pipeline_artifact is None:
