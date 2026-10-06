@@ -110,7 +110,7 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
             control_net_model_lists = [control_net_model_lists]
 
         controlnet_torch_dtype = cls._get_torch_type(pipe)
-        from_pretrained_kwargs: dict[str, Any] = {}
+        from_pretrained_kwargs: dict[str, Any] = {"local_files_only": True}
         if controlnet_torch_dtype is not None:
             from_pretrained_kwargs["torch_dtype"] = controlnet_torch_dtype
 

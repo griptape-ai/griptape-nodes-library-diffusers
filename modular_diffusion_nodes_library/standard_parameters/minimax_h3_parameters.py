@@ -86,6 +86,7 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
             build_data["repo_id"],
             revision=build_data["revision"],
             components_manager=manager,
+            local_files_only=True,
         )
         pipe.load_components(workflow="fl2va", dtype=torch.bfloat16)
         manager.enable_auto_cpu_offload(
@@ -103,6 +104,7 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
             build_data["repo_id"],
             revision=build_data["revision"],
             components_manager=manager,
+            local_files_only=True,
         )
         pipe.load_components(workflow="fl2va", dtype=torch.bfloat16)
         manager.enable_auto_cpu_offload(
