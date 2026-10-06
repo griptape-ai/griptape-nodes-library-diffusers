@@ -62,11 +62,13 @@ Alternatively, register the library directly in your `griptape_nodes_config.json
 Models are selected on the Pipeline Builder via a `provider` dropdown. Currently supported:
 
 - **Flux** and **Flux2** (including Flux2-Klein)
-- **Stable Diffusion XL**
+- **Stable Diffusion XL** and **Stable Diffusion 3**
 - **Qwen-Image** (and Qwen-Edit)
 - **Z-Image**
 - **LTX** (video)
-- **LTX-2.x** (text/image/video-to-video, with image and video conditioning, IC-LoRA, and HDR IC-LoRA for linear HDR output)
+- **LTX-2.x** (text-to-video, image-to-video, video-to-video, image/video conditioning, IC-LoRA, and HDR IC-LoRA for linear HDR output).
+- **HunyuanVideo 1.5** (text-to-video and image-to-video)
+- **MiniMax-H3** (text-to-video and keyframe-to-video with jointly generated audio)
 - **WAN** (text-to-video and image-to-video)
 
 Models are loaded from Hugging Face repositories in Diffusers format (single-file `.safetensors` checkpoints are not loaded directly — use a Hugging Face repo ID). Multiple **LoRAs** can be attached to a pipeline via the builder.
@@ -113,9 +115,21 @@ Enable only what you need — each option trades some speed for memory. The Pipe
 - MultistageText2Image
 - LoRAText2Image
 - ControlnetText2Image
+- ControlnetInpainting
+- CustomPipelineText2Image
 - Image2Image
+- Inpainting
+- Flux2KleinGuidedInpainting
+- FluxKontextImageEdit
+- FluxKontextInpainting
 - FirstAndLastFrameImage2Video
+- LTX23-IC-LoRA
 - LTX23-HDR-Text2Video-Upsample-Two-Stage
+- Multi-ViewPromptBatcher
+- SuccessFailure
+- VideoInpaintingAndOutpaintingWANVace
+- WanAnimate
+- WanReplace
 
 ## Requirements
 
