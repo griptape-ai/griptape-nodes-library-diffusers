@@ -1,13 +1,11 @@
-const COLORS = [
-  "#2a78d6",
-  "#eb6834",
-  "#1baf7a",
-  "#eda100",
-  "#e87ba4",
-  "#008300",
-  "#4a3aa7",
-  "#e34948",
-];
+const COMPONENT_COLOR_FAMILIES = {
+  denoiser: ["#2a78d6", "#1c5cab", "#5598e7", "#104281"],
+  text_encoder: ["#eb6834", "#c95a2b", "#eda100", "#a86f00"],
+  controlnet: ["#008300", "#0f766e", "#199e70", "#0b5d56"],
+  vae: ["#1baf7a"],
+  other: ["#8a8a8a"],
+};
+const FALLBACK_COMPONENT_COLORS = ["#4a3aa7", "#6b4fc1", "#315f8c", "#736b2f"];
 const PEAK_OVERHEAD_COLOR = "#777";
 
 const ROLE_LABELS = {
@@ -141,6 +139,37 @@ export default function MemoryBreakdown(container, props) {
     return typeof value === "string" ? value : fallback;
   }
 
+  function componentColor(component) {
+    const role = component.role;
+    const id = component.id;
+    const family = COMPONENT_COLOR_FAMILIES[role];
+    if (!family) {
+      const hash = [...id].reduce((value, character) => value * 31 + character.charCodeAt(0), 0);
+      return FALLBACK_COMPONENT_COLORS[Math.abs(hash) % FALLBACK_COMPONENT_COLORS.length];
+    }
+
+    if (family.length === 1) return family[0];
+    if (role === "other") return family[0];
+
+    let shadeIndex = 0;
+    if (role === "denoiser") {
+      if (id === "unet") {
+        shadeIndex = 1;
+      } else {
+        const match = id.match(/^transformer_(\d+)$/);
+        if (match) shadeIndex = Math.max(0, Number(match[1]) - 1);
+      }
+    } else if (role === "text_encoder") {
+      const match = id.match(/^text_encoder(?:_(\d+))?$/);
+      if (match?.[1]) shadeIndex = Number(match[1]) - 1;
+    } else if (role === "controlnet") {
+      const match = id.match(/^controlnet(?:_(\d+))?$/);
+      if (match?.[1]) shadeIndex = Number(match[1]);
+    }
+
+    return family[shadeIndex % family.length];
+  }
+
   function createTextElement(tag, value, style = "") {
     const element = document.createElement(tag);
     element.textContent = value;
@@ -252,14 +281,14 @@ export default function MemoryBreakdown(container, props) {
     bar.style.cssText = "display:flex; gap:2px; min-height:24px; background:var(--surface-raised); border-radius:4px; overflow:hidden;";
     const hasDeviceCapacity = report.totalDeviceMemory > 0;
     const barTotal = hasDeviceCapacity ? report.totalDeviceMemory : report.total;
-    report.components.forEach((component, index) => {
+    report.components.forEach((component) => {
       const segment = document.createElement("div");
       const share = barTotal > 0 ? (component.total / barTotal) * 100 : 0;
       segment.tabIndex = 0;
       const shortTitle = `${component.label}: ${formatBytes(component.total)} (${share.toFixed(1)}%)`;
       segment.title = component.tooltip ? `${component.tooltip}\n${shortTitle}` : shortTitle;
       segment.setAttribute("aria-label", segment.title);
-      segment.style.cssText = `flex: 0 0 ${Math.max(0, share)}%; min-width: ${share > 0 ? "2px" : "0"}; background:${COLORS[index % COLORS.length]}; border-radius:3px; outline-offset:2px;`;
+      segment.style.cssText = `flex: 0 0 ${Math.max(0, share)}%; min-width: ${share > 0 ? "2px" : "0"}; background:${componentColor(component)}; border-radius:3px; outline-offset:2px;`;
       bar.appendChild(segment);
     });
     if (report.components.length === 0) {
@@ -306,7 +335,7 @@ export default function MemoryBreakdown(container, props) {
   function addDetails(report) {
     const details = document.createElement("div");
     details.style.cssText = "display:flex; flex-direction:column; gap:5px;";
-    report.components.forEach((component, index) => {
+    report.components.forEach((component) => {
       const row = document.createElement("div");
       row.tabIndex = 0;
       const shortTitle = `${component.label}: ${formatBytes(component.total)}`;
@@ -317,7 +346,7 @@ export default function MemoryBreakdown(container, props) {
       label.style.cssText = "min-width:0; display:flex; align-items:center; gap:6px;";
       const swatch = document.createElement("span");
       swatch.setAttribute("aria-hidden", "true");
-      swatch.style.cssText = `width:9px; height:9px; flex:0 0 9px; border-radius:2px; background:${COLORS[index % COLORS.length]};`;
+      swatch.style.cssText = `width:9px; height:9px; flex:0 0 9px; border-radius:2px; background:${componentColor(component)};`;
       label.appendChild(swatch);
       label.appendChild(createTextElement("span", component.label, "overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"));
       label.appendChild(createTextElement("small", ROLE_LABELS[component.role] || component.role, "color:var(--muted-ink);"));
