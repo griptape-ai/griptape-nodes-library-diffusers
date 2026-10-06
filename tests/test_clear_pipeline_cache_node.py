@@ -111,7 +111,7 @@ def test_clearing_leaves_a_parked_latent_alone(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_a_pipeline_released_elsewhere_is_not_counted(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Release Pipeline leaves its key in the record, and a count of what went has to ignore it."""
+    """An engine-side release leaves its key in the record, and a count of what went has to ignore it."""
     monkeypatch.setattr(pipeline_artifact, "clear_diffusion_pipeline", lambda pipe: None)
     node = _clear_node()
     _build(node, "flux-cfg")
