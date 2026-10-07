@@ -72,6 +72,7 @@ def test_estimate_merges_multiple_runtime_loras_into_transformer(tmp_path) -> No
     assert transformer.tooltip is not None
     assert "of base transformer weights" in transformer.tooltip
     assert "of combined transformer weights" in transformer.tooltip
+    assert "bytes" not in transformer.tooltip
     assert len(estimate.lora_adapters) == 2
     assert "lora_adapter" not in {component.role for component in estimate.components}
 
