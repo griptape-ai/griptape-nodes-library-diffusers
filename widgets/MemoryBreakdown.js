@@ -332,6 +332,27 @@ export default function MemoryBreakdown(container, props) {
     }
   }
 
+  function addLoraDetails(report) {
+    if (report.loraAdapters.length === 0) return;
+
+    const details = document.createElement("div");
+    details.style.cssText = "display:flex; flex-direction:column; gap:3px; border-top:1px solid var(--line); padding-top:7px;";
+    details.appendChild(createTextElement("strong", "LoRA adapters", "font-size:11px; color:var(--secondary-ink);"));
+    report.loraAdapters.forEach((adapter) => {
+      const name = text(adapter.adapter_name, "LoRA adapter");
+      const size = numberOrZero(adapter.weight_bytes);
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex; justify-content:space-between; gap:8px; color:var(--secondary-ink); font-size:11px;";
+      row.appendChild(createTextElement("span", name, "overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"));
+      row.appendChild(createTextElement("strong", formatBytes(size), "font-variant-numeric:tabular-nums; white-space:nowrap; color:var(--ink);"));
+      if (adapter.warning) row.title = adapter.warning;
+      details.appendChild(row);
+    });
+    const total = report.loraAdapters.reduce((sum, adapter) => sum + numberOrZero(adapter.weight_bytes), 0);
+    details.appendChild(createTextElement("div", `Total LoRA weights ${formatBytes(total)}`, "color:var(--secondary-ink); font-size:11px;"));
+    wrapper.appendChild(details);
+  }
+
   function addDetails(report) {
     const details = document.createElement("div");
     details.style.cssText = "display:flex; flex-direction:column; gap:5px;";
@@ -380,6 +401,7 @@ export default function MemoryBreakdown(container, props) {
       addSummary(report);
       addBar(report);
       addDetails(report);
+      addLoraDetails(report);
     } else {
       wrapper.appendChild(
         createTextElement(

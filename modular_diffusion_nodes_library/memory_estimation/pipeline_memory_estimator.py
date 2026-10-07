@@ -57,7 +57,7 @@ from modular_diffusion_nodes_library.memory_estimation.text_encoder_formula impo
 from modular_diffusion_nodes_library.memory_estimation.vae_formula import estimate_vae_activation_bytes
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_utils import MEMORY_HEADROOM_FACTOR, detect_offload_method
-from modular_diffusion_nodes_library.utils.torch_utils import get_model_memory
+from modular_diffusion_nodes_library.utils.torch_utils import get_model_memory, to_human_readable_size
 
 if TYPE_CHECKING:
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
@@ -402,9 +402,12 @@ def _apply_lora_weights_to_components(
     transformer = components[denoiser_index]
     base_weight_bytes = transformer.weight_bytes
     merged_weight_bytes = base_weight_bytes + adapter_bytes
-    adapter_details = ", ".join(f"{adapter.adapter_name}: {adapter.weight_bytes} bytes" for adapter in lora_adapters)
+    adapter_details = ", ".join(
+        f"{adapter.adapter_name}: {to_human_readable_size(adapter.weight_bytes)}" for adapter in lora_adapters
+    )
     tooltip = (
-        f"Transformer weights: {base_weight_bytes} bytes. Unfused LoRA weights: {adapter_bytes} bytes "
+        f"Transformer weights: {to_human_readable_size(base_weight_bytes)}. "
+        f"Unfused LoRA weights: {to_human_readable_size(adapter_bytes)} "
         f"({_lora_percentage(adapter_bytes, base_weight_bytes)} of base transformer weights; "
         f"{_lora_percentage(adapter_bytes, merged_weight_bytes)} of combined transformer weights). "
         f"Adapters: {adapter_details}."

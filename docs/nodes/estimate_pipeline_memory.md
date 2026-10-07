@@ -129,7 +129,7 @@ Note the import path: `estimate_pipeline_memory_from_artifact` is exported from 
 | `estimated_peak_bytes` | `int` | Estimated peak memory after the estimator's 20% safety-headroom factor; the node displays the value with the applied optimization settings. |
 | `components` | `list[ComponentMemoryEstimate]` | One entry per weight-bearing component. |
 | `warnings` | `list[str]` | Pipeline-level caveats, e.g. the `Automatic`-strategy warning. |
-| `lora_adapters` | `list[dict]` | Detailed distinct unfused runtime adapters and their header-derived weight bytes; exposed separately for API and CLI consumers. |
+| `lora_adapters` | `list[dict]` | Detailed distinct unfused runtime adapters with exact `weight_bytes`; human-readable consumers format these values at display time. |
 | `to_dict()` | `dict` | JSON-shaped, GB-rounded — the intended API output boundary. Fields on the dataclass itself stay byte-precise for further math. |
 
 `ComponentMemoryEstimate` fields (each entry in `components`):
@@ -143,7 +143,7 @@ Note the import path: `estimate_pipeline_memory_from_artifact` is exported from 
 | `total_bytes` | `int` | `weight_bytes + activation_bytes`. |
 | `is_estimated` | `bool` | `True` when a formula couldn't run and only weights are shown for this component. |
 | `warning` | `str \| None` | Reason, present when `is_estimated` is `True`. |
-| `tooltip` | `str \| None` | Optional hover text, including the transformer and LoRA percentage details when runtime adapters are present. |
+| `tooltip` | `str \| None` | Optional hover text, including human-readable transformer and LoRA percentage details when runtime adapters are present. |
 
 ### Lower-level functions
 

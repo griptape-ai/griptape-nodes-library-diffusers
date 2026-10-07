@@ -11,14 +11,7 @@ _BYTES_PER_GB = 1024**3
 
 
 def _bytes_to_gb(num_bytes: int) -> float:
-    """Convert a byte count to GB, rounded to a sane display precision.
-
-    `to_dict()` is the API's output boundary (see docs/spikes/
-    memory_estimation_preload_api_plan.md, Decision 6) -- raw byte counts aren't a
-    useful unit for a caller to read, so it reports GB floats instead. Internal fields
-    stay byte-precise ints since topology math (sum/max, quantization multipliers)
-    needs that precision.
-    """
+    """Convert a byte count to GB, rounded to a sane display precision."""
     return round(num_bytes / _BYTES_PER_GB, 4)
 
 

@@ -39,6 +39,7 @@ from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator
 )
 from modular_diffusion_nodes_library.utils.lora_apply_utils import LoraPipelineRuntimeAdapterStep
 from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec
+from modular_diffusion_nodes_library.utils.torch_utils import to_human_readable_size
 
 _ALLOWED_GLOBALS = {
     "modular_diffusion_nodes_library.artifact_utils.pipeline_artifact": {
@@ -599,9 +600,10 @@ def _format_human(result: dict[str, Any]) -> str:
         if lora_adapters:
             lines.append("  LoRA adapters:")
             for adapter in lora_adapters:
-                lines.append(f"    {adapter['adapter_name']}: {adapter['weight_bytes']} bytes ({adapter['path']})")
+                size = to_human_readable_size(adapter.get("weight_bytes", 0))
+                lines.append(f"    {adapter['adapter_name']}: {size} ({adapter['path']})")
             total_lora_bytes = sum(adapter.get("weight_bytes", 0) for adapter in lora_adapters)
-            lines.append(f"    Total LoRA weights: {total_lora_bytes} bytes")
+            lines.append(f"    Total LoRA weights: {to_human_readable_size(total_lora_bytes)}")
         for warning in estimate["warnings"]:
             lines.append(f"  Warning: {warning}")
     return "\n".join(lines)
