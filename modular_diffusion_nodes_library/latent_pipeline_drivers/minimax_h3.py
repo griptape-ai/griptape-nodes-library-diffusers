@@ -246,7 +246,9 @@ class _MiniMaxH3CallbackDenoiseStep(MiniMaxH3DenoiseLoopWrapper):
         return begin, end
 
     @torch.no_grad()
-    def __call__(self, components: MiniMaxH3ModularPipeline, state: PipelineState) -> PipelineState:
+    def __call__(
+        self, components: MiniMaxH3ModularPipeline, state: PipelineState
+    ) -> tuple[MiniMaxH3ModularPipeline, PipelineState]:
         block_state = cast(Any, self.get_block_state(state))
 
         if len(block_state.audio_timesteps) != len(block_state.timesteps):
@@ -291,7 +293,7 @@ class _MiniMaxH3CallbackDenoiseStep(MiniMaxH3DenoiseLoopWrapper):
                 if getattr(components, "_interrupt", False):
                     break
         self.set_block_state(state, block_state)
-        return components, state  # type: ignore[reportReturnType]
+        return components, state
 
 
 class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
