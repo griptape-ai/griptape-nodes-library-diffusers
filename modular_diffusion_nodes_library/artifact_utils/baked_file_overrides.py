@@ -13,6 +13,7 @@ from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.recipe_codec import resolve_recipe_value
+from modular_diffusion_nodes_library.component_loading.component_slots import component_config_filename
 
 if TYPE_CHECKING:
     from modular_diffusion_nodes_library.artifact_utils.component_artifact import ModelComponentArtifact
@@ -129,7 +130,7 @@ def noop_official_saves(pipe: BuiltPipeline, slot_names: set[str]) -> Iterator[N
 
 
 def copy_gguf_override(override: ModelComponentArtifact, slot_dir: Path, baked_root: Path) -> dict[str, Any]:
-    """Copy the .gguf (and a sibling config.json) into `slot_dir`. Return a recipe dict."""
+    """Copy the .gguf (and its config) into `slot_dir`. Return a recipe dict."""
     raw_path = override.file_path
     if not raw_path:
         msg = (
@@ -160,19 +161,20 @@ def copy_gguf_override(override: ModelComponentArtifact, slot_dir: Path, baked_r
 
 
 def _copy_override_config(override: ModelComponentArtifact, src: Path, slot_dir: Path) -> bool:
-    sibling = src.parent / "config.json"
+    config_name = component_config_filename(override.component)
+    sibling = src.parent / config_name
     if sibling.is_file():
-        shutil.copy2(sibling, slot_dir / "config.json")
+        shutil.copy2(sibling, slot_dir / config_name)
         return True
     config_source = override.config_source
     if not config_source:
         return False
     cfg = Path(config_source)
     if cfg.is_file():
-        shutil.copy2(cfg, slot_dir / cfg.name)
+        shutil.copy2(cfg, slot_dir / config_name)
         return True
-    if cfg.is_dir() and (cfg / "config.json").is_file():
-        shutil.copy2(cfg / "config.json", slot_dir / "config.json")
+    if cfg.is_dir() and (cfg / config_name).is_file():
+        shutil.copy2(cfg / config_name, slot_dir / config_name)
         return True
     return False
 
