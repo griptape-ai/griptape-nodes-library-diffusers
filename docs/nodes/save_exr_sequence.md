@@ -45,6 +45,7 @@ Generate Media Latents → Decode HDR Latents → [Save EXR Sequence]
 
 - **Match the transfer conversion to the input.** Keep inverse log-gamma enabled for DiffHDR model output; turn it off for media that is already linear.
 - **Use a short, path-free file stem.** The node numbers frames and adds the `.exr` extension itself.
+- **Use a project macro for portable output paths.** In-project folders selected with the picker are stored as macros and expanded when saving.
 - **Keep the decoder and saver in the same execution.** `FloatMediaArtifact` is intentionally in-process-only and is not serialized into saved workflow data.
 
 ## See also

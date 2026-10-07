@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
@@ -16,7 +17,7 @@ from modular_diffusion_nodes_library.utils.hdr_video_utils import (
     encode_linear_hdr_exr_sequence,
     inverse_log_gamma,
 )
-from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
+from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros, resolve_path_to_macro
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -106,6 +107,14 @@ class SaveExrNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.log_params = LogParameter(self)
         self.log_params.add_output_parameters()
         self._create_status_parameters()
+
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        if parameter.name != "output_folder" or not isinstance(value, str) or not value:
+            return
+
+        macro_path = resolve_path_to_macro(value)
+        if macro_path != value:
+            self.set_parameter_value("output_folder", macro_path, emit_change=False)
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors: list[Exception] = []
