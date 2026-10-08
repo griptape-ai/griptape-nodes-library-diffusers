@@ -662,7 +662,7 @@
                                 "display_name": "LTX-2.5 (Diffusers)",
                                 "provider_model_id": "Lightricks/LTX-2.5-Diffusers",
                                 "family": "LTX-2",
-                                "key_support": "NO_KEY_REQUIRED",
+                                "key_support": "REQUIRES_CUSTOMER_KEY",
                                 "notes": "Gated repo on Hugging Face; requires accepting Lightricks' license and an authenticated HF token to download. Inherits the LTX-Video Open Weights License."
                             }
                         }
@@ -874,6 +874,22 @@
                 "description": "Decode VAE latents to float RGB media, expose raw media, and publish a configurable SDR preview.",
                 "display_name": "Decode HDR Latents",
                 "group": "diffusion"
+            }
+        },
+        {
+            "class_name": "DiffusionDecoderNode",
+            "file_path": "./modular_diffusion_nodes_library/nodes/diffusion_decoder_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/Encode\\Decode",
+                "description": "Decode image or video latents using a separately selected diffusion decoder model.",
+                "display_name": "Diffusion Decoder",
+                "group": "diffusion",
+                "declarations": [
+                    {
+                        "type": "model_usage",
+                        "model_ids": ["md_ltx_2_5_diffusers"]
+                    }
+                ]
             }
         },
         {
