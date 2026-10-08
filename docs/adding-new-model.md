@@ -34,6 +34,26 @@ When the three blockers above are resolved, drivers will be able to swap their d
 - **Yes** → runtime variant. Stop and follow [`.github/skills/add-pipeline-variants/SKILL.md`](../.github/skills/add-pipeline-variants/SKILL.md). Examples: ControlNet, inpaint, LTX's `LTXConditionPipeline`.
 - **No** — the variant class needs a component the base pipeline does not have, or needs differently-shaped/-trained weights for an existing component → new pipeline type. Continue with this guide. Examples: WAN T2V vs WAN I2V (different UNet + image encoder), Flux vs Flux Fill (different transformer weights), Qwen vs Qwen Edit (different transformer + image conditioning).
 
+## Keeping the orchestrator light
+
+This library's nodes execute in a worker, and `diffusers`, `torch`, `transformers` and friends are
+installed only there. The orchestrator imports every module under `nodes/` and constructs every node
+class to draw the editor, without those packages. So a new model has to answer two questions on the
+orchestrator -- which parameters to show, and is this configuration valid -- without reaching the
+execution environment.
+
+That is why the declarations above exist: `_pipeline_cls_path` instead of the class, `_component_slots`
+instead of the `__init__` signature, `DriverSpec` instead of the driver. Each is paired with a test that
+fails when it drifts from what it restates.
+
+[CLAUDE.md](../CLAUDE.md) has the full rules, under "Keep heavy dependencies out of import time" and
+"Running in a worker". The two gates, both part of `make check`:
+
+```bash
+make check/edit-time-imports   # imports every node module and constructs every node class
+make check/worker-safe         # no engine-manager reads during node execution
+```
+
 ## The 6-Step Process
 
 Adding a new model touches six concerns. We'll use **Stable Diffusion 3.5** as the running example.
@@ -64,13 +84,13 @@ Skip only if the new model is a sibling checkpoint of an existing **architecture
 Create `standard_parameters/<model>_parameters.py`. Subclass `ModularDiffusionPipelineTypePipelineParameters` from [`parameters/modular_pipeline_type_parameters.py`](../modular_diffusion_nodes_library/parameters/modular_pipeline_type_parameters.py). Model after [`standard_parameters/stable_diffusion_sdxl_parameters.py`](../modular_diffusion_nodes_library/standard_parameters/stable_diffusion_sdxl_parameters.py) for simple cases, or [`flux_parameters.py`](../modular_diffusion_nodes_library/standard_parameters/flux_parameters.py) when multiple sub-component repos (text encoders, VAE) are exposed separately.
 
 Required overrides:
-- `_pipeline_cls` — the diffusers pipeline class
-- `pipeline_name` — **must exactly match the key** in [`driver_factory.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py) `_DRIVER_REGISTRY`
+- `_pipeline_cls_path` — where the diffusers pipeline class lives, as `"module:attribute"`. Not the class itself: naming it must not import diffusers. The attribute **must exactly match the key** in [`driver_factory.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py) `_DRIVER_REGISTRY`, since `pipeline_name` is derived from it.
+- `_component_slots` — the component slots this pipeline exposes for override, in `ALLOWED_COMPONENT_SLOTS` order. Declared rather than read off the pipeline's `__init__` signature, which would import it; [tests/test_component_slots.py](../tests/test_component_slots.py) checks the declaration against the pinned diffusers.
 - `add_input_parameters()` / `remove_input_parameters()`
 - `get_config_kwargs()` — returned to the builder node for hashing
 - `get_build_data()` — picklable dict consumed by `build_pipeline_from_build_data()`
-- `build_pipeline_from_build_data()` — classmethod that calls `from_pretrained(...)`
-- `validate_before_node_run()` — pre-run validation errors
+- `_build_pipeline_from_repo()` — classmethod that calls `from_pretrained(...)`. The base `build_pipeline_from_build_data()` routes here, or to the overrides-only path.
+- `validate_before_node_run()` — pre-run validation errors. Anything that needs a real pipeline, driver class, or latent goes in `validate_in_execution_environment()` instead; see [Keeping the orchestrator light](#keeping-the-orchestrator-light).
 
 Optional overrides on the base class:
 - `is_prequantized()` → True for bnb-4bit models
@@ -114,7 +134,7 @@ Required overrides:
 Optional overrides:
 - `_prepare_input_latent` / `prepare_output_latent` — pack/unpack for transformers that use sequence-packed latents (Flux, Qwen)
 - `_extract_latents_from_output()` — return `pipe_output.frames` for video, default `images` for image
-- Video models: set the `produces_video = True` and `video_fps` ClassVars
+- Video models: set the `produces_video = True` and `video_fps` ClassVars, and restate them in the driver's `DriverSpec` (Step 5a)
 - `encode_prompt()` — only if your text encoder block needs extra inputs beyond `prompt`/`negative_prompt`
 - `denoise_latent()` — **only for kwarg munging** (e.g., LTX building video conditions, WAN i2v extracting first/last frames). Signature: `(latent, num_inference_steps, generator_state, callback=None, start_step=0, end_step=-1, return_fully_denoised=False, **kwargs)`. Always end by calling `super().denoise_latent(...)` so partial-denoise, callback, cancellation, and inpaint hooks keep working.
 - `_inpaint_pipeline_class` ClassVar — set to the inpaint pipeline class to enable inpainting
@@ -125,14 +145,21 @@ Optional overrides:
 
 ### Step 5 — Register in three places
 
-**a) [`latent_pipeline_drivers/driver_factory.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py)** — map pipeline class name → driver class:
+**a) [`latent_pipeline_drivers/driver_factory.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py)** — map pipeline class name → `DriverSpec`. The driver is named as `"module:attribute"`, and the spec restates the driver's own class attributes so the orchestrator can decide which parameters to show without importing diffusers:
 
 ```python
-_DRIVER_REGISTRY: dict[str, type[LatentPipelineDriver]] = {
+_DRIVER_REGISTRY: dict[str, DriverSpec] = {
     ...
-    "StableDiffusion3Pipeline": StableDiffusion3LatentPipelineDriver,
+    "StableDiffusion3Pipeline": DriverSpec(
+        "stable_diffusion_3:StableDiffusion3LatentPipelineDriver",
+        produces_video=False,
+        video_fps=16,
+        supports_inpainting=True,
+    ),
 }
 ```
+
+`produces_video` and `video_fps` must equal the driver's ClassVars, and `supports_inpainting` must say whether it sets `_inpaint_pipeline_class`. [tests/test_driver_specs.py](../tests/test_driver_specs.py) fails when a restatement drifts from the driver it describes.
 
 **b) [`parameters/pipeline_parameters.py`](../modular_diffusion_nodes_library/parameters/pipeline_parameters.py)** — add a `case` in `set_runtime_parameters()`:
 
