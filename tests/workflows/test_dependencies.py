@@ -664,6 +664,27 @@ class TestPreflightAdapter:
         assert preflight_data["workflow_required_loras"][workflow_path.name] == ("/tmp/does-not-exist.safetensors",)
         assert preflight_data["missing_loras_by_workflow"][workflow_path.name] == ("/tmp/does-not-exist.safetensors",)
 
+    def test_home_relative_workflow_paths_resolve_before_library_root(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from tests import preflight
+
+        home = tmp_path / "home"
+        home.mkdir()
+        weights_file = home / "weights.safetensors"
+        weights_file.touch()
+        component_folder = home / "component"
+        component_folder.mkdir()
+        (component_folder / "config.json").touch()
+
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.setenv("USERPROFILE", str(home))
+        monkeypatch.setattr(preflight, "LIBRARY_ROOT", tmp_path / "library")
+
+        assert preflight._resolve_workflow_path("~/weights.safetensors") == weights_file.resolve()
+        assert preflight._is_file_path_available("~/weights.safetensors")
+        assert preflight._is_component_folder_available("~/component")
+
     def test_lora_path_is_resolved_to_assets_lora_root(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         from tests import preflight
 
