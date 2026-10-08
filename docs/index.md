@@ -38,6 +38,7 @@ Node groups mirror the categories in [`griptape_nodes_library.json`](../griptape
 - [Encode Masked Media Latent](nodes/encode_masked_media_latent.md)
 - [Decode Media Latent](nodes/decode_media_latent.md)
 - [Decode HDR Latents](nodes/decode_hdr_latents.md)
+- [Diffusion Decoder](nodes/diffusion_decoder.md)
 
 ### IO
 - [Save EXR Sequence](nodes/save_exr_sequence.md)
