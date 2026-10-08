@@ -49,7 +49,6 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 output_type="ImageUrlArtifact",
                 tooltip="Decoded image from the latent tensor.",
                 allowed_modes={ParameterMode.OUTPUT},
-                serializable=False,
             )
         )
         self._additional_parameters()
@@ -157,7 +156,6 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                     tooltip="Generated video.",
                     allowed_modes={ParameterMode.OUTPUT},
                     user_defined=True,
-                    serializable=False,
                 )
             )
             # Reorder to ensure fps appears before output_video
@@ -172,7 +170,6 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                     tooltip="Decoded image from the latent tensor.",
                     allowed_modes={ParameterMode.OUTPUT},
                     user_defined=True,
-                    serializable=False,
                 )
             )
 
