@@ -107,6 +107,7 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
             ZImageControlNetPipeline,
         )
         from huggingface_hub import hf_hub_download  # type: ignore[reportMissingImports]
+        from huggingface_hub.errors import LocalEntryNotFoundError  # type: ignore[reportMissingImports]
 
         if not control_net_model_lists:
             return pipe
@@ -134,10 +135,20 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
         from_single_file_kwargs["low_cpu_mem_usage"] = False
 
         if first_control_net in Z_IMAGE_CONTROLNET_REPO_TO_FILENAME:
-            controlnet_file_path = hf_hub_download(
-                repo_id=first_control_net,
-                filename=Z_IMAGE_CONTROLNET_REPO_TO_FILENAME[first_control_net],
-            )
+            filename = Z_IMAGE_CONTROLNET_REPO_TO_FILENAME[first_control_net]
+            try:
+                controlnet_file_path = hf_hub_download(
+                    repo_id=first_control_net,
+                    filename=filename,
+                    local_files_only=True,
+                )
+            except LocalEntryNotFoundError as err:
+                msg = (
+                    f"Attempted to load Z-Image ControlNet. Failed with repo='{first_control_net}' "
+                    f"file='{filename}' because it is not in the local Hugging Face cache. "
+                    "Download it from the Model Manager first."
+                )
+                raise RuntimeError(msg) from err
         else:
             controlnet_file_path = first_control_net
 
