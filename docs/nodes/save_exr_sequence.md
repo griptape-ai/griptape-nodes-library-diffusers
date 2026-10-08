@@ -6,7 +6,7 @@ Category: `ModularDiffusion/IO`
 
 ## TL;DR
 - Connect `raw_media` (e.g. from Decode HDR Latents) to save one or more RGB frames as OpenEXR files.
-- Inverse log-gamma is enabled by default for DiffHDR output; disable it when the input is already linear HDR.
+- Choose no conversion for already-linear input, Log-Gamma inversion, or ARRI LogC3 inversion; Log-Gamma is selected by default.
 - Files are named `<file_stem>.0001.exr`, `<file_stem>.0002.exr`, and so on in the selected folder.
 
 ## Typical workflow position
@@ -36,14 +36,14 @@ Generate Media Latents → Decode HDR Latents → [Save EXR Sequence]
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `invert_log_gamma` | bool | `True` | Applies the inverse DiffHDR curve to convert log-gamma values to linear radiance before export. |
+| `transfer_function` | `None` \| `Log-Gamma` \| `ARRI LogC3` | `Log-Gamma` | Converts encoded RGB values to linear values before export, or writes already-linear values unchanged. |
 | `output_folder` | path | workspace directory | Destination directory; created if it does not exist. |
 | `file_stem` | str | `frame` | Filename prefix without a directory or extension. |
 | `save_as_half_float` | bool | `True` | Writes float16 channels when enabled and float32 channels otherwise. |
 
 ## Tips & pitfalls
 
-- **Match the transfer conversion to the input.** Keep inverse log-gamma enabled for DiffHDR model output; turn it off for media that is already linear.
+- **Match the transfer conversion to the input.** Choose Log-Gamma or ARRI LogC3 only for input encoded with that curve, and choose `None` for media that is already linear.
 - **Use a short, path-free file stem.** The node numbers frames and adds the `.exr` extension itself.
 - **Use a project macro for portable output paths.** In-project folders selected with the picker are stored as macros and expanded when saving.
 - **Keep the decoder and saver in the same execution.** `FloatMediaArtifact` is intentionally in-process-only and is not serialized into saved workflow data.

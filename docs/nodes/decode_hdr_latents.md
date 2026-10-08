@@ -46,7 +46,7 @@ Generate Media Latents → [Decode HDR Latents] ──→ SDR Preview
 
 - **Connect `raw_media` to Save EXR Sequence for file output.** The decoder itself no longer writes files, so export settings live in one dedicated node.
 - **Treat `raw_media` as in-process data.** `FloatMediaArtifact` is intentionally not serialized with workflow state; run the decoder and saver in the same execution.
-- **Choose the transfer conversion to match the producing model.** Enable inverse log-gamma in Save EXR Sequence for DiffHDR log-gamma output; disable it for already-linear HDR output such as LTX 2.3 HDR.
+- **Choose the transfer conversion to match the producing model.** Enable inverse log-gamma in Save EXR Sequence for log-gamma output; disable it for already-linear HDR output such as LTX 2.3 HDR.
 - **Use the same pipeline that produced the latent.** Each pipeline carries the VAE it was trained with — decoding with a mismatched VAE produces corrupt output.
 - **Large latents need more VRAM to decode.** High-resolution or multi-frame latents require more memory during decode. Enable `vae_slicing` on the Pipeline Builder to decode in batches and keep peak VRAM usage lower.
 

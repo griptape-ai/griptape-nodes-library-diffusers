@@ -839,7 +839,7 @@
             "file_path": "./modular_diffusion_nodes_library/nodes/save_exr_node.py",
             "metadata": {
                 "category": "ModularDiffusion/IO",
-                "description": "Write FloatMediaArtifact RGB frames to an OpenEXR sequence, optionally expanding DiffHDR log-gamma values back to linear radiance.",
+                "description": "Write FloatMediaArtifact RGB frames to an OpenEXR sequence with optional DiffHDR Log-Gamma or ARRI LogC3 conversion to linear values.",
                 "display_name": "Save EXR Sequence",
                 "group": "diffusion"
             }

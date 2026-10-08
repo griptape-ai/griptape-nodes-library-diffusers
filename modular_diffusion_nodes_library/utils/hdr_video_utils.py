@@ -6,7 +6,9 @@ import Imath  # type: ignore[reportMissingImports]
 import numpy as np
 import OpenEXR  # type: ignore[reportMissingImports]
 
-LOG_GAMMA_DENOMINATOR = float(np.log(3.2))
+LOG_GAMMA = 2.2
+LOG_GAMMA_MAX_VALUE = 65536.0
+LOG_GAMMA_DENOMINATOR = float(np.log(LOG_GAMMA * LOG_GAMMA_MAX_VALUE + 1.0))
 
 
 def srgb_to_linear(srgb: np.ndarray) -> np.ndarray:
@@ -19,21 +21,34 @@ def srgb_to_linear(srgb: np.ndarray) -> np.ndarray:
 
 
 def linear_to_log_gamma(linear: np.ndarray) -> np.ndarray:
-    """Compress linear-light RGB values into DiffHDR's normalized log-gamma range."""
+    """Apply upstream linear-radiance to Log-Gamma transform."""
     if linear.ndim < 1 or linear.shape[-1] != 3:
         raise ValueError(f"Expected an RGB array ending in 3 channels, got shape {linear.shape}.")
 
-    linear = np.maximum(linear.astype(np.float32, copy=False), 0.0)
-    return np.log(2.2 * linear + 1.0) / LOG_GAMMA_DENOMINATOR
+    linear = np.clip(linear.astype(np.float32, copy=False), 0.0, LOG_GAMMA_MAX_VALUE)
+    normalized_log = np.log(LOG_GAMMA * linear + 1.0) / LOG_GAMMA_DENOMINATOR
+    return np.power(normalized_log, 1.0 / LOG_GAMMA)
 
 
 def inverse_log_gamma(log_gamma: np.ndarray) -> np.ndarray:
-    """Expand DiffHDR log-gamma RGB values into linear-light radiance."""
+    """Apply upstream inverse Log-Gamma transform to linear radiance."""
     if log_gamma.ndim < 1 or log_gamma.shape[-1] != 3:
         raise ValueError(f"Expected an RGB array ending in 3 channels, got shape {log_gamma.shape}.")
 
     values = log_gamma.astype(np.float32, copy=False)
-    return (np.exp(values * LOG_GAMMA_DENOMINATOR) - 1.0) / 2.2
+    return (np.exp(np.power(values, LOG_GAMMA) * LOG_GAMMA_DENOMINATOR) - 1.0) / LOG_GAMMA
+
+
+def inverse_logc3(logc: np.ndarray) -> np.ndarray:
+    """Convert ARRI LogC3-encoded RGB values in [0, 1] to linear HDR."""
+    if logc.ndim < 1 or logc.shape[-1] != 3:
+        raise ValueError(f"Expected an RGB array ending in 3 channels, got shape {logc.shape}.")
+
+    logc = np.clip(logc.astype(np.float32, copy=False), 0.0, 1.0)
+    cut_log = 5.367655 * 0.010591 + 0.092809
+    linear_from_log = (np.power(10.0, (logc - 0.385537) / 0.247190) - 0.052272) / 5.555556
+    linear_from_linear = (logc - 0.092809) / 5.367655
+    return np.where(logc >= cut_log, linear_from_log, linear_from_linear)
 
 
 @dataclass(frozen=True)

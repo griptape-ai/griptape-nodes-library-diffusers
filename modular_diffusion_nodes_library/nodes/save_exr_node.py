@@ -9,6 +9,7 @@ from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 from griptape_nodes.exe_types.param_components.progress_bar_component import ProgressBarComponent
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
+from griptape_nodes.traits.options import Options
 
 from modular_diffusion_nodes_library.artifact_utils.float_media_artifact import FloatMediaArtifact
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
@@ -16,17 +17,23 @@ from modular_diffusion_nodes_library.utils.hdr_video_utils import (
     ExrFrameWriteEvent,
     encode_linear_hdr_exr_sequence,
     inverse_log_gamma,
+    inverse_logc3,
 )
 from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros, resolve_path_to_macro
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
+TRANSFER_FUNCTION_CHOICES = ["None", "Log-Gamma", "ARRI LogC3"]
+DEFAULT_TRANSFER_FUNCTION = "Log-Gamma"
 
-def prepare_exr_frames(media: FloatMediaArtifact, invert_gamma: bool) -> np.ndarray:
-    """Normalize FloatMediaArtifact to float32 FHWC frames for EXR writing."""
+
+def prepare_exr_frames(media: FloatMediaArtifact, transfer_function: str) -> np.ndarray:
+    """Convert FloatMediaArtifact frames to float32 linear FHWC values for EXR writing."""
     frames = media.to_frames().astype(np.float32, copy=False)
-    if invert_gamma:
+    if transfer_function == "Log-Gamma":
         return inverse_log_gamma(frames)
+    if transfer_function == "ARRI LogC3":
+        return inverse_logc3(frames)
     return frames
 
 
@@ -46,10 +53,11 @@ class SaveExrNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
         self.add_parameter(
             Parameter(
-                name="invert_log_gamma",
-                default_value=True,
-                type="bool",
-                tooltip="Convert DiffHDR log-gamma values back to linear radiance before writing EXR files.",
+                name="transfer_function",
+                default_value=DEFAULT_TRANSFER_FUNCTION,
+                type="str",
+                traits={Options(choices=TRANSFER_FUNCTION_CHOICES)},
+                tooltip="Select the encoded transfer function to convert to linear values before writing EXR files.",
                 allowed_modes={ParameterMode.PROPERTY},
                 user_defined=True,
             )
@@ -140,7 +148,7 @@ class SaveExrNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         def save() -> None:
             media: FloatMediaArtifact = self.get_parameter_value("media")
-            frames = prepare_exr_frames(media, bool(self.get_parameter_value("invert_log_gamma")))
+            frames = prepare_exr_frames(media, str(self.get_parameter_value("transfer_function")))
 
             output_folder = Path(expand_path_macros(self.get_parameter_value("output_folder"))).expanduser()
             file_stem = self.get_parameter_value("file_stem")

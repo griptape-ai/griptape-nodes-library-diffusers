@@ -12,14 +12,13 @@ class FloatMediaArtifact(BaseArtifact):
 
     Supported arrays are a single image ``(H, W, 3)``, a frame sequence
     ``(F, H, W, 3)``, or a single-batch video ``(1, F, H, W, 3)``. The final
-    dimension is RGB; values retain the decoder's float color space.
+    dimension is RGB; values retain the decoder's float output values.
     """
 
     def __init__(
         self,
         array: np.ndarray,
         *,
-        color_space: str = "decoded",
         meta: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -42,7 +41,6 @@ class FloatMediaArtifact(BaseArtifact):
                 "min": float(owned_array.min()),
                 "max": float(owned_array.max()),
                 "mean": float(owned_array.mean()),
-                "color_space": color_space,
             }
         )
         super().__init__(value=None, meta=summary, **kwargs)
@@ -68,10 +66,6 @@ class FloatMediaArtifact(BaseArtifact):
             return self._array.shape[1]
         return self._array.shape[0]
 
-    @property
-    def color_space(self) -> str:
-        return str(self.meta.get("color_space", "decoded"))
-
     def to_numpy(self) -> np.ndarray:
         """Return the immutable RGB media array without copying it."""
         return self._array
@@ -87,7 +81,7 @@ class FloatMediaArtifact(BaseArtifact):
         return frames
 
     def to_text(self) -> str:
-        return f"FloatMediaArtifact(shape={self.shape}, dtype={self.dtype}, color_space={self.color_space!r})"
+        return f"FloatMediaArtifact(shape={self.shape}, dtype={self.dtype})"
 
     def to_dict(self) -> dict[str, Any]:  # type: ignore[reportIncompatibleMethodOverride]
         return {
@@ -95,7 +89,6 @@ class FloatMediaArtifact(BaseArtifact):
             "shape": list(self.shape),
             "dtype": str(self.dtype),
             "num_frames": self.num_frames,
-            "color_space": self.color_space,
             "min": self.meta["min"],
             "max": self.meta["max"],
             "mean": self.meta["mean"],
