@@ -33,6 +33,7 @@ from griptape_nodes.node_library.library_validation import (
 from packaging.version import Version
 
 from modular_diffusion_nodes_library.parameters.controlnet_node_parameter_types import ControlNetNodesParameterType
+from modular_diffusion_nodes_library.parameters.diffusion_decoder_parameters import BaseDiffusionDecoderParameters
 from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import MODULAR_PIPELINE_TYPE_PROVIDER_MAP
 from modular_diffusion_nodes_library.parameters.upsampler_parameter_type import BaseUpsamplerParameters
 
@@ -47,6 +48,7 @@ ENGINE_VERSION_FLOOR = "0.97.0"
 BUILDER_NODE = "LatentDiffusionPipelineBuilderNode"
 CONTROLNET_NODE = "ControlNetNode"
 UPSAMPLER_NODE = "LatentUpsamplerNode"
+DIFFUSION_DECODER_NODE = "DiffusionDecoderNode"
 
 
 def _load_library() -> dict[str, Any]:
@@ -112,6 +114,13 @@ def _controlnet_repo_ids() -> set[str]:
 def _upsampler_repo_ids() -> set[str]:
     repo_ids: set[str] = set()
     for subclass in _all_subclasses(BaseUpsamplerParameters):
+        repo_ids |= _repo_ids_from_source(subclass)
+    return repo_ids
+
+
+def _diffusion_decoder_repo_ids() -> set[str]:
+    repo_ids: set[str] = set()
+    for subclass in _all_subclasses(BaseDiffusionDecoderParameters):
         repo_ids |= _repo_ids_from_source(subclass)
     return repo_ids
 
@@ -190,6 +199,7 @@ def test_no_undeclared_node_hosts_a_model_dropdown() -> None:
         "standard_parameters/",
         "parameters/controlnet_node_parameter_types.py",
         "parameters/upsampler_parameter_type.py",
+        "parameters/diffusion_decoder_parameters.py",
     )
     unexpected = [m for m in hosting_modules if not m.startswith(allowed_prefixes)]
     assert unexpected == [], (
@@ -271,7 +281,10 @@ def test_every_catalog_model_is_used_by_some_node() -> None:
     """A cataloged model no node references is dead weight the policy UI would still show."""
     catalog_ids = {model_id for _, model_id in _catalog_by_provider_model_id().values()}
     used = (
-        _declared_model_ids(BUILDER_NODE) | _declared_model_ids(CONTROLNET_NODE) | _declared_model_ids(UPSAMPLER_NODE)
+        _declared_model_ids(BUILDER_NODE)
+        | _declared_model_ids(CONTROLNET_NODE)
+        | _declared_model_ids(UPSAMPLER_NODE)
+        | _declared_model_ids(DIFFUSION_DECODER_NODE)
     )
     assert catalog_ids - used == set()
 
@@ -282,6 +295,7 @@ def test_every_catalog_model_is_used_by_some_node() -> None:
         (BUILDER_NODE, _builder_repo_ids),
         (CONTROLNET_NODE, _controlnet_repo_ids),
         (UPSAMPLER_NODE, _upsampler_repo_ids),
+        (DIFFUSION_DECODER_NODE, _diffusion_decoder_repo_ids),
     ],
 )
 def test_node_model_usage_matches_its_python_repo_lists(class_name: str, repo_ids_fn: Any) -> None:
@@ -388,6 +402,7 @@ def test_gated_repos_require_a_customer_key() -> None:
         resolved.model.provider_model_id: resolved.model.key_support for resolved in iter_catalog_models(catalog)
     }
     for repo in (
+        "Lightricks/LTX-2.5-Diffusers",
         "black-forest-labs/FLUX.1-dev",
         "black-forest-labs/FLUX.1-Krea-dev",
         "black-forest-labs/FLUX.1-Fill-dev",

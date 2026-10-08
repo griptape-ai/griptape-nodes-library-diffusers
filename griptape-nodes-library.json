@@ -885,6 +885,22 @@
             }
         },
         {
+            "class_name": "DiffusionDecoderNode",
+            "file_path": "./modular_diffusion_nodes_library/nodes/diffusion_decoder_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/Encode\\Decode",
+                "description": "Decode image or video latents using a separately selected diffusion decoder model.",
+                "display_name": "Diffusion Decoder",
+                "group": "diffusion",
+                "declarations": [
+                    {
+                        "type": "model_usage",
+                        "model_ids": ["md_ltx_2_5_diffusers"]
+                    }
+                ]
+            }
+        },
+        {
             "class_name": "LatentCompositeMaskNode",
             "file_path": "./modular_diffusion_nodes_library/nodes/latent_composite_mask_node.py",
             "metadata": {
