@@ -1,8 +1,8 @@
-import logging
-from typing import Any, ClassVar, override
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers.models.controlnets.controlnet import ControlNetModel  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar, override
+
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     SequentialPipelineBlocks,
@@ -13,20 +13,12 @@ from diffusers.modular_pipelines.stable_diffusion_xl.before_denoise import (  # 
     StableDiffusionXLPrepareLatentsStep,
     StableDiffusionXLSetTimestepsStep,
 )
-from diffusers.modular_pipelines.stable_diffusion_xl.modular_blocks_stable_diffusion_xl import (  # type: ignore[reportMissingImports]
-    StableDiffusionXLAutoBlocks,
-)
 from diffusers.pipelines.controlnet.pipeline_controlnet_inpaint_sd_xl import (  # type: ignore[reportMissingImports]
     StableDiffusionXLControlNetInpaintPipeline,
 )
-from diffusers.pipelines.controlnet.pipeline_controlnet_sd_xl_img2img import (  # type: ignore[reportMissingImports]
-    StableDiffusionXLControlNetImg2ImgPipeline,
-)
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_inpaint import (  # type: ignore[reportMissingImports]
     StableDiffusionXLInpaintPipeline,
 )
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -37,6 +29,10 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
     read_driver_meta,
 )
+
+if TYPE_CHECKING:
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+    from PIL.Image import Image
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -89,6 +85,10 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
+        from diffusers.modular_pipelines.stable_diffusion_xl.modular_blocks_stable_diffusion_xl import (  # type: ignore[reportMissingImports]
+            StableDiffusionXLAutoBlocks,
+        )
+
         return StableDiffusionXLAutoBlocks().init_pipeline()
 
     @classmethod
@@ -103,6 +103,11 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
         pipe: ModularPipeline | DiffusionPipeline,
         control_net_model_lists: list[str] | str | None,
     ) -> ModularPipeline | DiffusionPipeline:
+        from diffusers.models.controlnets.controlnet import ControlNetModel  # type: ignore[reportMissingImports]
+        from diffusers.pipelines.controlnet.pipeline_controlnet_sd_xl_img2img import (  # type: ignore[reportMissingImports]
+            StableDiffusionXLControlNetImg2ImgPipeline,
+        )
+
         if not control_net_model_lists:
             return pipe
 
@@ -169,6 +174,8 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
            "noised_image_latents"}`` or any other tag) — run the block, tag
            ``"noised_image_latents"``.
         """
+        import torch  # type: ignore[reportMissingImports]
+
         if strength <= 0.0:
             return latent
         if strength >= 1.0:
@@ -291,6 +298,8 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         generator = generator_state.to_generator()

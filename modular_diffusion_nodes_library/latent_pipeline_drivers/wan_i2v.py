@@ -1,15 +1,7 @@
-import logging
-from typing import Any, override
+from __future__ import annotations
 
-from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.wan.modular_blocks_wan22_i2v import (
-    Wan22Image2VideoBlocks,  # type: ignore[reportMissingImports]
-)
-from diffusers.modular_pipelines.wan.modular_blocks_wan_i2v import (
-    WanImage2VideoAutoBlocks,  # type: ignore[reportMissingImports]
-)
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-from PIL.Image import Image
+import logging
+from typing import TYPE_CHECKING, Any, override
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import GeneratorState
@@ -22,6 +14,11 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     resolve_frame_index,
 )
 
+if TYPE_CHECKING:
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+    from PIL.Image import Image
+
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
@@ -31,6 +28,13 @@ class WanImageToVideoLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
+        from diffusers.modular_pipelines.wan.modular_blocks_wan22_i2v import (
+            Wan22Image2VideoBlocks,  # type: ignore[reportMissingImports]
+        )
+        from diffusers.modular_pipelines.wan.modular_blocks_wan_i2v import (
+            WanImage2VideoAutoBlocks,  # type: ignore[reportMissingImports]
+        )
+
         if getattr(self.pipe, "transformer_2", None) is not None:
             return Wan22Image2VideoBlocks().init_pipeline()
         return WanImage2VideoAutoBlocks().init_pipeline()

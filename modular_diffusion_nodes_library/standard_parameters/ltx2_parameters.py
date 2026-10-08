@@ -1,8 +1,8 @@
-import logging
-from typing import Any, ClassVar
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers.pipelines.ltx2.pipeline_ltx2 import LTX2Pipeline  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar
+
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
@@ -10,11 +10,21 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
     ModularDiffusionPipelineTypePipelineParameters,
 )
 
+if TYPE_CHECKING:
+    from diffusers.pipelines.ltx2.pipeline_ltx2 import LTX2Pipeline  # type: ignore[reportMissingImports]
+
 logger = logging.getLogger("diffusers_nodes_library")
 
 
 class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-    _pipeline_cls = LTX2Pipeline
+    _pipeline_cls_path = "diffusers.pipelines.ltx2.pipeline_ltx2:LTX2Pipeline"
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "tokenizer",
+        "scheduler",
+    ]
     _repo_ids: ClassVar[list[str]] = [
         "dg845/LTX-2.3-Diffusers",
         "dg845/LTX-2.3-Distilled-Diffusers",
@@ -65,6 +75,9 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> LTX2Pipeline:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.pipelines.ltx2.pipeline_ltx2 import LTX2Pipeline  # type: ignore[reportMissingImports]
+
         return LTX2Pipeline.from_pretrained(
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],

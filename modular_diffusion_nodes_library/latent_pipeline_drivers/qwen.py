@@ -1,7 +1,8 @@
-import logging
-from typing import Any, ClassVar, override
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar, override
+
 from diffusers import (
     QwenImageControlNetInpaintPipeline,  # type: ignore[reportMissingImports]
     QwenImageControlNetModel,  # type: ignore[reportMissingImports]
@@ -18,12 +19,7 @@ from diffusers.modular_pipelines.qwenimage.before_denoise import (  # type: igno
     QwenImagePrepareLatentsWithStrengthStep,
     QwenImageSetTimestepsWithStrengthStep,
 )
-from diffusers.modular_pipelines.qwenimage.modular_blocks_qwenimage import (
-    QwenImageAutoBlocks,  # type: ignore[reportMissingImports]
-)
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_model_parameter import HuggingFaceModelParameter
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -40,6 +36,11 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
 from modular_diffusion_nodes_library.parameters.controlnet_node_parameter_types import (
     QwenImageControlNetNodesParameterType,
 )
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+    from PIL.Image import Image
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -102,9 +103,15 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
+        from diffusers.modular_pipelines.qwenimage.modular_blocks_qwenimage import (
+            QwenImageAutoBlocks,  # type: ignore[reportMissingImports]
+        )
+
         return QwenImageAutoBlocks().init_pipeline()
 
     def _get_unpacked_image_latents(self, output_state: dict[str, Any], height: int, width: int) -> torch.Tensor:
+        import torch  # type: ignore[reportMissingImports]
+
         latents = output_state.get("latents")
         if not isinstance(latents, torch.Tensor):
             raise ValueError(f"Expected latents to be a torch.Tensor but got {type(latents)}")
@@ -202,6 +209,8 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         image = media.image

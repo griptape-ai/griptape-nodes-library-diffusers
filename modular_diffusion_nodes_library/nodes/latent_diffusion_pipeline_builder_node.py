@@ -151,9 +151,11 @@ class LatentDiffusionPipelineBuilderNode(
 
         build_data_error: str | None = None
         if build_from_overrides_only:
+            # No `_pipeline_cls` entry: reading it imports diffusers, and this runs on the orchestrator
+            # where the execution environment is absent. `build_pipeline_from_build_data` already falls
+            # back to the params class's own `pipeline_cls()`, in the process that builds.
             build_data = {
                 "_component_overrides": component_overrides,
-                "_pipeline_cls": pipeline_params.pipeline_cls(),
                 "_all_overrides": True,
             }
         else:
@@ -311,7 +313,6 @@ class LatentDiffusionPipelineBuilderNode(
         pipeline_params = self.params.pipeline_type_parameters.pipeline_type_pipeline_params
         if pipeline_params is None:
             return []
-        pipeline_cls = pipeline_params.pipeline_cls()
 
         if self._build_pipeline_from_component_overrides_only():
             base_repo_id = None
@@ -327,7 +328,6 @@ class LatentDiffusionPipelineBuilderNode(
 
         return evaluate_component_compatibility(
             overrides,
-            pipeline_cls,
             base_repo_id,
             base_revision=base_revision,
             pipeline_params_cls=type(pipeline_params),

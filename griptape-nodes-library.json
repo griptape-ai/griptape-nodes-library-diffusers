@@ -36,13 +36,23 @@
         "author": "Griptape, Inc.",
         "description": "Modular Diffusion nodes for Griptape Nodes.",
         "library_version": "0.7.0",
-        "engine_version": "0.100.2",
+        "engine_version": "0.102.0",
         "tags": [
             "Griptape",
             "AI"
         ],
         "dependencies": {
             "pip_dependencies": [
+                "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
+                "huggingface-hub"
+            ],
+            "pip_install_flags": [
+                "--preview",
+                "--torch-backend=auto"
+            ],
+            "pip_dependencies_exec": [
+                "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
+                "huggingface-hub",
                 "accelerate>=1.6.0",
                 "av>=14.0.0",
                 "beautifulsoup4>=4.13.4",
@@ -76,12 +86,7 @@
                 "scipy>=1.10.0",
                 "matplotlib>=3.10.3",
                 "supervision>=0.27.0",
-                "griptape[drivers-prompt-amazon-bedrock,drivers-prompt-anthropic,drivers-prompt-cohere,drivers-prompt-ollama,drivers-web-scraper-trafilatura,drivers-web-search-duckduckgo,drivers-web-search-exa,loaders-image]>=1.9.4",
                 "openexr>=3.3.0"
-            ],
-            "pip_install_flags": [
-                "--preview",
-                "--torch-backend=auto"
             ]
         },
         "resources": {

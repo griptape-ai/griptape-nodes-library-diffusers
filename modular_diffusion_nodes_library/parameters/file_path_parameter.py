@@ -3,9 +3,9 @@ from typing import Any
 
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import BaseNode
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
 
+from modular_diffusion_nodes_library.utils.config_utils import get_workspace_path
 from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros, resolve_path_to_macro
 
 
@@ -22,7 +22,7 @@ class FilePathParameter:
         self._node = node
         self._parameter_name = parameter_name
         self._file_types = file_types
-        self._initial_path = initial_path or str(GriptapeNodes.ConfigManager().workspace_path)
+        self._initial_path = initial_path or str(get_workspace_path())
         self._tooltip = tooltip
         self._display_name = display_name
 

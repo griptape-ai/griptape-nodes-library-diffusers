@@ -86,3 +86,11 @@ class DiffusionPipelineRuntimeParameters(ABC):
 
     def validate_before_node_run(self) -> list[Exception] | None:
         return None
+
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Checks that need values held by the process that produced them.
+
+        Override when a check reads a latent or any other object that cannot leave its process; anything
+        answerable from plain values belongs in `validate_before_node_run`, which runs earlier.
+        """
+        return None

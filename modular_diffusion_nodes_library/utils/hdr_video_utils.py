@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import Imath  # type: ignore[reportMissingImports]
-import numpy as np
-import OpenEXR  # type: ignore[reportMissingImports]
+if TYPE_CHECKING:
+    import numpy as np  # type: ignore[reportMissingImports]
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,9 @@ def encode_linear_hdr_exr_sequence(
     Returns:
         List of absolute paths to the written EXR files, in frame order.
     """
+    import Imath  # type: ignore[reportMissingImports]
+    import numpy as np
+    import OpenEXR  # type: ignore[reportMissingImports]
 
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

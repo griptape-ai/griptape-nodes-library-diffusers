@@ -1,9 +1,8 @@
+from __future__ import annotations
+
 import logging
 from typing import Any
 
-import numpy as np
-import torch
-import torch.nn.functional as F
 from griptape.artifacts import ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterGroup, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
@@ -13,7 +12,6 @@ from griptape_nodes.exe_types.param_types.parameter_int import ParameterInt
 from griptape_nodes.exe_types.param_types.parameter_string import ParameterString
 from griptape_nodes.traits.options import Options
 from griptape_nodes.traits.slider import Slider
-from PIL import Image
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
@@ -169,7 +167,8 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             skip_before_value_set=skip_before_value_set,
         )
 
-    def validate_before_node_run(self) -> list[Exception] | None:
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Both inputs are held latents, so only the process running the node can read them."""
         errors: list[Exception] = []
 
         dest = self.get_parameter_value("destination_latent")
@@ -196,6 +195,11 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
 
     def _composite(self) -> None:
+        import numpy as np
+        import torch
+        import torch.nn.functional as F
+        from PIL import Image
+
         dest_artifact = self.get_parameter_value("destination_latent")
         src_artifact = self.get_parameter_value("source_latent")
         resize_source = self.get_parameter_value("resize_source")

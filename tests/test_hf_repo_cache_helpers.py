@@ -10,8 +10,11 @@ from modular_diffusion_nodes_library.parameters.user_specified_hf_repo_parameter
 def test_user_specified_repo_parameter_fetches_exact_repo_revisions(monkeypatch) -> None:
     class NodeStub(BaseNode):
         def __init__(self) -> None:
-            # Skip BaseNode.__init__; the parameter under test only calls get_parameter_value.
-            pass
+            # Skip BaseNode.__init__, so every attribute the engine reads off a node has to be set
+            # here. Empty metadata is the documented fallback in the engine's model policy: the node
+            # type comes from the class name and the library is treated as unknown.
+            self.metadata = {}
+            self._engine = None
 
         def get_parameter_value(self, param_name: str) -> Any:
             return "org/model"

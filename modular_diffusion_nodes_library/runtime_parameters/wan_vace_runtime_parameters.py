@@ -179,10 +179,10 @@ class WanVacePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             **self._reference_images_param.get_pipe_kwargs(),
         }
 
-    def validate_before_node_run(self) -> list[Exception] | None:
-        errors = super().validate_before_node_run() or []
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        errors = super().validate_in_execution_environment() or []
         for param in (self._source_media_param, self._mask_param, self._reference_images_param):
-            param_errors = param.validate_before_node_run()
+            param_errors = param.validate_in_execution_environment()
             if param_errors:
                 errors.extend(param_errors)
 
