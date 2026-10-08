@@ -47,16 +47,10 @@ def _discover_workflow_templates() -> list[str]:
     return sorted(templates)
 
 
-def _resolve_lora_path(path_string: str) -> Path | None:
-    """Resolve a workflow-declared LoRA path to a repo-local file under workflows/assets/lora.
-
-    We intentionally reject arbitrary absolute paths or any file outside the project-local asset
-    folder. This keeps the repo clean while allowing users to place their local LoRAs next to the
-    workflow assets without checking them into source control.
-    """
+def _resolve_workflow_path_locally(path_string: str) -> list[Path]:
     raw_path = path_string.strip()
     if not raw_path:
-        return None
+        return []
 
     # Expand the project/workflow macros before checking the path. These are the values used by
     # generated workflow templates when they point at repo-local assets.
@@ -85,6 +79,11 @@ def _resolve_lora_path(path_string: str) -> Path | None:
     # either style are accepted when they still end up inside the local LoRA assets directory.
     candidates: list[Path] = []
     candidate = Path(normalized)
+    try:
+        candidate = candidate.expanduser()
+    except (OSError, RuntimeError):
+        pass
+
     if candidate.is_absolute():
         candidates.append(candidate)
     else:
@@ -92,29 +91,58 @@ def _resolve_lora_path(path_string: str) -> Path | None:
         candidates.append(candidate)
 
     seen: set[Path] = set()
+    resolved_paths: list[Path] = []
     for candidate in candidates:
         try:
-            resolved = candidate.expanduser().resolve(strict=False)
-        except OSError:
+            resolved = candidate.resolve(strict=False)
+        except (OSError, RuntimeError):
+            continue
+        if not resolved.exists():
             continue
         if resolved in seen:
             continue
         seen.add(resolved)
+        resolved_paths.append(resolved)
 
-        # The only allowed LoRA installation location is the local workflow asset tree.
-        lora_assets_root = LORA_ASSETS_DIR.resolve(strict=False)
+    return resolved_paths
+
+
+def _resolve_workflow_path(path_string: str) -> Path | None:
+    """Resolve workflow paths locally without depending on the user's engine workspace config."""
+    raw_path = path_string.strip()
+    if not raw_path:
+        return None
+
+    expanded_path = expand_path_macros(raw_path)
+    if expanded_path != raw_path:
         try:
-            resolved.relative_to(lora_assets_root)
+            expanded_candidate = Path(expanded_path).expanduser().resolve(strict=False)
+            if expanded_candidate.exists():
+                return expanded_candidate
+        except (OSError, RuntimeError):
+            pass
+
+    return next(iter(_resolve_workflow_path_locally(raw_path)), None)
+
+
+def _resolve_lora_path(path_string: str) -> Path | None:
+    """Resolve a LoRA path only when it points to a supported file under the local LoRA assets."""
+    lora_assets_root = LORA_ASSETS_DIR.resolve(strict=False)
+    local_resolved = _resolve_workflow_path_locally(path_string)
+    resolved: Path | None = None
+    for candidate in local_resolved:
+        try:
+            candidate.relative_to(lora_assets_root)
         except ValueError:
             continue
-
-        if not resolved.is_file():
+        if not candidate.is_file():
             continue
-        if resolved.suffix.lower() not in SUPPORTED_LORA_EXTENSIONS:
+        if candidate.suffix.lower() not in SUPPORTED_LORA_EXTENSIONS:
             continue
-        return resolved
+        resolved = candidate
+        break
 
-    return None
+    return resolved
 
 
 def _is_lora_path_available(path_string: str) -> bool:
@@ -135,28 +163,15 @@ def _is_lora_path_available(path_string: str) -> bool:
 
 
 def _is_file_path_available(path_string: str) -> bool:
-    # Component weights / text embeddings / scheduler configs: available when the local file exists.
-    raw_path = path_string.strip()
-    if not raw_path:
-        return False
-    try:
-        resolved = Path(expand_path_macros(raw_path)).expanduser()
-    except (OSError, ValueError):
-        return False
-    return resolved.is_file()
+    resolved = _resolve_workflow_path(path_string)
+    return resolved is not None and resolved.is_file()
 
 
 def _is_component_folder_available(path_string: str) -> bool:
     # A diffusers component folder holds a config file: config.json, tokenizer_config.json (tokenizer),
     # or scheduler_config.json (scheduler).
-    raw_path = path_string.strip()
-    if not raw_path:
-        return False
-    try:
-        resolved = Path(expand_path_macros(raw_path)).expanduser()
-    except (OSError, ValueError):
-        return False
-    if not resolved.is_dir():
+    resolved = _resolve_workflow_path(path_string)
+    if resolved is None or not resolved.is_dir():
         return False
     return (
         (resolved / "config.json").is_file()
@@ -167,14 +182,8 @@ def _is_component_folder_available(path_string: str) -> bool:
 
 def _is_folder_available(path_string: str) -> bool:
     # Non-component folders only need to exist on disk.
-    raw_path = path_string.strip()
-    if not raw_path:
-        return False
-    try:
-        resolved = Path(expand_path_macros(raw_path)).expanduser()
-    except (OSError, ValueError):
-        return False
-    return resolved.is_dir()
+    resolved = _resolve_workflow_path(path_string)
+    return resolved is not None and resolved.is_dir()
 
 
 def _is_folder_requirement_available(folder: PathRequirement) -> bool:
