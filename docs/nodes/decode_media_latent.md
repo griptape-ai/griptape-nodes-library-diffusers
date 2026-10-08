@@ -66,3 +66,4 @@ Both models' audio latent travels in the latent's *metadata*, not in its tensor:
 
 - [Encode Media Latent](encode_media_latent.md) — inverse operation.
 - [Generate Media Latents](generate_media_latents.md) — typical upstream node.
+- [Latent to Media](latent_to_media.md) — standalone alternative that needs no pipeline, for models both nodes support.

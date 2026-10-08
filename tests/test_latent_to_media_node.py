@@ -1,0 +1,334 @@
+from pathlib import Path
+from unittest.mock import ANY, MagicMock
+
+import pytest
+
+pytest.importorskip(
+    "torch", reason="Builds real tensors and diffusers classes; run `make test/exec` for the execution environment."
+)
+
+import diffusers.pipelines.ltx2.pipeline_ltx2_diffusion_decode as decode_pipeline_module  # noqa: E402
+import diffusers.schedulers.scheduling_flow_match_euler_discrete as scheduler_module  # noqa: E402
+import numpy as np  # noqa: E402
+import torch  # noqa: E402
+from diffusers.models.autoencoders.ltx2_diffusion_decoder import LTX2VideoDiffusionDecoderModel  # noqa: E402
+from PIL import Image  # noqa: E402
+
+from modular_diffusion_nodes_library.artifact_utils.float_media_artifact import FloatMediaArtifact  # noqa: E402
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact  # noqa: E402
+from modular_diffusion_nodes_library.nodes.latent_to_media_node import LatentToMediaNode  # noqa: E402
+from modular_diffusion_nodes_library.nodes.vae_decoder import VaeDecodeNode  # noqa: E402
+from modular_diffusion_nodes_library.parameters import (  # noqa: E402
+    latent_to_media_parameters as decoder_parameters_module,
+)
+from modular_diffusion_nodes_library.parameters.latent_to_media_parameters import (  # noqa: E402
+    LatentToMediaSpec,
+    LTX25DiffusionDecoderParameters,
+)
+
+
+def test_ltx25_decoder_spec_declares_video_and_fps() -> None:
+    assert LTX25DiffusionDecoderParameters.spec == LatentToMediaSpec(media_type="video", fps=24)
+
+
+def test_decoder_dynamic_parameters_are_declared_by_parameter_class() -> None:
+    assert LTX25DiffusionDecoderParameters._DYNAMIC_PARAMETERS == {
+        "diffusion_decoder_model",
+        "diffusion_decoder_model_download",
+        "decoder_num_inference_steps",
+        "decoder_use_tiling",
+        "output_image",
+        "output_video",
+        "raw_media",
+        "fps",
+        "enable_raw_output",
+    }
+
+
+def test_ltx25_decode_uses_decode_pipeline_and_preserves_configured_steps(monkeypatch: pytest.MonkeyPatch) -> None:
+    params = LTX25DiffusionDecoderParameters.__new__(LTX25DiffusionDecoderParameters)
+    params._node = MagicMock()
+    params._node.get_parameter_value.side_effect = lambda name: {
+        "decoder_num_inference_steps": 2,
+        "decoder_use_tiling": False,
+    }[name]
+    params._model_repo_parameter = MagicMock()
+    params._model_repo_parameter.validate_before_node_run.return_value = None
+    params._model_repo_parameter.get_repo_revision.return_value = ("Lightricks/LTX-2.5-Diffusers", "revision")
+
+    decoder = MagicMock()
+    pipeline_output = np.full((1, 2, 4, 4, 3), 0.5, dtype=np.float32)
+    pipeline = MagicMock()
+    pipeline.return_value = (pipeline_output,)
+    monkeypatch.setattr(decoder_parameters_module, "get_best_device", lambda: "cpu")
+    from_pretrained = MagicMock(return_value=decoder)
+    monkeypatch.setattr(LTX2VideoDiffusionDecoderModel, "from_pretrained", from_pretrained)
+    pipeline_class = MagicMock(return_value=pipeline)
+    monkeypatch.setattr(decode_pipeline_module, "LTX2VideoDiffusionDecodePipeline", pipeline_class)
+    scheduler = MagicMock()
+    monkeypatch.setattr(scheduler_module, "FlowMatchEulerDiscreteScheduler", MagicMock(return_value=scheduler))
+    cleanup = MagicMock()
+    monkeypatch.setattr(decoder_parameters_module, "cleanup_memory_caches", cleanup)
+    latent_tensor = torch.zeros((1, 4, 2, 4, 4))
+    latent = MagicMock(to_torch=MagicMock(return_value=latent_tensor), meta={})
+
+    decoded = params.decode(latent, seed=3, output_type="np")
+
+    assert isinstance(decoded, np.ndarray)
+    assert decoded.shape == (1, 2, 4, 4, 3)
+    assert decoded.dtype == np.float32
+    np.testing.assert_array_equal(decoded, pipeline_output)
+    assert decoder.decoder.default_num_inference_steps == 2
+    assert pipeline.to.call_args.kwargs == {"device": "cpu"}
+    pipeline.assert_called_once_with(
+        latents=latent_tensor,
+        generator=ANY,
+        output_type="np",
+        return_dict=False,
+        denormalize=True,
+    )
+    assert isinstance(pipeline.call_args.kwargs["generator"], torch.Generator)
+    assert latent.to_torch.call_args.kwargs == {"device": "cpu", "dtype": torch.bfloat16}
+    decoder.enable_tiling.assert_not_called()
+    decoder.cpu.assert_called_once_with()
+    cleanup.assert_called_once_with()
+
+    pil_frame = Image.new("RGB", (4, 4))
+    pipeline.return_value = ([[pil_frame]],)
+    pil_output = params.decode(latent, seed=3, output_type="pil")
+    assert pil_output == [[pil_frame]]
+    assert pipeline.call_args.kwargs["output_type"] == "pil"
+
+    pipeline.return_value = (pipeline_output,)
+    params.decode(latent, seed=-1, output_type="np")
+    assert pipeline.call_args.kwargs["generator"] is None
+
+    from_pretrained.assert_called_with(
+        "Lightricks/LTX-2.5-Diffusers",
+        subfolder="diffusion_decoder",
+        revision="revision",
+        torch_dtype=torch.bfloat16,
+    )
+    params._model_repo_parameter.get_repo_revision.assert_called_with()
+
+
+def test_ltx25_decode_enables_tiling_when_requested(monkeypatch: pytest.MonkeyPatch) -> None:
+    params = LTX25DiffusionDecoderParameters.__new__(LTX25DiffusionDecoderParameters)
+    params._node = MagicMock()
+    params._node.get_parameter_value.side_effect = lambda name: {
+        "decoder_num_inference_steps": 1,
+        "decoder_use_tiling": True,
+    }[name]
+    params._model_repo_parameter = MagicMock()
+    params._model_repo_parameter.validate_before_node_run.return_value = None
+    params._model_repo_parameter.get_repo_revision.return_value = ("repo", None)
+    decoder = MagicMock()
+    pipeline = MagicMock()
+    pipeline.return_value = (np.zeros((1, 1, 2, 2, 3), dtype=np.float32),)
+    monkeypatch.setattr(decoder_parameters_module, "get_best_device", lambda: "cpu")
+    monkeypatch.setattr(LTX2VideoDiffusionDecoderModel, "from_pretrained", MagicMock(return_value=decoder))
+    monkeypatch.setattr(decode_pipeline_module, "LTX2VideoDiffusionDecodePipeline", MagicMock(return_value=pipeline))
+    monkeypatch.setattr(decoder_parameters_module, "cleanup_memory_caches", lambda: None)
+
+    params.decode(MagicMock(to_torch=MagicMock(return_value=torch.zeros((1, 4, 1, 2, 2)))), seed=0, output_type="np")
+
+    decoder.enable_tiling.assert_called_once_with()
+
+
+def test_node_publishes_video_from_decoded_frames(monkeypatch: pytest.MonkeyPatch) -> None:
+    node = LatentToMediaNode.__new__(LatentToMediaNode)
+    node.name = "Latent to Media"
+    node.decoder_params = MagicMock()
+    node.decoder_params.spec = LatentToMediaSpec(media_type="video", fps=24)
+    node.decoder_params.decode.return_value = [Image.new("RGB", (4, 4)) for _ in range(2)]
+    node.decoder_params.validate_before_node_run.return_value = None
+    latent = LatentArtifact.from_torch(torch.zeros((1, 4, 2, 4, 4)), source_shape=(9, 32, 32, 3))
+    node.get_parameter_value = lambda param_name: {
+        "latent_tensor": latent,
+        "seed": 5,
+        "fps": 30,
+        "enable_raw_output": False,
+    }[param_name]
+    object.__setattr__(node, "parameter_output_values", {})
+    node.set_parameter_value = MagicMock()
+
+    encoded = {}
+
+    def encode(frames: np.ndarray, fps: int, path: str) -> None:
+        encoded.update(frames=frames, fps=fps, path=path)
+        Path(path).write_bytes(b"video")
+
+    monkeypatch.setattr("diffusers.utils.export_utils.encode_video", encode)
+    saved = MagicMock(location="workspace://video.mp4")
+    destination = MagicMock()
+    destination.write_bytes.side_effect = lambda data: saved
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.nodes.latent_to_media_node.ProjectFileDestination.from_situation",
+        lambda **kwargs: destination,
+    )
+
+    node._decode()
+
+    assert encoded["frames"].shape == (2, 4, 4, 3)
+    assert encoded["frames"].dtype == np.uint8
+    assert encoded["fps"] == 30
+    node.decoder_params.decode.assert_called_once_with(latent, seed=5, output_type="pil")
+    node.set_parameter_value.assert_called_once_with("output_video", node.parameter_output_values["output_video"])
+    assert node.parameter_output_values["output_video"].value == "workspace://video.mp4"
+
+
+def test_node_switches_to_image_output_without_fps(monkeypatch: pytest.MonkeyPatch) -> None:
+    node = LatentToMediaNode.__new__(LatentToMediaNode)
+    node.decoder_params = MagicMock()
+    node.decoder_params.spec = LatentToMediaSpec(media_type="image")
+    node._current_media_type = "video"
+    node._current_raw_output = False
+    node.get_parameter_value = lambda param_name: False
+    removed = []
+    added = []
+    monkeypatch.setattr(node, "remove_parameter_element_by_name", removed.append, raising=False)
+    monkeypatch.setattr(node, "add_parameter", added.append, raising=False)
+
+    node._update_output_parameters()
+
+    assert removed == ["output_video", "fps"]
+    assert [parameter.name for parameter in added] == ["output_image"]
+    assert node._current_media_type == "image"
+
+
+def test_node_switches_to_video_output_with_spec_fps(monkeypatch: pytest.MonkeyPatch) -> None:
+    node = LatentToMediaNode.__new__(LatentToMediaNode)
+    node.decoder_params = MagicMock()
+    node.decoder_params.spec = LatentToMediaSpec(media_type="video", fps=24)
+    node._current_media_type = "image"
+    node._current_raw_output = False
+    node.get_parameter_value = lambda param_name: False
+    removed = []
+    added = []
+    monkeypatch.setattr(node, "remove_parameter_element_by_name", removed.append, raising=False)
+    monkeypatch.setattr(node, "add_parameter", added.append, raising=False)
+
+    node._update_output_parameters()
+
+    assert removed == ["output_image"]
+    assert [parameter.name for parameter in added] == ["fps", "output_video"]
+    assert added[0].default_value == 24
+    assert node._current_media_type == "video"
+
+
+def test_node_publishes_image_from_decoded_frame(monkeypatch: pytest.MonkeyPatch) -> None:
+    node = LatentToMediaNode.__new__(LatentToMediaNode)
+    node.name = "Latent to Media"
+    node.decoder_params = MagicMock()
+    node.decoder_params.spec = LatentToMediaSpec(media_type="image")
+    node.decoder_params.decode.return_value = [Image.new("RGB", (4, 4))]
+    latent = LatentArtifact.from_torch(torch.zeros((1, 4, 4, 4)), source_shape=(4, 4, 3))
+    node.get_parameter_value = lambda param_name: {
+        "latent_tensor": latent,
+        "seed": 0,
+        "enable_raw_output": False,
+    }[param_name]
+    object.__setattr__(node, "parameter_output_values", {})
+    node.set_parameter_value = MagicMock()
+    artifact = object()
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.nodes.latent_to_media_node.pil_to_image_artifact",
+        lambda image: artifact,
+    )
+
+    node._decode()
+
+    node.set_parameter_value.assert_called_once_with("output_image", artifact)
+    assert node.parameter_output_values["output_image"] is artifact
+    node.decoder_params.decode.assert_called_once_with(latent, seed=0, output_type="pil")
+
+
+def test_node_raw_mode_preserves_float_media_and_clips_display_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    node = LatentToMediaNode.__new__(LatentToMediaNode)
+    node.name = "Latent to Media"
+    node.decoder_params = MagicMock()
+    node.decoder_params.spec = LatentToMediaSpec(media_type="image")
+    decoded = np.array([[[[-0.5, 0.4, 1.5], [0.2, 0.5, 2.0]]]], dtype=np.float32)
+    node.decoder_params.decode.return_value = decoded
+    latent = LatentArtifact.from_torch(torch.zeros((1, 4, 4, 4)), source_shape=(1, 2, 3))
+    node.get_parameter_value = lambda param_name: {
+        "latent_tensor": latent,
+        "seed": 4,
+        "enable_raw_output": True,
+    }[param_name]
+    object.__setattr__(node, "parameter_output_values", {})
+    node.set_parameter_value = MagicMock()
+    images = []
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.nodes.latent_to_media_node.pil_to_image_artifact",
+        lambda image: images.append(image.copy()) or "image-artifact",
+    )
+
+    node._decode()
+
+    raw = node.parameter_output_values["raw_media"]
+    assert isinstance(raw, FloatMediaArtifact)
+    np.testing.assert_array_equal(raw.to_numpy(), decoded[0])
+    assert raw.dtype == np.float32
+    assert raw.to_numpy().min() == -0.5
+    assert raw.to_numpy().max() == 2.0
+    np.testing.assert_array_equal(np.asarray(images[0])[0, 0], [0, 102, 255])
+    node.decoder_params.decode.assert_called_once_with(latent, seed=4, output_type="np")
+
+
+def test_node_raw_video_output_keeps_fps_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    node = LatentToMediaNode.__new__(LatentToMediaNode)
+    node.name = "Latent to Media"
+    node.decoder_params = MagicMock()
+    node.decoder_params.spec = LatentToMediaSpec(media_type="video", fps=24)
+    node.decoder_params.decode.return_value = np.full((1, 2, 4, 4, 3), 0.5, dtype=np.float32)
+    latent = LatentArtifact.from_torch(torch.zeros((1, 4, 2, 4, 4)), source_shape=(2, 32, 32, 3))
+    node.get_parameter_value = lambda param_name: {
+        "latent_tensor": latent,
+        "seed": 4,
+        "fps": 30,
+        "enable_raw_output": True,
+    }[param_name]
+    object.__setattr__(node, "parameter_output_values", {})
+    node.set_parameter_value = MagicMock()
+    monkeypatch.setattr(
+        "diffusers.utils.export_utils.encode_video",
+        lambda frames, fps, path: Path(path).write_bytes(b"video"),
+    )
+    saved = MagicMock(location="workspace://video.mp4")
+    destination = MagicMock()
+    destination.write_bytes.return_value = saved
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.nodes.latent_to_media_node.ProjectFileDestination.from_situation",
+        lambda **kwargs: destination,
+    )
+
+    node._decode()
+
+    raw = node.parameter_output_values["raw_media"]
+    assert isinstance(raw, FloatMediaArtifact)
+    assert raw.meta["fps"] == 30
+    assert raw.shape == (2, 4, 4, 3)
+
+
+def test_vae_decode_image_output_rejects_non_pil() -> None:
+    node = VaeDecodeNode.__new__(VaeDecodeNode)
+    node.name = "Decode Media"
+
+    with pytest.raises(TypeError, match="must return a PIL image"):
+        node._handle_image_output(np.zeros((1, 4, 4, 3), dtype=np.float32))
+
+
+def test_node_rejects_non_video_latents() -> None:
+    node = LatentToMediaNode.__new__(LatentToMediaNode)
+    node.decoder_params = MagicMock()
+    node.decoder_params.spec = LatentToMediaSpec(media_type="video", fps=24)
+    node.get_parameter_value = lambda param_name: {
+        "latent_tensor": LatentArtifact.from_torch(torch.zeros((1, 4, 8, 8)), source_shape=(64, 64, 3)),
+        "fps": 24,
+    }[param_name]
+
+    errors = node.validate_in_execution_environment()
+
+    assert errors is not None
+    assert "5-D video latent" in str(errors[0])
