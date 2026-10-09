@@ -5,7 +5,7 @@ This page is the canonical template for every node reference page under [docs/no
 ## File location and naming
 
 - One page per node, flat under `docs/nodes/`.
-- File name is the snake_case form of the node's display name with the `Node` suffix dropped — e.g. `LatentCompositeMaskNode` → `latents_composite_mask.md`, `VaeDecodeNode` → `decode_media_latent.md`. Match the spelling already used in [griptape_nodes_library.json](../griptape_nodes_library.json).
+- File name is the snake_case form of the node's display name with the `Node` suffix dropped — e.g. `LatentCompositeMaskNode` → `latents_composite_mask.md`, `VaeDecodeNode` → `decode_media_latent.md`. Match the spelling already used in [griptape-nodes-library.json](../griptape-nodes-library.json).
 - Companion screenshot lives at `docs/assets/nodes/<kebab-case-of-display-name>.png`. If the screenshot does not exist yet, leave an inline `<!-- TODO: add docs/assets/nodes/<filename>.png screenshot -->` marker where the `<img>` would go and surface the gap in the PR description.
 
 ## Page template
@@ -118,7 +118,7 @@ Upstream Node → [<Display Name>] → Downstream Node
 ## Quality checklist (run before opening a PR)
 
 1. Page matches the section ordering above exactly.
-2. Category string matches the node entry in [griptape_nodes_library.json](../griptape_nodes_library.json).
+2. Category string matches the node entry in [griptape-nodes-library.json](../griptape-nodes-library.json).
 3. `<img>` references an existing file in [docs/assets/nodes/](assets/nodes/) **or** carries a TODO marker.
 4. Page is registered in the appropriate group of [docs/index.md](index.md).
 5. All `See also` links resolve to existing files.

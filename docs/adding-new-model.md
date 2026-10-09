@@ -31,7 +31,7 @@ When the three blockers above are resolved, drivers will be able to swap their d
 
 **The test**: can `<NewPipelineClass>.from_pipe(base_pipe)` produce a *working* pipeline using the components already loaded on an existing base pipeline (UNet/transformer, VAE, text encoders, scheduler)?
 
-- **Yes** → runtime variant. Stop and follow [`.github/skills/add-pipeline-variants/SKILL.md`](../.github/skills/add-pipeline-variants/SKILL.md). Examples: ControlNet, inpaint, LTX's `LTXConditionPipeline`.
+- **Yes** → runtime variant. Stop and follow the `add-pipeline-variants` skill. Examples: ControlNet, inpaint, LTX's `LTXConditionPipeline`.
 - **No** — the variant class needs a component the base pipeline does not have, or needs differently-shaped/-trained weights for an existing component → new pipeline type. Continue with this guide. Examples: WAN T2V vs WAN I2V (different UNet + image encoder), Flux vs Flux Fill (different transformer weights), Qwen vs Qwen Edit (different transformer + image conditioning).
 
 ## The 6-Step Process
@@ -121,7 +121,7 @@ Optional overrides:
 - `_get_temporal_alignment()` — override in video drivers to return the temporal compression ratio; `(num_frames - 1)` must be divisible by this value. Typically `pipe.vae_scale_factor_temporal`. Return `None` (the base default) for image-only drivers. The base `validate_dimensions` and `align_dimensions` both call this automatically — most video drivers need only override this primitive.
 - `_get_spatial_alignment()` — return the pixel-space divisor for height and width. Typically `pipe.vae_scale_factor_spatial * pipe.transformer.config.patch_size[1]`. **This applies to image pipelines too** — `VaeEncodeNode` and `VaeMaskEncodeNode` validate spatial alignment for all media types.
 - `validate_dimensions(height, width, num_frames)` — override **only** when the alignment constraint cannot be expressed as a single divisor (e.g., HunyuanVideo I2V uses aspect-ratio bucketing via `video_processor.calculate_default_height_width` rather than a modulo check). If `_get_temporal_alignment` and `_get_spatial_alignment` are sufficient, do not override this. Always override `align_dimensions` in the same change to keep the two consistent: dimensions that pass `validate_dimensions` must be exactly the dimensions `align_dimensions` produces.
-- `align_dimensions(height, width, num_frames)` — override alongside `validate_dimensions` when the same non-divisor alignment applies. Returns `(aligned_h, aligned_w, aligned_frames)`. Must be consistent with `validate_dimensions` — both methods are called by `CreateNoiseLatentsNode`, `VaeEncodeNode`, and `VaeMaskEncodeNode` under the `enable_auto_resize` config flag (see `griptape_nodes_library.json`).
+- `align_dimensions(height, width, num_frames)` — override alongside `validate_dimensions` when the same non-divisor alignment applies. Returns `(aligned_h, aligned_w, aligned_frames)`. Must be consistent with `validate_dimensions` — both methods are called by `CreateNoiseLatentsNode`, `VaeEncodeNode`, and `VaeMaskEncodeNode` under the `enable_auto_resize` config flag (see `griptape-nodes-library.json`).
 
 ### Step 5 — Register in three places
 

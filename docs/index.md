@@ -4,7 +4,7 @@ Per-node reference for the Modular Diffusion Nodes Library. See the [README](../
 
 ## Node reference
 
-Node groups mirror the categories in [`griptape_nodes_library.json`](../griptape_nodes_library.json):
+Node groups mirror the categories in [`griptape-nodes-library.json`](../griptape-nodes-library.json):
 
 ### Pipeline
 - [Modular Diffusion Pipeline Builder](nodes/pipeline_builder.md)
