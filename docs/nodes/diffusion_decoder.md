@@ -41,6 +41,7 @@ Generate Media Latents → [Diffusion Decoder] → Save Video
 | `diffusion_decoder_model` | repo | `Lightricks/LTX-2.5-Diffusers` | Selects the decoder weights; download the repo through Model Manager before decoding. |
 | `decoder_num_inference_steps` | int | `1` | Number of denoising steps for the LTX-2.5 diffusion decoder. |
 | `decoder_use_tiling` | bool | `False` | Enables overlapping tiles to lower peak memory use on large videos. |
+| `decoder_use_flex_attention` | bool | `False` | Uses the original FlexAttention path when matching the reference attention behavior matters more than memory efficiency; at video resolutions, it can require tens of GB of GPU VRAM and may run out of memory. |
 | `seed` | int | `0` | Use a non-negative value for repeatable output; `-1` leaves the generator unset for pipeline-default randomness. |
 | `enable_raw_output` | bool | `False` | Exposes decoder NumPy output as `raw_media`; display output is a separate clipped preview. |
 | `fps` | int (1–120) | `24` | Output frame rate; shown only for video decoder models. |
@@ -50,6 +51,10 @@ Generate Media Latents → [Diffusion Decoder] → Save Video
 | Decoder | Behavior |
 | --- | --- |
 | LTX-2.5 | Decodes compatible 5-D LTX-2 video latents and publishes an MP4. Its model repository contains the decoder weights. |
+
+> **Warning:** The FlexAttention processor that diffusers uses by default is uncompiled, so it materialises the full score matrix. At video resolutions, it can require tens of GB of GPU VRAM and may run out of memory. The NATTEN kernels used by the original implementation are only prebuilt for Linux and WSL, so this library cannot use them on native Windows.
+
+> **Note:** This library uses chunked attention by default to cap memory. Enable `decoder_use_flex_attention` when matching the original FlexAttention reference path matters more than VRAM use. The chunked approach processes queries in chunks, a known technique (Rabe and Staats, 2021, "Self-attention Does Not Need O(n²) Memory").
 
 The node's decoder specification selects the output media type. FPS is shown only for video decoders. In normal mode, the decoder returns PIL media. In raw mode, it returns floating-point NumPy RGB through `raw_media`; image data uses `(H, W, 3)` and video uses `(F, H, W, 3)`. Values are unchanged by this node and have no guaranteed range or color-space interpretation. The regular image or video output is generated separately by clipping values to `[0, 1]` and converting to 8-bit display media.
 

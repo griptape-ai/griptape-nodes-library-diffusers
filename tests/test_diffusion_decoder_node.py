@@ -11,11 +11,18 @@ import diffusers.pipelines.ltx2.pipeline_ltx2_diffusion_decode as decode_pipelin
 import diffusers.schedulers.scheduling_flow_match_euler_discrete as scheduler_module  # noqa: E402
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
-from diffusers.models.autoencoders.ltx2_diffusion_decoder import LTX2VideoDiffusionDecoderModel  # noqa: E402
+from diffusers.models.autoencoders.ltx2_diffusion_decoder import (  # noqa: E402
+    LTX2VideoDiffusionDecoderModel,
+    LTX2VideoVaeNeighborhoodAttention,
+    LTX2VideoVaeNeighborhoodAttnProcessor,
+)
 from PIL import Image  # noqa: E402
 
 from modular_diffusion_nodes_library.artifact_utils.float_media_artifact import FloatMediaArtifact  # noqa: E402
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact  # noqa: E402
+from modular_diffusion_nodes_library.misc.neighborhood_attention import (  # noqa: E402
+    ChunkedNeighborhoodAttnProcessor,
+)
 from modular_diffusion_nodes_library.nodes.diffusion_decoder_node import DiffusionDecoderNode  # noqa: E402
 from modular_diffusion_nodes_library.nodes.vae_decoder import VaeDecodeNode  # noqa: E402
 from modular_diffusion_nodes_library.parameters import (  # noqa: E402
@@ -37,6 +44,7 @@ def test_decoder_dynamic_parameters_are_declared_by_parameter_class() -> None:
         "diffusion_decoder_model_download",
         "decoder_num_inference_steps",
         "decoder_use_tiling",
+        "decoder_use_flex_attention",
         "output_image",
         "output_video",
         "raw_media",
@@ -51,6 +59,7 @@ def test_ltx25_decode_uses_decode_pipeline_and_preserves_configured_steps(monkey
     params._node.get_parameter_value.side_effect = lambda name: {
         "decoder_num_inference_steps": 2,
         "decoder_use_tiling": False,
+        "decoder_use_flex_attention": False,
     }[name]
     params._model_repo_parameter = MagicMock()
     params._model_repo_parameter.validate_before_node_run.return_value = None
@@ -90,6 +99,8 @@ def test_ltx25_decode_uses_decode_pipeline_and_preserves_configured_steps(monkey
     assert isinstance(pipeline.call_args.kwargs["generator"], torch.Generator)
     assert latent.to_torch.call_args.kwargs == {"device": "cpu", "dtype": torch.bfloat16}
     decoder.enable_tiling.assert_not_called()
+    decoder.set_attn_processor.assert_called_once()
+    assert isinstance(decoder.set_attn_processor.call_args.args[0], ChunkedNeighborhoodAttnProcessor)
     decoder.cpu.assert_called_once_with()
     cleanup.assert_called_once_with()
 
@@ -118,6 +129,7 @@ def test_ltx25_decode_enables_tiling_when_requested(monkeypatch: pytest.MonkeyPa
     params._node.get_parameter_value.side_effect = lambda name: {
         "decoder_num_inference_steps": 1,
         "decoder_use_tiling": True,
+        "decoder_use_flex_attention": False,
     }[name]
     params._model_repo_parameter = MagicMock()
     params._model_repo_parameter.validate_before_node_run.return_value = None
@@ -133,6 +145,45 @@ def test_ltx25_decode_enables_tiling_when_requested(monkeypatch: pytest.MonkeyPa
     params.decode(MagicMock(to_torch=MagicMock(return_value=torch.zeros((1, 4, 1, 2, 2)))), seed=0, output_type="np")
 
     decoder.enable_tiling.assert_called_once_with()
+
+
+def test_ltx25_decode_uses_flex_attention_when_requested(monkeypatch: pytest.MonkeyPatch) -> None:
+    params = LTX25DiffusionDecoderParameters.__new__(LTX25DiffusionDecoderParameters)
+    params._node = MagicMock()
+    params._node.get_parameter_value.side_effect = lambda name: {
+        "decoder_num_inference_steps": 1,
+        "decoder_use_tiling": False,
+        "decoder_use_flex_attention": True,
+    }[name]
+    params._model_repo_parameter = MagicMock()
+    params._model_repo_parameter.validate_before_node_run.return_value = None
+    params._model_repo_parameter.get_repo_revision.return_value = ("repo", None)
+    decoder = MagicMock()
+    pipeline = MagicMock()
+    pipeline.return_value = (np.zeros((1, 1, 2, 2, 3), dtype=np.float32),)
+    monkeypatch.setattr(decoder_parameters_module, "get_best_device", lambda: "cpu")
+    monkeypatch.setattr(LTX2VideoDiffusionDecoderModel, "from_pretrained", MagicMock(return_value=decoder))
+    monkeypatch.setattr(decode_pipeline_module, "LTX2VideoDiffusionDecodePipeline", MagicMock(return_value=pipeline))
+    monkeypatch.setattr(decoder_parameters_module, "cleanup_memory_caches", lambda: None)
+
+    params.decode(MagicMock(to_torch=MagicMock(return_value=torch.zeros((1, 4, 1, 2, 2)))), seed=0, output_type="np")
+
+    processor = decoder.set_attn_processor.call_args.args[0]
+    assert isinstance(processor, LTX2VideoVaeNeighborhoodAttnProcessor)
+
+
+def test_chunked_neighborhood_attention_matches_flex_reference() -> None:
+    torch.manual_seed(0)
+    attn = LTX2VideoVaeNeighborhoodAttention(dim=64, kernel_size=(3, 3, 3), head_dim=32)
+    hidden_states = torch.randn(2, 4, 5, 6, 64)
+
+    attn.set_processor(LTX2VideoVaeNeighborhoodAttnProcessor())  # pyright: ignore[reportArgumentType]
+    expected = attn(hidden_states)
+
+    attn.set_processor(ChunkedNeighborhoodAttnProcessor(max_window_elements=25_000))  # pyright: ignore[reportArgumentType]
+    chunked = attn(hidden_states)
+
+    torch.testing.assert_close(chunked, expected, rtol=1e-4, atol=1e-5)
 
 
 def test_node_publishes_video_from_decoded_frames(monkeypatch: pytest.MonkeyPatch) -> None:
