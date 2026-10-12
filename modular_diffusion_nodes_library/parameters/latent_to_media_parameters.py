@@ -7,6 +7,7 @@ from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import read_driver_meta
+from modular_diffusion_nodes_library.misc.neighborhood_attention import ChunkedNeighborhoodAttnProcessor
 from modular_diffusion_nodes_library.utils.hdr_video_utils import inverse_logc3
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 from modular_diffusion_nodes_library.utils.torch_utils import get_best_device
@@ -67,6 +68,7 @@ class LTX25DiffusionDecoderParameters(BaseLatentToMediaParameters):
         "diffusion_decoder_model_download",
         "decoder_num_inference_steps",
         "decoder_use_tiling",
+        "decoder_use_flex_attention",
     }
 
     def __init__(self, node: BaseNode) -> None:
@@ -92,18 +94,42 @@ class LTX25DiffusionDecoderParameters(BaseLatentToMediaParameters):
         self._node.add_parameter(
             Parameter(
                 name="decoder_use_tiling",
-                default_value=False,
+                default_value=True,
                 type="bool",
                 tooltip="Decode large videos in overlapping tiles to reduce peak memory use.",
                 allowed_modes={ParameterMode.PROPERTY},
                 user_defined=True,
             )
         )
+        flex_attention_parameter = Parameter(
+            name="decoder_use_flex_attention",
+            default_value=False,
+            type="bool",
+            tooltip=(
+                "Use the original FlexAttention path instead of chunked attention. "
+                "At video resolutions, it can require tens of GB of GPU memory and may run out of memory."
+            ),
+            allowed_modes={ParameterMode.PROPERTY},
+            user_defined=True,
+        )
+        flex_attention_parameter.set_badge(
+            variant="warning",
+            title="FlexAttention high VRAM requirements",
+            message=(
+                "Uses the decoder's original FlexAttention path for behavior closer to the reference implementation. "
+                "Choose this when matching the original attention behavior matters more than memory efficiency. "
+                "**Memory impact:** at video resolutions this can require *tens of GB of GPU VRAM* and may cause "
+                "an out-of-memory error. Leave this off unless you have ample VRAM; the default chunked attention "
+                "path uses less memory."
+            ),
+        )
+        self._node.add_parameter(flex_attention_parameter)
 
     def remove_parameters(self) -> None:
         self._model_repo_parameter.remove_input_parameters()
         self._node.remove_parameter_element_by_name("decoder_num_inference_steps")
         self._node.remove_parameter_element_by_name("decoder_use_tiling")
+        self._node.remove_parameter_element_by_name("decoder_use_flex_attention")
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = self._model_repo_parameter.validate_before_node_run() or []
@@ -125,6 +151,7 @@ class LTX25DiffusionDecoderParameters(BaseLatentToMediaParameters):
         import torch  # type: ignore[reportMissingImports]
         from diffusers.models.autoencoders.ltx2_diffusion_decoder import (  # type: ignore[reportMissingImports]
             LTX2VideoDiffusionDecoderModel,
+            LTX2VideoVaeNeighborhoodAttnProcessor,
         )
         from diffusers.pipelines.ltx2.pipeline_ltx2_diffusion_decode import (  # type: ignore[reportMissingImports]
             LTX2VideoDiffusionDecodePipeline,
@@ -141,6 +168,10 @@ class LTX25DiffusionDecoderParameters(BaseLatentToMediaParameters):
             revision=revision,
             torch_dtype=torch.bfloat16,
         )
+        if self._node.get_parameter_value("decoder_use_flex_attention"):
+            decoder.set_attn_processor(LTX2VideoVaeNeighborhoodAttnProcessor())  # pyright: ignore[reportArgumentType]
+        else:
+            decoder.set_attn_processor(ChunkedNeighborhoodAttnProcessor())  # pyright: ignore[reportArgumentType]
         if self._node.get_parameter_value("decoder_use_tiling"):
             decoder.enable_tiling()
 
