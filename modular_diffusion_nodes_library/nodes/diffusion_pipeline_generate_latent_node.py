@@ -254,7 +254,9 @@ class DiffusionPipelineGenerateLatentNode(
             pipeline_class = self.pipe_params.get_pipeline_class()
             pipe_kwargs = self.pipe_params.runtime_parameters._get_pipe_kwargs()
             with pipeline_artifact.activate(pipe, node_name=self.name) as active_pipe:
-                return self.latent_parameter.process_pipeline(active_pipe, pipeline_class, pipe_kwargs)
+                result = self.latent_parameter.process_pipeline(active_pipe, pipeline_class, pipe_kwargs)
+                cleanup_memory_caches()
+                return result
 
         def work() -> Any:
             return self._run_with_status(

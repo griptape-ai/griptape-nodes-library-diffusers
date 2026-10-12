@@ -41,9 +41,11 @@ Configure ControlNet ─┘
 - **Pipeline class compatibility.** Not every base pipeline supports ControlNet stacking; the node validates the driver before running and surfaces which combination is unsupported.
 - **Stack multiple ControlNets within a single node.** Use multiple `control_nets` entries on one ControlNet Pipeline node rather than chaining two ControlNet Pipeline nodes — the second node will error if the input is already a ControlNet artifact.
 - **Pipeline reuse** ControlNet weights may be loaded for the selected control_nets; the base pipeline itself is reused from cache when available.
+- **Memory estimation.** Wire `controlnet_pipeline` into [Estimate Pipeline Memory](estimate_pipeline_memory.md) to see each stacked ControlNet's own weight/activation cost, before or after this node has actually built the pipeline.
 
 ## See also
 
 - [Configure ControlNet](configure_controlnet.md) — produces the `control_net` entries this node consumes.
 - [Modular Diffusion Pipeline Builder](pipeline_builder.md) — required upstream.
+- [Estimate Pipeline Memory](estimate_pipeline_memory.md) — shows per-ControlNet memory cost.
 - Workflow template: `workflows/templates/ControlnetText2Image.py`.
