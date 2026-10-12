@@ -6,6 +6,9 @@ from typing import Literal
 import numpy as np
 import torch  # type: ignore[reportMissingImports]
 from diffusers.models.autoencoders import LTX2VideoDiffusionDecoderModel  # type: ignore[reportMissingImports]
+from diffusers.models.autoencoders.ltx2_diffusion_decoder import (  # type: ignore[reportMissingImports]
+    LTX2VideoVaeNeighborhoodAttnProcessor,
+)
 from diffusers.pipelines.ltx2.pipeline_ltx2_diffusion_decode import LTX2VideoDiffusionDecodePipeline
 from diffusers.schedulers import FlowMatchEulerDiscreteScheduler
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
@@ -14,6 +17,7 @@ from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_para
 from PIL import Image
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.misc.neighborhood_attention import ChunkedNeighborhoodAttnProcessor
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 from modular_diffusion_nodes_library.utils.torch_utils import get_best_device
 
@@ -66,6 +70,7 @@ class LTX25DiffusionDecoderParameters(BaseDiffusionDecoderParameters):
         "diffusion_decoder_model_download",
         "decoder_num_inference_steps",
         "decoder_use_tiling",
+        "decoder_use_flex_attention",
     }
 
     def __init__(self, node: BaseNode) -> None:
@@ -98,11 +103,22 @@ class LTX25DiffusionDecoderParameters(BaseDiffusionDecoderParameters):
                 user_defined=True,
             )
         )
+        self._node.add_parameter(
+            Parameter(
+                name="decoder_use_flex_attention",
+                default_value=False,
+                type="bool",
+                tooltip="Use FlexAttention for decoder attention instead of chunked attention. Needs tens of GB at video resolutions.",
+                allowed_modes={ParameterMode.PROPERTY},
+                user_defined=True,
+            )
+        )
 
     def remove_parameters(self) -> None:
         self._model_repo_parameter.remove_input_parameters()
         self._node.remove_parameter_element_by_name("decoder_num_inference_steps")
         self._node.remove_parameter_element_by_name("decoder_use_tiling")
+        self._node.remove_parameter_element_by_name("decoder_use_flex_attention")
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = self._model_repo_parameter.validate_before_node_run() or []
@@ -128,6 +144,10 @@ class LTX25DiffusionDecoderParameters(BaseDiffusionDecoderParameters):
             revision=revision,
             torch_dtype=torch.bfloat16,
         )
+        if self._node.get_parameter_value("decoder_use_flex_attention"):
+            decoder.set_attn_processor(LTX2VideoVaeNeighborhoodAttnProcessor())
+        else:
+            decoder.set_attn_processor(ChunkedNeighborhoodAttnProcessor())
         if self._node.get_parameter_value("decoder_use_tiling"):
             decoder.enable_tiling()
 

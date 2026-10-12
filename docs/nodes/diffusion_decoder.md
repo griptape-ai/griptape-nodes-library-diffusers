@@ -41,6 +41,7 @@ Generate Media Latents → [Diffusion Decoder] → Save Video
 | `diffusion_decoder_model` | repo | `Lightricks/LTX-2.5-Diffusers` | Selects the decoder weights; download the repo through Model Manager before decoding. |
 | `decoder_num_inference_steps` | int | `1` | Number of denoising steps for the LTX-2.5 diffusion decoder. |
 | `decoder_use_tiling` | bool | `False` | Enables overlapping tiles to lower peak memory use on large videos. |
+| `decoder_use_flex_attention` | bool | `False` | Uses FlexAttention for decoder attention instead of chunked attention. |
 | `seed` | int | `0` | Use a non-negative value for repeatable output; `-1` leaves the generator unset for pipeline-default randomness. |
 | `enable_raw_output` | bool | `False` | Exposes pipeline floating-point output as `raw_media`; display outputs are generated separately. |
 | `fps` | int (1–120) | `24` | Output frame rate; shown only for video decoder models. |
@@ -50,6 +51,10 @@ Generate Media Latents → [Diffusion Decoder] → Save Video
 | Decoder | Behavior |
 | --- | --- |
 | LTX-2.5 | Decodes compatible 5-D LTX-2 video latents and publishes an MP4. Its model repository contains the decoder weights. |
+
+> **Warning:** The FlexAttention processor that diffusers uses by default is uncompiled, so it materialises the full score matrix and needs tens of GB at video resolutions. The NATTEN kernels used by the original implementation are only prebuilt for Linux and WSL, so this library cannot use them on native Windows.
+
+> **Note:** This library uses chunked attention by default, an alternative to FlexAttention, so its output is not guaranteed to match the original implementation. Enable `decoder_use_flex_attention` to use FlexAttention instead. The approach processes queries in chunks to cap memory, a known technique (Rabe and Staats, 2021, "Self-attention Does Not Need O(n²) Memory").
 
 The node's decoder specification selects the output media type. FPS is shown only for video decoders. In normal mode, the decoder helper returns PIL frames. In raw mode, it returns pipeline-postprocessed floating-point NumPy RGB data through `raw_media`; the regular image or video output is generated separately for display.
 
