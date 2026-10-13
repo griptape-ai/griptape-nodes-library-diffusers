@@ -40,7 +40,7 @@ Top-level layout of this repository:
 - `workflows/` — workflow templates shipped with the library (plus `assets/`)
 - `docs/` — documentation sources (`assets/`, `index.md`)
 - `tests/` — unit and workflow tests
-- `griptape_nodes_library.json` — library manifest (node registry, settings, dependencies, workflows)
+- `griptape-nodes-library.json` — library manifest (node registry, settings, dependencies, workflows)
 - `pyproject.toml` / `pytest.ini` — project and test configuration
 
 ## Contributing Code
@@ -140,12 +140,12 @@ engine's registered-libraries config is not consulted.
 
 ## Making a Release (Maintainers)
 
-1. Bump the version in `pyproject.toml` and in the `metadata.library_version` field of `griptape_nodes_library.json`.
+1. Bump the version in `pyproject.toml` and in the `metadata.library_version` field of `griptape-nodes-library.json`.
 
 1. Commit and push:
 
     ```shell
-    git add pyproject.toml griptape_nodes_library.json
+    git add pyproject.toml griptape-nodes-library.json
     git commit -m "chore: bump griptape-nodes-library-modular-diffusion to vX.Y.Z"
     git push origin main
     ```

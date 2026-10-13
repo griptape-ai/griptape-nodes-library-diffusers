@@ -1,6 +1,6 @@
 ---
 name: add-modular-pipeline
-description: 'Add a new diffusion model / pipeline TYPE to the modular_diffusion_nodes_library. Use ONLY when `<NewPipelineClass>.from_pipe(base_pipe)` cannot produce a working pipeline from the components already loaded on an existing base pipe — i.e. the new pipeline needs a component the base does not have, or needs differently-shaped/-trained weights for an existing component. Examples that qualify: Wan 2.2 T2V vs I2V (different UNet + image encoder), Qwen Edit (different transformer + image conditioning), Flux Fill (different transformer weights). Walks through the 5-step process: Provider enum, Standard Parameters, Runtime Parameters, Driver, Registration. DO NOT use when from_pipe(base) can build the new pipeline against the loaded components (ControlNet, inpaint, LTX media_gen_conditioning) — those are runtime variants and belong in add-pipeline-variants. Default to add-pipeline-variants first; only fall back to this skill when the from_pipe test fails.'
+description: 'Add a new diffusion model or pipeline TYPE to modular_diffusion_nodes_library, only when `<NewPipelineClass>.from_pipe(base_pipe)` cannot produce a working pipeline from the base pipe''s loaded components (needs a new component or differently trained weights, e.g. Wan I2V, Flux Fill, Qwen Edit). For ControlNet, inpaint, or other runtime variants, use add-pipeline-variants instead.'
 ---
 
 # Add a Model to the Modular Diffusion Library
@@ -9,12 +9,12 @@ This skill guides the agent through adding a new diffusion model (image or video
 
 ## Working Principles
 
-These principles apply to every rule and phase below. They exist because LLM agents tend to silently pick interpretations, over-engineer, and touch code beyond the brief. Every Rule that follows is a concrete application of one or more of these.
+Follow the Working Principles in [CLAUDE.md](../../../CLAUDE.md). Specific to this skill:
 
-1. **Think before coding.** State assumptions. If the user's request is ambiguous (e.g. "add Wan" — T2V or I2V? "add Flux" — base, Fill, or Kontext?), surface the ambiguity and ask. Do not pick silently. Do not start coding while confused; name what is unclear and stop. Push back if a simpler approach exists (e.g. "this looks like a variant, not a new pipeline type — use `/add-pipeline-variants`?").
-2. **Simplicity first.** Mirror the closest existing driver. Do not introduce new abstractions, helper modules, base classes, or "flexibility" knobs that weren't asked for. No speculative error handling for cases that cannot occur. If a method can be 10 lines instead of 50, write 10. If 200 lines could be 50, rewrite it.
-3. **Surgical changes.** In shared files (`providers.py`, `driver_factory.py`, `pipeline_parameters.py`, `pipelinetype_parameters.py`), edit only the lines needed for the new pipeline. Do not reformat, reorder, rename, or "tidy" unrelated entries. Do not drive-by refactor sibling drivers because you noticed something. Match existing style even if you'd write it differently. If you spot unrelated issues, mention them in chat — do not silently change them.
-4. **Goal-driven execution.** Every step in Phase C has an explicit verification check stated *before* the change is made. The step is not done until verification passes. "Make it work" is not a verification; "`get_driver_class('SD3Pipeline')` returns the new driver class" is.
+- Ask when the request is ambiguous ("add Wan": T2V or I2V? "add Flux": base, Fill, or Kontext?), and suggest `/add-pipeline-variants` if it looks like a variant.
+- Mirror the closest existing driver; do not introduce new abstractions, helper modules, base classes, or "flexibility" knobs that weren't asked for.
+- In the shared registry files (`providers.py`, `driver_factory.py`, `pipeline_parameters.py`, `pipelinetype_parameters.py`) edit only the lines the new pipeline needs. Do not reformat, reorder, rename, or "tidy" unrelated entries, and do not drive-by refactor sibling drivers. Mention unrelated issues in chat instead of changing them.
+- Each Phase C step states its verification check before the change. "`get_driver_class('SD3Pipeline')` returns the new driver class" is a verification; "make it work" is not.
 
 ## ⛔ Mandatory Workflow Rules
 
@@ -22,7 +22,7 @@ Read these rules before doing anything. Violating them invalidates the work.
 
 ### Rule 0 — Update affected node docs in the same change
 
-Adding a new pipeline type rarely creates new nodes, but it almost always changes what existing nodes expose for the new provider. Before finishing, update the `Provider / model behavior` section of every node whose dynamic parameters now branch on the new pipeline type — typically Pipeline Builder, Generate Media Latents, and any encode/decode/conditioning node involved. Follow [docs/node-doc-format.md](../../../docs/node-doc-format.md); for any doc work beyond a one-line tweak, use [.github/skills/document-node/SKILL.md](../document-node/SKILL.md). Report doc changes alongside code in your final summary.
+Adding a new pipeline type rarely creates new nodes, but it almost always changes what existing nodes expose for the new provider. Before finishing, update the `Provider / model behavior` section of every node whose dynamic parameters now branch on the new pipeline type — typically Pipeline Builder, Generate Media Latents, and any encode/decode/conditioning node involved. Follow [docs/node-doc-format.md](../../../docs/node-doc-format.md); for any doc work beyond a one-line tweak, use the `document-node` skill. Report doc changes alongside code in your final summary.
 
 ### Rule 1 — Classify the change, then get approval before coding
 
@@ -61,7 +61,7 @@ The gate is not resolved until a **concrete outcome** exists: either (a) a diffu
 
 Before writing any code or creating any files:
 
-1. Produce a **full implementation plan** covering all 5 steps (Provider, Standard Params, Runtime Params, Driver, Registration).
+1. Produce a **full implementation plan** covering every step (Provider, Standard Params, Runtime Params, Driver, Registration, Model catalog).
 2. The plan MUST list every file to be created or modified, with absolute paths.
 3. The plan MUST state explicitly which `ModularPipeline` blocks (from diffusers) the driver will use for each public method, and which methods (if any) will fall back to `DiffusionPipeline.__call__` and **why**.
 4. The plan MUST identify the closest existing driver(s) being used as a template, with file references.
@@ -90,9 +90,8 @@ If a parameter is **absent from `__call__` entirely** — for example because th
 
 ### Rule 5 — Adhere to the LatentPipelineDriver contract
 
-The latent shape & space contract is documented in the `LatentPipelineDriver` docstring in [`modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py). **Read it before designing the driver — it is the source of truth.** Summary of the invariants the agent MUST honour:
+The latent shape & space contract is documented in the `LatentPipelineDriver` docstring in [`modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py). **Read it before designing the driver — it is the source of truth.** Public latents are unpacked and normalised; packing is transient (see CLAUDE.md). [`references/driver-details.md`](./references/driver-details.md) has the method-by-method guide. Also honour:
 
-- **Public latents are unpacked**: 4-D `[B, C, H/vae, W/vae]` for image, 5-D `[B, C, T_lat, H/vae, W/vae]` for video. No model-specific sequence packing on the public surface.
 - **Public methods exchange `LatentArtifact`**, never raw tensors. The four forwardable methods (`encode_media`, `decode_latent`, `create_noise_latent`, `add_noise_to_latent`) return `LatentArtifact` (or `DecodeResult` for `decode_latent`) and accept input artifacts / media dataclasses. Build outputs via `_make_latent_artifact(...)`.
 - **`encode_media` for image and video drivers**: Prioritise modular implementation — verify whether a VAE encoder block exists for the pipeline before writing inline encode logic. Image-only drivers implement `encode_media` for `ImageMedia` and raise `NotImplementedError` for `VideoMedia`; video drivers raise for `ImageMedia`. Check the Variants checklist (V2V item) before deciding.
 - **`add_noise_to_latent` for image and video drivers**: I2I and V2V workflows (encoding a source video, adding noise at a given `strength`, then denoising) require a working `add_noise_to_latent`. Prioritise modular implementation and verify whether relevant blocks exist to achieve this flow. If no modular blocks exist, for flow-matching schedulers (`FlowMatchEulerDiscreteScheduler`) use `scheduler.scale_noise`; for DDPM-family schedulers use `scheduler.add_noise`. Only raise `NotImplementedError` when you have verified the underlying pipeline has no I2I for image pipelines or V2V support for video pipelines and have cited the diffusers source proving it.
@@ -100,8 +99,8 @@ The latent shape & space contract is documented in the `LatentPipelineDriver` do
 - **Public latents are normalised** (~N(0, 1)). If the VAE config publishes per-channel `latents_mean` / `latents_std`, apply whitening `(z - mean) / std` inside `encode_media` and the inverse inside `decode_latent`. If it publishes only scalar `scaling_factor` (and optional `shift_factor`), the standard `(z - shift) * scaling` transform is sufficient — no whitening. Verify on the actual VAE config of the model you are adding; do not assume from family name. Mirror the closest existing driver.
 - **`source_shape` rides on the artifact / media dataclass** (pixel-space), not as a separate parameter. `LatentArtifact.source_shape`, `ImageMedia.source_shape`, `VideoMedia.source_shape`, `MaskMedia.source_shape` are the only sources of truth. Drivers translate to latent-space dims internally.
 - **RNG flows via `GeneratorState`**, not raw `seed`. Build a generator with `generator_state.to_generator()`; stamp the post-call state onto the returned artifact via `_make_latent_artifact(..., meta=GeneratorState.from_generator(g).as_meta())` so downstream same-driver calls can resume with `GeneratorState.from_artifact(latent)`. See [`driver_types.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_types.py).
-- **Packing is transient**: any transformer-side sequence packing happens only inside `_prepare_input_latent` / `prepare_output_latent`, never on the public surface. Mirror the closest existing driver that packs.
-- **Never bypass `super().denoise_latent()` for callback / partial-denoise / cancellation concerns.** Override `denoise_latent()` only to munge kwargs (e.g. set `image=` for img2img, build video conditions, extract first/last frames), then delegate to `super()`.
+- **Packing:** mirror the closest existing driver that packs, and keep it inside `_prepare_input_latent` / `prepare_output_latent`.
+- **`denoise_latent()`:** override only to munge kwargs (e.g. set `image=` for img2img, build video conditions, extract first/last frames), then delegate to `super()`.
 
 ### Rule 6 — Prove every claim with code references
 
@@ -130,7 +129,7 @@ Procedure when blocks are missing:
 2. Present the user with the options: (a) wait for a tagged release, (b) pin to a tagged release if one already includes the blocks, (c) pin to a specific commit SHA on `main`. Recommend (b) or (c) over building a hybrid driver.
 3. If the user approves a bump, update **both** of these files to the same version spec — they MUST stay in sync:
    - [`pyproject.toml`](../../../pyproject.toml) — the `diffusers` entry under `[project] dependencies`.
-   - [`griptape_nodes_library.json`](../../../griptape_nodes_library.json) — the `diffusers` entry under `dependencies.python_dependencies`.
+   - [`griptape-nodes-library.json`](../../../griptape-nodes-library.json) — the `diffusers` entry under `dependencies.python_dependencies`.
 4. For a commit-SHA pin, use the PEP 508 direct-reference form in both files: `diffusers @ git+https://github.com/huggingface/diffusers.git@<sha>`. `pyproject.toml` already has `tool.setuptools` / `tool.uv` configured to allow direct references; no extra plumbing is required.
 5. After editing, run `uv sync --all-groups --all-extras` to refresh the editable install metadata, verify the new symbols import cleanly, then run `uv run pytest tests` to confirm no regressions in existing drivers. Only proceed to Phase C once all three pass.
 
@@ -140,15 +139,9 @@ A hybrid driver is only acceptable when (a) the user explicitly declines to bump
 
 ## Modular-Blocks-First Philosophy
 
-The long-term goal is to use diffusers `ModularPipeline` blocks for ALL operations including the denoise loop. **Prefer modular blocks wherever they exist** for the pipeline being integrated.
+Prefer modular blocks wherever they exist. The denoise loop is the exception: three blockers (partial denoise, callback/preview, cancellation) force it through `DiffusionPipeline.__call__()`. They are explained in [CLAUDE.md](../../../CLAUDE.md) and [docs/adding-new-model.md](../../../docs/adding-new-model.md#three-blockers-preventing-full-migration-today).
 
-Three open blockers force every driver to delegate the **denoise loop** to `DiffusionPipeline.__call__()` today:
-
-1. **Partial denoise** — `PartialDenoisePipelineRunner` in [`modular_diffusion_nodes_library/misc/partial_denoise.py`](../../../modular_diffusion_nodes_library/misc/partial_denoise.py) intercepts `pipe.scheduler.set_timesteps()`; no equivalent injection point exists on a `ModularPipeline` denoise block.
-2. **Callback / preview** — `callback_on_step_end(pipe, i, _t, callback_kwargs)` is passed via `pipe_kwargs` to `DiffusionPipeline.__call__()` (see `denoise_latent()` in `base_driver.py`). Modular denoise blocks don't expose this hook.
-3. **Cancellation** — Implemented by `pipe._interrupt = True` inside the callback; no equivalent on `ModularPipeline`.
-
-**Implication for the agent**: when planning the driver:
+When planning the driver:
 - Modular blocks for: `_create_modular_pipe`, `encode_media`, `decode_latent`, `create_noise_latent`, `add_noise_to_latent`, `encode_prompt`.
 - `DiffusionPipeline.__call__` via `super().denoise_latent()` for the denoise loop. Do not attempt to bypass — fixing the three blockers is a framework-level task, not a per-driver one.
 
@@ -180,7 +173,7 @@ Modular block input contracts are NOT consistent across pipelines, and they are 
 
 ### Phase A — Investigation (no code written, version bump possible)
 
-0. List `/memories/repo/` and read any entries whose filenames suggest relevance to the new model family or to the shared subsystems being touched (latent contract, hashing, offload, denoise, the closest precedent driver). Repo memory captures previously-learned gotchas — treat it as advisory (entries may be outdated), but always check before re-deriving.
+0. Read [`docs/adding-new-model.md`](../../../docs/adding-new-model.md) for the full walkthrough and the modular-blocks-first background.
 1. Read [`base_driver.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py) end-to-end. Internalise the latent shape/space contract.
 2. Read [`driver_factory.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py), [`parameters/pipelinetype_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipelinetype_parameters.py), and [`parameters/pipeline_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipeline_parameters.py) to understand the three registries.
 3. Identify the closest existing model/driver to the one being added:
@@ -226,7 +219,7 @@ Produce a plan in this format:
 | decode_latent | ModularPipeline.sub_blocks["decode"] | exists at ... | `latents` ← `latent.to_torch(device, dtype)`; `output_type="pil"` |
 | create_noise_latent | ModularPipeline PrepareLatents step | ... | `height`/`width` ← `source_shape[-2:]`; `batch_size=1`; `num_images_per_prompt=1`; `generator` ← `generator_state.to_generator()` |
 | add_noise_to_latent | ModularPipeline Img2Img / Vid2Vid noise injection steps | ... | enumerate every `required=True` `InputParam` (see Modular-Blocks-First rule); e.g. `latents` ← `self.create_noise_latent(...).to_torch(device, dtype)`, `image_latents` ← `latent.to_torch(device, dtype)`, `batch_size` ← `image_latents.shape[0]`, `dtype` ← `_get_device_and_type()[1]`, `generator` ← `generator_state.to_generator()`. For video pipelines: `image_latents` ← encoded video latent; noise API is `scheduler.scale_noise` (flow-matching) or `scheduler.add_noise` (DDPM) — verify against the scheduler class. |
-| denoise_latent | super() → DiffusionPipeline.__call__ | three blockers, see SKILL | n/a (delegated) |
+| denoise_latent | super() → DiffusionPipeline.__call__ | three blockers, see CLAUDE.md | n/a (delegated) |
 
 ## Provider classification (must match the Rule 1, Axis B approval)
 - Shape: [new Provider] | [extend existing Provider]
@@ -256,6 +249,8 @@ State whether this pipeline class gets a NEW runtime-parameters class or reuses 
       variants and belong to `/add-pipeline-variants`.
 - modular_diffusion_nodes_library/parameters/providers.py
     → only when adding a new `Provider` enum entry.
+- griptape-nodes-library.json
+    → `model_catalog` entries for every new repo id, plus the catalog keys in the owning node's `model_usage`.
 
 ## Latent contract compliance
 - VAE whitening needed? [yes/no, with citation to the VAE config — `latents_mean` / `latents_std` for whitening; `scaling_factor` / `shift_factor` for the scalar path]
@@ -279,7 +274,7 @@ State whether this pipeline class gets a NEW runtime-parameters class or reuses 
 - <model-specific decisions, e.g. quantisation, default repo>
 ```
 
-If any variant capability is in scope, load the `/add-pipeline-variants` skill for that portion of the implementation. The base 5-step process still owns Provider/StandardParams/RuntimeParams/Driver-skeleton/Registration; the variant skill owns ControlNet/inpaint/pipe-swap specifics.
+If any variant capability is in scope, load the `/add-pipeline-variants` skill for that portion of the implementation. The base process still owns Provider/StandardParams/RuntimeParams/Driver-skeleton/Registration; the variant skill owns ControlNet/inpaint/pipe-swap specifics.
 
 Then STOP and wait for user confirmation.
 
@@ -287,7 +282,7 @@ Then STOP and wait for user confirmation.
 
 State the verification check **before** making each change. A step is not complete until the verification passes.
 
-All `uv run ...` commands below must be executed from the repo root. This repo is uv-backed and Windows-friendly; there is no `make` target.
+All `uv run ...` commands below must be executed from the repo root. `make check` runs format, lint, types and JSON validation together.
 
 1. **Provider enum entry** (only for the new-Provider shape) added to [`parameters/providers.py`](../../../modular_diffusion_nodes_library/parameters/providers.py) → verify: `uv run python -c "from modular_diffusion_nodes_library.parameters.providers import Provider; Provider.<NEW_NAME>"` exits 0.
 2. **Standard parameters** file created → verify: `uv run ruff format --check` + `uv run ruff check .` pass for the new file.
@@ -306,7 +301,8 @@ All `uv run ...` commands below must be executed from the repo root. This repo i
    **Surgical-edits check**: diff each shared file and confirm only added lines / one inserted block are present — no reformatted neighbours, no reordered entries, no touched sibling cases.
 6. **Smoke test in UI** → verify with the user: drop a builder node, select the new provider/type, build, wire to generate + decode, confirm an image/video comes out.
 7. **Node docs updated** (Rule 0) → verify: every node whose dynamic parameters now branch on the new pipeline type (typically Pipeline Builder, Generate Media Latents, and affected encode/decode/conditioning nodes) has its `docs/nodes/<name>.md` updated and passes the `/document-node` skill's drift check.
-8. **Single-file loader metadata** → if the new pipeline supports single-file component loading (GGUF / safetensors), add entries for every relevant `model_type` string to [`component_loading/pipeline_type_registry.py`](../../../modular_diffusion_nodes_library/component_loading/pipeline_type_registry.py) `MODEL_TYPE_TO_PIPELINE_TYPE`.
+8. **Model catalog** → declare every repo id the new standard parameters offer in `model_catalog` in [`griptape-nodes-library.json`](../../../griptape-nodes-library.json), and add each catalog key to the owning node's `model_usage` list (see Step 6 of [docs/adding-new-model.md](../../../docs/adding-new-model.md)) → verify: `uv run pytest tests/test_model_catalog_consistency.py` passes.
+9. **Single-file loader metadata** → if the new pipeline supports single-file component loading (GGUF / safetensors), add entries for every relevant `model_type` string to [`component_loading/pipeline_type_registry.py`](../../../modular_diffusion_nodes_library/component_loading/pipeline_type_registry.py) `MODEL_TYPE_TO_PIPELINE_TYPE`.
 
 ---
 
