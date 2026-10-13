@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.retained_mode.events.event_converter import converter
+from griptape_nodes.serialization.values import register_value_codec
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import structure_component_artifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_build_steps import (
@@ -146,6 +147,7 @@ class BasePipelineIdentity:
         return f"{self.pipeline_name}-{_digest(parts)}-{self.postfix_bits:x}"
 
 
+@register_value_codec
 class DiffusionPipelineArtifact:
     """Serializable description of a diffusion pipeline.
 
@@ -310,10 +312,16 @@ class DiffusionPipelineArtifact:
     # it, and both processes need that description: the worker to build, the orchestrator to validate
     # and to decide which parameters to show. So the artifact travels as data.
     #
-    # The engine encodes event payloads with `json.dumps(default=str)`, so a type it cannot
-    # unstructure is silently replaced by its `str()`. Without the hooks below this artifact reached a
-    # consumer as a bare string and failed two nodes later as a type error. `_cattrs_unstructure` and
-    # `_cattrs_structure` are the engine's documented seam for a class that knows its own wire form.
+    # The engine encodes a parameter value only through a registered codec, refusing any other class.
+    # `register_value_codec` on this class makes `to_state` and `from_state` that codec, for every
+    # subclass too; both use the wire form below.
+
+    def to_state(self) -> dict[str, Any]:
+        return self._cattrs_unstructure()
+
+    @classmethod
+    def from_state(cls, state: dict[str, Any]) -> DiffusionPipelineArtifact:
+        return structure_pipeline_artifact(state)
 
     def _cattrs_unstructure(self) -> dict[str, Any]:
         """The wire form: every field `_cattrs_structure` needs, and nothing that cannot be encoded."""
