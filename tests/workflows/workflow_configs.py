@@ -79,6 +79,24 @@ class WorkflowConfig:
     enable_auto_resize: bool | None = None
 
 
+MODULAR_DIFFUSION_SETTING_DEFAULTS: dict[str, Any] = {
+    "temp_folder_name": "intermediates",
+    "max_directory_size_gb": 5,
+    "enable_directory_cleanup": False,
+    "enable_image_preview_intermediates": False,
+    "enable_auto_resize": False,
+}
+
+
+def modular_diffusion_settings_for(config: WorkflowConfig | None) -> dict[str, Any]:
+    """Return manifest-default library settings with any per-config opt-ins applied."""
+    settings = MODULAR_DIFFUSION_SETTING_DEFAULTS.copy()
+    if config is not None:
+        if config.enable_auto_resize is not None:
+            settings["enable_auto_resize"] = config.enable_auto_resize
+    return settings
+
+
 def builder_overrides(
     provider: str, pipeline_type: str, repo: str, *, node_name: str = BUILDER_NODE_NAME
 ) -> tuple[ParamOverride, ...]:
