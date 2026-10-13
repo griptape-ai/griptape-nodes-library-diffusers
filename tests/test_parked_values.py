@@ -119,22 +119,20 @@ class TestAComponentDescriptionTravels:
         assert egressed == artifact
 
     def test_the_builder_reads_the_artifact_after_it_is_encoded(self) -> None:
-        """Not parked is only half the journey: egress does not encode, and the wire form is a dict.
+        """Not parked is only half the journey: egress does not encode, and the builder needs the artifact back.
 
-        A dict is not a `ComponentArtifact`, so `get_component_overrides` drops it -- silently, and out
-        of the cache key too, which builds the default component under the hash that claims the
+        Anything that is not a `ComponentArtifact` is dropped by `get_component_overrides` -- silently,
+        and out of the cache key too, which builds the default component under the hash that claims the
         override. This drives the engine's real encoding rather than the egress check above.
         """
         import json
 
-        from griptape_nodes.retained_mode.events.event_converter import safe_unstructure
+        from griptape_nodes.serialization.values import decode_value, dump_json, encode_value
 
         from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
             ComponentSourceType,
             HFRepoRef,
             ModelComponentArtifact,
-            is_encoded_component_artifact,
-            structure_component_artifact,
         )
 
         artifact = ModelComponentArtifact(
@@ -144,10 +142,10 @@ class TestAComponentDescriptionTravels:
             repo_ref=HFRepoRef(repo_id="black-forest-labs/FLUX.1-dev"),
         )
 
-        wire = json.loads(json.dumps(safe_unstructure(artifact), default=str))
+        received = decode_value(json.loads(dump_json(encode_value(artifact))))
 
-        assert is_encoded_component_artifact(wire), f"The builder cannot recognise this as an artifact: {wire}"
-        assert structure_component_artifact(wire) == artifact
+        assert isinstance(received, ModelComponentArtifact), f"The builder cannot use this: {received!r}"
+        assert received == artifact
 
 
 class TestTheDecoderOutputActuallyTravels:

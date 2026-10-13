@@ -4,11 +4,9 @@ The payload is URL artifacts, an enum and scalars, so it travels as data rather 
 process that built it. It was declared `serializable=False`, which handed every consumer -- including the
 editor -- a reference instead, and the consuming node's validation raised rather than validating.
 
-Two things break it on the default encoding path, both silently. The engine encodes event payloads with
-`json.dumps(default=str)`, which replaces a type it cannot unstructure with that type's `str()`. And
-cattrs cannot tell `ImageUrlArtifact` from `VideoUrlArtifact` in the `artifact` union, so a payload that
-did encode came back with its artifact left as a bare dict. These tests pin the encoding instead of
-trusting it.
+The `artifact` field holds either an `ImageUrlArtifact` or a `VideoUrlArtifact`, and a payload that
+loses track of which comes back with its artifact as a bare dict. These tests drive the engine's own
+encoding instead of trusting it.
 """
 
 from __future__ import annotations
@@ -19,7 +17,7 @@ from typing import Any
 import pytest
 from griptape.artifacts import ImageUrlArtifact
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
-from griptape_nodes.retained_mode.events.event_converter import safe_unstructure
+from griptape_nodes.serialization.values import decode_value, dump_json, encode_value
 
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
     ConditioningInputValue,
@@ -31,9 +29,7 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import Conditionin
 
 def _over_the_wire(value: Any) -> Any:
     """`value` as a consumer in another process receives it, encoded exactly as the engine does."""
-    payload = {"parameter_output_values": {"conditioning": value}}
-    encoded = json.dumps(safe_unstructure(payload), default=str)
-    return json.loads(encoded)["parameter_output_values"]["conditioning"]
+    return decode_value(json.loads(dump_json(encode_value(value))))
 
 
 def _round_trip(value: Any) -> list[MediaGenConditioningPayload] | None:
@@ -76,7 +72,7 @@ def _video_payload() -> MediaGenConditioningPayload:
 
 
 def test_the_payload_does_not_arrive_as_a_string() -> None:
-    """What `json.dumps(default=str)` does to a type it cannot unstructure, and the original bug."""
+    """The consumer needs the payload itself, not its text."""
     assert not isinstance(_over_the_wire(_image_payload()), str)
 
 

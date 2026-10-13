@@ -4,10 +4,9 @@ The artifact is the *description* of a pipeline, not the pipeline: the built pip
 worker's object store, but both processes need the description -- the worker to build from it, the
 orchestrator to validate and to decide which parameters to show. So it travels as data.
 
-The engine encodes event payloads with `json.dumps(default=str)`, which replaces a type it cannot
-unstructure with that type's `str()`. This artifact used to define `__str__` as its config hash, so an
-encoding failure produced a plausible-looking string and surfaced two nodes later as "Invalid
-'pipeline' value type 'str'". These tests pin the encoding instead of trusting it.
+The engine encodes a parameter value only through a registered codec, and refuses any other class, so
+without one the pipeline builder cannot hand its artifact to a worker at all. These tests drive the
+engine's own encoding instead of trusting it.
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ import json
 from typing import Any
 
 import pytest
-from griptape_nodes.retained_mode.events.event_converter import safe_unstructure
+from griptape_nodes.serialization.values import decode_value, dump_json, encode_value, has_plain_data_form
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ComponentSourceType,
@@ -33,9 +32,7 @@ from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec
 
 def _over_the_wire(value: Any) -> Any:
     """`value` as a consumer in another process receives it, encoded exactly as the engine does."""
-    payload = {"parameter_output_values": {"pipeline": value}}
-    encoded = json.dumps(safe_unstructure(payload), default=str)
-    return json.loads(encoded)["parameter_output_values"]["pipeline"]
+    return decode_value(json.loads(dump_json(encode_value(value))))
 
 
 def _round_trip(value: Any) -> DiffusionPipelineArtifact | None:
@@ -56,9 +53,10 @@ def _base_artifact(**overrides: Any) -> DiffusionPipelineArtifact:
     return DiffusionPipelineArtifact(**fields)
 
 
-def test_the_artifact_does_not_arrive_as_a_string() -> None:
-    """The regression this file exists for: a str reaching the consumer is the original bug."""
-    assert not isinstance(_over_the_wire(_base_artifact()), str)
+@pytest.mark.parametrize("artifact_cls", [DiffusionPipelineArtifact, ControlNetDiffusionPipelineArtifact])
+def test_the_engine_can_send_the_artifact(artifact_cls: type) -> None:
+    """Without a codec the builder's run fails with "has no plain-data form" before anything runs."""
+    assert has_plain_data_form(artifact_cls)
 
 
 def test_every_field_survives() -> None:

@@ -912,17 +912,19 @@ loaders-image = [
 
 [[package]]
 name = "griptape-nodes-engine"
-version = "0.102.0"
+version = "0.104.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "asyncio-thread-runner" },
+    { name = "attrs" },
     { name = "binaryornot" },
     { name = "cattrs" },
     { name = "fastapi" },
     { name = "fileseq" },
     { name = "griptape" },
     { name = "httpx" },
+    { name = "httpx2" },
     { name = "huggingface-hub" },
     { name = "json-repair" },
     { name = "mcp" },
@@ -949,9 +951,9 @@ dependencies = [
     { name = "websockets" },
     { name = "xdg-base-dirs" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bd/09/7534410742fb2d61b846c192711703755a6cc25da541a8bd405705f5272a/griptape_nodes_engine-0.102.0.tar.gz", hash = "sha256:5586d0741fd4be9010f9940e33b7130365227601e8b154a7fd0248b5dffbcda3", size = 1381542, upload-time = "2026-09-24T19:50:01.657Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bd/f9/4b0b06bc26989c4e0ff915925ae505ef6efec3f72f289fa07a511fc387d0/griptape_nodes_engine-0.104.0.tar.gz", hash = "sha256:b737d568a4c00342a2e4afeede098668f9775388563985307b40b94946477d3e", size = 1517943, upload-time = "2026-10-12T23:31:35.985Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/35/13/0d683e0f1fdf2756c6a83ebfd47937f67c5827498b10e0742013e5f7ad77/griptape_nodes_engine-0.102.0-py3-none-any.whl", hash = "sha256:4f07e39aac4c7e7b09004294e234f6c281aec7fafc52426a8acee5fa834d709c", size = 1640619, upload-time = "2026-09-24T19:49:59.973Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/b9/0528ccb095b09c4a0eff41ca26c3f64647e4092836d7a54da85511a1d80c/griptape_nodes_engine-0.104.0-py3-none-any.whl", hash = "sha256:30601a499a8af2d7bb7de625fe28ace867576481f43d997b3926d6e20139532e", size = 1786833, upload-time = "2026-10-12T23:31:34.622Z" },
 ]
 
 [[package]]
@@ -1063,7 +1065,7 @@ provides-extras = ["exec"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "griptape-nodes-engine", specifier = ">=0.102.0" },
+    { name = "griptape-nodes-engine", specifier = ">=0.104.0" },
     { name = "nox", specifier = ">=2026.4.0" },
     { name = "pyright", specifier = ">=1.1.396" },
     { name = "pytest" },

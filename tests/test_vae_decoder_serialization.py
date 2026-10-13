@@ -11,7 +11,6 @@ import pytest
 from griptape.artifacts import ImageUrlArtifact
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
 from griptape_nodes.retained_mode.events.node_events import CreateNodeRequest, SerializedParameterValueTracker
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.retained_mode.managers.node_manager import NodeManager
 
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import DriverSpec
@@ -43,7 +42,6 @@ def _saves_output_value(node: VaeDecodeNode, parameter_name: str) -> bool:
         unique_parameter_uuid_to_values={},
         serialized_parameter_value_tracker=SerializedParameterValueTracker(),
         create_node_request=CreateNodeRequest(node_type="VaeDecodeNode"),
-        workflow_manager=GriptapeNodes.WorkflowManager(),
     )
     return any(command.set_parameter_value_command.is_output for command in commands or [])
 
