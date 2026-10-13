@@ -29,12 +29,14 @@ from tests.preflight import (
     get_preflight_data,
 )
 from tests.workflows.workflow_configs import (
+    MODULAR_DIFFUSION_SETTING_DEFAULTS,
     ConnectOverride,
     DeleteNodeOverride,
     DisconnectOverride,
     ParamOverride,
     WorkflowConfig,
     WorkflowOverride,
+    modular_diffusion_settings_for,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,7 +46,7 @@ install_file_url_support()
 
 LIBRARY_ROOT = Path(__file__).parents[2]
 WORKFLOW_ASSETS_DIR = LIBRARY_ROOT / "workflows" / "assets"
-AUTO_RESIZE_CONFIG_KEY = "modular_diffusion_library.enable_auto_resize"
+MODULAR_DIFFUSION_SETTINGS_CATEGORY = "modular_diffusion_library"
 
 load_dotenv()
 
@@ -369,14 +371,15 @@ def workflow_config_settings(
 
     config_param = callspec.params.get("config")
     config_obj = config_param if isinstance(config_param, WorkflowConfig) else None
-    if config_obj is None or config_obj.enable_auto_resize is None:
-        yield
-        return
-
     config_manager = griptape_nodes.ConfigManager()
-    previous_auto_resize = config_manager.get_config_value(AUTO_RESIZE_CONFIG_KEY)
-    config_manager.set_config_value(AUTO_RESIZE_CONFIG_KEY, config_obj.enable_auto_resize)
+    config_manager.set_config_value(
+        MODULAR_DIFFUSION_SETTINGS_CATEGORY,
+        modular_diffusion_settings_for(config_obj),
+    )
 
     yield
 
-    config_manager.set_config_value(AUTO_RESIZE_CONFIG_KEY, previous_auto_resize)
+    config_manager.set_config_value(
+        MODULAR_DIFFUSION_SETTINGS_CATEGORY,
+        MODULAR_DIFFUSION_SETTING_DEFAULTS.copy(),
+    )
