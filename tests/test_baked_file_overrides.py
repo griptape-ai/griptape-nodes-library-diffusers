@@ -225,7 +225,7 @@ def test_bake_renames_explicit_config_file_to_component_config_name(tmp_path: Pa
     assert json.loads(baked_config.read_text(encoding="utf-8")) == {"marker": 1}
     assert not (dest / "transformer" / "transformer_config.json").exists()
     recorded = json.loads((dest / "baked-config.json").read_text(encoding="utf-8"))["file_overrides"]["transformer"]
-    assert recorded["config_source"] == "transformer"
+    assert recorded["config_source"] == "transformer/config.json"
 
 
 def test_baked_explicit_config_file_resolves_on_load(tmp_path: Path) -> None:
@@ -240,8 +240,8 @@ def test_baked_explicit_config_file_resolves_on_load(tmp_path: Path) -> None:
         pipeline_slot="transformer",
         artifact_component="transformer",
     )
-    assert config_path.resolve() == (dest / "transformer").resolve()
-    assert json.loads((config_path / "config.json").read_text(encoding="utf-8")) == {"marker": 1}
+    assert config_path.resolve() == (dest / "transformer" / "config.json").resolve()
+    assert json.loads(config_path.read_text(encoding="utf-8")) == {"marker": 1}
 
 
 def test_make_baked_artifact_resolves_gguf_override_and_status(tmp_path: Path) -> None:
