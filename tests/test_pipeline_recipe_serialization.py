@@ -180,6 +180,34 @@ def test_component_artifact_recipe_dict_round_trips_directly() -> None:
     assert ComponentArtifact.from_recipe_dict(override.to_recipe_dict()) == override
 
 
+def test_component_artifact_recipe_normalizes_local_config_directory(tmp_path) -> None:
+    config_file = tmp_path / "config.json"
+    config_file.write_text("{}\n", encoding="utf-8")
+    override = ModelComponentArtifact(
+        load_id="override-id",
+        source_type=ComponentSourceType.SINGLE_FILE,
+        component="unet",
+        file_path="/models/unet.gguf",
+        config_source=str(tmp_path),
+    )
+
+    recipe = override.to_recipe_dict()
+
+    assert recipe["config_source"] == str(config_file)
+
+
+def test_component_artifact_recipe_preserves_config_repo_id() -> None:
+    override = ModelComponentArtifact(
+        load_id="override-id",
+        source_type=ComponentSourceType.SINGLE_FILE,
+        component="unet",
+        file_path="/models/unet.gguf",
+        config_source="org/model",
+    )
+
+    assert override.to_recipe_dict()["config_source"] == "org/model"
+
+
 def test_deserialize_pipeline_artifact_round_trips_component_overrides() -> None:
     override = ModelComponentArtifact(
         load_id="override-id",

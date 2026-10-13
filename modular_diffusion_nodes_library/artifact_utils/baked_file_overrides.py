@@ -155,28 +155,29 @@ def copy_gguf_override(override: ModelComponentArtifact, slot_dir: Path, baked_r
     copied_config = _copy_override_config(override, src, slot_dir)
     recipe = override.to_recipe_dict()
     recipe["file_path"] = dest.relative_to(baked_root).as_posix()
-    if copied_config:
-        recipe["config_source"] = slot_dir.relative_to(baked_root).as_posix()
+    if copied_config is not None:
+        recipe["config_source"] = copied_config.relative_to(baked_root).as_posix()
     return recipe
 
 
-def _copy_override_config(override: ModelComponentArtifact, src: Path, slot_dir: Path) -> bool:
+def _copy_override_config(override: ModelComponentArtifact, src: Path, slot_dir: Path) -> Path | None:
     config_name = component_config_filename(override.component)
+    dest = slot_dir / config_name
     sibling = src.parent / config_name
     if sibling.is_file():
-        shutil.copy2(sibling, slot_dir / config_name)
-        return True
+        shutil.copy2(sibling, dest)
+        return dest
     config_source = override.config_source
     if not config_source:
-        return False
+        return None
     cfg = Path(config_source)
     if cfg.is_file():
-        shutil.copy2(cfg, slot_dir / config_name)
-        return True
+        shutil.copy2(cfg, dest)
+        return dest
     if cfg.is_dir() and (cfg / config_name).is_file():
-        shutil.copy2(cfg / config_name, slot_dir / config_name)
-        return True
-    return False
+        shutil.copy2(cfg / config_name, dest)
+        return dest
+    return None
 
 
 def resolve_file_overrides(file_overrides: dict[str, Any], baked_path: Path) -> dict[str, ModelComponentArtifact]:

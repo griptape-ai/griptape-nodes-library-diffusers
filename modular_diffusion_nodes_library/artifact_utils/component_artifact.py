@@ -198,8 +198,17 @@ class ModelComponentArtifact(ComponentArtifact):
             **self._base_recipe_dict(),
             "repo_ref": self.repo_ref.to_recipe_dict() if self.repo_ref else None,
             "file_path": json_safe(self.file_path),
-            "config_source": json_safe(self.config_source),
+            "config_source": json_safe(self._config_source_for_recipe()),
         }
+
+    def _config_source_for_recipe(self) -> str | None:
+        if self.config_source is None:
+            return None
+        config_path = Path(self.config_source)
+        if not config_path.is_dir():
+            return self.config_source
+        config_file = config_path / component_config_filename(self.component)
+        return str(config_file) if config_file.is_file() else self.config_source
 
     @classmethod
     def _from_recipe_dict(cls, data: dict[str, Any]) -> ModelComponentArtifact:
