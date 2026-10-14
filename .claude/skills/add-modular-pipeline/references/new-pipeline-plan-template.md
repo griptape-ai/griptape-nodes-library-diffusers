@@ -51,12 +51,15 @@ State whether this pipeline class gets a NEW runtime-parameters class or reuses 
       variants and belong to `/add-pipeline-variants`.
 - modular_diffusion_nodes_library/parameters/providers.py
     → only when adding a new `Provider` enum entry.
+- modular_diffusion_nodes_library/latent_pipeline_drivers/<driver>.py
+    → `memory_family` class variable set to the family below.
 - modular_diffusion_nodes_library/memory_estimation/family_registry.py
-    → one entry in `_FAMILY_BY_PIPELINE_NAME`; one entry in `_DENOISER_FIELD_ADAPTERS`
-      unless the family is UNET_SDPA (see Rule 9 / references/memory-estimation.md).
+    → one entry in `_DENOISER_FIELD_ADAPTERS` unless the family is UNET_SDPA
+      (see Rule 9 / references/memory-estimation.md).
 
 ## Memory-estimation family (Rule 9 — see references/memory-estimation.md; every cell needs a code-reference citation)
-- `MemoryFamily`: UNET_SDPA | IMAGE_DIT_SDPA | VIDEO_DIT_JOINT_SDPA — <justification, e.g. "single-stream image DiT, no temporal patch dim">
+- `MemoryFamily`: UNET_SDPA | IMAGE_DIT_SDPA | VIDEO_DIT_JOINT_SDPA | NEW (<name>) — <justification, e.g. "single-stream image DiT, no temporal patch dim">
+- If NEW: the user confirmed adding a family before implementation, and the plan lists every checklist item in references/memory-estimation.md "When no existing family fits" (enum, formula, estimator branch, adapter, ControlNet branch if applicable, driver, tests, docs).
 - Denoiser config adapter: [new function `_adapt_<model>` | reused `_adapt_<sibling>`] — if reused, cite the sibling pipeline class whose transformer config field names (`num_attention_heads`/`attention_head_dim`/`num_layers`/`patch_size`/etc.) were verified to match, with the diffusers transformer config file path; if new, list each `DenoiserConfigFields` field and the exact config attribute it reads, citing `.venv/Lib/site-packages/diffusers/models/transformers/<file>.py`.
 - Omit this section's adapter row only if `MemoryFamily` is UNET_SDPA (SDXL-only today; no other pipeline should classify as UNET_SDPA without discussion).
 

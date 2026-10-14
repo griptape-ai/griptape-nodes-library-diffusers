@@ -33,6 +33,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.parameters.controlnet_node_parameter_types import (
     QwenImageControlNetNodesParameterType,
 )
@@ -57,6 +58,7 @@ class _QwenImageNoiseWithStrengthSequence(SequentialPipelineBlocks):
 
 
 class QwenLatentPipelineDriver(LatentPipelineDriver):
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = QwenImageInpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = QwenImageControlNetInpaintPipeline
 

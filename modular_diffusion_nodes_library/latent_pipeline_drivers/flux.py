@@ -23,6 +23,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
 )
 from modular_diffusion_nodes_library.utils.torch_utils import no_grad
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 
 if TYPE_CHECKING:
     import torch  # type: ignore[reportMissingImports]
@@ -69,6 +70,7 @@ class _RegisterTransformerStep(ModularPipelineBlocks):
 
 
 class FluxLatentPipelineDriver(LatentPipelineDriver):
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = FluxInpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = FluxControlNetInpaintPipeline
 

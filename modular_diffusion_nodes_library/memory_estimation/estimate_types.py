@@ -3,9 +3,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any
 
 from modular_diffusion_nodes_library.memory_estimation.lora_memory import LoraAdapterMemoryEstimate
+
+
+class ComponentRole(StrEnum):
+    """Semantic category used to select a component's memory estimation logic."""
+
+    TEXT_ENCODER = "text_encoder"
+    DENOISER = "denoiser"
+    VAE = "vae"
+    CONTROLNET = "controlnet"
+    OTHER = "other"
+
 
 _BYTES_PER_GB = 1024**3
 
@@ -20,7 +32,7 @@ class ComponentMemoryEstimate:
     """Memory estimate for a single resident pipeline component (e.g. a transformer or a VAE)."""
 
     component_name: str
-    role: str
+    role: ComponentRole
     weight_bytes: int
     activation_bytes: int
     total_bytes: int
@@ -32,7 +44,7 @@ class ComponentMemoryEstimate:
     def create(
         cls,
         component_name: str,
-        role: str,
+        role: ComponentRole | str,
         weight_bytes: int,
         activation_bytes: int,
         *,
@@ -42,7 +54,7 @@ class ComponentMemoryEstimate:
     ) -> ComponentMemoryEstimate:
         return cls(
             component_name=component_name,
-            role=role,
+            role=ComponentRole(role),
             weight_bytes=weight_bytes,
             activation_bytes=activation_bytes,
             total_bytes=weight_bytes + activation_bytes,
@@ -54,7 +66,7 @@ class ComponentMemoryEstimate:
     def to_dict(self) -> dict[str, Any]:
         return {
             "component_name": self.component_name,
-            "role": self.role,
+            "role": self.role.value,
             "weight_gb": _bytes_to_gb(self.weight_bytes),
             "activation_gb": _bytes_to_gb(self.activation_bytes),
             "total_gb": _bytes_to_gb(self.total_bytes),
@@ -66,7 +78,21 @@ class ComponentMemoryEstimate:
 
 @dataclass(frozen=True)
 class PipelineMemoryEstimate:
-    """Per-component memory estimate for an entire pipeline, loaded or not."""
+    """Per-component memory estimate for an entire pipeline, loaded or not.
+
+    Attributes:
+        pipeline_name: Name of the pipeline the estimate was computed for.
+        offload_mode: CPU offload topology used for the peak calculation: "model", "sequential",
+            or None when no offload is applied. None is also used for "Automatic" strategies,
+            which show the no-offload upper bound.
+        components: Per-component estimates for everything resident in the pipeline. When LoRA adapters are
+            present, their weight bytes are already added into the primary denoiser's entry, so this list is the
+            source for totals.
+        estimated_peak_bytes: Estimated peak VRAM in bytes, combining weight topology and activations.
+        warnings: Human-readable notes about estimates that are approximate or could not be computed.
+        lora_adapters: Itemized unfused LoRA adapters (name, path, weight bytes) for display and reporting. Their
+            bytes are already counted in components, so do not add them to the total. Empty when none are applied.
+    """
 
     pipeline_name: str
     offload_mode: str | None

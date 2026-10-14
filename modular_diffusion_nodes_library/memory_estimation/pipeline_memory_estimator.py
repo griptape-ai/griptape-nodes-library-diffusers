@@ -18,8 +18,12 @@ import torch  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact, ComponentSourceType
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import ControlNetDiffusionPipelineArtifact
-from modular_diffusion_nodes_library.component_loading.component_slots import ALLOWED_COMPONENT_SLOTS
+from modular_diffusion_nodes_library.component_loading.component_slots import (
+    ALLOWED_COMPONENT_SLOTS,
+    slot_component_kind,
+)
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import get_component_class
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class
 from modular_diffusion_nodes_library.memory_estimation.activation_formulas import (
     estimate_image_dit_sdpa_activation_bytes,
     estimate_unet_sdpa_activation_bytes,
@@ -32,13 +36,12 @@ from modular_diffusion_nodes_library.memory_estimation.controlnet_registry impor
 )
 from modular_diffusion_nodes_library.memory_estimation.estimate_types import (
     ComponentMemoryEstimate,
+    ComponentRole,
     PipelineMemoryEstimate,
 )
 from modular_diffusion_nodes_library.memory_estimation.family_registry import (
-    MemoryFamily,
     UnetLevelConfig,
     get_denoiser_config_fields,
-    get_memory_family,
     get_sdxl_unet_levels,
 )
 from modular_diffusion_nodes_library.memory_estimation.lora_memory import (
@@ -55,6 +58,7 @@ from modular_diffusion_nodes_library.memory_estimation.text_encoder_formula impo
     estimate_text_encoder_activation_bytes,
 )
 from modular_diffusion_nodes_library.memory_estimation.vae_formula import estimate_vae_activation_bytes
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_utils import MEMORY_HEADROOM_FACTOR, detect_offload_method
 from modular_diffusion_nodes_library.utils.torch_utils import get_model_memory, to_human_readable_size
@@ -72,7 +76,11 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 # artifact, so the pre-load estimator assumes the same hardcoded value.
 _BASE_PIPELINE_TORCH_DTYPE = torch.bfloat16
 
-_WEIGHT_BEARING_ROLES = {"text_encoder", "denoiser", "vae"}
+_WEIGHT_BEARING_ROLES = {
+    ComponentRole.TEXT_ENCODER,
+    ComponentRole.DENOISER,
+    ComponentRole.VAE,
+}
 
 # Activations are computed in the model's compute dtype, never narrower than 16-bit, even
 # when the weights are stored quantized. Reading the activation width off a quantized
@@ -81,19 +89,13 @@ _WEIGHT_BEARING_ROLES = {"text_encoder", "denoiser", "vae"}
 _MIN_ACTIVATION_BYTES_PER_ELEMENT = 2
 
 
-def _classify_role(component_name: str) -> str:
-    if component_name.startswith("text_encoder"):
-        return "text_encoder"
-    # `transformer_2` is WAN 2.2's second denoiser (up to ~14B). Matching it here keeps it
-    # out of the "other" bucket, which reported zero activation memory for it and emitted
-    # a spurious "unrecognized component" warning.
-    if component_name in ("transformer", "unet") or component_name.startswith("transformer_"):
-        return "denoiser"
-    if component_name == "vae":
-        return "vae"
-    if component_name == "controlnet":
-        return "controlnet"
-    return "other"
+def _classify_role(component_name: str) -> ComponentRole:
+    component_kind = slot_component_kind(component_name)
+    if component_kind in {"transformer", "unet"}:
+        return ComponentRole.DENOISER
+    if component_kind in {"text_encoder", "vae", "controlnet"}:
+        return ComponentRole(component_kind)
+    return ComponentRole.OTHER
 
 
 def _element_size(component: torch.nn.Module) -> int:
@@ -124,7 +126,8 @@ def _estimate_denoiser_activation_bytes(
     latent: LatentArtifact,
     element_size: int,
 ) -> tuple[int, str | None]:
-    family = get_memory_family(pipeline_name)
+    driver_class = get_driver_class(pipeline_name)
+    family = driver_class.memory_family if driver_class is not None else None
     if family is None:
         return 0, f"No memory-estimation family registered for pipeline '{pipeline_name}'; showing weights only."
 
@@ -257,14 +260,14 @@ def _estimate_controlnet_component(
         controlnet_component, pipeline_name, latent, element_size
     )
     return ComponentMemoryEstimate.create(
-        component_name, "controlnet", weight_bytes, activation_bytes, is_estimated=True, warning=warning
+        component_name, ComponentRole.CONTROLNET, weight_bytes, activation_bytes, is_estimated=True, warning=warning
     )
 
 
 def _estimate_component(
     component_name: str,
     component: torch.nn.Module,
-    role: str,
+    role: ComponentRole,
     pipe: DiffusionPipeline,
     pipeline_name: str,
     latent: LatentArtifact,
@@ -273,11 +276,11 @@ def _estimate_component(
     weight_bytes = get_model_memory(component)
     element_size = _activation_element_size(component)
 
-    if role == "text_encoder":
+    if role == ComponentRole.TEXT_ENCODER:
         activation_bytes = estimate_text_encoder_activation_bytes()
         return ComponentMemoryEstimate.create(component_name, role, weight_bytes, activation_bytes)
 
-    if role == "vae":
+    if role == ComponentRole.VAE:
         try:
             activation_bytes = estimate_vae_activation_bytes(component, latent, optimization_kwargs, element_size)
         except (AttributeError, KeyError, TypeError, IndexError) as e:
@@ -287,7 +290,7 @@ def _estimate_component(
             )
         return ComponentMemoryEstimate.create(component_name, role, weight_bytes, activation_bytes)
 
-    if role == "denoiser":
+    if role == ComponentRole.DENOISER:
         activation_bytes, warning = _estimate_denoiser_activation_bytes(
             component, pipe, pipeline_name, latent, element_size
         )
@@ -314,12 +317,12 @@ def _compute_peak_weight_topology(
     # "sequential": approximate one denoiser layer's weight size, full weight for the
     # rest. Rough approximation, flagged for revisit if real-world accuracy misses target.
     largest = max(components, key=lambda c: c.weight_bytes)
-    if largest.role == "denoiser" and denoiser_num_layers:
+    if largest.role == ComponentRole.DENOISER and denoiser_num_layers:
         base_denoiser_bytes = max(0, largest.weight_bytes - resident_denoiser_bytes)
         per_layer = base_denoiser_bytes // denoiser_num_layers
         others = [c.weight_bytes for c in components if c is not largest]
         return per_layer + max(others, default=0) + resident_denoiser_bytes
-    if largest.role == "denoiser":
+    if largest.role == ComponentRole.DENOISER:
         return max(c.weight_bytes for c in components)
     return max(c.weight_bytes for c in components) + resident_denoiser_bytes
 
@@ -372,10 +375,10 @@ def _controlnet_components(
 def _primary_denoiser_index(components: list[ComponentMemoryEstimate]) -> int | None:
     for preferred_name in ("transformer", "unet"):
         for index, component in enumerate(components):
-            if component.component_name == preferred_name and component.role == "denoiser":
+            if component.component_name == preferred_name and component.role == ComponentRole.DENOISER:
                 return index
     for index, component in enumerate(components):
-        if component.role == "denoiser":
+        if component.role == ComponentRole.DENOISER:
             return index
     return None
 
@@ -438,7 +441,7 @@ def estimate_pipeline_memory(
         if component is None or not hasattr(component, "parameters"):
             continue
         role = _classify_role(component_name)
-        if role == "controlnet":
+        if role == ComponentRole.CONTROLNET:
             components.extend(_controlnet_components(component_name, component, pipeline_name, latent))
             continue
         components.append(
@@ -446,7 +449,8 @@ def estimate_pipeline_memory(
         )
 
     denoiser_num_layers = None
-    family = get_memory_family(pipeline_name)
+    driver_class = get_driver_class(pipeline_name)
+    family = driver_class.memory_family if driver_class is not None else None
     if family is not None and family != MemoryFamily.UNET_SDPA:
         try:
             fields = get_denoiser_config_fields(pipeline_name, pipe)
@@ -480,7 +484,7 @@ def estimate_pipeline_memory(
 def estimate_component_memory(
     component: torch.nn.Module,
     component_name: str,
-    role: str,
+    role: ComponentRole | str,
     pipe: DiffusionPipeline,
     pipeline_name: str,
     latent: LatentArtifact,
@@ -489,7 +493,10 @@ def estimate_component_memory(
     """Estimate memory for a single component. Exposed independently of estimate_pipeline_memory
     to satisfy "estimate API for a configured pipeline or component" literally.
     """
-    return _estimate_component(component_name, component, role, pipe, pipeline_name, latent, optimization_kwargs)
+    normalized_role = ComponentRole(role)
+    return _estimate_component(
+        component_name, component, normalized_role, pipe, pipeline_name, latent, optimization_kwargs
+    )
 
 
 def _dtype_element_size(dtype: torch.dtype) -> int:
@@ -596,7 +603,9 @@ def _controlnet_slot_estimates(
             f"Failed because no ControlNet model class is registered for this pipeline."
         )
         return [
-            ComponentMemoryEstimate.create(f"controlnet_{i}", "controlnet", 0, 0, is_estimated=True, warning=warning)
+            ComponentMemoryEstimate.create(
+                f"controlnet_{i}", ComponentRole.CONTROLNET, 0, 0, is_estimated=True, warning=warning
+            )
             for i in range(len(artifact.controlnet_models))
         ]
 
@@ -607,7 +616,9 @@ def _controlnet_slot_estimates(
             config_dict = resolve_base_component_config(repo_id, "controlnet")
         except ComponentConfigNotCachedError as e:
             estimates.append(
-                ComponentMemoryEstimate.create(component_name, "controlnet", 0, 0, is_estimated=True, warning=str(e))
+                ComponentMemoryEstimate.create(
+                    component_name, ComponentRole.CONTROLNET, 0, 0, is_estimated=True, warning=str(e)
+                )
             )
             continue
 
@@ -632,7 +643,12 @@ def _controlnet_slot_estimates(
         )
         estimates.append(
             ComponentMemoryEstimate.create(
-                component_name, "controlnet", weight_bytes, activation_bytes, is_estimated=True, warning=warning
+                component_name,
+                ComponentRole.CONTROLNET,
+                weight_bytes,
+                activation_bytes,
+                is_estimated=True,
+                warning=warning,
             )
         )
     return estimates
@@ -707,12 +723,12 @@ def estimate_pipeline_memory_from_build_data(
         # int4 (0.5 bytes), `int(0.5)` silently zeroed them.
         element_size = max(int(stored_bytes_per_element), _MIN_ACTIVATION_BYTES_PER_ELEMENT)
 
-        if role == "text_encoder":
+        if role == ComponentRole.TEXT_ENCODER:
             activation_bytes = estimate_text_encoder_activation_bytes()
             components.append(ComponentMemoryEstimate.create(slot, role, weight_bytes, activation_bytes))
             continue
 
-        if role == "vae":
+        if role == ComponentRole.VAE:
             if meta_component is None:
                 warning = "VAE config not available; showing weights only."
                 components.append(
@@ -734,7 +750,7 @@ def estimate_pipeline_memory_from_build_data(
             components.append(ComponentMemoryEstimate.create(slot, role, weight_bytes, activation_bytes))
             continue
 
-        # role == "denoiser"
+        # role == ComponentRole.DENOISER
         if meta_component is None:
             warning = "Denoiser config not available; showing weights only."
             components.append(
@@ -746,7 +762,8 @@ def estimate_pipeline_memory_from_build_data(
         activation_bytes, warning = _estimate_denoiser_activation_bytes(
             meta_component, denoiser_pipe_stub, pipeline_name, latent, element_size
         )
-        family = get_memory_family(pipeline_name)
+        driver_class = get_driver_class(pipeline_name)
+        family = driver_class.memory_family if driver_class is not None else None
         if family is not None and family != MemoryFamily.UNET_SDPA:
             try:
                 fields = get_denoiser_config_fields(pipeline_name, denoiser_pipe_stub)

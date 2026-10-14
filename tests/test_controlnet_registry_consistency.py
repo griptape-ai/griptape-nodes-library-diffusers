@@ -14,7 +14,7 @@ from modular_diffusion_nodes_library.memory_estimation.controlnet_registry impor
     _CONTROLNET_CLASS_BY_PIPELINE_NAME,
     _CONTROLNET_DENOISER_FIELD_ADAPTERS,
 )
-from modular_diffusion_nodes_library.memory_estimation.family_registry import MemoryFamily
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 
 
 def test_controlnet_class_and_activation_family_dicts_have_the_same_keys() -> None:
