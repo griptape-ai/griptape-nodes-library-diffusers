@@ -169,6 +169,21 @@ def test_pipeline_artifact_recipe_dict_round_trips_directly() -> None:
     assert DiffusionPipelineArtifact.from_recipe_dict(artifact.to_recipe_dict()) == artifact
 
 
+def test_pipeline_artifact_with_optimization_overrides_updates_cache_identity() -> None:
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        config_hash="pipeline-hash",
+        optimization_kwargs={"vae_slicing": False, "quantization_mode": "int8"},
+    )
+
+    updated = artifact.with_optimization_overrides({"vae_slicing": True})
+
+    assert artifact.optimization_kwargs == {"vae_slicing": False, "quantization_mode": "int8"}
+    assert updated.optimization_kwargs == {"vae_slicing": True, "quantization_mode": "int8"}
+    assert updated.config_hash != artifact.config_hash
+    assert artifact.with_optimization_overrides({}) is artifact
+
+
 def test_component_artifact_recipe_dict_round_trips_directly() -> None:
     override = ModelComponentArtifact(
         load_id="override-id",
