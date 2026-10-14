@@ -46,7 +46,7 @@ uv run estimate-workflow-memory workflow.py --width 832 --height 480 --num-frame
 
 ## How it works
 
-The command parses the workflow source, extracts pipeline configurations and dimensions associated with recognized noise nodes, resolves the public latent shape through the cached Diffusers prepare-latents path, and calls the same memory estimator the node uses. It does not call `build_workflow()`, build the full diffusion pipeline, load model weights, or run inference.
+The command parses the workflow source, extracts pipeline configurations and dimensions associated with recognized noise nodes, resolves the public latent shape through the cached Diffusers prepare-latents path, and calls the same memory estimator the node uses. It does not build the full diffusion pipeline, load model weights, or run inference.
 
 Because nothing is loaded, every estimate is config-derived. Weight sizes are computed on the meta device from each component's cached config, at the dtype and quantization the pipeline would load with. Offload topology comes from the workflow's requested `cpu_offload_strategy`.
 
@@ -58,7 +58,11 @@ See the [Estimate Pipeline Memory](../nodes/estimate_pipeline_memory.md) node pa
 
 The command uses recorded or overridden dimensions as-is. It does not apply model-specific dimension snapping or validation, so the result includes a raw-dimension approximation warning. It still resolves latent-space shape through the cached Diffusers prepare-latents path, preserving the distinction between pixel-space source dimensions and public latent dimensions.
 
-If the required width and height cannot be read from a recognized noise node, the command fails. Supply `--width` and `--height` to provide them. The command never falls back to pixel-space dimensions.
+If the required width and height cannot be read from a recognized noise node, the command fails. Supply `--width` and `--height` to provide them.
+
+## Encode nodes
+
+Encode Media (`VaeEncodeNode`) and Encode Masked Media (`VaeMaskEncodeNode`) are not supported estimation targets. Their source dimensions come from runtime image or video inputs, which the CLI does not inspect or decode; it also does not execute nodes to discover those dimensions. `--width`, `--height`, and `--num-frames` only override dimensions for an already recognized estimate target, so they do not make a workflow containing only encode nodes estimable. A workflow can still be estimated when it contains a separately supported pipeline and dimension assignment.
 
 ## Output
 

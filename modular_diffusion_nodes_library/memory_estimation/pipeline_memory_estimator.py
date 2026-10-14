@@ -297,6 +297,8 @@ def _estimate_component(
             component_name, role, weight_bytes, activation_bytes, is_estimated=warning is not None, warning=warning
         )
 
+    if role == ComponentRole.CONTROLNET:
+        return _estimate_controlnet_component(component_name, component, pipeline_name, latent)
     warning = f"Unrecognized component '{component_name}'; only weight memory could be estimated."
     return ComponentMemoryEstimate.create(component_name, role, weight_bytes, 0, is_estimated=True, warning=warning)
 
@@ -674,8 +676,8 @@ def estimate_pipeline_memory_from_build_data(
 
     component_overrides: dict[str, ComponentArtifact] = build_data.get("_component_overrides", {})
     is_all_overrides = bool(build_data.get("_all_overrides"))
-    base_repo_id = build_data.get("base_repo_id")
-    base_revision = build_data.get("base_revision")
+    base_repo_id = build_data.get("base_repo_id") or build_data.get("repo_id")
+    base_revision = build_data.get("base_revision") or build_data.get("revision")
 
     if not is_all_overrides and not base_repo_id:
         msg = (
@@ -758,7 +760,11 @@ def estimate_pipeline_memory_from_build_data(
             )
             continue
 
-        denoiser_pipe_stub = SimpleNamespace(**{slot: meta_component})
+        # Family adapters read the canonical `.transformer` / `.unet` attribute, so a second
+        # denoiser slot such as WAN 2.2's `transformer_2` is exposed under its canonical name.
+        # Family adapters read the canonical `.transformer` / `.unet` attribute, so a second
+        # denoiser slot such as WAN 2.2's `transformer_2` is exposed under its canonical name.
+        denoiser_pipe_stub = SimpleNamespace(**{slot_component_kind(slot): meta_component})
         activation_bytes, warning = _estimate_denoiser_activation_bytes(
             meta_component, denoiser_pipe_stub, pipeline_name, latent, element_size
         )
