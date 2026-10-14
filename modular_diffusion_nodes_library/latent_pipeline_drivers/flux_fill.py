@@ -18,6 +18,7 @@ class FluxFillLatentPipelineDriver(FluxLatentPipelineDriver):
     This pipeline only supports inpainting.
     """
 
+    controlnet_model_class: ClassVar[type | None] = None
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = FluxFillPipeline
 
     @override

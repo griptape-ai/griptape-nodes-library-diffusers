@@ -70,6 +70,7 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
     """
 
     memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
+    controlnet_model_class: ClassVar[type | None] = SD3ControlNetModel
     _inpaint_pipeline_class = StableDiffusion3InpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = (
         StableDiffusion3ControlNetInpaintingPipeline
