@@ -30,8 +30,6 @@ from modular_diffusion_nodes_library.memory_estimation.activation_formulas impor
     estimate_video_dit_joint_sdpa_activation_bytes,
 )
 from modular_diffusion_nodes_library.memory_estimation.controlnet_registry import (
-    get_controlnet_activation_family,
-    get_controlnet_class,
     get_controlnet_denoiser_config_fields,
 )
 from modular_diffusion_nodes_library.memory_estimation.estimate_types import (
@@ -210,7 +208,8 @@ def _estimate_controlnet_activation_bytes(
     resolution as the base denoiser, so the same per-token cost model
     applies, just with the ControlNet's (usually smaller) layer count.
     """
-    family = get_controlnet_activation_family(pipeline_name)
+    driver_class = get_driver_class(pipeline_name)
+    family = driver_class.memory_family if driver_class is not None else None
     if family is None:
         return 0, f"No memory-estimation family registered for '{pipeline_name}' ControlNet; showing weights only."
 
@@ -596,7 +595,8 @@ def _controlnet_slot_estimates(
     unmodified from the base artifact (`BaseDiffusionPipelineArtifact.__init__`), so
     it never contains ControlNet configuration.
     """
-    controlnet_cls = get_controlnet_class(pipeline_name)
+    driver_class = get_driver_class(pipeline_name)
+    controlnet_cls = driver_class.controlnet_model_class if driver_class is not None else None
     if controlnet_cls is None:
         warning = (
             f"Attempted to estimate ControlNet memory for pipeline '{pipeline_name}'. "

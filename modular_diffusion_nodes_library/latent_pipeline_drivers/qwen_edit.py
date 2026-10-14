@@ -1,5 +1,5 @@
 import logging
-from typing import Any, override
+from typing import Any, ClassVar, override
 
 import torch  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
@@ -35,6 +35,8 @@ _QWEN_EDIT_TARGET_AREA = 1024 * 1024
 
 
 class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
+    controlnet_model_class: ClassVar[type | None] = None
+
     def __init__(self, pipe: DiffusionPipeline) -> None:
         super().__init__(pipe)
 

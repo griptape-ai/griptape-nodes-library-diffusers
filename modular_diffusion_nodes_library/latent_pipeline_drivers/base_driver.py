@@ -95,6 +95,7 @@ class LatentPipelineDriver(ABC):
     """
 
     memory_family: ClassVar[MemoryFamily | None] = None
+    controlnet_model_class: ClassVar[type | None] = None
     produces_video: ClassVar[bool] = False
     video_fps: ClassVar[int] = 16
     _partial_denoise_proxy_class: ClassVar[type[PartialDenoiseSchedulerProxy]] = PartialDenoiseSchedulerProxy

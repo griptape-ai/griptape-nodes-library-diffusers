@@ -84,6 +84,7 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
     """
 
     memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.UNET_SDPA
+    controlnet_model_class: ClassVar[type | None] = ControlNetModel
     _inpaint_pipeline_class = StableDiffusionXLInpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = (
         StableDiffusionXLControlNetInpaintPipeline

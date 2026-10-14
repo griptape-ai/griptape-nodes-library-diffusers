@@ -58,6 +58,7 @@ class _QwenImageNoiseWithStrengthSequence(SequentialPipelineBlocks):
 
 class QwenLatentPipelineDriver(LatentPipelineDriver):
     memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
+    controlnet_model_class: ClassVar[type | None] = QwenImageControlNetModel
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = QwenImageInpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = QwenImageControlNetInpaintPipeline
 
