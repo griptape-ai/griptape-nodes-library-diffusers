@@ -157,8 +157,8 @@ class LatentPipelineTypeParameters(ABC):
             current_pipeline_type = self._node.get_parameter_value("pipeline_type")
             self.did_pipeline_type_change = current_pipeline_type != value
 
-    def after_value_set(self, parameter: Parameter, value: Any) -> None:
-        if parameter.name == "pipeline_type" and self.did_pipeline_type_change:
+    def after_value_set(self, parameter: Parameter, value: Any, *, initial_setup: bool = False) -> None:
+        if parameter.name == "pipeline_type" and self.did_pipeline_type_change and not initial_setup:
             self.regenerate_elements_for_pipeline_type(value)
 
     def regenerate_elements_for_pipeline_type(self, pipeline_type: str) -> None:
