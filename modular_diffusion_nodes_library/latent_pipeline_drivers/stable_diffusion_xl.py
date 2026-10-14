@@ -37,6 +37,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
     read_driver_meta,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -82,6 +83,7 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
     ``DiffusionPipeline.__call__`` (via the base class ``denoise_latent``).
     """
 
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.UNET_SDPA
     _inpaint_pipeline_class = StableDiffusionXLInpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = (
         StableDiffusionXLControlNetInpaintPipeline

@@ -53,7 +53,7 @@ def _memory_report_from_estimate(estimate: Any, optimization_summary: str) -> di
             {
                 "id": component.component_name,
                 "label": component.component_name.replace("_", " ").title(),
-                "role": component.role,
+                "role": component.role.value,
                 "weight_bytes": max(0, int(component.weight_bytes)),
                 "activation_bytes": max(0, int(component.activation_bytes)),
                 "total_bytes": component_total,

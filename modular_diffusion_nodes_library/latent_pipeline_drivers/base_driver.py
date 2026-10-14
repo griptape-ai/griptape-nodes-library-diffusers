@@ -31,6 +31,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     TextEncodings,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.misc.partial_denoise import (
     PartialDenoisePipelineRunner,
     PartialDenoiseSchedulerProxy,
@@ -93,6 +94,7 @@ class LatentPipelineDriver(ABC):
     appears on the public surface.
     """
 
+    memory_family: ClassVar[MemoryFamily | None] = None
     produces_video: ClassVar[bool] = False
     video_fps: ClassVar[int] = 16
     _partial_denoise_proxy_class: ClassVar[type[PartialDenoiseSchedulerProxy]] = PartialDenoiseSchedulerProxy

@@ -39,6 +39,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
     read_driver_meta,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
     MediaGenConditioningPayload,
     normalize_to_payloads,
@@ -61,6 +62,7 @@ AUDIO_LATENTS_META_KEY = "audio_latents"
 
 
 class LTX2PipelineDriver(LatentPipelineDriver):
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.VIDEO_DIT_JOINT_SDPA
     produces_video: ClassVar[bool] = True
     # frame_rate defaults to 24.0 in LTX2Pipeline.__call__ and its EXAMPLE_DOC_STRING.
     video_fps: ClassVar[int] = 24

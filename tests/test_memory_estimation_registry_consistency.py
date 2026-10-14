@@ -1,43 +1,25 @@
-"""Keep the memory-estimation registries in sync with the driver registry.
+"""Keep driver memory-estimation metadata in sync with the estimator adapters.
 
-`_FAMILY_BY_PIPELINE_NAME` and `_DENOISER_FIELD_ADAPTERS` (family_registry.py) are
-hand-maintained dicts keyed by the same pipeline-class-name strings as
-`_DRIVER_REGISTRY` (driver_factory.py), but nothing enforces that at import time. A new
-provider or pipeline added to `_DRIVER_REGISTRY` without a matching family_registry.py
-entry does not crash -- `_estimate_denoiser_activation_bytes` in
-pipeline_memory_estimator.py catches the missing lookup and downgrades to a "showing
-weights only" warning -- so the gap is a silent GPU-memory-estimation quality
-regression rather than a loud failure. These tests make it loud.
+Each registered driver declares its activation-memory family as a class variable.
+The denoiser config adapters remain keyed by pipeline class name because they normalize
+pipeline-specific config fields. These tests make missing metadata loud instead of
+silently downgrading the estimate to weights-only.
 """
 
 from __future__ import annotations
 
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import _DRIVER_REGISTRY
-from modular_diffusion_nodes_library.memory_estimation.family_registry import (
-    _DENOISER_FIELD_ADAPTERS,
-    _FAMILY_BY_PIPELINE_NAME,
-    MemoryFamily,
-)
+from modular_diffusion_nodes_library.memory_estimation.family_registry import _DENOISER_FIELD_ADAPTERS
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 
 
 def test_every_driver_pipeline_has_a_memory_family() -> None:
-    """Every pipeline with a driver must also have a memory family, or its GPU memory
-    estimate silently degrades to weights-only."""
-    missing = set(_DRIVER_REGISTRY) - set(_FAMILY_BY_PIPELINE_NAME)
+    """Every registered driver must declare a family, or estimates degrade to weights-only."""
+    missing = {
+        pipeline_name for pipeline_name, driver_class in _DRIVER_REGISTRY.items() if driver_class.memory_family is None
+    }
     assert missing == set(), (
-        f"These pipelines are registered in _DRIVER_REGISTRY (driver_factory.py) but have no memory "
-        f"family in _FAMILY_BY_PIPELINE_NAME (family_registry.py): {sorted(missing)}. Add an entry so "
-        f"the pipeline's GPU memory estimate isn't silently downgraded to weights-only."
-    )
-
-
-def test_no_orphaned_memory_family_entries() -> None:
-    """A family entry for a pipeline with no driver is dead/misleading: nothing ever builds that pipeline."""
-    orphaned = set(_FAMILY_BY_PIPELINE_NAME) - set(_DRIVER_REGISTRY)
-    assert orphaned == set(), (
-        f"These pipelines have a memory family in _FAMILY_BY_PIPELINE_NAME (family_registry.py) but no "
-        f"driver in _DRIVER_REGISTRY (driver_factory.py): {sorted(orphaned)}. Remove the stale entry or "
-        f"register the missing driver."
+        f"These pipelines are registered in _DRIVER_REGISTRY but their drivers have no memory_family: {sorted(missing)}."
     )
 
 
@@ -52,10 +34,8 @@ def test_every_non_unet_driver_pipeline_has_a_denoiser_adapter() -> None:
     """
     missing = {
         pipeline_name
-        for pipeline_name, family in _FAMILY_BY_PIPELINE_NAME.items()
-        if pipeline_name in _DRIVER_REGISTRY
-        and family != MemoryFamily.UNET_SDPA
-        and pipeline_name not in _DENOISER_FIELD_ADAPTERS
+        for pipeline_name, driver_class in _DRIVER_REGISTRY.items()
+        if driver_class.memory_family != MemoryFamily.UNET_SDPA and pipeline_name not in _DENOISER_FIELD_ADAPTERS
     }
     assert missing == set(), (
         f"These pipelines have a non-UNET_SDPA memory family but no _DENOISER_FIELD_ADAPTERS entry in "
@@ -75,7 +55,7 @@ def test_no_orphaned_denoiser_adapters() -> None:
 
 def test_every_memory_family_is_used() -> None:
     """An unused MemoryFamily value suggests dead code or a forgotten wiring."""
-    used_families = set(_FAMILY_BY_PIPELINE_NAME.values())
+    used_families = {driver_class.memory_family for driver_class in _DRIVER_REGISTRY.values()}
     unused = set(MemoryFamily) - used_families
     assert unused == set(), (
         f"These MemoryFamily values are never assigned to any pipeline: {sorted(family.value for family in unused)}."

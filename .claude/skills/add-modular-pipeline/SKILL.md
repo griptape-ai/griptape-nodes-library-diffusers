@@ -137,9 +137,11 @@ A hybrid driver is only acceptable when (a) the user explicitly declines to bump
 
 ### Rule 9 — Every new pipeline type needs a memory-estimation family entry
 
-Adding a new pipeline TYPE always requires a matching entry in [`memory_estimation/family_registry.py`](../../../modular_diffusion_nodes_library/memory_estimation/family_registry.py) `_FAMILY_BY_PIPELINE_NAME`, keyed by the exact same pipeline-class-name string used in `_DRIVER_REGISTRY`. Skipping this entry does not break at import time; it silently degrades the new pipeline's memory estimate to weights-only.
+Adding a new pipeline TYPE always requires the driver to set `memory_family` to a `MemoryFamily` value (`modular_diffusion_nodes_library/memory_family.py`). Unless the family is `UNET_SDPA`, it also requires a matching entry in [`memory_estimation/family_registry.py`](../../../modular_diffusion_nodes_library/memory_estimation/family_registry.py) `_DENOISER_FIELD_ADAPTERS`, keyed by the exact same pipeline-class-name string used in `_DRIVER_REGISTRY`. Skipping either does not break at import time; it silently degrades the new pipeline's memory estimate to weights-only. The registry consistency tests in `tests/` catch both omissions.
 
-Load [`./references/memory-estimation.md`](./references/memory-estimation.md) before filling in Phase B's memory-estimation section or doing Phase C step 5's registration edits — it has the `MemoryFamily` decision criteria, the denoiser-config-adapter reuse-vs-new rule, and the verification commands.
+If no existing family fits the denoiser, do not force one. Adding a `MemoryFamily` is a shared-code change: stop and confirm with the user first, then follow the checklist in the reference below.
+
+Load [`./references/memory-estimation.md`](./references/memory-estimation.md) before filling in Phase B's memory-estimation section or doing Phase C step 5's registration edits — it has the `MemoryFamily` decision criteria, the new-family checklist, the denoiser-config-adapter reuse-vs-new rule, and the verification commands.
 
 ---
 
@@ -204,7 +206,7 @@ Modular block input contracts are NOT consistent across pipelines, and they are 
 
 ### Phase B — Present the plan
 
-Load [`./references/plan-template.md`](./references/plan-template.md) and produce a plan matching its structure exactly — every section filled in, none omitted. It covers closest precedent, the pipeline class, the modular-vs-`DiffusionPipeline` method split, Provider classification, runtime-parameters reuse, files to create/modify, the memory-estimation family (see Rule 9 / [`./references/memory-estimation.md`](./references/memory-estimation.md)), latent contract compliance, the variants checklist, runtime parameter defaults/tooltips (Rule 4), and open questions.
+Load [`./references/new-pipeline-plan-template.md`](./references/new-pipeline-plan-template.md) and produce a plan matching its structure exactly — every section filled in, none omitted. It covers closest precedent, the pipeline class, the modular-vs-`DiffusionPipeline` method split, Provider classification, runtime-parameters reuse, files to create/modify, the memory-estimation family (see Rule 9 / [`./references/memory-estimation.md`](./references/memory-estimation.md)), latent contract compliance, the variants checklist, runtime parameter defaults/tooltips (Rule 4), and open questions.
 
 - griptape-nodes-library.json
     → `model_catalog` entries for every new repo id, plus the catalog keys in the owning node's `model_usage`.
@@ -246,14 +248,15 @@ All `uv run ...` commands below must be executed from the repo root. `make check
 3. **Runtime parameters** file created (or reuse declared) → verify: every parameter default and tooltip cites an upstream source per Rule 4; `uv run ruff format --check` + `uv run ruff check .` pass.
 4. **Driver** file created → verify: file imports cleanly (the `__init_subclass__` forwardable-signature check raises at import if any of `encode_media`/`decode_latent`/`create_noise_latent`/`add_noise_to_latent` deviate from the contract); every `_call_block(...)` site passes every `required=True` input enumerated in Phase B's table; latent contract (Rule 5) is honoured (unpacked, normalised, public methods return `LatentArtifact`, `source_shape` rides on the artifact / media dataclass); `uv run ruff format --check` + `uv run ruff check .` pass.
 5. **Registration edits**:
-   - Always: one entry in [`driver_factory.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py) `_DRIVER_REGISTRY`; one or more `case` clauses in [`pipeline_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipeline_parameters.py) `set_runtime_parameters`; one entry in [`memory_estimation/family_registry.py`](../../../modular_diffusion_nodes_library/memory_estimation/family_registry.py) `_FAMILY_BY_PIPELINE_NAME`, plus (unless the family is UNET_SDPA) one entry — new or reused — in `_DENOISER_FIELD_ADAPTERS` (Rule 9).
+   - Always: one entry in [`driver_factory.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py) `_DRIVER_REGISTRY`; one or more `case` clauses in [`pipeline_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipeline_parameters.py) `set_runtime_parameters`; `memory_family` set on the driver class; plus (unless the family is UNET_SDPA) one entry — new or reused — in [`memory_estimation/family_registry.py`](../../../modular_diffusion_nodes_library/memory_estimation/family_registry.py) `_DENOISER_FIELD_ADAPTERS` (Rule 9).
    - **New-Provider shape**: a new `Provider` enum entry in [`providers.py`](../../../modular_diffusion_nodes_library/parameters/providers.py), a new `LatentPipelineTypeParameters` subclass AND a `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` entry in [`pipelinetype_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipelinetype_parameters.py).
    - **Extend-existing shape**: ONE new entry inside an existing subclass's `get_pipeline_type_dict()` in [`pipelinetype_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipelinetype_parameters.py). No `providers.py` change. No `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` change.
 
    Verify:
    - `uv run python -c "from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class; assert get_driver_class('<PipelineClassName>') is not None"`
-   - `uv run python -c "from modular_diffusion_nodes_library.memory_estimation.family_registry import get_memory_family; assert get_memory_family('<PipelineClassName>') is not None"`
+   - `uv run python -c "from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class; assert get_driver_class('<PipelineClassName>').memory_family is not None"`
    - Unless UNET_SDPA: `uv run python -c "from modular_diffusion_nodes_library.memory_estimation.family_registry import _DENOISER_FIELD_ADAPTERS; assert '<PipelineClassName>' in _DENOISER_FIELD_ADAPTERS"` and manually confirm the adapter's attribute reads match the new pipeline's actual transformer config (Rule 9).
+   - `uv run pytest tests/test_memory_estimation_registry_consistency.py`
    - For the new-Provider shape only: `uv run python -c "from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import MODULAR_PIPELINE_TYPE_PROVIDER_MAP; from modular_diffusion_nodes_library.parameters.providers import Provider; assert MODULAR_PIPELINE_TYPE_PROVIDER_MAP[Provider.<NEW_NAME>] is not None"`
    - `uv run ruff format --check` and `uv run ruff check .` pass.
 
@@ -268,7 +271,7 @@ All `uv run ...` commands below must be executed from the repo root. `make check
 ## References
 
 - [`./references/driver-details.md`](./references/driver-details.md) — method-by-method driver implementation guide and the verbatim latent shape & space contract.
-- [`./references/plan-template.md`](./references/plan-template.md) — the Phase B plan template.
+- [`./references/new-pipeline-plan-template.md`](./references/new-pipeline-plan-template.md) — the Phase B plan template.
 - [`./references/memory-estimation.md`](./references/memory-estimation.md) — Rule 9's `MemoryFamily` / denoiser-config-adapter selection guide.
 - [`../add-pipeline-variants/SKILL.md`](../add-pipeline-variants/SKILL.md) — load this for ControlNet / inpaint / runtime pipe-swap on the new driver.
 - [`../../../docs/adding-new-model.md`](../../../docs/adding-new-model.md) — the human-readable contributor doc covering the same process.

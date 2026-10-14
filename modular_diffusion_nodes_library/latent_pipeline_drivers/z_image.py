@@ -38,6 +38,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.utils.pipeline_utils import detect_offload_method
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -69,6 +70,8 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
     """
     Driver for ZImagePipeline.
     """
+
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
 
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = ZImageInpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = ZImageControlNetInpaintPipeline

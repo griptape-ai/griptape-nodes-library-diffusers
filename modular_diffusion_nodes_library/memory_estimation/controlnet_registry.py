@@ -33,7 +33,8 @@ from diffusers.models.controlnets.controlnet_qwenimage import (  # type: ignore[
 from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
 from diffusers.models.controlnets.controlnet_z_image import ZImageControlNetModel  # type: ignore[reportMissingImports]
 
-from modular_diffusion_nodes_library.memory_estimation.family_registry import DenoiserConfigFields, MemoryFamily
+from modular_diffusion_nodes_library.memory_estimation.family_registry import DenoiserConfigFields
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 
 # pipeline_name -> ControlNet model class this pipeline attaches when a
 # ControlNet Pipeline node wraps it.

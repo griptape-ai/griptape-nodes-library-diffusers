@@ -12,6 +12,8 @@ Three values exist on the enum:
 - `IMAGE_DIT_SDPA` — a single-stream image DiT transformer (Flux, Qwen, SD3, Z-Image, Flux2 precedents).
 - `VIDEO_DIT_JOINT_SDPA` — a joint spatio-temporal DiT with a temporal patch dimension (WAN, LTX, HunyuanVideo1.5, MiniMax H3, LTX2 precedents).
 
+If the new denoiser fits none of these, see [When no existing family fits](#when-no-existing-family-fits) below. Do not force it into the nearest family unless the formula's assumptions actually hold.
+
 Field names for layers/heads/hidden-dim/patch-size are **not uniform** across diffusers model configs — this is stated verbatim in `family_registry.py`'s module docstring, which lists the transformer config classes it was verified against (`FluxTransformer2DModel`, `LTXVideoTransformer3DModel`, `UNet2DConditionModel`, `QwenImageTransformer2DModel`, `WanTransformer3DModel`, `SD3Transformer2DModel`, `Flux2Transformer2DModel`, `ZImageTransformer2DModel`, `HunyuanVideo15Transformer3DModel`, `LTX2VideoTransformer3DModel`, `MiniMaxH3Transformer3DModel`). Use the existing `_adapt_*` functions in `family_registry.py` as the concrete reference for which attribute names each transformer config actually exposes — do not assume a name from a sibling family without reading the new pipeline's own transformer config class under `.venv/Lib/site-packages/diffusers/models/transformers/`.
 
 ## Denoiser config adapter
@@ -21,7 +23,23 @@ Unless the family is `UNET_SDPA` (SDXL-only today), also add an entry to `_DENOI
 - **Reuse an existing sibling's adapter** when the new pipeline's transformer class and config field names match a sibling's exactly — e.g. `_adapt_flux_family` is reused for `FluxPipeline`, `FluxFillPipeline`, `FluxKontextPipeline`, `Flux2Pipeline`, and `Flux2KleinPipeline` in `family_registry.py` because they share the same `num_attention_heads`/`attention_head_dim`/`num_layers`/`num_single_layers`/`patch_size` fields. Verify field-for-field against the new pipeline's actual transformer config before reusing — do not reuse just because the model family name looks similar.
 - **Write a new adapter** when field names differ (e.g. `_adapt_zimage` reads `cfg.dim`/`cfg.n_layers`/`cfg.n_refiner_layers`/`cfg.all_patch_size[0]` — none of which match the Flux adapter's field names).
 
+## When no existing family fits
+
+Adding a new `MemoryFamily` is a shared-code change, not a per-pipeline edit. Confirm with the user before starting. Only add a family when the denoiser's attention or shape model is genuinely different from all three existing families. Shape alone (a new layer count or width) is not enough; use the existing family and its adapter.
+
+Every step below is required. The estimator does not fail when one is missed. It silently uses a different family's formula, or weights only.
+
+1. **Enum** — add the member to `modular_diffusion_nodes_library/memory_family.py`.
+2. **Formula** — add an `estimate_<family>_activation_bytes(...)` function to `memory_estimation/activation_formulas.py`. Reuse `_estimate_joint_attention_activation_bytes` if its model fits.
+3. **Estimator branch** — in `_estimate_denoiser_activation_bytes()` in `pipeline_memory_estimator.py`, add an explicit `if family == MemoryFamily.<NEW>:` branch **before** the final lines. Those lines fall through to the video formula for any family that is not image or UNet. Without the branch, the new family is estimated with the video formula.
+4. **Denoiser adapter** — add an `_adapt_<family>(pipe)` function in `family_registry.py` returning `DenoiserConfigFields`, and key it in `_DENOISER_FIELD_ADAPTERS`. Required for every non-UNet family: `num_layers` feeds `_compute_peak_weight_topology()`, and `test_every_non_unet_driver_pipeline_has_a_denoiser_adapter` checks it. If the new formula needs a field `DenoiserConfigFields` does not have, add the field and set it in every existing adapter. Check that each one is still correct; do not default them.
+5. **ControlNet, only if the pipeline has one** — add the pipeline to `_CONTROLNET_ACTIVATION_FAMILY_BY_PIPELINE_NAME` and, if it is not UNet, to `_CONTROLNET_DENOISER_FIELD_ADAPTERS` in `controlnet_registry.py`. Also add a branch in `_estimate_controlnet_activation_bytes()`. That function uses the image-DiT formula for every non-UNet family, so without a branch the new family's ControlNet is estimated with the wrong formula.
+6. **Driver** — set `memory_family = MemoryFamily.<NEW>` on the pipeline's driver class. `test_every_memory_family_is_used` fails if the enum member has no driver, so the enum, driver, and formula should land in the same change.
+7. **Tests** — add a test for the new formula's output. Run `tests/test_memory_estimation_registry_consistency.py` and `tests/test_controlnet_registry_consistency.py`.
+8. **Docs** — add the family to the list in this file, the `MemoryFamily` options in `new-pipeline-plan-template.md`, and Rule 9 in `SKILL.md`.
+
 ## Verify
 
-- `uv run python -c "from modular_diffusion_nodes_library.memory_estimation.family_registry import get_memory_family; assert get_memory_family('<PipelineClassName>') is not None"`
+- `uv run python -c "from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class; assert get_driver_class('<PipelineClassName>').memory_family is not None"`
 - For non-`UNET_SDPA` families: manually confirm `_DENOISER_FIELD_ADAPTERS['<PipelineClassName>']` reads only attributes confirmed to exist on the new pipeline's transformer config class.
+- Run `uv run pytest tests/test_memory_estimation_registry_consistency.py tests/test_controlnet_registry_consistency.py`.
