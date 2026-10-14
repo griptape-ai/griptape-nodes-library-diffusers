@@ -370,7 +370,7 @@ class DiffusionPipelineArtifact:
         """Render the artifact-owned half of a baked folder's sidecar config.
 
         Schema version, layout, dtype of the built pipe) are added by the caller, mirroring how
-        `serialize_pipeline_artifact` wraps `to_recipe_dict`. 
+        `serialize_pipeline_artifact` wraps `to_recipe_dict`.
         """
         self.check_full_pipeline_bake_policy()
         optimization_kwargs = dict(self.optimization_kwargs)
@@ -512,6 +512,21 @@ class DiffusionPipelineArtifact:
         """
         clone = copy.copy(self)
         clone._extra_runtime_adapter_steps = [*self.runtime_adapter_steps(), *steps]
+        return clone
+
+    def with_optimization_overrides(self, overrides: dict[str, Any]) -> DiffusionPipelineArtifact:
+        """Return an artifact with merged optimization overrides and a matching cache key."""
+        optimization_kwargs = self.optimization_kwargs
+        optimization_kwargs.update(copy.deepcopy(overrides))
+        if optimization_kwargs == self._optimization_kwargs:
+            return self
+
+        clone = copy.copy(self)
+        clone._optimization_kwargs = optimization_kwargs
+        clone.config_hash = (
+            f"{self.pipeline_name}-"
+            f"{_digest({'source_config_hash': self.config_hash, 'optimization': optimization_kwargs})}-0"
+        )
         return clone
 
     @contextmanager
