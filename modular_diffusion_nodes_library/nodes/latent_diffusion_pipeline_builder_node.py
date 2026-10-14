@@ -39,7 +39,7 @@ class LatentDiffusionPipelineBuilderNode(
     ParameterConnectionPreservationMixin, SuccessFailureExecutionMixin, SuccessFailureNode
 ):
     STATIC_PARAMS: ClassVar = ["provider", "pipeline"]
-    START_PARAMS: ClassVar = ["pipeline", "provider"]
+    START_PARAMS: ClassVar = ["pipeline", "provider", "pipeline_type"]
     END_PARAMS: ClassVar = ["component_overrides", "loras", "Status", "logs"]
 
     # Severity policy: component-compatibility findings in these categories block
@@ -87,6 +87,7 @@ class LatentDiffusionPipelineBuilderNode(
         self._initializing = False
         self.params.refresh_component_override_ports(initial_setup=True)
         self.set_pipeline_artifact()
+        self.reorder_parameters_by_groups()
 
     @property
     def state(self) -> NodeResolutionState:
@@ -270,7 +271,7 @@ class LatentDiffusionPipelineBuilderNode(
             skip_before_value_set=skip_before_value_set,
         )
 
-        self.params.after_value_set(parameter, value)
+        self.params.after_value_set(parameter, value, initial_setup=initial_setup)
         self.huggingface_pipeline_params.after_value_set(parameter, value)
         if parameter.name != "pipeline":
             self.set_pipeline_artifact()
