@@ -1,7 +1,9 @@
 import diffusers  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.node_types import BaseNode
-from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
+from modular_diffusion_nodes_library.parameters.connectable_huggingface_repo_parameter import (
+    ConnectableHuggingFaceRepoParameter,
+)
 from modular_diffusion_nodes_library.standard_parameters.flux_parameters import FluxPipelineParameters
 
 
@@ -12,7 +14,7 @@ class FluxFillPipelineParameters(FluxPipelineParameters):
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node, list_all_models=list_all_models)
-        self._model_repo_parameter = HuggingFaceRepoParameter(
+        self._model_repo_parameter = ConnectableHuggingFaceRepoParameter(
             node,
             repo_ids=[
                 "black-forest-labs/FLUX.1-Fill-dev",

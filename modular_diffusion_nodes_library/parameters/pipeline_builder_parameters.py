@@ -35,7 +35,7 @@ class LatentDiffusionPipelineBuilderParameters:
             type="str",
             traits={Options(choices=self.provider_choices)},
             tooltip="Select the model family (Flux, Qwen, SDXL, WAN, etc.) to build a pipeline for.",
-            allowed_modes={ParameterMode.PROPERTY},
+            allowed_modes={ParameterMode.PROPERTY, ParameterMode.INPUT},
             ui_options={"placeholder_text": "Select Provider"},
         )
         provider_param.set_badge(
