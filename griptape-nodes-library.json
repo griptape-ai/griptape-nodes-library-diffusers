@@ -36,13 +36,23 @@
         "author": "Griptape, Inc.",
         "description": "Modular Diffusion nodes for Griptape Nodes.",
         "library_version": "0.7.1",
-        "engine_version": "0.100.2",
+        "engine_version": "0.104.0",
         "tags": [
             "Griptape",
             "AI"
         ],
         "dependencies": {
             "pip_dependencies": [
+                "griptape[loaders-image]>=1.9.4",
+                "huggingface-hub"
+            ],
+            "pip_install_flags": [
+                "--preview",
+                "--torch-backend=auto"
+            ],
+            "pip_dependencies_exec": [
+                "griptape[loaders-image]>=1.9.4",
+                "huggingface-hub",
                 "accelerate>=1.6.0",
                 "av>=14.0.0",
                 "diffusers==0.41.0",
@@ -63,12 +73,7 @@
                 "bitsandbytes>=0.50.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
                 "ftfy>=6.3.1",
                 "gguf>=0.10.0",
-                "griptape[loaders-image]>=1.9.4",
                 "openexr>=3.3.0"
-            ],
-            "pip_install_flags": [
-                "--preview",
-                "--torch-backend=auto"
             ]
         },
         "resources": {

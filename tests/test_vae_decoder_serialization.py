@@ -7,22 +7,25 @@ engine drop the value on save, and the node comes back empty when the workflow r
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 from griptape.artifacts import ImageUrlArtifact
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
 from griptape_nodes.retained_mode.events.node_events import CreateNodeRequest, SerializedParameterValueTracker
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.retained_mode.managers.node_manager import NodeManager
 
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import DriverSpec
 from modular_diffusion_nodes_library.nodes import vae_decoder
 from modular_diffusion_nodes_library.nodes.vae_decoder import VaeDecodeNode
 
 
 def _switch_output_type(node: VaeDecodeNode, monkeypatch: pytest.MonkeyPatch, *, produces_video: bool) -> None:
-    driver_cls = SimpleNamespace(produces_video=produces_video, video_fps=24)
-    monkeypatch.setattr(vae_decoder, "get_driver_class", lambda _pipeline_class: driver_cls)
+    driver_spec = DriverSpec(
+        "stable_diffusion_xl:StableDiffusionXLLatentPipelineDriver",
+        produces_video=produces_video,
+        video_fps=24,
+        supports_inpainting=True,
+    )
+    monkeypatch.setattr(vae_decoder, "get_driver_spec", lambda _pipeline_class: driver_spec)
     # Outside a running engine there are no connections to clean up, so remove directly.
     monkeypatch.setattr(
         node, "remove_parameter_element_by_name", super(VaeDecodeNode, node).remove_parameter_element_by_name
@@ -39,7 +42,6 @@ def _saves_output_value(node: VaeDecodeNode, parameter_name: str) -> bool:
         unique_parameter_uuid_to_values={},
         serialized_parameter_value_tracker=SerializedParameterValueTracker(),
         create_node_request=CreateNodeRequest(node_type="VaeDecodeNode"),
-        workflow_manager=GriptapeNodes.WorkflowManager(),
     )
     return any(command.set_parameter_value_command.is_output for command in commands or [])
 

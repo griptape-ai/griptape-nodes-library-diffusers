@@ -4,12 +4,15 @@ Leaf module — must not import anything from ``base_driver`` or any concrete
 driver.
 """
 
-from dataclasses import dataclass
-from typing import Any
+from __future__ import annotations
 
-import numpy as np
-import torch  # type: ignore[reportMissingImports]
-from PIL.Image import Image
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import numpy as np
+    import torch  # type: ignore[reportMissingImports]
+    from PIL.Image import Image
 
 TextEncodings = dict[str, Any]
 
@@ -21,7 +24,9 @@ class DecodeOutput:
     audio_sample_rate: int | None = None
 
 
-DecodeResult = DecodeOutput | Image | list[Image] | np.ndarray
+# `type` rather than a plain assignment: the right-hand side is evaluated only when something
+# introspects the alias, so naming these types does not import numpy or PIL.
+type DecodeResult = DecodeOutput | Image | list[Image] | np.ndarray
 
 
 @dataclass(frozen=True)
@@ -85,17 +90,19 @@ class GeneratorState:
     device: str
 
     @classmethod
-    def from_seed(cls, seed: int, device: str = "cpu") -> "GeneratorState":
+    def from_seed(cls, seed: int, device: str = "cpu") -> GeneratorState:
         """Defaults to cpu because it is more portable across devices."""
+        import torch  # type: ignore[reportMissingImports]
+
         gen = torch.Generator(device=device).manual_seed(int(seed))
         return cls(state=gen.get_state(), device=device)
 
     @classmethod
-    def from_generator(cls, gen: torch.Generator) -> "GeneratorState":
+    def from_generator(cls, gen: torch.Generator) -> GeneratorState:
         return cls(state=gen.get_state(), device=str(gen.device))
 
     @classmethod
-    def from_artifact(cls, artifact: Any) -> "GeneratorState | None":
+    def from_artifact(cls, artifact: Any) -> GeneratorState | None:
         """Return the GeneratorState stamped onto ``artifact.meta``, or None.
 
         Looks up the driver-namespaced sub-bag indicated by
@@ -118,6 +125,8 @@ class GeneratorState:
         return None
 
     def to_generator(self) -> torch.Generator:
+        import torch  # type: ignore[reportMissingImports]
+
         gen = torch.Generator(device=self.device)
         gen.set_state(self.state)
         return gen

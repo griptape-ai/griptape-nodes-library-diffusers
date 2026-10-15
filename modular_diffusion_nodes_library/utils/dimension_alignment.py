@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING, NamedTuple
 
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
+from modular_diffusion_nodes_library.utils.config_utils import get_config_value
 
 if TYPE_CHECKING:
     from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
@@ -36,7 +36,7 @@ def snap_dimensions(
     if aligned.height == height and aligned.width == width and aligned.num_frames == num_frames:
         return aligned
     detail = " ".join(driver.validate_dimensions(height, width, num_frames))
-    auto_resize = GriptapeNodes.ConfigManager().get_config_value("modular_diffusion_library.enable_auto_resize")
+    auto_resize = get_config_value("modular_diffusion_library.enable_auto_resize")
     if auto_resize:
         message = (
             f"Resized automatically to the suggested value to match pipeline requirements (Auto Resize is on). {detail}"
