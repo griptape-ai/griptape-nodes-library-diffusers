@@ -261,6 +261,11 @@ class LatentDiffusionPipelineBuilderNode(
         if parameter.name == "pipeline":
             value = normalize_diffusion_pipeline_value(value, node_name=self.name)
 
+        # Reject an unknown choice before anything changes; the Options trait would otherwise
+        # store its first choice while the provider's parameters are being swapped out.
+        if not initial_setup:
+            self.params.raise_if_unsupported_value(parameter, value)
+
         self.params.before_value_set(parameter, value)
 
         super().set_parameter_value(
