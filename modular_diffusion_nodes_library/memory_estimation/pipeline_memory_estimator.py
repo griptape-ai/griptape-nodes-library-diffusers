@@ -1,7 +1,7 @@
 """Orchestrates a per-component memory estimate for an already-loaded diffusion pipeline.
 
 This is the only module in `memory_estimation` that touches the real `pipe` object.
-Everything it calls (activation_formulas, vae_formula, text_encoder_formula,
+Everything it calls (activation_formulas, vae_trace, text_encoder_formula,
 family_registry) is pure/testable with synthetic inputs.
 """
 
@@ -54,10 +54,17 @@ from modular_diffusion_nodes_library.memory_estimation.quantization_bytes import
 from modular_diffusion_nodes_library.memory_estimation.text_encoder_formula import (
     estimate_text_encoder_activation_bytes,
 )
-from modular_diffusion_nodes_library.memory_estimation.vae_formula import estimate_vae_activation_bytes
+from modular_diffusion_nodes_library.memory_estimation.vae_trace import (
+    estimate_vae_activation_bytes,
+    vae_estimate_warning,
+)
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
-from modular_diffusion_nodes_library.utils.pipeline_utils import MEMORY_HEADROOM_FACTOR, detect_offload_method
+from modular_diffusion_nodes_library.utils.pipeline_utils import (
+    MEMORY_HEADROOM_FACTOR,
+    apply_vae_memory_options,
+    detect_offload_method,
+)
 from modular_diffusion_nodes_library.utils.torch_utils import get_model_memory, to_human_readable_size
 
 if TYPE_CHECKING:
@@ -263,7 +270,6 @@ def _estimate_component(
     pipe: DiffusionPipeline,
     pipeline_name: str,
     latent: LatentArtifact,
-    optimization_kwargs: dict[str, Any],
 ) -> ComponentMemoryEstimate:
     weight_bytes = get_model_memory(component)
     element_size = _activation_element_size(component)
@@ -274,13 +280,21 @@ def _estimate_component(
 
     if role == ComponentRole.VAE:
         try:
-            activation_bytes = estimate_vae_activation_bytes(component, latent, optimization_kwargs, element_size)
-        except (AttributeError, KeyError, TypeError, IndexError) as e:
+            activation_bytes = estimate_vae_activation_bytes(component, latent, element_size)
+        except (AttributeError, KeyError, TypeError, IndexError, ValueError) as e:
             warning = f"Failed to estimate VAE activation memory: {e}. Showing weights only."
             return ComponentMemoryEstimate.create(
                 component_name, role, weight_bytes, 0, is_estimated=True, warning=warning
             )
-        return ComponentMemoryEstimate.create(component_name, role, weight_bytes, activation_bytes)
+        vae_warning = vae_estimate_warning(component)
+        return ComponentMemoryEstimate.create(
+            component_name,
+            role,
+            weight_bytes,
+            activation_bytes,
+            is_estimated=vae_warning is not None,
+            warning=vae_warning,
+        )
 
     if role == ComponentRole.DENOISER:
         activation_bytes, warning = _estimate_denoiser_activation_bytes(
@@ -422,7 +436,6 @@ def _apply_lora_weights_to_components(
 def estimate_pipeline_memory(
     pipe: DiffusionPipeline,
     latent: LatentArtifact,
-    optimization_kwargs: dict[str, Any],
     pipeline_name: str,
     *,
     lora_adapters: list[LoraAdapterMemoryEstimate] | None = None,
@@ -438,9 +451,7 @@ def estimate_pipeline_memory(
         if role == ComponentRole.CONTROLNET:
             components.extend(_controlnet_components(component_name, component, pipeline_name, latent))
             continue
-        components.append(
-            _estimate_component(component_name, component, role, pipe, pipeline_name, latent, optimization_kwargs)
-        )
+        components.append(_estimate_component(component_name, component, role, pipe, pipeline_name, latent))
 
     denoiser_num_layers = None
     driver_class = get_driver_class(pipeline_name)
@@ -482,14 +493,13 @@ def estimate_component_memory(
     pipe: DiffusionPipeline,
     pipeline_name: str,
     latent: LatentArtifact,
-    optimization_kwargs: dict[str, Any],
 ) -> ComponentMemoryEstimate:
     """Estimate memory for a single component. Exposed independently of estimate_pipeline_memory
     to satisfy "estimate API for a configured pipeline or component" literally.
     """
     normalized_role = ComponentRole(role)
     return _estimate_component(
-        component_name, component, normalized_role, pipe, pipeline_name, latent, optimization_kwargs
+        component_name, component, normalized_role, pipe, pipeline_name, latent
     )
 
 
@@ -807,19 +817,38 @@ def estimate_pipeline_memory_from_build_data(
                     ComponentMemoryEstimate.create(slot, role, weight_bytes, 0, is_estimated=True, warning=warning)
                 )
                 continue
-            if optimization_kwargs.get("vae_tiling") and hasattr(meta_component, "enable_tiling"):
-                meta_component.enable_tiling()
-            try:
-                activation_bytes = estimate_vae_activation_bytes(
-                    meta_component, latent, optimization_kwargs, element_size
+            if memory_optimization_strategy == "Manual":
+                apply_vae_memory_options(
+                    meta_component,
+                    slicing=bool(optimization_kwargs.get("vae_slicing", False)),
+                    tiling=bool(optimization_kwargs.get("vae_tiling", False)),
                 )
-            except (AttributeError, KeyError, TypeError, IndexError) as e:
+            else:
+                # This matches the behaviour of _automatic_optimize_diffusion_pipeline on cuda (we ignore the behaviour on mps for now).
+                apply_vae_memory_options(
+                    meta_component,
+                    slicing=True,
+                    tiling=True,
+                )
+            try:
+                activation_bytes = estimate_vae_activation_bytes(meta_component, latent, element_size)
+            except (AttributeError, KeyError, TypeError, IndexError, ValueError) as e:
                 warning = f"Failed to estimate VAE activation memory: {e}. Showing weights only."
                 components.append(
                     ComponentMemoryEstimate.create(slot, role, weight_bytes, 0, is_estimated=True, warning=warning)
                 )
                 continue
-            components.append(ComponentMemoryEstimate.create(slot, role, weight_bytes, activation_bytes))
+            vae_warning = vae_estimate_warning(meta_component)
+            components.append(
+                ComponentMemoryEstimate.create(
+                    slot,
+                    role,
+                    weight_bytes,
+                    activation_bytes,
+                    is_estimated=vae_warning is not None,
+                    warning=vae_warning,
+                )
+            )
             continue
 
         if role == ComponentRole.OTHER:
@@ -925,7 +954,6 @@ def estimate_pipeline_memory_from_artifact(
         return estimate_pipeline_memory(
             pipe,
             latent,
-            artifact.optimization_kwargs,
             artifact.pipeline_name,
             lora_adapters=lora_adapters,
         )
