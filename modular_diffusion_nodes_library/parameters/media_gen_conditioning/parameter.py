@@ -45,7 +45,11 @@ class MediaGenConditioningParameter:
                 name=PARAM_CONDITIONING,
                 output_type=CONDITIONING_OUTPUT_TYPE,
                 allowed_modes={ParameterMode.OUTPUT},
-                tooltip="Media generation conditioning output.",
+                tooltip=(
+                    "Media generation conditioning output. Connect to the matching input on Generate Media Latents, "
+                    "which appears once the same pipeline is connected there (e.g. `conditioning_images` for "
+                    "WAN Image-to-Video, `media_conditions` for LTX / LTX2, `source_media` for WAN VACE)."
+                ),
                 serializable=False,
                 hide_property=True,
                 ui_options={"display_name": "Conditioning Output"},

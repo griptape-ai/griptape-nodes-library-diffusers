@@ -7,7 +7,7 @@ Category: `ModularDiffusion/Conditioning`
 ## TL;DR
 - Connect a pipeline to get preset layouts tailored to that model (e.g. first/last frame slots for WAN Image-to-Video).
 - Without a pipeline, a flexible image-or-video layout is shown with a "Preset" dropdown; a number of images slider is shown in "Custom" preset mode.
-- Connect the `conditioning` output to the matching conditioning input on Generate Media Latents — the input's name and count depend on the connected pipeline, e.g. `media_conditions` for LTX / LTX2 or `reference_images` for Flux2 Klein.
+- Connect the `conditioning` output to the matching conditioning input on Generate Media Latents — the input's name and count depend on the connected pipeline, e.g. `conditioning_images` for WAN Image-to-Video, `media_conditions` for LTX / LTX2 or `reference_images` for Flux2 Klein. The input appears only once the pipeline is connected to Generate Media Latents too.
 
 ## Typical workflow position
 ```text
