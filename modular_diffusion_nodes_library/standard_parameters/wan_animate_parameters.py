@@ -4,8 +4,10 @@ import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
-from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
 
+from modular_diffusion_nodes_library.parameters.connectable_huggingface_repo_parameter import (
+    ConnectableHuggingFaceRepoParameter,
+)
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
 )
@@ -28,7 +30,7 @@ class WanAnimatePipelineParameters(ModularDiffusionPipelineTypePipelineParameter
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
-        self._model_repo_parameter = HuggingFaceRepoParameter(
+        self._model_repo_parameter = ConnectableHuggingFaceRepoParameter(
             node,
             repo_ids=[
                 "Wan-AI/Wan2.2-Animate-14B-Diffusers",

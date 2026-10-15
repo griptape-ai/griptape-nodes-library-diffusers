@@ -136,7 +136,7 @@ class LatentPipelineTypeParameters(ABC):
             type="str",
             traits={Options(choices=self.pipeline_types)},
             tooltip="Specific pipeline variant within the selected provider (e.g. base, Fill, Edit). Determines which checkpoints and runtime parameters are exposed.",
-            allowed_modes={ParameterMode.PROPERTY},
+            allowed_modes={ParameterMode.PROPERTY, ParameterMode.INPUT},
         )
         pipeline_type_param.set_badge(
             variant="help",
@@ -144,6 +144,9 @@ class LatentPipelineTypeParameters(ABC):
             message=self.pipeline_type_badge_message,
         )
         self._node.add_parameter(pipeline_type_param)
+        # add_parameter() may restore a stale cached allowed_modes (see
+        # restore_cached_parameter_properties); re-widen after the fact so INPUT always wins.
+        pipeline_type_param.allowed_modes = pipeline_type_param.allowed_modes | {ParameterMode.INPUT}
 
     def remove_input_parameters(self) -> None:
         self._node.remove_parameter_element_by_name("pipeline_type")
@@ -154,16 +157,19 @@ class LatentPipelineTypeParameters(ABC):
             current_pipeline_type = self._node.get_parameter_value("pipeline_type")
             self.did_pipeline_type_change = current_pipeline_type != value
 
-    def after_value_set(self, parameter: Parameter, value: Any) -> None:
-        if parameter.name == "pipeline_type" and self.did_pipeline_type_change:
+    def after_value_set(self, parameter: Parameter, value: Any, *, initial_setup: bool = False) -> None:
+        if parameter.name == "pipeline_type" and self.did_pipeline_type_change and not initial_setup:
             self.regenerate_elements_for_pipeline_type(value)
 
     def regenerate_elements_for_pipeline_type(self, pipeline_type: str) -> None:
         self._node.save_parameter_properties()
+        saved_incoming, saved_outgoing = self._node._save_connections()
 
         self.pipeline_type_pipeline_params.remove_input_parameters()
         self.set_pipeline_type_pipeline_params(pipeline_type)
         self.pipeline_type_pipeline_params.add_input_parameters()
+
+        self._node._restore_connections(saved_incoming, saved_outgoing)
 
         # Get all current element names
         all_element_names = [element.name for element in self._node.root_ui_element.children]
