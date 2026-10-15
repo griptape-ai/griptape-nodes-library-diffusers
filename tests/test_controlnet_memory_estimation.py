@@ -75,7 +75,7 @@ def test_classify_role_recognizes_controlnet() -> None:
 def test_single_controlnet_is_estimated_with_weights_and_activations() -> None:
     pipe = SimpleNamespace(components={"controlnet": _tiny_flux_controlnet()})
 
-    estimate = estimate_pipeline_memory(pipe, _flux_latent(), {}, "FluxPipeline")
+    estimate = estimate_pipeline_memory(pipe, _flux_latent(), "FluxPipeline")
 
     assert len(estimate.components) == 1
     component = estimate.components[0]
@@ -90,7 +90,7 @@ def test_controlnet_no_longer_emits_unrecognized_component_warning() -> None:
     used to land in the generic 'other' bucket and emit this exact warning text."""
     pipe = SimpleNamespace(components={"controlnet": _tiny_flux_controlnet()})
 
-    estimate = estimate_pipeline_memory(pipe, _flux_latent(), {}, "FluxPipeline")
+    estimate = estimate_pipeline_memory(pipe, _flux_latent(), "FluxPipeline")
 
     assert not any("Unrecognized component" in warning for warning in estimate.warnings)
 
@@ -101,7 +101,7 @@ def test_stacked_controlnets_appear_as_separate_components_with_linear_weight_sc
     multi = FluxMultiControlNetModel([net_a, net_b])
     pipe = SimpleNamespace(components={"controlnet": multi})
 
-    estimate = estimate_pipeline_memory(pipe, _flux_latent(), {}, "FluxPipeline")
+    estimate = estimate_pipeline_memory(pipe, _flux_latent(), "FluxPipeline")
 
     assert [c.component_name for c in estimate.components] == ["controlnet_0", "controlnet_1"]
     assert estimate.components[0].weight_bytes == estimate.components[1].weight_bytes
@@ -112,7 +112,7 @@ def test_sdxl_controlnet_activation_uses_unet_sdpa_family_and_its_own_config() -
     pipe = SimpleNamespace(components={"controlnet": _tiny_sdxl_controlnet()})
     latent = LatentArtifact.from_torch(torch.zeros(1, 4, 64, 64), source_shape=(1, 3, 512, 512))
 
-    estimate = estimate_pipeline_memory(pipe, latent, {}, "StableDiffusionXLPipeline")
+    estimate = estimate_pipeline_memory(pipe, latent, "StableDiffusionXLPipeline")
 
     component = estimate.components[0]
     assert component.role == "controlnet"
@@ -124,7 +124,7 @@ def test_sdxl_controlnet_activation_uses_unet_sdpa_family_and_its_own_config() -
 def test_controlnet_with_unregistered_pipeline_falls_back_to_weights_only() -> None:
     pipe = SimpleNamespace(components={"controlnet": _tiny_flux_controlnet()})
 
-    estimate = estimate_pipeline_memory(pipe, _flux_latent(), {}, "SomeUnregisteredPipeline")
+    estimate = estimate_pipeline_memory(pipe, _flux_latent(), "SomeUnregisteredPipeline")
 
     component = estimate.components[0]
     assert component.weight_bytes > 0

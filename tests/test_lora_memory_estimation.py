@@ -64,7 +64,7 @@ def test_estimate_merges_multiple_runtime_loras_into_transformer(tmp_path) -> No
     lora_adapters = collect_runtime_lora_memory(artifact)
     pipe = SimpleNamespace(components={"transformer": torch.nn.Linear(4, 4, bias=False)})
 
-    estimate = estimate_pipeline_memory(pipe, _latent(), {}, "SomeUnregisteredPipeline", lora_adapters=lora_adapters)
+    estimate = estimate_pipeline_memory(pipe, _latent(), "SomeUnregisteredPipeline", lora_adapters=lora_adapters)
 
     transformer = estimate.components[0]
     base_bytes = 4 * 4 * 4
