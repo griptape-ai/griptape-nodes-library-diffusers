@@ -933,7 +933,7 @@
             "file_path": "./modular_diffusion_nodes_library/nodes/media_gen_conditioning_node.py",
             "metadata": {
                 "category": "ModularDiffusion/Conditioning",
-                "description": "Conditioning node for media generation pipelines. Supports image or video conditioning inputs with configurable strength.",
+                "description": "Conditioning node for media generation pipelines. Supports image or video conditioning inputs with configurable strength. Connect `conditioning` to the matching input on Generate Media Latents, which appears once the same pipeline is connected there (e.g. `conditioning_images` for WAN Image-to-Video, `media_conditions` for LTX / LTX2, `source_media` for WAN VACE).",
                 "display_name": "Media Generation Conditioning",
                 "group": "diffusion"
             }
