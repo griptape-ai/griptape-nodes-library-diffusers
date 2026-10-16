@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib
 import json
 import sys
 from pathlib import Path
@@ -23,6 +22,7 @@ from modular_diffusion_nodes_library.memory_estimation.meta_device_builder impor
 )
 from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator import (
     estimate_pipeline_memory_from_artifact,
+    resolve_pipeline_cls,
 )
 from modular_diffusion_nodes_library.tools.workflow_extraction import WorkflowBuilder as WorkflowBuilder
 from modular_diffusion_nodes_library.tools.workflow_extraction import (
@@ -92,16 +92,6 @@ def _pipeline_repository(artifact: DiffusionPipelineArtifact) -> tuple[str, str 
     return repo_id, revision
 
 
-def _resolve_pipeline_cls(artifact: DiffusionPipelineArtifact) -> type:
-    if not artifact.builder_module or not artifact.builder_class_name:
-        raise WorkflowExtractionError(
-            f"Could not resolve config for pipeline '{artifact.pipeline_name}'. "
-            "The serialized artifact has no builder metadata."
-        )
-    builder_class = getattr(importlib.import_module(artifact.builder_module), artifact.builder_class_name)
-    return builder_class.pipeline_cls()
-
-
 _SHAPE_COMPONENT_SLOTS = {"vae", "transformer", "transformer_2", "unet", "scheduler"}
 
 
@@ -149,7 +139,7 @@ def _build_shape_only_pipe(artifact: DiffusionPipelineArtifact) -> Any:
         ) from error
 
     repo_id, revision = _pipeline_repository(artifact)
-    pipeline_cls = _resolve_pipeline_cls(artifact)
+    pipeline_cls = resolve_pipeline_cls(artifact)
     components: dict[str, Any] = {}
     for slot in _shape_component_slots(pipe):
         spec = pipe.get_component_spec(slot)

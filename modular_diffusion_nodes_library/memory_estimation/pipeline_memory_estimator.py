@@ -504,11 +504,12 @@ def _dtype_element_size(dtype: torch.dtype) -> int:
     return torch.zeros(1, dtype=dtype).element_size()
 
 
-def _resolve_pipeline_cls(artifact: DiffusionPipelineArtifact) -> type:
+def resolve_pipeline_cls(artifact: DiffusionPipelineArtifact) -> type:
+    """Resolve the Diffusers pipeline class described by a pipeline artifact."""
     if not artifact.builder_module or not artifact.builder_class_name:
         msg = (
-            f"Attempted to estimate memory for pipeline '{artifact.pipeline_name}'. "
-            f"Failed because the artifact has no builder_module/builder_class_name."
+            f"Could not resolve pipeline class for pipeline '{artifact.pipeline_name}': "
+            "the artifact is missing builder_module or builder_class_name."
         )
         raise ValueError(msg)
     builder_class = getattr(import_module(artifact.builder_module), artifact.builder_class_name)
@@ -672,7 +673,7 @@ def estimate_pipeline_memory_from_build_data(
     build_data = artifact.build_data
     optimization_kwargs = artifact.optimization_kwargs
     pipeline_name = artifact.pipeline_name
-    pipeline_cls = _resolve_pipeline_cls(artifact)
+    pipeline_cls = resolve_pipeline_cls(artifact)
 
     component_overrides: dict[str, ComponentArtifact] = build_data.get("_component_overrides", {})
     is_all_overrides = bool(build_data.get("_all_overrides"))
