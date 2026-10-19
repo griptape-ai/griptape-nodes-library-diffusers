@@ -15,13 +15,12 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 import torch  # type: ignore[reportMissingImports]
+from huggingface_hub import try_to_load_from_cache
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact, ComponentSourceType
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import ControlNetDiffusionPipelineArtifact
-from modular_diffusion_nodes_library.component_loading.component_slots import (
-    ALLOWED_COMPONENT_SLOTS,
-    slot_component_kind,
-)
+from modular_diffusion_nodes_library.component_loading.component_slots import slot_component_kind
+from modular_diffusion_nodes_library.component_loading.config_resolver import try_load_json_dict
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import get_component_class
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import get_driver_class
 from modular_diffusion_nodes_library.memory_estimation.activation_formulas import (
@@ -73,12 +72,6 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 # flux_parameters.py:65) -- no per-pipeline dtype selection exists yet to read from the
 # artifact, so the pre-load estimator assumes the same hardcoded value.
 _BASE_PIPELINE_TORCH_DTYPE = torch.bfloat16
-
-_WEIGHT_BEARING_ROLES = {
-    ComponentRole.TEXT_ENCODER,
-    ComponentRole.DENOISER,
-    ComponentRole.VAE,
-}
 
 # Activations are computed in the model's compute dtype, never narrower than 16-bit, even
 # when the weights are stored quantized. Reading the activation width off a quantized
@@ -438,7 +431,7 @@ def estimate_pipeline_memory(
     offload_mode = detect_offload_method(pipe)
 
     components: list[ComponentMemoryEstimate] = []
-    for component_name, component in pipe.components.items():
+    for component_name, component in sorted(pipe.components.items()):
         if component is None or not hasattr(component, "parameters"):
             continue
         role = _classify_role(component_name)
@@ -516,15 +509,65 @@ def resolve_pipeline_cls(artifact: DiffusionPipelineArtifact) -> type:
     return builder_class.pipeline_cls()
 
 
+def _module_component_slots(pipeline_cls: type) -> list[str]:
+    component_slots, _ = pipeline_cls._get_signature_keys(pipeline_cls)  # noqa: SLF001
+    signature_types = pipeline_cls._get_signature_types()  # noqa: SLF001
+    module_slots = []
+    for slot in component_slots:
+        component_types = signature_types.get(slot, ())
+        if any(
+            isinstance(component_type, type) and issubclass(component_type, torch.nn.Module)
+            for component_type in component_types
+        ):
+            module_slots.append(slot)
+    return module_slots
+
+
+def _load_base_model_index(repo_id: str, revision: str | None) -> dict[str, Any]:
+    cached_path = try_to_load_from_cache(repo_id, filename="model_index.json", revision=revision)
+    if not isinstance(cached_path, str):
+        msg = (
+            f"Attempted to estimate memory for base repo '{repo_id}'. "
+            f"Failed because 'model_index.json' is not in the local HuggingFace cache for revision '{revision}'."
+        )
+        raise ComponentConfigNotCachedError(msg)
+
+    model_index = try_load_json_dict(Path(cached_path))
+    if model_index is None:
+        msg = (
+            f"Attempted to estimate memory for base repo '{repo_id}'. "
+            f"Failed because cached 'model_index.json' at '{cached_path}' is not a valid JSON object."
+        )
+        raise ComponentConfigNotCachedError(msg)
+    return model_index
+
+
+def _model_index_has_component(model_index: dict[str, Any], slot: str) -> bool:
+    component = model_index.get(slot)
+    if not isinstance(component, (list, tuple)) or len(component) < 2:
+        return False
+    return component[0] is not None and component[1] is not None
+
+
 def _weight_bearing_slots(
-    pipeline_cls: type, component_overrides: dict[str, ComponentArtifact], *, all_overrides: bool
+    pipeline_cls: type,
+    component_overrides: dict[str, ComponentArtifact],
+    *,
+    all_overrides: bool,
+    model_index: dict[str, Any] | None,
 ) -> list[str]:
+    module_slots = _module_component_slots(pipeline_cls)
     if all_overrides:
-        return [slot for slot in component_overrides if _classify_role(slot) in _WEIGHT_BEARING_ROLES]
-    all_slots, _ = pipeline_cls._get_signature_keys(pipeline_cls)  # noqa: SLF001
-    return [
-        slot for slot in ALLOWED_COMPONENT_SLOTS if slot in all_slots and _classify_role(slot) in _WEIGHT_BEARING_ROLES
-    ]
+        return sorted(set(module_slots) & set(component_overrides))
+
+    optional_components = set(getattr(pipeline_cls, "_optional_components", []))
+    return sorted(
+        slot
+        for slot in module_slots
+        if slot in component_overrides
+        or slot not in optional_components
+        or (model_index is not None and _model_index_has_component(model_index, slot))
+    )
 
 
 def _stored_bytes_for_override(
@@ -613,8 +656,9 @@ def _controlnet_slot_estimates(
         ]
 
     estimates: list[ComponentMemoryEstimate] = []
+    controlnet_count = len(artifact.controlnet_models)
     for index, repo_id in enumerate(artifact.controlnet_models):
-        component_name = f"controlnet_{index}"
+        component_name = "controlnet" if controlnet_count == 1 else f"controlnet_{index}"
         try:
             config_dict = resolve_base_component_config(repo_id, "controlnet")
         except ComponentConfigNotCachedError as e:
@@ -687,7 +731,15 @@ def estimate_pipeline_memory_from_build_data(
         )
         raise ValueError(msg)
 
-    slots = _weight_bearing_slots(pipeline_cls, component_overrides, all_overrides=is_all_overrides)
+    model_index = None
+    if not is_all_overrides:
+        model_index = _load_base_model_index(base_repo_id, base_revision)
+    slots = _weight_bearing_slots(
+        pipeline_cls,
+        component_overrides,
+        all_overrides=is_all_overrides,
+        model_index=model_index,
+    )
     quantization_mode = optimization_kwargs.get("quantization_mode", "None")
     transformer_layerwise_casting = bool(optimization_kwargs.get("transformer_layerwise_casting", False))
     memory_optimization_strategy = optimization_kwargs.get("memory_optimization_strategy", "Manual")
@@ -731,6 +783,23 @@ def estimate_pipeline_memory_from_build_data(
             components.append(ComponentMemoryEstimate.create(slot, role, weight_bytes, activation_bytes))
             continue
 
+        if role == ComponentRole.CONTROLNET:
+            if meta_component is None:
+                warning = "ControlNet config not available; showing weights only."
+                components.append(
+                    ComponentMemoryEstimate.create(slot, role, weight_bytes, 0, is_estimated=True, warning=warning)
+                )
+                continue
+            activation_bytes, warning = _estimate_controlnet_activation_bytes(
+                meta_component, pipeline_name, latent, element_size
+            )
+            components.append(
+                ComponentMemoryEstimate.create(
+                    slot, role, weight_bytes, activation_bytes, is_estimated=warning is not None, warning=warning
+                )
+            )
+            continue
+
         if role == ComponentRole.VAE:
             if meta_component is None:
                 warning = "VAE config not available; showing weights only."
@@ -751,6 +820,13 @@ def estimate_pipeline_memory_from_build_data(
                 )
                 continue
             components.append(ComponentMemoryEstimate.create(slot, role, weight_bytes, activation_bytes))
+            continue
+
+        if role == ComponentRole.OTHER:
+            warning = f"Unrecognized component '{slot}'; only weight memory could be estimated."
+            components.append(
+                ComponentMemoryEstimate.create(slot, role, weight_bytes, 0, is_estimated=True, warning=warning)
+            )
             continue
 
         # role == ComponentRole.DENOISER
