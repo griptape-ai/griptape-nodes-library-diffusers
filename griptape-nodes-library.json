@@ -85,7 +85,7 @@
         "declarations": [
             {
                 "type": "lifecycle_stage",
-                "stage": "LABS"
+                "stage": "STABLE"
             },
             {
                 "type": "model_catalog",
