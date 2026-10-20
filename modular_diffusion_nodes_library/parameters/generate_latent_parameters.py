@@ -109,9 +109,8 @@ class DiffusionPipelineGenerateLatentParameters:
             name="start_step",
             default_value=0,
             type="int",
-            input_types=["int"],
             tooltip="Denoising step index (0-based) to start from. Use a non-zero value to resume a multi-stage denoise.",
-            allowed_modes={ParameterMode.PROPERTY, ParameterMode.INPUT},
+            allowed_modes={ParameterMode.PROPERTY},
         )
         start_step_param.set_badge(
             variant="help",
@@ -128,9 +127,8 @@ class DiffusionPipelineGenerateLatentParameters:
                 name="end_step",
                 default_value=-1,
                 type="int",
-                input_types=["int"],
                 tooltip="Denoising step index (0-based) to stop at. Use -1 to run all remaining steps. Set lower than num_inference_steps to leave the latent partially noised for downstream stages.",
-                allowed_modes={ParameterMode.PROPERTY, ParameterMode.INPUT},
+                allowed_modes={ParameterMode.PROPERTY},
             )
         )
         self._node.add_parameter(

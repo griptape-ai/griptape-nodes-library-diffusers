@@ -6,13 +6,6 @@ Per-node reference for the Modular Diffusion Nodes Library. See the [README](../
 
 Node groups mirror the categories in [`griptape-nodes-library.json`](../griptape-nodes-library.json):
 
-### Preconfigured
-- [Text to Image](nodes/text_to_image.md)
-- [Image to Image](nodes/image_to_image.md)
-- [Inpainting](nodes/inpainting.md)
-- [Text to Video](nodes/text_to_video.md)
-- [First/Last Frame to Video](nodes/first_last_frame_to_video.md)
-
 ### Pipeline
 - [Modular Diffusion Pipeline Builder](nodes/pipeline_builder.md)
 - [ControlNet Pipeline](nodes/controlnet_pipeline.md)

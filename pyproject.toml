@@ -62,8 +62,7 @@ explicit = true
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-extend-exclude = ["workflows/templates/*.py",
-                  "preconfigured_workflows/*.py"]
+extend-exclude = ["workflows/templates/*.py"]
 
 [tool.ruff.lint]
 select = [
@@ -87,7 +86,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.pyright]
-exclude = ["workflows/","preconfigured_workflows/", ".venv/", "**/__pycache__"]
+exclude = ["workflows/", ".venv/", "**/__pycache__"]
 
 [dependency-groups]
 dev = [

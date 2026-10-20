@@ -38,9 +38,9 @@ Category: `ModularDiffusion/Pipeline`
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `provider` | choice | `Flux`, `Flux2`, `Stable Diffusion`, `Stable Diffusion 3`, `Qwen`, `Z-Image`, `HunyuanVideo 1.5`, `LTX`, `LTX2`, `MiniMax-H3`, `WAN`. Changing this swaps every parameter below. Connectable — wire in a string to drive it. |
-| `pipeline_type` | choice | Per-provider pipeline class (e.g. `FluxPipeline`, `WanImageToVideoPipeline`). Determines what the pipeline can do. Connectable — wire in a string to drive it. |
-| `<model repo>` | HF repo picker | Hugging Face repo ID. Diffusers-format only — single-file `.safetensors` checkpoints are not loaded directly. Models your license does not permit are shown but marked unavailable. Connectable — a wired string overrides the picker selection. |
+| `provider` | choice | `Flux`, `Flux2`, `Stable Diffusion`, `Stable Diffusion 3`, `Qwen`, `Z-Image`, `HunyuanVideo 1.5`, `LTX`, `LTX2`, `MiniMax-H3`, `WAN`. Changing this swaps every parameter below. |
+| `pipeline_type` | choice | Per-provider pipeline class (e.g. `FluxPipeline`, `WanImageToVideoPipeline`). Determines what the pipeline can do. |
+| `<model repo>` | HF repo picker | Hugging Face repo ID. Diffusers-format only — single-file `.safetensors` checkpoints are not loaded directly. Models your license does not permit are shown but marked unavailable. |
 
 ### Memory optimization
 

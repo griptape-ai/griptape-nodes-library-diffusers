@@ -999,58 +999,6 @@
             }
         }
     ],
-    "workflow_nodes": [
-        {
-            "node_type": "Text2ImageNode",
-            "workflow_path": "preconfigured_workflows/Text2Image.py",
-            "metadata": {
-                "category": "ModularDiffusion/Preconfigured",
-                "description": "Generate an image from a text prompt using a preconfigured Modular Diffusion pipeline.",
-                "display_name": "Text to Image",
-                "group": "diffusion"
-            }
-        },
-        {
-            "node_type": "InpaintingNode",
-            "workflow_path": "preconfigured_workflows/Inpainting.py",
-            "metadata": {
-                "category": "ModularDiffusion/Preconfigured",
-                "description": "Inpaint a masked region of an image using a preconfigured Modular Diffusion pipeline.",
-                "display_name": "Inpainting",
-                "group": "diffusion"
-            }
-        },
-        {
-            "node_type": "Image2ImageNode",
-            "workflow_path": "preconfigured_workflows/Image2Image.py",
-            "metadata": {
-                "category": "ModularDiffusion/Preconfigured",
-                "description": "Generate an image from an input image and a text prompt using a preconfigured Modular Diffusion pipeline.",
-                "display_name": "Image to Image",
-                "group": "diffusion"
-            }
-        },
-        {
-            "node_type": "Text2VideoNode",
-            "workflow_path": "preconfigured_workflows/text2video.py",
-            "metadata": {
-                "category": "ModularDiffusion/Preconfigured",
-                "description": "Generate a video from a text prompt using a preconfigured Modular Diffusion pipeline.",
-                "display_name": "Text to Video",
-                "group": "diffusion"
-            }
-        },
-        {
-            "node_type": "FirstLastFrameText2VideoNode",
-            "workflow_path": "preconfigured_workflows/firstlastframetext2video.py",
-            "metadata": {
-                "category": "ModularDiffusion/Preconfigured",
-                "description": "Generate a video from first/last frame images and a text prompt using a preconfigured Modular Diffusion pipeline.",
-                "display_name": "First/Last Frame to Video",
-                "group": "diffusion"
-            }
-        }
-    ],
     "workflows": [
         "workflows/templates/Image2Image.py",
         "workflows/templates/MultistageText2Image.py",

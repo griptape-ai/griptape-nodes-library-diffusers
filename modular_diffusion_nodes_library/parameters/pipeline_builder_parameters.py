@@ -35,7 +35,7 @@ class LatentDiffusionPipelineBuilderParameters:
             type="str",
             traits={Options(choices=self.provider_choices)},
             tooltip="Select the model family (Flux, Qwen, SDXL, WAN, etc.) to build a pipeline for.",
-            allowed_modes={ParameterMode.PROPERTY, ParameterMode.INPUT},
+            allowed_modes={ParameterMode.PROPERTY},
             ui_options={"placeholder_text": "Select Provider"},
         )
         provider_param.set_badge(
@@ -54,7 +54,6 @@ class LatentDiffusionPipelineBuilderParameters:
             ),
         )
         self._node.add_parameter(provider_param)
-        self.pipeline_type_parameters.add_input_parameters()
 
     def add_output_parameters(self) -> None:
         self._node.add_parameter(
@@ -83,20 +82,13 @@ class LatentDiffusionPipelineBuilderParameters:
             self.did_provider_change = current_provider != value
         self.pipeline_type_parameters.before_value_set(parameter, value)
 
-    def after_value_set(self, parameter: Parameter, value: Any, *, initial_setup: bool = False) -> None:
-        # During initial_setup (workflow load), a saved script already contains the fully
-        # resolved pipeline_type/model sub-parameters via explicit AddParameterToNodeRequest
-        # and CreateConnectionRequest calls. Regenerating them here would redundantly tear down
-        # and recreate connections (e.g. an incoming "pipeline_type" connection) that the script
-        # already describes, corrupting the engine's connection bookkeeping.
-        if parameter.name == "provider" and self.did_provider_change and not initial_setup:
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        if parameter.name == "provider" and self.did_provider_change:
             self.regenerate_pipeline_type_parameters_for_provider(value)
-        self.pipeline_type_parameters.after_value_set(parameter, value, initial_setup=initial_setup)
+        self.pipeline_type_parameters.after_value_set(parameter, value)
 
         if parameter.name in {"provider", "pipeline_type"}:
-            # Component override ports are never re-serialized explicitly in a saved script,
-            # so this must still run during initial_setup to add e.g. Flux's optional ports.
-            self.refresh_component_override_ports(initial_setup=initial_setup)
+            self.refresh_component_override_ports()
 
     def regenerate_pipeline_type_parameters_for_provider(self, provider: str) -> None:
         # Save parameter properties and connections before removing parameters
