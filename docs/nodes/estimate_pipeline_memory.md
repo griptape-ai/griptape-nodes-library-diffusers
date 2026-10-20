@@ -48,6 +48,8 @@ The `memory_breakdown` output renders the estimate as a segmented bar and a labe
 
 Offload topology is detected from the loaded pipeline's live CPU-offload hooks, so the peak reflects the setup the pipeline is actually running with. VAE activation memory reflects whether `vae_tiling`/`vae_slicing` are configured.
 
+**Tiled VAE tracing.** For supported tiled VAEs, the estimator traces encoder and decoder calls on meta tensors, then reuses those traces for matching tiles. Tile stitching and retained outputs are still counted. Large tile grids are estimated from smaller samples.
+
 ## API reference
 
 This node is a thin wrapper — the estimate itself is a plain importable function, callable from any other node or script without going through the node at all.

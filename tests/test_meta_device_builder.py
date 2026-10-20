@@ -8,7 +8,6 @@ from transformers import PreTrainedModel
 
 from modular_diffusion_nodes_library.memory_estimation.meta_device_builder import build_component_on_meta_device
 
-
 _TINY_FLUX_CONTROLNET_CONFIG = {
     "patch_size": 1,
     "in_channels": 4,

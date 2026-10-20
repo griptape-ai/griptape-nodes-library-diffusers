@@ -498,9 +498,7 @@ def estimate_component_memory(
     to satisfy "estimate API for a configured pipeline or component" literally.
     """
     normalized_role = ComponentRole(role)
-    return _estimate_component(
-        component_name, component, normalized_role, pipe, pipeline_name, latent
-    )
+    return _estimate_component(component_name, component, normalized_role, pipe, pipeline_name, latent)
 
 
 def _dtype_element_size(dtype: torch.dtype) -> int:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from types import SimpleNamespace as NS
 from typing import Any
 
@@ -19,14 +20,23 @@ from diffusers.models.autoencoders.autoencoder_kl_ltx2 import AutoencoderKLLTX2V
 from diffusers.models.autoencoders.autoencoder_kl_minimax_h3 import AutoencoderKLMiniMaxH3
 from diffusers.models.autoencoders.autoencoder_kl_qwenimage import AutoencoderKLQwenImage
 from diffusers.models.autoencoders.autoencoder_kl_wan import AutoencoderKLWan
+from diffusers.modular_pipelines.flux2.decoders import Flux2DecodeStep
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 from modular_diffusion_nodes_library.memory_estimation import pipeline_memory_estimator as pme
+from modular_diffusion_nodes_library.memory_estimation.tiled_vae_trace import (
+    reuse_tiled_forwards,
+    spatial_tile_strides,
+)
 from modular_diffusion_nodes_library.memory_estimation.vae_trace import (
     VaeMetaTraceError,
+    _trace_exact,
+    _trace_input_shapes,
+    _trace_pass,
     trace_vae_activation_memory,
     vae_estimate_warning,
 )
+from modular_diffusion_nodes_library.memory_estimation.vae_trace_common import LivenessTracker
 from modular_diffusion_nodes_library.utils.pipeline_utils import (
     _automatic_optimize_diffusion_pipeline,
     _manual_optimize_diffusion_pipeline,
@@ -49,7 +59,7 @@ _VAE_CASES: list[tuple[str, type[Any], dict[str, Any], tuple[int, ...], tuple[in
         (1, 3, 32, 32),
         (1, 4, 4, 4),
     ),
-    ("AutoencoderKLFlux2", AutoencoderKLFlux2, {}, (1, 3, 32, 32), (1, 32, 4, 4)),
+    ("AutoencoderKLFlux2", AutoencoderKLFlux2, {}, (1, 3, 32, 32), (1, 128, 2, 2)),
     (
         "AutoencoderKLHunyuanVideo15",
         AutoencoderKLHunyuanVideo15,
@@ -96,7 +106,44 @@ def _case(name: str) -> tuple[type[Any], dict[str, Any], tuple[int, ...], tuple[
     raise AssertionError(f"Unknown VAE test family: {name}")
 
 
-@pytest.mark.parametrize("family", [case[0] for case in _VAE_CASES])
+_FAMILIES = [case[0] for case in _VAE_CASES]
+
+# Per family: config overrides, source shape and latent shape spanning several tiles at its tile size.
+# Flux2 is shrunk because its default tile is 1024 px; LTX2's default config derives ratios too large for tiling.
+_TILED_CASES: dict[str, tuple[dict[str, Any], tuple[int, ...], tuple[int, ...]]] = {
+    "AutoencoderKL": ({}, (1, 3, 96, 96), (1, 4, 12, 12)),
+    "AutoencoderKLFlux2": ({"sample_size": 64}, (1, 3, 96, 96), (1, 128, 6, 6)),
+    "AutoencoderKLHunyuanVideo15": ({}, (1, 3, 17, 320, 320), (1, 32, 5, 20, 20)),
+    "AutoencoderKLLTXVideo": ({}, (1, 3, 17, 576, 576), (1, 128, 3, 18, 18)),
+    "AutoencoderKLLTX2Video": (
+        {"spatial_compression_ratio": 32, "temporal_compression_ratio": 8},
+        (1, 3, 17, 576, 576),
+        (1, 128, 3, 18, 18),
+    ),
+    "AutoencoderKLMiniMaxH3": ({}, (1, 3, 34, 320, 320), (1, 24, 7, 20, 20)),
+    "AutoencoderKLQwenImage": ({}, (1, 3, 17, 320, 320), (1, 16, 5, 40, 40)),
+    "AutoencoderKLWan": ({}, (1, 3, 17, 320, 320), (1, 16, 5, 40, 40)),
+}
+
+
+def _tiled_case_vae(family: str, *, tiling: bool, slicing: bool = False) -> tuple[Any, Any]:
+    """Return a meta VAE with the requested memory options and a latent that spans several tiles."""
+    vae_class, config, _source_shape, _latent_shape = _case(family)
+    overrides, source_shape, latent_shape = _TILED_CASES[family]
+    vae = _meta_vae(vae_class, {**config, **overrides})
+    vae.use_tiling = False  # MiniMax tiles by default
+    apply_vae_memory_options(vae, slicing=slicing, tiling=tiling)
+    return vae, _latent(source_shape, latent_shape)
+
+
+def _operation_shape(vae: Any, latent: Any, operation: str) -> tuple[int, ...]:
+    source_shape, vae_latent_shape = _trace_input_shapes(vae, latent.source_shape, latent.shape)
+    if operation == "encode":
+        return source_shape
+    return vae_latent_shape
+
+
+@pytest.mark.parametrize("family", _FAMILIES)
 def test_public_encode_decode_paths_trace_on_meta(family: str) -> None:
     vae_class, config, source_shape, latent_shape = _case(family)
     vae = _meta_vae(vae_class, config)
@@ -106,6 +153,27 @@ def test_public_encode_decode_paths_trace_on_meta(family: str) -> None:
     assert trace.decode_bytes > 0
     assert trace.estimated_bytes == max(trace.encode_bytes, trace.decode_bytes)
     assert all(parameter.device.type == "meta" for parameter in vae.parameters())
+
+
+def test_qwen_image_trace_promotes_public_image_shapes_to_single_frame() -> None:
+    vae = _meta_vae(AutoencoderKLQwenImage)
+    latent = _latent((1, 3, 32, 32), (1, 16, 4, 4))
+
+    trace = trace_vae_activation_memory(vae, latent, BF16)
+
+    assert trace.encode_bytes > 0
+    assert trace.decode_bytes > 0
+
+
+def test_flux2_trace_uses_pipeline_unpatchify_for_decode_shape() -> None:
+    vae = _meta_vae(AutoencoderKLFlux2)
+    public_latents = torch.empty((1, 128, 2, 2), device="meta")
+
+    vae_latents = Flux2DecodeStep._unpatchify_latents(public_latents)
+    _source_shape, trace_latent_shape = _trace_input_shapes(vae, (1, 3, 32, 32), tuple(public_latents.shape))
+
+    assert tuple(vae_latents.shape) == (1, 32, 4, 4)
+    assert trace_latent_shape == tuple(vae_latents.shape)
 
 
 def test_encode_trace_samples_posterior() -> None:
@@ -214,6 +282,89 @@ def test_trace_cache_separates_source_shapes() -> None:
     assert first is not second
 
 
+@pytest.mark.parametrize("family", _FAMILIES)
+def test_tiling_lowers_peak_memory(family: str) -> None:
+    untiled_vae, latent = _tiled_case_vae(family, tiling=False)
+    tiled_vae, _ = _tiled_case_vae(family, tiling=True)
+
+    untiled = trace_vae_activation_memory(untiled_vae, latent, BF16)
+    tiled = trace_vae_activation_memory(tiled_vae, latent, BF16)
+
+    # Compare the overall peak: MiniMax decode alone can grow when tiled because it keeps every tile output.
+    assert tiled.estimated_bytes < untiled.estimated_bytes
+
+
+@pytest.mark.parametrize("family", _FAMILIES)
+def test_slicing_processes_a_batch_one_sample_at_a_time(family: str) -> None:
+    vae_class, config, source_shape, latent_shape = _case(family)
+    single = _latent(source_shape, latent_shape)
+    batch = _latent((2, *source_shape[1:]), (2, *latent_shape[1:]))
+    # Hunyuan cannot trace a batch of 2 without slicing, so compare against twice a single sample instead.
+    unsliced_vae = _meta_vae(vae_class, config)
+    sliced_vae = _meta_vae(vae_class, config)
+    apply_vae_memory_options(sliced_vae, slicing=True, tiling=False)
+
+    one_sample = trace_vae_activation_memory(unsliced_vae, single, BF16)
+    sliced_batch = trace_vae_activation_memory(sliced_vae, batch, BF16)
+
+    assert sliced_batch.encode_bytes < 2 * one_sample.encode_bytes
+    assert sliced_batch.decode_bytes < 2 * one_sample.decode_bytes
+
+
+@pytest.mark.parametrize("operation", ["encode", "decode"])
+@pytest.mark.parametrize("family", _FAMILIES)
+def test_tiled_input_spans_several_tiles_only_when_tiling_is_on(family: str, operation: str) -> None:
+    tiled_vae, latent = _tiled_case_vae(family, tiling=True)
+    untiled_vae, _ = _tiled_case_vae(family, tiling=False)
+    shape = _operation_shape(tiled_vae, latent, operation)
+
+    strides = spatial_tile_strides(tiled_vae, operation)
+
+    assert strides is not None
+    assert all(math.ceil(extent / stride) > 1 for extent, stride in zip(shape[-2:], strides, strict=True))
+    assert spatial_tile_strides(untiled_vae, operation) is None
+
+
+@pytest.mark.parametrize("operation", ["encode", "decode"])
+@pytest.mark.parametrize("family", _FAMILIES)
+def test_replayed_tiles_match_full_trace(family: str, operation: str) -> None:
+    vae, latent = _tiled_case_vae(family, tiling=True, slicing=True)
+    shape = _operation_shape(vae, latent, operation)
+
+    replayed = _trace_pass(vae, operation, shape, BF16)
+    full = _trace_pass(vae, operation, shape, BF16, reuse_tiles=False)
+
+    assert replayed == full
+
+
+@pytest.mark.parametrize("operation", ["encode", "decode"])
+@pytest.mark.parametrize(
+    "size",
+    [(48, 176), (176, 176)],
+    ids=["one-axis-extrapolated", "two-axes-extrapolated"],
+)
+def test_extrapolated_large_grid_matches_exact_trace(size: tuple[int, int], operation: str) -> None:
+    height, width = size
+    vae, _ = _tiled_case_vae("AutoencoderKL", tiling=True)
+    if operation == "encode":
+        shape = (1, 3, height, width)
+    else:
+        shape = (1, 4, height // 8, width // 8)
+
+    assert _trace_pass(vae, operation, shape, BF16) == _trace_exact(vae, operation, shape, BF16)
+
+
+def test_reuse_tiled_forwards_restores_vae_after_error() -> None:
+    vae, _ = _tiled_case_vae("AutoencoderKL", tiling=True)
+
+    with pytest.raises(RuntimeError, match="boom"), reuse_tiled_forwards(vae, LivenessTracker(vae)):
+        assert "forward" in vars(vae.encoder)
+        raise RuntimeError("boom")
+
+    for patched in (vae.encoder, vae.decoder, vae):
+        assert not {"forward", "blend_v", "blend_h"} & set(vars(patched))
+
+
 def test_loaded_vae_is_cloned_to_meta_for_tracing() -> None:
     loaded_vae = AutoencoderKL.from_config(
         {
@@ -255,6 +406,7 @@ def test_hunyuan_trace_restores_mask_implementation() -> None:
 
     assert trace.estimated_bytes > 0
     assert HunyuanVideo15AttnBlock.prepare_causal_attention_mask is original
+    assert all("prepare_causal_attention_mask" not in vars(module) for module in vae.modules())
 
 
 def test_unsupported_meta_operation_raises_trace_error() -> None:
@@ -290,20 +442,25 @@ def test_only_minimax_gets_its_estimate_warning() -> None:
     kl_class, kl_config, *_ = _case("AutoencoderKL")
     kl = _meta_vae(kl_class, kl_config)
 
-    assert (
-        vae_estimate_warning(minimax)
-        == "VAE activation memory estimate omits backend-dependent attention workspaces; treat it as approximate."
-    )
+    warning = vae_estimate_warning(minimax)
+    assert warning is not None
+    assert "MiniMax H3" in warning
     assert vae_estimate_warning(kl) is None
 
 
-def test_vae_memory_options_apply_supported_flags() -> None:
-    vae = _meta_vae(AutoencoderKLLTXVideo)
+@pytest.mark.parametrize("family", _FAMILIES)
+def test_vae_memory_options_enable_slicing_and_tiling(family: str) -> None:
+    vae_class, config, *_ = _case(family)
+    vae = _meta_vae(vae_class, config)
+    vae.use_tiling = False  # MiniMax tiles by default
+
     apply_vae_memory_options(vae, slicing=True, tiling=True)
+
     assert vae.use_slicing
     assert vae.use_tiling
-    assert vae.use_framewise_decoding
-    assert vae.use_framewise_encoding
+    for framewise_flag in ("use_framewise_decoding", "use_framewise_encoding"):
+        if hasattr(vae, framewise_flag):
+            assert getattr(vae, framewise_flag)
 
 
 def test_vae_memory_options_skip_unsupported_component() -> None:
