@@ -88,11 +88,11 @@ class DiffusionPipelineGenerateLatentNode(
 
         saved_incoming = []
         saved_outgoing = []
-        if did_pipeline_change:
-            if value is not None and initial_setup:
+        if did_pipeline_change and value is not None:
+            if initial_setup:
                 # Loading supplies this node's structure and connections, so only add what is missing.
                 self.latent_parameter.add_or_remove_control_net_parameter(None, value)
-            elif value is not None:
+            else:
                 saved_incoming, saved_outgoing = self._save_connections()
                 self.pipe_params.tear_down_runtime_parameters()
                 # Strip user_defined params left from workflow load so the new runtime helper installs correctly.
