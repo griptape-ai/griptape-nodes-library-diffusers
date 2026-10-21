@@ -43,11 +43,6 @@ class StableDiffusionXLPipelineParameters(ModularDiffusionPipelineTypePipelinePa
     def remove_input_parameters(self) -> None:
         self._huggingface_repo_parameter.remove_input_parameters()
 
-    def get_config_kwargs(self) -> dict:
-        return {
-            "model": self._node.get_parameter_value("model"),
-        }
-
     @property
     def pipeline_name(self) -> str:
         return "StableDiffusionXLPipeline"
@@ -58,10 +53,11 @@ class StableDiffusionXLPipelineParameters(ModularDiffusionPipelineTypePipelinePa
 
     def get_build_data(self) -> dict[str, Any]:
         repo_id, revision = self._resolve_repo(self._huggingface_repo_parameter)
-        return {
-            "base_repo_id": repo_id,
-            "revision": revision,
-        }
+        return self.build_data(repo_id, revision)
+
+    @classmethod
+    def build_data(cls, repo_id: str, revision: str) -> dict[str, Any]:
+        return {"base_repo_id": repo_id, "revision": revision}
 
     @classmethod
     def _build_pipeline_from_repo(
