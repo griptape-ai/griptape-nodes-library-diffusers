@@ -23,7 +23,10 @@ from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
 )
-from modular_diffusion_nodes_library.utils.lora_apply_utils import LoraPipelineRuntimeAdapterStep
+from modular_diffusion_nodes_library.utils.lora_apply_utils import (
+    LoraPipelineRuntimeAdapterStep,
+    lora_adapter_name,
+)
 from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec
 from modular_diffusion_nodes_library.utils.pipeline_runtime_adapter_step import PipelineRuntimeAdapterStep
 
@@ -78,14 +81,18 @@ def test_serialize_controlnet_pipeline_artifact_is_refused() -> None:
         serialize_pipeline_artifact(artifact)
 
 
-def _with_runtime_lora(artifact: DiffusionPipelineArtifact, path: str, weight: float = 1.0) -> DiffusionPipelineArtifact:
+def _with_runtime_lora(
+    artifact: DiffusionPipelineArtifact, path: str, weight: float = 1.0
+) -> DiffusionPipelineArtifact:
     step = LoraPipelineRuntimeAdapterStep({path: LoraSpec(path=path, weight=weight)})
     return artifact.with_additional_runtime_adapter_steps([step])
 
 
 def test_runtime_loras_round_trip_through_recipe() -> None:
     artifact = _with_runtime_lora(
-        DiffusionPipelineArtifact(pipeline_name="TestPipeline", config_hash="base-hash", loras={"/tmp/style.safetensors": 0.8}),
+        DiffusionPipelineArtifact(
+            pipeline_name="TestPipeline", config_hash="base-hash", loras={"/tmp/style.safetensors": 0.8}
+        ),
         "/tmp/hdr-ic-lora.safetensors",
         weight=0.9,
     )
@@ -103,8 +110,27 @@ def test_runtime_loras_round_trip_through_recipe() -> None:
     assert isinstance(step, LoraPipelineRuntimeAdapterStep)
 
 
+def test_runtime_lora_recipe_preserves_macro_path() -> None:
+    artifact = _with_runtime_lora(
+        DiffusionPipelineArtifact(pipeline_name="TestPipeline", config_hash="base-hash"),
+        "{project_dir}/loras/style.safetensors",
+        weight=0.75,
+    )
+
+    document = json.loads(serialize_pipeline_artifact(artifact))
+
+    assert document["artifact"]["runtime_loras"] == [
+        {
+            "path": "{project_dir}/loras/style.safetensors",
+            "weight": 0.75,
+        }
+    ]
+
+
 def test_recipe_without_runtime_loras_loads_with_none() -> None:
-    document = json.loads(serialize_pipeline_artifact(DiffusionPipelineArtifact(pipeline_name="TestPipeline", config_hash="h")))
+    document = json.loads(
+        serialize_pipeline_artifact(DiffusionPipelineArtifact(pipeline_name="TestPipeline", config_hash="h"))
+    )
     del document["artifact"]["runtime_loras"]
 
     assert deserialize_pipeline_artifact(json.dumps(document)).runtime_adapter_steps() == []
@@ -133,7 +159,9 @@ def test_serialize_non_lora_runtime_adapter_is_refused() -> None:
 
         def activate(self, pipe, *, node_name=None): ...
 
-    artifact = DiffusionPipelineArtifact(pipeline_name="TestPipeline").with_additional_runtime_adapter_steps([_OtherStep()])
+    artifact = DiffusionPipelineArtifact(pipeline_name="TestPipeline").with_additional_runtime_adapter_steps(
+        [_OtherStep()]
+    )
 
     with pytest.raises(ValueError, match="'other_adapter' runtime adapter cannot be saved"):
         serialize_pipeline_artifact(artifact)
@@ -261,7 +289,10 @@ def test_validate_pipeline_recipe_dependencies_reports_unavailable_items(monkeyp
 
     assert issues == [
         "LoRA file is unavailable: /missing/style.safetensors",
-        "Runtime LoRA file is unavailable: /missing/ic-lora.safetensors",
+        (
+            f"Runtime LoRA adapter '{lora_adapter_name('/missing/ic-lora.safetensors')}' "
+            "file is unavailable: /missing/ic-lora.safetensors"
+        ),
         "Repository revision is unavailable locally: org/base (missing-revision)",
     ]
 
@@ -297,9 +328,6 @@ def test_validate_pipeline_recipe_dependencies_checks_base_repo_revision(monkeyp
     assert validate_pipeline_recipe_dependencies(artifact) == [
         "Repository revision is unavailable locally: org/base (missing-revision)"
     ]
-
-
-
 
 
 @pytest.mark.parametrize(
@@ -340,6 +368,7 @@ def test_loaded_summary_describes_scheduler_override(scheduler_kwargs, expected_
     assert "    Class: FlowMatchEulerDiscreteScheduler" in summary.splitlines()
     for line in expected_lines:
         assert line in summary.splitlines()
+
 
 class _OverridesOnlyPipeline:
     def __init__(self, **components) -> None:

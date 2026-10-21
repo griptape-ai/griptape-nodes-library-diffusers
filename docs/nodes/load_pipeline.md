@@ -6,8 +6,8 @@ Category: `ModularDiffusion/Pipeline`
 
 ## TL;DR
 - Point `file_path` at a recipe `.json` or a Full Pipeline folder. The node accepts both.
-- A recipe rebuilds from the recorded model, LoRAs, and quantisation — the same work as Pipeline Builder, including re-fuse and re-quantise.
-- A Full Pipeline folder loads the saved weights as they were written. It does not re-fuse or re-quantise.
+- A recipe rebuilds from the recorded model, LoRAs, and quantisation — the same work as Pipeline Builder, including re-fuse, re-quantise, and runtime LoRA attachment.
+- A Full Pipeline folder loads the saved weights as they were written. It does not re-fuse or re-quantise, and re-attaches runtime LoRAs copied into the folder.
 - Use the optimisation parameters to override the saved slicing, tiling, layerwise casting, and CPU offload settings.
 - Output type: `Pipeline Config`. Wire it where you would wire Pipeline Builder.
 
@@ -49,7 +49,7 @@ Save Pipeline → [Load Pipeline] → Generate Media Latents → Decode Media La
 ## Tips & pitfalls
 
 - **A Config Only JSON still needs the model and LoRAs on this machine.** If a Hugging Face revision is not in the local cache, or a LoRA file is missing, the run fails and lists what it could not find.
-- **A Full Pipeline folder does not fuse LoRAs or quantise again.** Those weights are already in the folder.
+- **A Full Pipeline folder does not fuse LoRAs or quantise again.** Fused LoRAs are already in the weights. Runtime LoRAs are loaded from the baked folder and activated around each generation with their saved strengths.
 - **Quantisation is preserved but not exposed as an override.** Load Pipeline keeps the source artifact's quantisation configuration.
 - **Run the node after an in-place re-save to the same path.** Changing only the folder contents may not refresh downstream nodes until Load Pipeline runs again.
 

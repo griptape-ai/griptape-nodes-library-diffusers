@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import shutil
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DEFAULT_BAKED_DTYPE,
     DiffusionPipelineArtifact,
 )
+from modular_diffusion_nodes_library.utils.lora_apply_utils import lora_adapter_name
 from modular_diffusion_nodes_library.utils.pipeline_utils import prepare_pipeline_for_baked_save
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -42,6 +44,7 @@ _MODEL_INDEX = "model_index.json"
 _MODULAR_MODEL_INDEX = "modular_model_index.json"
 _BAKED_CONFIG_FILE = "baked-config.json"
 _BAKED_CONFIG_SCHEMA_VERSION = 1
+_RUNTIME_LORA_FOLDER = Path("loras")
 
 
 class BakedLayout(Enum):
@@ -64,13 +67,61 @@ def detect_baked_layout(folder: Path) -> BakedLayout | None:
     return None
 
 
-def save_baked_pipeline(pipe: Any, artifact: DiffusionPipelineArtifact, folder: Path) -> None:
+@dataclass(frozen=True)
+class RuntimeLoraCopy:
+    source_path: Path
+    relative_path: Path
+    weight: float
+
+
+def plan_runtime_lora_copies(artifact: DiffusionPipelineArtifact) -> list[RuntimeLoraCopy]:
+    """Validate runtime LoRA sources and map them into the baked folder."""
+    copies: list[RuntimeLoraCopy] = []
+    destinations: dict[str, Path] = {}
+    for spec in artifact.runtime_loras().values():
+        requested_path = Path(spec.path).expanduser()
+        source_path = requested_path.resolve()
+        adapter_name = lora_adapter_name(str(source_path))
+        if not source_path.is_file():
+            msg = f"Runtime LoRA adapter '{adapter_name}' cannot be saved because its file is missing: {source_path}"
+            raise FileNotFoundError(msg)
+
+        relative_path = _RUNTIME_LORA_FOLDER / requested_path.name
+        destination_key = relative_path.as_posix().casefold()
+        previous_source = destinations.get(destination_key)
+        if previous_source is not None:
+            msg = (
+                f"Runtime LoRAs cannot be saved because multiple source files would be copied to "
+                f"'{relative_path.as_posix()}': '{previous_source}' and '{source_path}'."
+            )
+            raise ValueError(msg)
+        destinations[destination_key] = source_path
+        copies.append(
+            RuntimeLoraCopy(
+                source_path=source_path,
+                relative_path=relative_path,
+                weight=float(spec.weight),
+            )
+        )
+    return copies
+
+
+def save_baked_pipeline(
+    pipe: Any,
+    artifact: DiffusionPipelineArtifact,
+    folder: Path,
+    *,
+    runtime_lora_copies: list[RuntimeLoraCopy] | None = None,
+) -> None:
     """Atomically save the built pipe (weights + baked config) into `folder`.
 
     save_pretrained is not atomic, so a failure would otherwise leave a corrupt
     partial repo. Save into a sibling temp dir, then swap it into place in one
     rename so `folder` is only ever a complete bake or untouched.
     """
+    artifact.check_full_pipeline_bake_policy()
+    if runtime_lora_copies is None:
+        runtime_lora_copies = plan_runtime_lora_copies(artifact)
     folder = folder.resolve()
     tmp_dir = folder.with_name(folder.name + ".tmp-bake")
     if tmp_dir.exists():
@@ -90,11 +141,15 @@ def save_baked_pipeline(pipe: Any, artifact: DiffusionPipelineArtifact, folder: 
                 pipe.save_pretrained(str(tmp_dir))
             file_overrides = _write_skipped_slots(pipe, artifact, tmp_dir, skip_slots)
             packed_slots = write_packed_quant_maps(pipe, tmp_dir)
+        runtime_loras = _copy_runtime_loras(runtime_lora_copies, tmp_dir)
         if packed_slots:
             logger.info("Wrote packed quanto maps for slots: %s", packed_slots)
         # baked-config top-level "torch_dtype": pipe.dtype at bake → _baked_dtype → from_pretrained / quanto reload.
         dtype_name = str(getattr(pipe, "dtype", None) or f"torch.{DEFAULT_BAKED_DTYPE}").replace("torch.", "")
-        extra: dict[str, Any] = {"packed_quant_slots": packed_slots}
+        extra: dict[str, Any] = {
+            "packed_quant_slots": packed_slots,
+            "runtime_loras": runtime_loras,
+        }
         if file_overrides:
             extra["file_overrides"] = file_overrides
         _write_baked_config(tmp_dir, artifact, dtype_name, **extra)
@@ -105,6 +160,22 @@ def save_baked_pipeline(pipe: Any, artifact: DiffusionPipelineArtifact, folder: 
     except BaseException:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         raise
+
+
+def _copy_runtime_loras(copies: list[RuntimeLoraCopy], folder: Path) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for item in copies:
+        adapter_name = lora_adapter_name(str(item.source_path))
+        if not item.source_path.is_file():
+            msg = (
+                f"Runtime LoRA adapter '{adapter_name}' cannot be saved because its file is missing: {item.source_path}"
+            )
+            raise FileNotFoundError(msg)
+        destination = folder / item.relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(item.source_path, destination)
+        entries.append({"path": item.relative_path.as_posix(), "weight": item.weight})
+    return entries
 
 
 def _write_skipped_slots(
