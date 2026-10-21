@@ -10,9 +10,11 @@ and the same internal state ``process()`` reads as a node built by normal edits.
 from __future__ import annotations
 
 import dataclasses
+import sys
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from types import FrameType
 from typing import Any, NamedTuple
 
 import pytest
@@ -56,6 +58,17 @@ GRAPH_REQUEST_TYPES = (
     RemoveParameterFromNodeRequest,
 )
 NODE_NAME_FIELDS = ("node_name", "source_node_name", "target_node_name")
+ENGINE_PACKAGE = "griptape_nodes."
+DISPATCH_MODULES = {"griptape_nodes.retained_mode.griptape_nodes", "griptape_nodes.retained_mode.engine"}
+
+
+def _sender_module(frame: FrameType | None) -> str:
+    """The module that sent the request being dispatched from `frame`, past the facade and engine dispatch."""
+    while frame is not None and frame.f_globals.get("__name__") in DISPATCH_MODULES:
+        frame = frame.f_back
+    if frame is None:
+        return ""
+    return frame.f_globals.get("__name__", "")
 
 
 class SerializedNode(NamedTuple):
@@ -65,14 +78,18 @@ class SerializedNode(NamedTuple):
 
 
 class RequestRecorder:
-    """Records every request dispatched while another request is being handled."""
+    """Records every request this library's code sends while another request is being handled.
+
+    Requests the engine sends itself are left out: the rule binds node code, and which requests the engine
+    makes while loading depends on the engine version.
+    """
 
     def __init__(self) -> None:
         self.depth = 0
         self.nested: list[RequestPayload] = []
 
-    def enter(self, request: RequestPayload) -> None:
-        if self.depth > 0:
+    def enter(self, request: RequestPayload, sender_module: str) -> None:
+        if self.depth > 0 and not sender_module.startswith(ENGINE_PACKAGE):
             self.nested.append(request)
         self.depth += 1
 
@@ -122,14 +139,14 @@ def recorder(monkeypatch: pytest.MonkeyPatch) -> RequestRecorder:
     original_ahandle = EventManager.ahandle_request
 
     def handle_request(self: EventManager, request: RequestPayload, **kwargs: Any) -> Any:
-        recorder.enter(request)
+        recorder.enter(request, _sender_module(sys._getframe(1)))
         try:
             return original_handle(self, request, **kwargs)
         finally:
             recorder.exit()
 
     async def ahandle_request(self: EventManager, request: RequestPayload, **kwargs: Any) -> Any:
-        recorder.enter(request)
+        recorder.enter(request, _sender_module(sys._getframe(1)))
         try:
             return await original_ahandle(self, request, **kwargs)
         finally:
