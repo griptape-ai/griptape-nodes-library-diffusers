@@ -131,6 +131,12 @@ class LatentPipelineTypeParameters(ABC):
         return "Select a pipeline variant. Each variant loads different model weights."
 
     def add_input_parameters(self) -> None:
+        # Check if pipeline_type parameter already exists to avoid duplicates
+        # during template load (when AddParameterToNodeRequest tries to re-add)
+        existing_param = self._node.get_parameter_by_name("pipeline_type")
+        if existing_param is not None:
+            return
+
         pipeline_type_param = Parameter(
             name="pipeline_type",
             type="str",
@@ -158,8 +164,58 @@ class LatentPipelineTypeParameters(ABC):
             self.did_pipeline_type_change = current_pipeline_type != value
 
     def after_value_set(self, parameter: Parameter, value: Any, *, initial_setup: bool = False) -> None:
-        if parameter.name == "pipeline_type" and self.did_pipeline_type_change and not initial_setup:
-            self.regenerate_elements_for_pipeline_type(value)
+        if parameter.name == "pipeline_type" and self.did_pipeline_type_change:
+            from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import (
+                find_provider_for_pipeline_type,
+            )
+
+            # During initial_setup, we need to check if the pipeline_type value requires
+            # a different _pipeline_type_parameters class than the current one, and regenerate if needed.
+            # This handles templates that were saved with incorrect default choices.
+            if initial_setup:
+                required_provider = find_provider_for_pipeline_type(value)
+                if required_provider:
+                    current_provider = self._node.get_parameter_value("provider")
+                    # Check if provider matches
+                    provider_matches = str(current_provider) == str(required_provider)
+
+                    if not provider_matches:
+                        self._node.set_parameter_value("provider", str(required_provider), initial_setup=True)
+                        self._regenerate_pipeline_type_parameters_for_provider(str(required_provider), value)
+                    else:
+                        # Provider matches, but check if current _pipeline_type_parameters supports this pipeline_type
+                        pipeline_type_supported = value in self.pipeline_types
+                        if not pipeline_type_supported:
+                            # Current _pipeline_type_parameters class doesn't support this pipeline_type
+                            self._regenerate_pipeline_type_parameters_for_provider(str(required_provider), value)
+            else:
+                self.regenerate_elements_for_pipeline_type(value)
+
+    def _regenerate_pipeline_type_parameters_for_provider(self, provider: str, pipeline_type: str) -> None:
+        """Regenerate _pipeline_type_parameters for the given provider while preserving pipeline_type value."""
+        # During initial_setup, the saved script already contains the fully resolved
+        # parameters and connections. We just need to reconcile the provider and
+        # pipeline_type without replaying serialized connections.
+        self._node.save_parameter_properties()
+
+        # Remove the old pipeline_type parameter and runtime params for current provider
+        self._node.remove_parameter_element_by_name("pipeline_type")
+        self.pipeline_type_pipeline_params.remove_input_parameters()
+
+        # Switch to the correct provider's pipeline type parameters class
+        self._node.params.set_pipeline_type_parameters(provider)
+
+        # Synchronize the provider value to avoid mismatch between UI/provider and pipeline params
+        self._node.set_parameter_value("provider", str(provider), initial_setup=True)
+
+        # Add parameters for the new provider
+        self._node.params.pipeline_type_parameters.add_input_parameters()
+        self._node.params.pipeline_type_pipeline_params.add_input_parameters()  # type: ignore[reportAttributeAccessIssue]
+        self._node.set_parameter_value("pipeline_type", pipeline_type, initial_setup=True)
+
+        # Reorder parameters
+        self._node.reorder_parameters_by_groups()
+        self._node.clear_parameter_cache()
 
     def regenerate_elements_for_pipeline_type(self, pipeline_type: str) -> None:
         self._node.save_parameter_properties()
