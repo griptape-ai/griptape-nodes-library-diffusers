@@ -80,10 +80,18 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         import torch  # type: ignore[reportMissingImports]
         from diffusers.pipelines.ltx2.pipeline_ltx2 import LTX2Pipeline  # type: ignore[reportMissingImports]
 
-        return LTX2Pipeline.from_pretrained(
+        pipe = LTX2Pipeline.from_pretrained(
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,
             **overrides,
         )
+        if torch.backends.mps.is_available():
+            # The RoPE modules compute frequencies in float64 by default, which MPS does not support.
+            # Both the transformer and the text connectors build their own RoPE.
+            for root in (pipe.transformer, pipe.connectors):
+                for module in root.modules():
+                    if hasattr(module, "double_precision"):
+                        module.double_precision = False
+        return pipe

@@ -336,6 +336,31 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         """Return the artifact's audio latent, or ``None`` when it carries none."""
         return read_driver_meta(latent, AUDIO_LATENTS_META_KEY, self.driver_namespace)
 
+    def _decode_audio_on_cpu(self, audio_latents: torch.Tensor, device: torch.device) -> torch.Tensor:
+        """Run the audio VAE and vocoder on CPU in fp32, then restore them to ``device``.
+
+        MPS rejects convolutions with more than 65536 output channels, which the vocoder's
+        grouped ``ConvTranspose1d`` upsampling hits on longer clips.
+        """
+        import torch  # type: ignore[reportMissingImports]
+
+        audio_vae = self.pipe.audio_vae
+        vocoder = self.pipe.vocoder
+        audio_vae_dtype = audio_vae.dtype
+        vocoder_dtype = vocoder.dtype
+
+        audio_vae.to(device="cpu", dtype=torch.float32)
+        vocoder.to(device="cpu", dtype=torch.float32)
+        try:
+            with torch.no_grad():
+                audio_latents = audio_latents.to(device="cpu", dtype=torch.float32)
+                generated_mel_spectrograms = audio_vae.decode(audio_latents, return_dict=False)[0]
+                audio = vocoder(generated_mel_spectrograms)
+        finally:
+            audio_vae.to(device=device, dtype=audio_vae_dtype)
+            vocoder.to(device=device, dtype=vocoder_dtype)
+        return audio
+
     @override
     def decode_latent(self, latent: LatentArtifact) -> DecodeOutput:
         import torch  # type: ignore[reportMissingImports]
@@ -375,10 +400,13 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             )
             return DecodeOutput(media=frames)
 
-        with torch.no_grad():
-            audio_latents = audio_latents.to(device=device, dtype=self.pipe.audio_vae.dtype)
-            generated_mel_spectrograms = self.pipe.audio_vae.decode(audio_latents, return_dict=False)[0]
-            audio = self.pipe.vocoder(generated_mel_spectrograms)
+        if device.type == "mps":
+            audio = self._decode_audio_on_cpu(audio_latents, device)
+        else:
+            with torch.no_grad():
+                audio_latents = audio_latents.to(device=device, dtype=self.pipe.audio_vae.dtype)
+                generated_mel_spectrograms = self.pipe.audio_vae.decode(audio_latents, return_dict=False)[0]
+                audio = self.pipe.vocoder(generated_mel_spectrograms)
         return DecodeOutput(
             media=frames,
             audio=audio,
