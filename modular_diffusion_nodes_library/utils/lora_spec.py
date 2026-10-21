@@ -44,7 +44,7 @@ class LoraSpec:
 def normalize_loras(raw_list: list[Any]) -> dict[str, LoraSpec]:
     """Normalise a list of raw LoRA payloads into `{path: LoraSpec}`.
 
-    Last writer wins on duplicate paths.
+    Duplicate paths are combined by summing their weights.
     """
     out: dict[str, LoraSpec] = {}
     for raw in raw_list:
@@ -54,5 +54,13 @@ def normalize_loras(raw_list: list[Any]) -> dict[str, LoraSpec]:
         spec = LoraSpec.from_raw(raw)
         if not spec.path:
             raise ValueError(f"Attempted to normalise LoRAs. Failed with raw={raw!r} because path is empty.")
-        out[spec.path] = spec
+        existing = out.get(spec.path)
+        if existing is None:
+            out[spec.path] = spec
+            continue
+        out[spec.path] = LoraSpec(
+            path=spec.path,
+            weight=existing.weight + spec.weight,
+            trigger_phrase=spec.trigger_phrase or existing.trigger_phrase,
+        )
     return out

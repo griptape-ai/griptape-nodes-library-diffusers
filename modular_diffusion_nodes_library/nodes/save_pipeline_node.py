@@ -14,7 +14,10 @@ from griptape_nodes.utils import resolve_workspace_path
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     normalize_diffusion_pipeline_value,
 )
-from modular_diffusion_nodes_library.artifact_utils.pipeline_baking import save_baked_pipeline
+from modular_diffusion_nodes_library.artifact_utils.pipeline_baking import (
+    plan_runtime_lora_copies,
+    save_baked_pipeline,
+)
 from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import serialize_pipeline_artifact
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.file_path_parameter import FilePathParameter
@@ -22,9 +25,11 @@ from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
+
 class SaveMode(StrEnum):
     CONFIG_ONLY = "Config Only"
     FULL_PIPELINE = "Full Pipeline"
+
 
 _RECIPE_DEFAULT_PATH = "{project_dir}/pipeline-config.json"
 _BAKED_DEFAULT_PATH = "{project_dir}/baked-pipeline"
@@ -41,8 +46,7 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 type="Pipeline Config",
                 input_types=["Pipeline Config"],
                 tooltip=(
-                    "Pipeline to save. Config Only stores how to rebuild it; "
-                    "Full Pipeline stores the prepared weights."
+                    "Pipeline to save. Config Only stores how to rebuild it; Full Pipeline stores the prepared weights."
                 ),
                 allowed_modes={ParameterMode.INPUT},
             )
@@ -61,9 +65,10 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             title="Config Only vs Full Pipeline",
             message=(
                 "**Config Only** — Saves a small JSON that records how to rebuild the pipeline "
-                "(model, LoRA paths, quantisation). Rebuilds, re-fuses, and re-quantises on load.\n\n"
+                "(model, fused and runtime LoRA paths, quantisation). Rebuilds, re-fuses, "
+                "re-quantises, and re-attaches runtime LoRAs on load.\n\n"
                 "**Full Pipeline** — Saves the weights into a folder, including fused LoRAs "
-                "and quantised weights. Load does not re-fuse or re-quantise."
+                "and quantised weights. Runtime LoRAs are copied into the folder and re-attached on load."
             ),
         )
         self.add_parameter(mode_param)
@@ -126,7 +131,8 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         elif self.get_parameter_value("save_mode") == SaveMode.FULL_PIPELINE:
             try:
                 pipeline.check_full_pipeline_bake_policy()
-            except ValueError as e:
+                plan_runtime_lora_copies(pipeline)
+            except (FileNotFoundError, ValueError) as e:
                 exceptions.append(e)
 
         file_path = self.get_parameter_value("file_path")
@@ -157,8 +163,14 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
             if self.get_parameter_value("save_mode") == SaveMode.FULL_PIPELINE:
                 pipeline.check_full_pipeline_bake_policy()
+                runtime_lora_copies = plan_runtime_lora_copies(pipeline)
                 pipe = pipeline.get_or_build_pipeline()
-                save_baked_pipeline(pipe, pipeline, resolved_path)
+                save_baked_pipeline(
+                    pipe,
+                    pipeline,
+                    resolved_path,
+                    runtime_lora_copies=runtime_lora_copies,
+                )
                 return resolved_path
 
             resolved_path.parent.mkdir(parents=True, exist_ok=True)

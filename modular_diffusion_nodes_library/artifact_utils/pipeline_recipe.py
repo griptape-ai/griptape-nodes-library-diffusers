@@ -26,6 +26,7 @@ from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
     require_dict,
 )
 from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact import SchedulerComponentArtifact
+from modular_diffusion_nodes_library.utils.lora_apply_utils import lora_adapter_name
 
 
 def serialize_pipeline_artifact(artifact: DiffusionPipelineArtifact) -> str:
@@ -64,7 +65,8 @@ def validate_pipeline_recipe_dependencies(artifact: DiffusionPipelineArtifact) -
             issues.append(f"LoRA file is unavailable: {lora_path}")
     for lora_path in artifact.runtime_loras():
         if not Path(lora_path).is_file():
-            issues.append(f"Runtime LoRA file is unavailable: {lora_path}")
+            adapter_name = lora_adapter_name(lora_path)
+            issues.append(f"Runtime LoRA adapter '{adapter_name}' file is unavailable: {lora_path}")
 
     return [*issues, *_validate_build_data_repositories(artifact.build_data)]
 
@@ -141,6 +143,23 @@ def format_baked_pipeline_summary(artifact: DiffusionPipelineArtifact) -> str:
     quant_lines = format_quantization_status_lines(collect_quantization_status(artifact))
     if quant_lines:
         lines.extend(quant_lines)
+    runtime_loras = artifact.runtime_loras()
+    if runtime_loras:
+        baked_path = Path(str(build_data.get("_baked_path", ""))).resolve()
+        lines.extend(["", "Runtime LoRAs"])
+        for index, spec in enumerate(runtime_loras.values(), start=1):
+            path = Path(spec.path)
+            try:
+                display_path = path.resolve().relative_to(baked_path).as_posix()
+            except ValueError:
+                display_path = str(path)
+            lines.extend(
+                [
+                    f"  {index}. {path.name}",
+                    f"     Path: {display_path}",
+                    f"     Weight: {spec.weight:g}",
+                ]
+            )
     return "\n".join(lines)
 
 
@@ -160,7 +179,9 @@ def format_pipeline_artifact_summary(artifact: DiffusionPipelineArtifact) -> str
     if runtime_loras:
         lines.extend(["", "Runtime LoRAs"])
         for index, spec in enumerate(runtime_loras.values(), start=1):
-            lines.extend([f"  {index}. {Path(spec.path).name}", f"     Path: {spec.path}", f"     Weight: {spec.weight:g}"])
+            lines.extend(
+                [f"  {index}. {Path(spec.path).name}", f"     Path: {spec.path}", f"     Weight: {spec.weight:g}"]
+            )
 
     component_overrides = build_data.get("_component_overrides", {})
     if isinstance(component_overrides, dict) and component_overrides:
