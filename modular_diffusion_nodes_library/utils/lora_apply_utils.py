@@ -14,7 +14,7 @@ from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
-def _to_adapter_name(model_path: str) -> str:
+def lora_adapter_name(model_path: str) -> str:
     """Returns a unique name for an adapter given its model path.
 
     Combines the file stem (for human-readable token matching) with an 8-character path hash.
@@ -70,7 +70,7 @@ def configure_loras_on_pipeline(pipe: Any, loras: dict[str, float], *, fuse_lora
     adapter_weights: list[float] = []
 
     for lora_path, raw_weight in loras.items():
-        adapter_name = _to_adapter_name(lora_path)
+        adapter_name = lora_adapter_name(lora_path)
         weight = float(raw_weight)
         lora_by_name[adapter_name] = {
             "name": adapter_name,
@@ -96,12 +96,16 @@ def configure_loras_on_pipeline(pipe: Any, loras: dict[str, float], *, fuse_lora
 
 
 def release_lora_adapters(pipe: Any, adapter_names: list[str]) -> None:
-    """Deactivate + delete adapters and drop stashed metadata to release VRAM."""
+    """Delete adapters, restore base layers when none remain, and release metadata."""
     if not adapter_names:
         return
 
     try:
         pipe.delete_adapters(adapter_names)
+        remaining_adapter_names = {name for names in pipe.get_list_adapters().values() for name in names}
+        if not remaining_adapter_names and hasattr(pipe, "unload_lora_weights"):
+            # Deleting adapters leaves PEFT wrappers; unloading restores the base model's state-dict keys.
+            pipe.unload_lora_weights()
     except Exception as err:  # noqa: BLE001 — delete_adapters can raise model-specific errors
         logger.warning(
             "Attempted to delete LoRA adapters. Failed with adapter_names=%s because of %r.",
@@ -175,13 +179,13 @@ class LoraPipelineRuntimeAdapterStep(PipelineRuntimeAdapterStep):
         names: list[str] = []
         weights: list[float] = []
         for spec in self._loras.values():
-            names.append(_to_adapter_name(spec.path))
+            names.append(lora_adapter_name(spec.path))
             weights.append(float(spec.weight))
         return names, weights
 
     def _build_load_payload(self) -> dict[str, dict[str, Any]]:
         payload: dict[str, dict[str, Any]] = {}
         for spec in self._loras.values():
-            name = _to_adapter_name(spec.path)
+            name = lora_adapter_name(spec.path)
             payload[name] = {"name": name, "path": spec.path, "weight": float(spec.weight)}
         return payload

@@ -34,7 +34,10 @@ from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
 )
 from modular_diffusion_nodes_library.component_loading.component_slots import slot_component_kind
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
-from modular_diffusion_nodes_library.utils.lora_apply_utils import LoraPipelineRuntimeAdapterStep
+from modular_diffusion_nodes_library.utils.lora_apply_utils import (
+    LoraPipelineRuntimeAdapterStep,
+    lora_adapter_name,
+)
 from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec
 from modular_diffusion_nodes_library.utils.pipeline_runtime_adapter_step import (
     PipelineRuntimeAdapterStep,
@@ -124,6 +127,41 @@ def _baked_file_override_build_data(data: dict[str, Any], baked_path: Path) -> d
     from modular_diffusion_nodes_library.artifact_utils.baked_file_overrides import resolve_file_overrides
 
     return {"_component_overrides": resolve_file_overrides(file_overrides, baked_path)}
+
+
+def _resolve_baked_runtime_lora_path(raw_path: str, baked_root: Path) -> Path:
+    relative_path = Path(raw_path)
+    if relative_path.is_absolute():
+        msg = f"Baked runtime LoRA path must be relative to the baked folder: {raw_path}"
+        raise ValueError(msg)
+
+    resolved_path = (baked_root / relative_path).resolve()
+    if not resolved_path.is_relative_to(baked_root):
+        msg = f"Baked runtime LoRA path escapes the baked folder: {raw_path}"
+        raise ValueError(msg)
+
+    if not resolved_path.is_file():
+        adapter_name = lora_adapter_name(str(resolved_path))
+        msg = (
+            f"Runtime LoRA adapter '{adapter_name}' cannot be loaded because "
+            f"'{relative_path.as_posix()}' is missing from baked pipeline '{baked_root}'."
+        )
+        raise FileNotFoundError(msg)
+    return resolved_path
+
+
+def _baked_runtime_loras(data: dict[str, Any], baked_path: Path) -> dict[str, LoraSpec]:
+    entries = require_runtime_loras(data.get("runtime_loras", []))
+    baked_root = baked_path.resolve()
+    specs: dict[str, LoraSpec] = {}
+    for entry in entries:
+        resolved_path = _resolve_baked_runtime_lora_path(entry["path"], baked_root)
+        path = str(resolved_path)
+        if path in specs:
+            msg = f"Baked pipeline contains duplicate runtime LoRA path: {entry['path']}"
+            raise ValueError(msg)
+        specs[path] = LoraSpec(path=path, weight=float(entry["weight"]))
+    return specs
 
 
 def _digest(parts: dict[str, Any]) -> str:
@@ -348,6 +386,7 @@ class DiffusionPipelineArtifact:
 
     def check_full_pipeline_bake_policy(self) -> None:
         """Raise if Full Pipeline save is unsupported for this config (artifact-only; no build)."""
+        self._ensure_recipe_serializable()
         gguf_slots = self._gguf_override_slots()
         if self.is_prequantized and not gguf_slots:
             msg = (
@@ -397,7 +436,7 @@ class DiffusionPipelineArtifact:
         pipeline-specific load behavior (e.g. MiniMaxH3's ComponentsManager
         offload) is preserved.
         """
-        return cls(
+        artifact = cls(
             pipeline_name=data.get("pipeline_name", baked_path.name),
             config_hash=config_hash,
             builder_module=optional_string(data.get("builder_module"), "Baked pipeline builder module"),
@@ -414,6 +453,10 @@ class DiffusionPipelineArtifact:
             supports_layerwise_casting=data.get("supports_layerwise_casting", True),
             requires_device_map=data.get("requires_device_map", False),
         )
+        runtime_loras = _baked_runtime_loras(data, baked_path)
+        if not runtime_loras:
+            return artifact
+        return artifact.with_additional_runtime_adapter_steps([LoraPipelineRuntimeAdapterStep(runtime_loras)])
 
     @classmethod
     def from_recipe_dict(cls, data: dict[str, Any]) -> DiffusionPipelineArtifact:

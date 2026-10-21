@@ -5,8 +5,8 @@
 Category: `ModularDiffusion/Pipeline`
 
 ## TL;DR
-- **Config Only** writes a small JSON that records how to rebuild the pipeline (model, LoRAs, quantisation). Load rebuilds, re-fuses, and re-quantises.
-- **Full Pipeline** writes the built weights to a folder, including fused LoRAs and post-hoc quantised weights. Load does not re-fuse or re-quantise.
+- **Config Only** writes a small JSON that records how to rebuild the pipeline (model, fused and runtime LoRAs, quantisation). Load rebuilds, re-fuses, re-quantises, and re-attaches runtime LoRAs.
+- **Full Pipeline** writes the built weights to a folder, including fused LoRAs and post-hoc quantised weights. Runtime LoRAs are copied into `loras/` and re-attached on load.
 - **Full Pipeline does not support pre-quantised Hub repos** (for example bitsandbytes 4-bit or NVFP4 Flux.2 weights). Use Config Only for those.
 - Connect `pipeline` from Pipeline Builder. The destination picker is a `.json` file for Config Only and a folder for Full Pipeline.
 
@@ -49,11 +49,13 @@ Full Pipeline is refused before a build when the config is unsupported. Use Conf
 | Pre-quantised Hub repo | Refused. The Hub weights (for example `diffusers/FLUX.2-dev-bnb-4bit`, `black-forest-labs/FLUX.2-dev-NVFP4`) are not verified to round-trip through a Full Pipeline save. |
 | MiniMax-H3 | Refused. The builder marks MiniMax as pre-quantised so Full Pipeline takes the same path. |
 | ControlNet pipeline | Refused. Save the base pipeline instead. |
-| GGUF denoiser plus LoRAs | Refused. The `.gguf` file is copied as-is and LoRAs usually fuse into that slot. |
+| GGUF denoiser plus fused LoRAs | Refused. The `.gguf` file is copied as-is and fused LoRAs modify that slot. Runtime LoRAs remain supported. |
 
 ## Tips & pitfalls
 
 - **Full Pipeline writes the session as built.** Fused LoRAs and post-hoc quantisation are already in the folder; changing those settings later requires a new save.
+- **Runtime LoRAs remain runtime adapters.** Full Pipeline copies their files into `loras/`, records their strengths, and never fuses them into the saved weights.
+- **Runtime LoRA filenames must be unique.** Two source files with the same filename cannot both occupy the baked folder's `loras/` directory.
 - **ControlNet is Config Only only.** There is no Full Pipeline path for a ControlNet wrapper yet.
 - **Pick a folder for Full Pipeline, not a `.json` file.** Changing `save_mode` retargets the picker and resets the default path.
 
