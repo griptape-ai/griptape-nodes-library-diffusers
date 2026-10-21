@@ -4,7 +4,6 @@ from typing import Any
 from griptape.artifacts import ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
-from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from PIL.Image import Image, Resampling
 
@@ -18,6 +17,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.mixins.parameter_removal_mixin import ParameterRemovalMixin
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
@@ -29,7 +29,7 @@ from modular_diffusion_nodes_library.utils.video_utils import load_video_frames_
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
-class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
+class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, SuccessFailureNode):
     def __init__(self, **kwargs) -> None:
         self._initializing = True
         self._current_input_type = "image"
@@ -86,12 +86,6 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             param.user_defined = True
             super().add_parameter(param)
 
-    def remove_parameter_element_by_name(self, element_name: str) -> None:
-        if self.get_element_by_name_and_type(element_name):
-            GriptapeNodes.handle_request(
-                RemoveParameterFromNodeRequest(parameter_name=element_name, node_name=self.name)
-            )
-
     def set_parameter_value(
         self,
         param_name: str,
@@ -124,20 +118,15 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.pipe_params.runtime_parameters.after_value_set(parameter, value)
 
         if param_name == "pipeline":
-            self._update_input_parameter(initial_setup=initial_setup)
+            # Loading only connects parameters the saved node had, and it had none of the ones being swapped out.
+            with self.removing_locally_while_loading(initial_setup=initial_setup):
+                self._update_input_parameter()
 
         fires_reactively = param_name in ("pipeline", "image", "input_video")
         if initial_setup and fires_reactively:
             self.after_value_set(parameter, value)
 
-    def _remove_input_parameter(self, element_name: str, *, initial_setup: bool) -> None:
-        if initial_setup:
-            # Loading only connects parameters the saved node had, and it had none of the ones being swapped out.
-            super().remove_parameter_element_by_name(element_name)
-        else:
-            self.remove_parameter_element_by_name(element_name)
-
-    def _update_input_parameter(self, *, initial_setup: bool = False) -> None:
+    def _update_input_parameter(self) -> None:
         driver_cls = get_driver_class(self.pipe_params.get_pipeline_class())
         if driver_cls is None:
             return
@@ -151,7 +140,7 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             return
 
         if new_input_type == "video":
-            self._remove_input_parameter("image", initial_setup=initial_setup)
+            self.remove_parameter_element_by_name("image")
             self.add_parameter(
                 Parameter(
                     name="input_video",
@@ -163,7 +152,7 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 )
             )
         else:
-            self._remove_input_parameter("input_video", initial_setup=initial_setup)
+            self.remove_parameter_element_by_name("input_video")
             self.add_parameter(
                 Parameter(
                     name="image",

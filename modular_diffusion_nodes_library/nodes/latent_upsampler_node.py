@@ -3,13 +3,12 @@ from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
-from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.options import Options
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
     LatentArtifact,  # type: ignore[reportMissingImports]
 )
+from modular_diffusion_nodes_library.mixins.parameter_removal_mixin import ParameterRemovalMixin
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.upsampler_parameter_type import (
     UPSAMPLER_TYPE_MAP,
@@ -20,10 +19,9 @@ from modular_diffusion_nodes_library.parameters.upsampler_parameter_type import 
 logger = logging.getLogger("diffusers_nodes_library")
 
 
-class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
+class LatentUpsamplerNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, SuccessFailureNode):
     START_PARAMS: ClassVar = ["provider"]
     END_PARAMS: ClassVar = ["input_latent", "output_latent", "Status"]
-    DYNAMIC_PARAMS: ClassVar = ["upsampler_model", "upsampler_model_download"]
 
     def __init__(self, **kwargs) -> None:
         self._initializing = True
@@ -95,12 +93,10 @@ class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
 
         if did_provider_change:
-            if initial_setup:
+            if self.upsampler_params is not None:
                 # These parameters are PROPERTY-only, so they hold no connections for a request to delete.
-                for name in LatentUpsamplerNode.DYNAMIC_PARAMS:
-                    super().remove_parameter_element_by_name(name)
-            elif self.upsampler_params is not None:
-                self.upsampler_params.remove_input_parameters()
+                with self.removing_locally_while_loading(initial_setup=initial_setup):
+                    self.upsampler_params.remove_input_parameters()
             self.upsampler_params = create_upsampler_params(value, self)
             self.upsampler_params.add_input_parameters()
             self._reorder_parameters()
@@ -121,7 +117,7 @@ class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         Only `upsampler_model`/`upsampler_model_download` may be added post-init (on a provider
         switch); this blocks stray renamed duplicates (e.g. `upsampler_model_2`) from workflow loads.
         """
-        is_dynamic_param = param.name in LatentUpsamplerNode.DYNAMIC_PARAMS
+        is_dynamic_param = param.name in {"upsampler_model", "upsampler_model_download"}
         if not self._initializing and not is_dynamic_param:
             return
 
@@ -130,15 +126,6 @@ class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         if not self.does_name_exist(param.name):
             super().add_parameter(param)
-
-    def remove_parameter_element_by_name(self, element_name: str) -> None:
-        # HACK: `node.remove_parameter_element_by_name` does not remove connections so we need to use the retained mode request which does.  # noqa: FIX004
-        # To avoid updating a ton of callers, we just override this method here.
-        # TODO: Remove after https://github.com/griptape-ai/griptape-nodes/issues/2511
-        if self.get_element_by_name_and_type(element_name):
-            GriptapeNodes.handle_request(
-                RemoveParameterFromNodeRequest(parameter_name=element_name, node_name=self.name)
-            )
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors: list[Exception] = []

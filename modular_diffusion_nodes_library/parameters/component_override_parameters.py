@@ -26,6 +26,9 @@ class ComponentOverrideParameters:
 
     def __init__(self, node: LatentDiffusionPipelineBuilderNode) -> None:
         self._node = node
+        # A load can swap slots more than once, so a port removed by one swap must survive to be restored by a
+        # later one, where a saved connection still targets it.
+        self._removed_while_loading: dict[str, Parameter] = {}
 
     @property
     def current_slots(self) -> list[str]:
@@ -57,6 +60,7 @@ class ComponentOverrideParameters:
         if initial_setup:
             self._replace_slots_locally(existing_slots, slots)
         else:
+            self._removed_while_loading.clear()
             with self._node.preserve_connections():
                 for slot in existing_slots:
                     self._node.remove_parameter_with_connection_cleanup(f"component_{slot}")
@@ -72,17 +76,20 @@ class ComponentOverrideParameters:
     def _replace_slots_locally(self, existing_slots: list[str], slots: list[str]) -> None:
         """Swap override ports without engine requests, as loading requires.
 
-        Loading connects to the ports that exist before values are set, so a port kept across the swap is
+        Loading connects to the ports that exist before values are set, so a port re-added during the load is
         re-attached as the same Parameter instead of being recreated.
         """
-        kept_parameters: dict[str, Parameter] = {}
         for slot in existing_slots:
             parameter = self._node.get_parameter_by_name(f"component_{slot}")
             if parameter is None:
                 continue
-            if slot in slots:
-                kept_parameters[slot] = parameter
+            self._removed_while_loading[slot] = parameter
             self._node.remove_parameter_element(parameter)
+
+        kept_parameters: dict[str, Parameter] = {}
+        for slot in slots:
+            if slot in self._removed_while_loading:
+                kept_parameters[slot] = self._removed_while_loading.pop(slot)
 
         if not slots:
             self._node.remove_parameter_element_by_name(self.GROUP_NAME)

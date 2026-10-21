@@ -43,6 +43,7 @@ from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.retained_mode.managers.event_manager import EventManager
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
+from modular_diffusion_nodes_library.standard_parameters.flux2_parameters import Flux2PipelineParameters
 
 LIBRARY_NAME = "Griptape Modular Diffusion Nodes Library"
 LIBRARY_MANIFEST = Path(__file__).parents[1] / "griptape-nodes-library.json"
@@ -291,10 +292,7 @@ def test_pipeline_builder_rebinds_helpers_without_graph_requests(
     assert {name: loaded_types.get(name) for name in edited_types} == edited_types
 
 
-def test_pipeline_builder_keeps_saved_component_override_connection(
-    flow: None,  # noqa: ARG001
-    recorder: RequestRecorder,
-) -> None:
+def _assert_builder_keeps_saved_transformer_override_connection(recorder: RequestRecorder) -> None:
     component = _create("LoadComponent", "component")
     _edit(component, {"component": "Transformer"})
     node = _create("LatentDiffusionPipelineBuilderNode", "builder")
@@ -315,6 +313,29 @@ def test_pipeline_builder_keeps_saved_component_override_connection(
     assert target is loaded.get_parameter_by_name("component_transformer")
     group = loaded.get_group_by_name_or_element_id("component_overrides")
     assert target in group.find_elements_by_type(type(target))
+
+
+def test_pipeline_builder_keeps_saved_component_override_connection(
+    flow: None,  # noqa: ARG001
+    recorder: RequestRecorder,
+) -> None:
+    _assert_builder_keeps_saved_transformer_override_connection(recorder)
+
+
+def test_pipeline_builder_keeps_override_connection_across_slot_sets_lacking_it(
+    flow: None,  # noqa: ARG001
+    recorder: RequestRecorder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Setting the saved provider passes through its first pipeline type, Flux2Pipeline, before the saved
+    # Flux2KleinPipeline. Without a transformer slot there, the load drops the port and later re-adds it.
+    original_slots = Flux2PipelineParameters.get_component_slots
+
+    def slots_without_transformer(self: Flux2PipelineParameters) -> list[str]:
+        return [slot for slot in original_slots(self) if slot != "transformer"]
+
+    monkeypatch.setattr(Flux2PipelineParameters, "get_component_slots", slots_without_transformer)
+    _assert_builder_keeps_saved_transformer_override_connection(recorder)
 
 
 @pytest.mark.parametrize("provider", ["Qwen", "Stable Diffusion 3", "Z-Image"])
@@ -385,3 +406,20 @@ def test_latent_upsampler_loads_provider_without_graph_requests(
 
     assert _parameter_types(loaded) == edited_types
     assert type(loaded.upsampler_params) is edited_helper
+
+
+def test_latent_upsampler_edit_after_load_removes_by_request(
+    flow: None,  # noqa: ARG001
+    recorder: RequestRecorder,
+) -> None:
+    node: Any = _create("LatentUpsamplerNode", "upsampler")
+    _edit(node, {"provider": "LTX2"})
+    loaded = _load(_serialize_and_delete(node))
+
+    recorder.nested.clear()
+    _edit(loaded, {"provider": "LTX"})
+
+    removed = [
+        request.parameter_name for request in recorder.nested if isinstance(request, RemoveParameterFromNodeRequest)
+    ]
+    assert "upsampler_model" in removed
