@@ -124,13 +124,20 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.pipe_params.runtime_parameters.after_value_set(parameter, value)
 
         if param_name == "pipeline":
-            self._update_input_parameter()
+            self._update_input_parameter(initial_setup=initial_setup)
 
         fires_reactively = param_name in ("pipeline", "image", "input_video")
         if initial_setup and fires_reactively:
             self.after_value_set(parameter, value)
 
-    def _update_input_parameter(self) -> None:
+    def _remove_input_parameter(self, element_name: str, *, initial_setup: bool) -> None:
+        if initial_setup:
+            # Loading only connects parameters the saved node had, and it had none of the ones being swapped out.
+            super().remove_parameter_element_by_name(element_name)
+        else:
+            self.remove_parameter_element_by_name(element_name)
+
+    def _update_input_parameter(self, *, initial_setup: bool = False) -> None:
         driver_cls = get_driver_class(self.pipe_params.get_pipeline_class())
         if driver_cls is None:
             return
@@ -144,7 +151,7 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             return
 
         if new_input_type == "video":
-            self.remove_parameter_element_by_name("image")
+            self._remove_input_parameter("image", initial_setup=initial_setup)
             self.add_parameter(
                 Parameter(
                     name="input_video",
@@ -156,7 +163,7 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 )
             )
         else:
-            self.remove_parameter_element_by_name("input_video")
+            self._remove_input_parameter("input_video", initial_setup=initial_setup)
             self.add_parameter(
                 Parameter(
                     name="image",

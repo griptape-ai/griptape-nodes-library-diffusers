@@ -117,9 +117,16 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.pipe_params.runtime_parameters.after_value_set(parameter, value)
 
         if param_name == "pipeline":
-            self._update_output_parameter()
+            self._update_output_parameter(initial_setup=initial_setup)
 
-    def _update_output_parameter(self) -> None:
+    def _remove_output_parameter(self, element_name: str, *, initial_setup: bool) -> None:
+        if initial_setup:
+            # Loading only connects parameters the saved node had, and it had none of the ones being swapped out.
+            super().remove_parameter_element_by_name(element_name)
+        else:
+            self.remove_parameter_element_by_name(element_name)
+
+    def _update_output_parameter(self, *, initial_setup: bool = False) -> None:
         driver_cls = get_driver_class(self.pipe_params.get_pipeline_class())
         if driver_cls is None:
             return
@@ -133,7 +140,7 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             return
 
         if new_output_type == "video":
-            self.remove_parameter_element_by_name("output_image")
+            self._remove_output_parameter("output_image", initial_setup=initial_setup)
             # Add FPS parameter for video output (before output to appear above it in GUI)
             if not self.get_parameter_by_name("fps"):
                 # Default to the driver's own rate rather than a generic one, so playback speed is
@@ -161,8 +168,8 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             # Reorder to ensure fps appears before output_video
             self._reorder_parameters_for_video()
         else:
-            self.remove_parameter_element_by_name("output_video")
-            self.remove_parameter_element_by_name("fps")
+            self._remove_output_parameter("output_video", initial_setup=initial_setup)
+            self._remove_output_parameter("fps", initial_setup=initial_setup)
             self.add_parameter(
                 Parameter(
                     name="output_image",

@@ -23,6 +23,7 @@ logger = logging.getLogger("diffusers_nodes_library")
 class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     START_PARAMS: ClassVar = ["provider"]
     END_PARAMS: ClassVar = ["input_latent", "output_latent", "Status"]
+    DYNAMIC_PARAMS: ClassVar = ["upsampler_model", "upsampler_model_download"]
 
     def __init__(self, **kwargs) -> None:
         self._initializing = True
@@ -94,7 +95,11 @@ class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
 
         if did_provider_change:
-            if self.upsampler_params is not None:
+            if initial_setup:
+                # These parameters are PROPERTY-only, so they hold no connections for a request to delete.
+                for name in LatentUpsamplerNode.DYNAMIC_PARAMS:
+                    super().remove_parameter_element_by_name(name)
+            elif self.upsampler_params is not None:
                 self.upsampler_params.remove_input_parameters()
             self.upsampler_params = create_upsampler_params(value, self)
             self.upsampler_params.add_input_parameters()
@@ -116,7 +121,7 @@ class LatentUpsamplerNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         Only `upsampler_model`/`upsampler_model_download` may be added post-init (on a provider
         switch); this blocks stray renamed duplicates (e.g. `upsampler_model_2`) from workflow loads.
         """
-        is_dynamic_param = param.name in {"upsampler_model", "upsampler_model_download"}
+        is_dynamic_param = param.name in LatentUpsamplerNode.DYNAMIC_PARAMS
         if not self._initializing and not is_dynamic_param:
             return
 

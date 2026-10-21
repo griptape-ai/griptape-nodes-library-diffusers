@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterGroup, ParameterMode
@@ -56,23 +55,41 @@ class ComponentOverrideParameters:
 
         self._node.save_parameter_properties()
         if initial_setup:
-            preservation_ctx = nullcontext()
+            self._replace_slots_locally(existing_slots, slots)
         else:
-            preservation_ctx = self._node.preserve_connections()
+            with self._node.preserve_connections():
+                for slot in existing_slots:
+                    self._node.remove_parameter_with_connection_cleanup(f"component_{slot}")
 
-        with preservation_ctx:
-            for slot in existing_slots:
-                self._node.remove_parameter_with_connection_cleanup(f"component_{slot}")
-
-            if not slots:
-                self._remove_override_group()
-            else:
-                self._add_override_group(slots)
+                if not slots:
+                    self._remove_override_group()
+                else:
+                    self._add_override_group(slots, kept_parameters={})
 
         self._node.reorder_parameters_by_groups()
         self._node.clear_parameter_cache()
 
-    def _add_override_group(self, slots: list[str]) -> None:
+    def _replace_slots_locally(self, existing_slots: list[str], slots: list[str]) -> None:
+        """Swap override ports without engine requests, as loading requires.
+
+        Loading connects to the ports that exist before values are set, so a port kept across the swap is
+        re-attached as the same Parameter instead of being recreated.
+        """
+        kept_parameters: dict[str, Parameter] = {}
+        for slot in existing_slots:
+            parameter = self._node.get_parameter_by_name(f"component_{slot}")
+            if parameter is None:
+                continue
+            if slot in slots:
+                kept_parameters[slot] = parameter
+            self._node.remove_parameter_element(parameter)
+
+        if not slots:
+            self._node.remove_parameter_element_by_name(self.GROUP_NAME)
+        else:
+            self._add_override_group(slots, kept_parameters=kept_parameters)
+
+    def _add_override_group(self, slots: list[str], *, kept_parameters: dict[str, Parameter]) -> None:
         """Create the override group (if missing) and add component params for all given slots."""
         if self._node.get_group_by_name_or_element_id(self.GROUP_NAME) is None:
             self._node.add_node_element(
@@ -84,6 +101,12 @@ class ComponentOverrideParameters:
             )
 
         for slot in slots:
+            if slot in kept_parameters:
+                kept_parameter = kept_parameters[slot]
+                # Removal from the group cleared this.
+                kept_parameter.parent_element_name = self.GROUP_NAME
+                self._node.add_parameter(kept_parameter)
+                continue
             artifact_type = slot_artifact_type_name(slot)
             self._node.add_parameter(
                 Parameter(

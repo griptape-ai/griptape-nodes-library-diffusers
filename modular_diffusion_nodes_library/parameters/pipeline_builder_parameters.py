@@ -89,7 +89,10 @@ class LatentDiffusionPipelineBuilderParameters:
         # and CreateConnectionRequest calls. Regenerating them here would redundantly tear down
         # and recreate connections (e.g. an incoming "pipeline_type" connection) that the script
         # already describes, corrupting the engine's connection bookkeeping.
-        if parameter.name == "provider" and self.did_provider_change and not initial_setup:
+        if parameter.name == "provider" and self.did_provider_change and initial_setup:
+            # The loaded parameters already belong to this provider; only the helper that reads them is rebound.
+            self.set_pipeline_type_parameters(value)
+        elif parameter.name == "provider" and self.did_provider_change:
             self.regenerate_pipeline_type_parameters_for_provider(value)
         self.pipeline_type_parameters.after_value_set(parameter, value, initial_setup=initial_setup)
 
