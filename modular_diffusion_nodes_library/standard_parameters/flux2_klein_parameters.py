@@ -72,11 +72,6 @@ class Flux2KleinPipelineParameters(ModularDiffusionPipelineTypePipelineParameter
     def remove_input_parameters(self) -> None:
         self._model_repo_parameter.remove_input_parameters()
 
-    def get_config_kwargs(self) -> dict:
-        return {
-            "model": self._node.get_parameter_value("model"),
-        }
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
@@ -87,11 +82,7 @@ class Flux2KleinPipelineParameters(ModularDiffusionPipelineTypePipelineParameter
 
     def get_build_data(self) -> dict[str, Any]:
         base_repo_id, base_revision = self._resolve_repo(self._model_repo_parameter)
-
-        return {
-            "base_repo_id": base_repo_id,
-            "base_revision": base_revision,
-        }
+        return self.build_data(base_repo_id, base_revision)
 
     @classmethod
     def _build_pipeline_from_repo(
@@ -111,4 +102,8 @@ class Flux2KleinPipelineParameters(ModularDiffusionPipelineTypePipelineParameter
 
     def is_prequantized(self) -> bool:
         repo_id, _ = self._model_repo_parameter.get_repo_revision()
+        return self.is_prequantized_repo(repo_id)
+
+    @classmethod
+    def is_prequantized_repo(cls, repo_id: str) -> bool:
         return repo_id in QUANTIZED_FLUX_2_KLEIN_REPO_IDS

@@ -35,7 +35,8 @@ def _synthetic_workflow(*, pipeline_name: str = TEST_PIPELINE_NAME, value: objec
         builder_class_name="TestParameters",
         build_data={"base_repo_id": "org/model"},
     )
-    return f"""import pickle
+    return f"""# schema_version = "0.20.0"
+import pickle
 
 async def build_workflow():
     top_level_unique_values_dict = {{
@@ -92,6 +93,47 @@ def test_extract_repository_text_to_image_template() -> None:
     assert extracted.builders[0].dimensions.width == TEMPLATE_SIZE
     assert extracted.builders[0].dimensions.height == TEMPLATE_SIZE
     assert extracted.builders[0].dimensions.num_frames == 41
+
+
+def test_extract_new_schema_text_to_image() -> None:
+    path = LIBRARY_ROOT / "Text2Image.py"
+
+    extracted = workflow_memory.extract_workflow(path)
+
+    assert len(extracted.builders) == 1
+    builder = extracted.builders[0]
+    assert builder.artifact.pipeline_name == "FluxPipeline"
+    assert builder.artifact.builder_class_name == "FluxPipelineParameters"
+    assert builder.artifact.build_data["base_repo_id"] == "black-forest-labs/FLUX.1-dev"
+    assert builder.artifact.build_data["base_revision"] == "main"
+    assert builder.dimensions.width == TEMPLATE_SIZE
+    assert builder.dimensions.height == TEMPLATE_SIZE
+    assert builder.dimensions.num_frames == 41
+    assert builder.artifact.optimization_kwargs["cpu_offload_strategy"] == "Sequential"
+    assert builder.artifact.optimization_kwargs["attention_slicing"] is True
+
+
+def test_new_workflow_schema_requires_supported_value_expressions(tmp_path: Path) -> None:
+    path = tmp_path / "workflow.py"
+    path.write_text(
+        '# schema_version = "0.21.0"\n'
+        "top_level_unique_values_dict = {'k': 123}\n"
+        "value = decode_value(top_level_unique_values_dict['k'])\n",
+        encoding="utf-8",
+    )
+    tree = __import__("ast").parse(path.read_text(encoding="utf-8"))
+    table = workflow_extraction._literal_value_table(tree)
+    expression = tree.body[1].value
+
+    assert workflow_extraction._resolve_literal_expression(expression, table) == 123
+
+
+def test_new_workflow_rejects_missing_schema_version(tmp_path: Path) -> None:
+    path = tmp_path / "workflow.py"
+    path.write_text("async def build_workflow():\n    pass\n", encoding="utf-8")
+
+    with pytest.raises(workflow_extraction.WorkflowExtractionError, match="schema_version"):
+        workflow_extraction.extract_workflow(path)
 
 
 def test_resolve_noise_latent_shape_uses_driver_without_snapping(monkeypatch: pytest.MonkeyPatch) -> None:
