@@ -38,6 +38,7 @@ from griptape_nodes.retained_mode.events.parameter_events import (
     RemoveParameterFromNodeRequest,
     SetParameterValueRequest,
 )
+from griptape_nodes.retained_mode.events.resource_events import CreateResourceInstanceRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.retained_mode.managers.event_manager import EventManager
 
@@ -89,6 +90,14 @@ class RequestRecorder:
 @pytest.fixture(scope="module")
 def engine() -> None:
     GriptapeNodes()
+    # The library requires a GPU backend, and these tests only load nodes, so a compute instance that
+    # meets the requirement stands in for a GPU machine.
+    compute_result = GriptapeNodes.handle_request(
+        CreateResourceInstanceRequest(
+            resource_type_name="ComputeResourceType", capabilities={"compute": ["cpu", "cuda"]}
+        )
+    )
+    assert compute_result.succeeded(), compute_result
     result = GriptapeNodes.handle_request(RegisterLibraryFromFileRequest(file_path=str(LIBRARY_MANIFEST)))
     assert result.succeeded(), result
 
