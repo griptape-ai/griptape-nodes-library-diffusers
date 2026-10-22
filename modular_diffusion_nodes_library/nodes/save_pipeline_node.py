@@ -140,6 +140,10 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             exceptions.append(ValueError(f"Parameter 'file_path' on node '{self.name}' must be a non-empty string."))
 
         if exceptions:
+            self._set_status_results(
+                was_successful=False,
+                result_details="\n".join(str(exception) for exception in exceptions),
+            )
             return exceptions
         return None
 

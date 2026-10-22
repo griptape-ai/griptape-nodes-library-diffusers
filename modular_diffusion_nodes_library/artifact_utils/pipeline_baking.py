@@ -91,8 +91,11 @@ def plan_runtime_lora_copies(artifact: DiffusionPipelineArtifact) -> list[Runtim
         previous_source = destinations.get(destination_key)
         if previous_source is not None:
             msg = (
-                f"Runtime LoRAs cannot be saved because multiple source files would be copied to "
-                f"'{relative_path.as_posix()}': '{previous_source}' and '{source_path}'."
+                "Runtime LoRA filename collision\n\n"
+                "Full Pipeline saves runtime LoRAs in one 'loras/' folder. Rename or copy one source file to a "
+                "unique filename, update its Load LoRA node, and retry.\n\n"
+                f"Destination:\n  {relative_path.as_posix()}\n\n"
+                f"Source files:\n  1. {previous_source}\n  2. {source_path}"
             )
             raise ValueError(msg)
         destinations[destination_key] = source_path

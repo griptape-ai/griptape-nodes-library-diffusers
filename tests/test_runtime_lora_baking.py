@@ -129,8 +129,16 @@ def test_runtime_lora_copy_plan_rejects_duplicate_destination_names(tmp_path: Pa
     second.write_bytes(b"second")
     artifact = _artifact_with_runtime_loras([(first, 0.5), (second, 1.0)])
 
-    with pytest.raises(ValueError, match=r"multiple source files.*loras/style\.safetensors"):
+    with pytest.raises(ValueError) as exc_info:
         plan_runtime_lora_copies(artifact)
+
+    assert str(exc_info.value) == (
+        "Runtime LoRA filename collision\n\n"
+        "Full Pipeline saves runtime LoRAs in one 'loras/' folder. Rename or copy one source file to a unique "
+        "filename, update its Load LoRA node, and retry.\n\n"
+        "Destination:\n  loras/style.safetensors\n\n"
+        f"Source files:\n  1. {first.resolve()}\n  2. {second.resolve()}"
+    )
 
 
 def test_full_pipeline_preserves_symlink_filename(tmp_path: Path) -> None:
