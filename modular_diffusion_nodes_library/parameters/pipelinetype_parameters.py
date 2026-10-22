@@ -109,13 +109,21 @@ class LatentPipelineTypeParameters(ABC):
     def pipeline_types(self) -> list[str]:
         return list(self.pipeline_type_dict.keys())
 
-    def set_pipeline_type_pipeline_params(self, pipeline_type: str) -> None:
-        try:
-            self._pipeline_type_pipeline_params = self.pipeline_type_dict[pipeline_type](self._node)
-        except KeyError as e:
-            msg = f"Unsupported pipeline type: {pipeline_type}"
+    def raise_if_unsupported_pipeline_type(self, pipeline_type: str) -> None:
+        if pipeline_type not in self.pipeline_type_dict:
+            provider = self._node.get_parameter_value("provider")
+            valid_pipeline_types = ", ".join(self.pipeline_types)
+            msg = (
+                f"Attempted to set pipeline_type on '{self._node.name}'. Failed with pipeline_type='{pipeline_type}' "
+                f"because provider='{provider}' does not support it. Valid pipeline types: {valid_pipeline_types}."
+            )
             logger.error(msg)
-            raise ValueError(msg) from e
+            raise ValueError(msg)
+
+    def set_pipeline_type_pipeline_params(self, pipeline_type: str) -> None:
+        self.raise_if_unsupported_pipeline_type(pipeline_type)
+
+        self._pipeline_type_pipeline_params = self.pipeline_type_dict[pipeline_type](self._node)
 
     @property
     def pipeline_type_pipeline_params(self) -> ModularDiffusionPipelineTypePipelineParameters:
