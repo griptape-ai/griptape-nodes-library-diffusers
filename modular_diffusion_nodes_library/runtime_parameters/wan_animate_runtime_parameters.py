@@ -273,22 +273,6 @@ class WanAnimatePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 )
             )
 
-        input_latent = self._node.get_parameter_value("input_latent")
-        pose_video_value = self._node.get_parameter_value("pose_video")
-        if input_latent is not None and pose_video_value is not None:
-            source_shape = getattr(input_latent, "source_shape", None)
-            if source_shape is not None and len(source_shape) >= 3:
-                pose_frames = resolve_conditioning_video(pose_video_value)
-                if pose_frames is not None and len(pose_frames) != source_shape[-3]:
-                    errors.append(
-                        ValueError(
-                            f"Attempted to validate '{self._node.name}'. "
-                            f"Failed because input latent num_frames={source_shape[-3]} does not match "
-                            f"pose_video length={len(pose_frames)}. "
-                            "Ensure the Create Noise Latent node frame count matches the pose video frame count."
-                        )
-                    )
-
         mode = self._node.get_parameter_value("mode")
         background_video = self._node.get_parameter_value("background_video")
         mask_video = self._node.get_parameter_value("mask_video")
@@ -312,3 +296,31 @@ class WanAnimatePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             )
 
         return errors or None
+
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        """Whether the pose video's length matches the incoming latent's frame count.
+
+        Reads the latent's `source_shape`, and the latent is held by the process that produced it, so
+        this can only be answered where that process is.
+        """
+        input_latent = self._node.get_parameter_value("input_latent")
+        pose_video_value = self._node.get_parameter_value("pose_video")
+        if input_latent is None or pose_video_value is None:
+            return None
+
+        source_shape = getattr(input_latent, "source_shape", None)
+        if source_shape is None or len(source_shape) < 3:
+            return None
+
+        pose_frames = resolve_conditioning_video(pose_video_value)
+        if pose_frames is None or len(pose_frames) == source_shape[-3]:
+            return None
+
+        return [
+            ValueError(
+                f"Attempted to validate '{self._node.name}'. "
+                f"Failed because input latent num_frames={source_shape[-3]} does not match "
+                f"pose_video length={len(pose_frames)}. "
+                "Ensure the Create Noise Latent node frame count matches the pose video frame count."
+            )
+        ]

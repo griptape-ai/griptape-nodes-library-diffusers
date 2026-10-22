@@ -1,24 +1,36 @@
+from __future__ import annotations
+
+import functools
 import logging
+from typing import TYPE_CHECKING
 from urllib.error import URLError
 
-import numpy as np
 from griptape.artifacts import ImageArtifact, ImageUrlArtifact
 from griptape.loaders import ImageLoader
 from griptape_nodes.files.file import File
-from PIL import Image, ImageFilter
 from requests.exceptions import RequestException
+
+if TYPE_CHECKING:
+    from types import ModuleType
+
+    from PIL import Image  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
-# OpenCV is faster for morphological/blur operations, so we use it if available.
-# Fall back to PIL's MinFilter/MaxFilter/GaussianBlur otherwise.
-try:
-    import cv2  # type: ignore[reportMissingImports]
 
-    OPENCV_AVAILABLE = True
-except ImportError:
-    OPENCV_AVAILABLE = False
-    cv2 = None  # type: ignore[assignment]
+@functools.cache
+def _opencv() -> ModuleType | None:
+    """OpenCV if it is installed, else `None`.
+
+    OpenCV is faster for the morphological and blur operations below, but it is optional: the
+    callers fall back to PIL's MinFilter/MaxFilter/GaussianBlur. Probing on first use rather than
+    at import keeps it out of the edit-time environment.
+    """
+    try:
+        import cv2  # type: ignore[reportMissingImports]
+    except ImportError:
+        return None
+    return cv2
 
 
 def load_image_from_url_artifact(image_url_artifact: ImageUrlArtifact) -> ImageArtifact:
@@ -125,12 +137,16 @@ def apply_grow_shrink_to_mask(alpha: Image.Image, grow_shrink: float, context_na
     Returns:
         Transformed PIL Image
     """
+    import numpy as np
+    from PIL import Image, ImageFilter
+
     iterations = int(abs(grow_shrink))
     if iterations == 0:
         return alpha
 
     # Prefer OpenCV (fastest), then PIL iterations as fallback
-    if OPENCV_AVAILABLE and cv2 is not None:
+    cv2 = _opencv()
+    if cv2 is not None:
         msg = f"{context_name}: Using OpenCV for grow/shrink operation (iterations={iterations})"
         logger.debug(msg)
         # Use OpenCV for fastest morphological operations
@@ -167,11 +183,15 @@ def apply_blur_to_mask(alpha: Image.Image, blur_radius: float, context_name: str
     Returns:
         Blurred PIL Image
     """
+    import numpy as np
+    from PIL import Image, ImageFilter
+
     if blur_radius == 0:
         return alpha
 
     # Prefer OpenCV (faster), then PIL as fallback
-    if OPENCV_AVAILABLE and cv2 is not None:
+    cv2 = _opencv()
+    if cv2 is not None:
         msg = f"{context_name}: Using OpenCV for blur operation (radius={blur_radius})"
         logger.debug(msg)
         alpha_array = np.array(alpha, dtype=np.uint8)
@@ -209,6 +229,8 @@ def apply_mask_transformations(
 
     Order of operations: grow/shrink first (modify mask shape), then invert, then blur.
     """
+    from PIL import Image
+
     # Order: grow/shrink first (modify mask shape), then invert, then blur
     if grow_shrink != 0:
         alpha = apply_grow_shrink_to_mask(alpha, grow_shrink, context_name)

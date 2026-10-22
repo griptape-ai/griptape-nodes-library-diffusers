@@ -1,32 +1,9 @@
-import logging
-from typing import Any, ClassVar, override
+from __future__ import annotations
 
-import numpy as np
-import torch  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.modular_pipeline import ModularPipeline
-from diffusers.pipelines.ltx2.image_processor import LTX2VideoHDRProcessor  # type: ignore[reportMissingImports]
-from diffusers.pipelines.ltx2.pipeline_ltx2 import calculate_shift  # type: ignore[reportMissingImports]
-from diffusers.pipelines.ltx2.pipeline_ltx2_condition import (  # type: ignore[reportMissingImports]
-    LTX2ConditionPipeline,
-    LTX2VideoCondition,
-)
-from diffusers.pipelines.ltx2.pipeline_ltx2_hdr_lora import (  # type: ignore[reportMissingImports]
-    LTX2HDRPipeline,
-    LTX2HDRReferenceCondition,
-)
-from diffusers.pipelines.ltx2.pipeline_ltx2_ic_lora import (  # type: ignore[reportMissingImports]
-    LTX2InContextPipeline,
-    LTX2ReferenceCondition,
-)
-from diffusers.pipelines.ltx2.utils import (  # type: ignore[reportMissingImports]
-    DISTILLED_SIGMA_VALUES,
-    STAGE_2_DISTILLED_SIGMA_VALUES,
-)
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-from diffusers.utils.torch_utils import randn_tensor  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar, override
+
 from griptape_nodes.files.path_utils import canonicalize_for_io
-from PIL.Image import Image
-from safetensors import safe_open  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -53,6 +30,21 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     resolve_frame_index,
 )
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
+
+if TYPE_CHECKING:
+    import numpy as np  # type: ignore[reportMissingImports]
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline
+    from diffusers.pipelines.ltx2.pipeline_ltx2_condition import (
+        LTX2VideoCondition,  # type: ignore[reportMissingImports]
+    )
+    from diffusers.pipelines.ltx2.pipeline_ltx2_hdr_lora import (
+        LTX2HDRReferenceCondition,  # type: ignore[reportMissingImports]
+    )
+    from diffusers.pipelines.ltx2.pipeline_ltx2_ic_lora import (
+        LTX2ReferenceCondition,  # type: ignore[reportMissingImports]
+    )
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -94,6 +86,10 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         Prefers the ``pipeline_class`` stamp written by ``denoise_latent``; falls
         back to ``is_hdr_lora_active`` for previews.
         """
+        from diffusers.pipelines.ltx2.pipeline_ltx2_hdr_lora import (  # type: ignore[reportMissingImports]
+            LTX2HDRPipeline,
+        )
+
         stamped = read_driver_meta(latent, self._PIPELINE_CLASS_META_KEY, self.driver_namespace)
         if stamped is not None:
             return stamped == LTX2HDRPipeline.__name__
@@ -164,6 +160,9 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     @override
     def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         """Return 5-D pure-noise latent [B, C, T, H, W] in VAE latent space."""
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.utils.torch_utils import randn_tensor  # type: ignore[reportMissingImports]
+
         device, _ = self._get_device_and_type()
         dtype = torch.float32
 
@@ -191,6 +190,11 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         self, latent: LatentArtifact, generator_state: GeneratorState, num_inference_steps: int, strength: float
     ) -> LatentArtifact:
         """Return latent that has been noised, shape should match create_noise_latent. Latent should be unpacked so it may be processed further e.g. with mask."""
+        import numpy as np
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.pipelines.ltx2.pipeline_ltx2 import calculate_shift  # type: ignore[reportMissingImports]
+        from diffusers.utils.torch_utils import randn_tensor  # type: ignore[reportMissingImports]
+
         device, _ = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=torch.float32)
         scheduler = self.pipe.scheduler
@@ -227,6 +231,8 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
     @override
     def _prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
+        import torch  # type: ignore[reportMissingImports]
+
         device, _ = self._get_device_and_type()
         latents = latents.to(device=device, dtype=torch.float32)
         return self.pipe._denormalize_latents(
@@ -243,6 +249,8 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         """Pass through: the pipeline already unpacks (3-D→5-D) and denormalises before returning output latents.
         Also handles 3-D callbacks latents from mid-loop callbacks for preview.
         """
+        import torch  # type: ignore[reportMissingImports]
+
         device, _ = self._get_device_and_type()
         latents_from_pipe = latents_from_pipe.to(device=device, dtype=torch.float32)
 
@@ -304,6 +312,9 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
         Returns shape ``(B, F, H, W, 3)`` float32 with linear HDR values in ``[0, ∞)``.
         """
+        import numpy as np
+        from diffusers.pipelines.ltx2.image_processor import LTX2VideoHDRProcessor  # type: ignore[reportMissingImports]
+
         vae_spatial_ratio = getattr(self.pipe.vae, "spatial_compression_ratio", 32)
         hdr_processor = LTX2VideoHDRProcessor(vae_scale_factor=vae_spatial_ratio, hdr_transform="logc3")
         hdr = hdr_processor.postprocess_hdr_video(video, output_type="np")
@@ -325,8 +336,35 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         """Return the artifact's audio latent, or ``None`` when it carries none."""
         return read_driver_meta(latent, AUDIO_LATENTS_META_KEY, self.driver_namespace)
 
+    def _decode_audio_on_cpu(self, audio_latents: torch.Tensor, device: torch.device) -> torch.Tensor:
+        """Run the audio VAE and vocoder on CPU in fp32, then restore them to ``device``.
+
+        MPS rejects convolutions with more than 65536 output channels, which the vocoder's
+        grouped ``ConvTranspose1d`` upsampling hits on longer clips.
+        """
+        import torch  # type: ignore[reportMissingImports]
+
+        audio_vae = self.pipe.audio_vae
+        vocoder = self.pipe.vocoder
+        audio_vae_dtype = audio_vae.dtype
+        vocoder_dtype = vocoder.dtype
+
+        audio_vae.to(device="cpu", dtype=torch.float32)
+        vocoder.to(device="cpu", dtype=torch.float32)
+        try:
+            with torch.no_grad():
+                audio_latents = audio_latents.to(device="cpu", dtype=torch.float32)
+                generated_mel_spectrograms = audio_vae.decode(audio_latents, return_dict=False)[0]
+                audio = vocoder(generated_mel_spectrograms)
+        finally:
+            audio_vae.to(device=device, dtype=audio_vae_dtype)
+            vocoder.to(device=device, dtype=vocoder_dtype)
+        return audio
+
     @override
     def decode_latent(self, latent: LatentArtifact) -> DecodeOutput:
+        import torch  # type: ignore[reportMissingImports]
+
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=torch.float32)
 
@@ -362,10 +400,13 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             )
             return DecodeOutput(media=frames)
 
-        with torch.no_grad():
-            audio_latents = audio_latents.to(device=device, dtype=self.pipe.audio_vae.dtype)
-            generated_mel_spectrograms = self.pipe.audio_vae.decode(audio_latents, return_dict=False)[0]
-            audio = self.pipe.vocoder(generated_mel_spectrograms)
+        if device.type == "mps":
+            audio = self._decode_audio_on_cpu(audio_latents, device)
+        else:
+            with torch.no_grad():
+                audio_latents = audio_latents.to(device=device, dtype=self.pipe.audio_vae.dtype)
+                generated_mel_spectrograms = self.pipe.audio_vae.decode(audio_latents, return_dict=False)[0]
+                audio = self.pipe.vocoder(generated_mel_spectrograms)
         return DecodeOutput(
             media=frames,
             audio=audio,
@@ -375,6 +416,9 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
         """Encode an image or video as an LTX2 video latent (5-D tensor [B, C, T, H, W])."""
+        import torch  # type: ignore[reportMissingImports]
+        from PIL.Image import Image
+
         if isinstance(media, ImageMedia):
             if not isinstance(media.image, Image):
                 raise TypeError(f"{self.driver_namespace}: Expected a PIL Image, got {type(media.image).__name__}.")
@@ -422,6 +466,8 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         return_fully_denoised: bool = False,
         **kwargs: Any,
     ) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         kwargs = self._update_args_for_distilled_pipeline(kwargs)
         num_inference_steps = kwargs.pop("num_inference_steps", num_inference_steps)
         kwargs["num_frames"] = latent.source_shape[-3]
@@ -489,12 +535,18 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
     @staticmethod
     def _distilled_sigmas(use_stage_2: bool) -> list[float]:
+        from diffusers.pipelines.ltx2.utils import (  # type: ignore[reportMissingImports]
+            DISTILLED_SIGMA_VALUES,
+            STAGE_2_DISTILLED_SIGMA_VALUES,
+        )
+
         if use_stage_2:
             return STAGE_2_DISTILLED_SIGMA_VALUES
         return DISTILLED_SIGMA_VALUES
 
     @staticmethod
     def _update_args_for_distilled_pipeline(original_kwargs: dict[str, Any]) -> dict[str, Any]:
+
         kwargs = original_kwargs.copy()
         if "use_stage_2" in kwargs:
             use_stage_2 = kwargs.pop("use_stage_2")
@@ -528,6 +580,10 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     def _denoise_with_video_gen_conditioning(
         self, latent: LatentArtifact | InpaintMaskArtifact, **kwargs: Any
     ) -> LatentArtifact:
+        from diffusers.pipelines.ltx2.pipeline_ltx2_condition import (  # type: ignore[reportMissingImports]
+            LTX2ConditionPipeline,
+        )
+
         media_gen_conditioning_payloads = normalize_to_payloads(kwargs.pop(MediaGenConditioningKey.OUTPUT))
         temporal_ratio = getattr(self.pipe.vae, "temporal_compression_ratio", 8)
         pixel_num_frames = latent.source_shape[-3]
@@ -549,6 +605,10 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         temporal_ratio: int,
     ) -> list[LTX2VideoCondition]:
         """Build ``LTX2VideoCondition`` objects from conditioning payloads."""
+        from diffusers.pipelines.ltx2.pipeline_ltx2_condition import (  # type: ignore[reportMissingImports]
+            LTX2VideoCondition,
+        )
+
         conditions: list[LTX2VideoCondition] = []
         if payloads is None:
             return conditions
@@ -586,6 +646,10 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     # ------------------------------------------------------------------
 
     def _denoise_with_hdr_lora(self, latent: LatentArtifact | InpaintMaskArtifact, **kwargs: Any) -> LatentArtifact:
+        from diffusers.pipelines.ltx2.pipeline_ltx2_hdr_lora import (  # type: ignore[reportMissingImports]
+            LTX2HDRPipeline,
+        )
+
         logger.info("LTX2: HDR IC-LoRA path active — denoising with LTX2HDRPipeline.")
         media_gen_conditioning_payloads = normalize_to_payloads(kwargs.pop(self._IC_LORA_REFERENCE_KEY, None))
         kwargs.pop(MediaGenConditioningKey.OUTPUT, None)
@@ -626,6 +690,8 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         return kwargs
 
     def _load_hdr_text_embeddings(self, text_embeddings_path: str) -> tuple[torch.Tensor, torch.Tensor]:
+        from safetensors import safe_open  # type: ignore[reportMissingImports]
+
         canonical_path = canonicalize_for_io(text_embeddings_path)
         if not canonical_path.exists():
             raise ValueError(
@@ -655,6 +721,10 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         target_height: int,
         target_width: int,
     ) -> list[LTX2HDRReferenceCondition]:
+        from diffusers.pipelines.ltx2.pipeline_ltx2_hdr_lora import (  # type: ignore[reportMissingImports]
+            LTX2HDRReferenceCondition,
+        )
+
         if not media_gen_conditioning_payloads:
             msg = "Failed to build LTX2 HDR conditioning because no conditioning was provided."
             raise ValueError(msg)
@@ -685,6 +755,10 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     # ------------------------------------------------------------------
 
     def _denoise_with_ic_lora(self, latent: LatentArtifact | InpaintMaskArtifact, **kwargs: Any) -> LatentArtifact:
+        from diffusers.pipelines.ltx2.pipeline_ltx2_ic_lora import (  # type: ignore[reportMissingImports]
+            LTX2InContextPipeline,
+        )
+
         logger.info("LTX2: IC-LoRA path active - denoising with LTX2InContextPipeline.")
         ref_payloads = normalize_to_payloads(kwargs.pop(self._IC_LORA_REFERENCE_KEY, None))
         reference_conditions = self._build_ic_reference_conditions(ref_payloads)
@@ -718,6 +792,10 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         self,
         media_gen_conditioning_payloads: list[MediaGenConditioningPayload] | None,
     ) -> list[LTX2ReferenceCondition]:
+        from diffusers.pipelines.ltx2.pipeline_ltx2_ic_lora import (  # type: ignore[reportMissingImports]
+            LTX2ReferenceCondition,
+        )
+
         if media_gen_conditioning_payloads is None:
             return []
 

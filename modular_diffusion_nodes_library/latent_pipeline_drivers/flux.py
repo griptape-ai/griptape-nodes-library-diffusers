@@ -1,34 +1,18 @@
-import logging
-from typing import Any, ClassVar, override
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers.models import FluxTransformer2DModel  # type: ignore[reportMissingImports]
-from diffusers.models.controlnets.controlnet_flux import FluxControlNetModel  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.flux.before_denoise import (  # type: ignore[reportMissingImports]
-    FluxImg2ImgPrepareLatentsStep,
-    FluxImg2ImgSetTimestepsStep,
-    FluxPrepareLatentsStep,
-)
-from diffusers.modular_pipelines.flux.decoders import _unpack_latents  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.flux.modular_blocks_flux import FluxAutoBlocks  # type: ignore[reportMissingImports]
-from diffusers.modular_pipelines.flux.modular_pipeline import FluxModularPipeline  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar, override
+
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     ModularPipelineBlocks,
     PipelineState,
     SequentialPipelineBlocks,
 )
-from diffusers.modular_pipelines.modular_pipeline_utils import ComponentSpec  # type: ignore[reportMissingImports]
-from diffusers.pipelines.flux.pipeline_flux import FluxPipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.flux.pipeline_flux_controlnet import (
-    FluxControlNetPipeline,  # type: ignore[reportMissingImports]
-)
 from diffusers.pipelines.flux.pipeline_flux_controlnet_inpainting import (
     FluxControlNetInpaintPipeline,  # type: ignore[reportMissingImports]
 )
 from diffusers.pipelines.flux.pipeline_flux_inpaint import FluxInpaintPipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -38,6 +22,16 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.utils.torch_utils import no_grad
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.modular_pipelines.flux.modular_pipeline import (
+        FluxModularPipeline,  # type: ignore[reportMissingImports]
+    )
+    from diffusers.modular_pipelines.modular_pipeline_utils import ComponentSpec  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+    from PIL.Image import Image
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -51,6 +45,11 @@ class _RegisterTransformerStep(ModularPipelineBlocks):
 
     @property
     def expected_components(self) -> list[ComponentSpec]:
+        from diffusers.models import FluxTransformer2DModel  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.modular_pipeline_utils import (
+            ComponentSpec,  # type: ignore[reportMissingImports]
+        )
+
         return [ComponentSpec("transformer", FluxTransformer2DModel)]
 
     @property
@@ -61,10 +60,11 @@ class _RegisterTransformerStep(ModularPipelineBlocks):
     def intermediate_outputs(self) -> list:
         return []
 
-    @torch.no_grad()
+    @no_grad
     def __call__(
         self, components: FluxModularPipeline, state: PipelineState
     ) -> tuple[FluxModularPipeline, PipelineState]:
+
         return components, state
 
 
@@ -81,6 +81,10 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
+        from diffusers.modular_pipelines.flux.modular_blocks_flux import (
+            FluxAutoBlocks,  # type: ignore[reportMissingImports]
+        )
+
         return FluxAutoBlocks().init_pipeline()
 
     @classmethod
@@ -94,6 +98,13 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         cls, pipe: ModularPipeline | DiffusionPipeline, control_net_model_lists: list[str] | str | None
     ):
         """Given a standard pipeline, return a version of the pipeline that can be used for control net generation."""
+        from diffusers.models.controlnets.controlnet_flux import (
+            FluxControlNetModel,  # type: ignore[reportMissingImports]
+        )
+        from diffusers.pipelines.flux.pipeline_flux_controlnet import (
+            FluxControlNetPipeline,  # type: ignore[reportMissingImports]
+        )
+
         # Ensure pipeline is a FluxPipeline.
         if pipe.__class__.__name__ != "FluxPipeline":
             raise ValueError(f"Expected a FluxPipeline, but got {pipe.__class__.__name__}")
@@ -149,15 +160,24 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
 
     # Pack latents from [B, C, H, W] to [B, seq, C]
     def pack_latents(self, latents: torch.Tensor, height: int, width: int) -> torch.Tensor:
+        from diffusers.pipelines.flux.pipeline_flux import FluxPipeline  # type: ignore[reportMissingImports]
+
         num_channels_latents = self._get_num_channels_latents()
         return FluxPipeline._pack_latents(latents, 1, num_channels_latents, latents.shape[-2], latents.shape[-1])
 
     def unpack_latents(self, latents: torch.Tensor, height: int, width: int) -> torch.Tensor:
+        from diffusers.modular_pipelines.flux.decoders import _unpack_latents  # type: ignore[reportMissingImports]
+
         return _unpack_latents(latents, height, width, self.pipe.vae_scale_factor)
 
     @override
     def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
         """Return pure noise latent with shape [B, C, H, W]."""
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.flux.before_denoise import (  # type: ignore[reportMissingImports]
+            FluxPrepareLatentsStep,
+        )
+
         height, width = source_shape[-2], source_shape[-1]
         device, dtype = self._get_device_and_type()
         generator = generator_state.to_generator()
@@ -189,6 +209,13 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         strength: float,
     ) -> LatentArtifact:
         """Return noised latent with shape [B, C, H, W]."""
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.flux.before_denoise import (  # type: ignore[reportMissingImports]
+            FluxImg2ImgPrepareLatentsStep,
+            FluxImg2ImgSetTimestepsStep,
+            FluxPrepareLatentsStep,
+        )
+
         device, dtype = self._get_device_and_type()
         source_shape = latent.source_shape
         latents = latent.to_torch(device=device, dtype=dtype)
@@ -244,6 +271,8 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
         image = media.image

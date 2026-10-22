@@ -1,9 +1,9 @@
+from __future__ import annotations
+
 # Copied from diffusers_nodes_library/common/parameters/diffusion/z_image/z_image_parameters.py
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import diffusers  # type: ignore[reportMissingImports]
-import torch  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.node_types import BaseNode
 
 from modular_diffusion_nodes_library.parameters.connectable_huggingface_repo_parameter import (
@@ -13,6 +13,9 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
     ModularDiffusionPipelineTypePipelineParameters,
 )
 
+if TYPE_CHECKING:
+    import diffusers  # type: ignore[reportMissingImports]
+
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
@@ -20,7 +23,14 @@ Z_IMAGE_REPO_IDS = ["Tongyi-MAI/Z-Image-Turbo"]
 
 
 class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-    _pipeline_cls = diffusers.ZImagePipeline  # type: ignore[reportAttributeAccessIssue]
+    _pipeline_cls_path = "diffusers:ZImagePipeline"
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "tokenizer",
+        "scheduler",
+    ]
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
@@ -62,6 +72,9 @@ class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     def _build_pipeline_from_repo(
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> diffusers.ZImagePipeline:  # type: ignore[reportAttributeAccessIssue]
+        import diffusers  # type: ignore[reportMissingImports]
+        import torch  # type: ignore[reportMissingImports]
+
         return diffusers.ZImagePipeline.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],

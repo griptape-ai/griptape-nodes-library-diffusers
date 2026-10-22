@@ -1,10 +1,13 @@
-import logging
-from typing import override
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, override
 
 from modular_diffusion_nodes_library.latent_pipeline_drivers.flux2_base import Flux2BaseLatentPipelineDriver
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
