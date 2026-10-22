@@ -13,10 +13,10 @@ feature is exact weight-byte accounting from real config shapes.
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import patch
 
 import torch
-from accelerate import init_empty_weights
 from diffusers.models.controlnets.controlnet import ControlNetModel
 from diffusers.models.controlnets.controlnet_flux import FluxControlNetModel, FluxMultiControlNetModel
 
@@ -26,7 +26,10 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DiffusionPipelineArtifact,
 )
 from modular_diffusion_nodes_library.memory_estimation import pipeline_memory_estimator as pme
-from modular_diffusion_nodes_library.memory_estimation.meta_device_builder import ComponentConfigNotCachedError
+from modular_diffusion_nodes_library.memory_estimation.meta_device_builder import (
+    ComponentConfigNotCachedError,
+    build_component_on_meta_device,
+)
 from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator import (
     _classify_role,
     _controlnet_slot_estimates,
@@ -55,13 +58,11 @@ _TINY_SDXL_CONTROLNET_CONFIG = {
 
 
 def _tiny_flux_controlnet() -> FluxControlNetModel:
-    with init_empty_weights():
-        return FluxControlNetModel.from_config(dict(_TINY_FLUX_CONTROLNET_CONFIG)).to(dtype=torch.bfloat16)
+    return build_component_on_meta_device(FluxControlNetModel, dict(_TINY_FLUX_CONTROLNET_CONFIG), torch.bfloat16)
 
 
 def _tiny_sdxl_controlnet() -> ControlNetModel:
-    with init_empty_weights():
-        return ControlNetModel.from_config(dict(_TINY_SDXL_CONTROLNET_CONFIG)).to(dtype=torch.bfloat16)
+    return build_component_on_meta_device(ControlNetModel, dict(_TINY_SDXL_CONTROLNET_CONFIG), torch.bfloat16)
 
 
 def _flux_latent() -> LatentArtifact:
@@ -73,9 +74,9 @@ def test_classify_role_recognizes_controlnet() -> None:
 
 
 def test_single_controlnet_is_estimated_with_weights_and_activations() -> None:
-    pipe = SimpleNamespace(components={"controlnet": _tiny_flux_controlnet()})
+    pipe = cast(Any, SimpleNamespace(components={"controlnet": _tiny_flux_controlnet()}))
 
-    estimate = estimate_pipeline_memory(pipe, _flux_latent(), {}, "FluxPipeline")
+    estimate = estimate_pipeline_memory(pipe, _flux_latent(), "FluxPipeline")
 
     assert len(estimate.components) == 1
     component = estimate.components[0]
@@ -88,9 +89,9 @@ def test_single_controlnet_is_estimated_with_weights_and_activations() -> None:
 def test_controlnet_no_longer_emits_unrecognized_component_warning() -> None:
     """Regression guard for the _classify_role() fix: a plain 'controlnet' component
     used to land in the generic 'other' bucket and emit this exact warning text."""
-    pipe = SimpleNamespace(components={"controlnet": _tiny_flux_controlnet()})
+    pipe = cast(Any, SimpleNamespace(components={"controlnet": _tiny_flux_controlnet()}))
 
-    estimate = estimate_pipeline_memory(pipe, _flux_latent(), {}, "FluxPipeline")
+    estimate = estimate_pipeline_memory(pipe, _flux_latent(), "FluxPipeline")
 
     assert not any("Unrecognized component" in warning for warning in estimate.warnings)
 
@@ -99,9 +100,9 @@ def test_stacked_controlnets_appear_as_separate_components_with_linear_weight_sc
     net_a = _tiny_flux_controlnet()
     net_b = _tiny_flux_controlnet()
     multi = FluxMultiControlNetModel([net_a, net_b])
-    pipe = SimpleNamespace(components={"controlnet": multi})
+    pipe = cast(Any, SimpleNamespace(components={"controlnet": multi}))
 
-    estimate = estimate_pipeline_memory(pipe, _flux_latent(), {}, "FluxPipeline")
+    estimate = estimate_pipeline_memory(pipe, _flux_latent(), "FluxPipeline")
 
     assert [c.component_name for c in estimate.components] == ["controlnet_0", "controlnet_1"]
     assert estimate.components[0].weight_bytes == estimate.components[1].weight_bytes
@@ -109,27 +110,27 @@ def test_stacked_controlnets_appear_as_separate_components_with_linear_weight_sc
 
 
 def test_sdxl_controlnet_activation_uses_unet_sdpa_family_and_its_own_config() -> None:
-    pipe = SimpleNamespace(components={"controlnet": _tiny_sdxl_controlnet()})
+    pipe = cast(Any, SimpleNamespace(components={"controlnet": _tiny_sdxl_controlnet()}))
     latent = LatentArtifact.from_torch(torch.zeros(1, 4, 64, 64), source_shape=(1, 3, 512, 512))
 
-    estimate = estimate_pipeline_memory(pipe, latent, {}, "StableDiffusionXLPipeline")
+    estimate = estimate_pipeline_memory(pipe, latent, "StableDiffusionXLPipeline")
 
     component = estimate.components[0]
     assert component.role == "controlnet"
     assert component.activation_bytes > 0
     assert component.is_estimated
-    assert "UNet-SDPA" in component.warning
+    assert "UNet-SDPA" in (component.warning or "")
 
 
 def test_controlnet_with_unregistered_pipeline_falls_back_to_weights_only() -> None:
-    pipe = SimpleNamespace(components={"controlnet": _tiny_flux_controlnet()})
+    pipe = cast(Any, SimpleNamespace(components={"controlnet": _tiny_flux_controlnet()}))
 
-    estimate = estimate_pipeline_memory(pipe, _flux_latent(), {}, "SomeUnregisteredPipeline")
+    estimate = estimate_pipeline_memory(pipe, _flux_latent(), "SomeUnregisteredPipeline")
 
     component = estimate.components[0]
     assert component.weight_bytes > 0
     assert component.activation_bytes == 0
-    assert "No memory-estimation family registered" in component.warning
+    assert "No memory-estimation family registered" in (component.warning or "")
 
 
 def _controlnet_artifact(repo_ids: list[str]) -> ControlNetDiffusionPipelineArtifact:
@@ -166,7 +167,7 @@ def test_preload_controlnet_slot_reports_warning_when_config_not_cached() -> Non
     assert len(estimates) == 1
     assert estimates[0].weight_bytes == 0
     assert estimates[0].is_estimated
-    assert "not in the local HuggingFace cache" in estimates[0].warning
+    assert "not in the local HuggingFace cache" in (estimates[0].warning or "")
 
 
 def test_preload_controlnet_slot_warns_when_pipeline_has_no_registered_controlnet_class() -> None:
@@ -177,4 +178,4 @@ def test_preload_controlnet_slot_warns_when_pipeline_has_no_registered_controlne
 
     assert len(estimates) == 2  # noqa: PLR2004
     assert all(e.weight_bytes == 0 and e.is_estimated for e in estimates)
-    assert all("no ControlNet model class is registered" in e.warning for e in estimates)
+    assert all("no ControlNet model class is registered" in (e.warning or "") for e in estimates)

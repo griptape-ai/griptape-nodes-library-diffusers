@@ -1,6 +1,7 @@
 import contextlib
 import gc
 import logging
+from typing import Any
 
 import torch  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
@@ -49,6 +50,23 @@ def detect_offload_method(pipe: DiffusionPipeline) -> str | None:
         if hook_class_name == "CpuOffload":
             return "model"
     return None
+
+
+def apply_vae_memory_options(vae: Any | None, *, slicing: bool, tiling: bool) -> None:
+    if vae is None:
+        return
+    if slicing and hasattr(vae, "use_slicing") and hasattr(vae, "enable_slicing"):
+        logger.info("Enabling vae slicing")
+        vae.enable_slicing()
+    if tiling and hasattr(vae, "use_tiling") and hasattr(vae, "enable_tiling"):
+        logger.info("Enabling vae tiling")
+        vae.enable_tiling()
+    if tiling and hasattr(vae, "use_framewise_decoding"):
+        logger.info("Enabling vae framewise decoding")
+        vae.use_framewise_decoding = True
+    if tiling and hasattr(vae, "use_framewise_encoding"):
+        logger.info("Enabling vae framewise encoding")
+        vae.use_framewise_encoding = True
 
 
 def create_pipe_variant(
@@ -179,25 +197,7 @@ def _automatic_optimize_diffusion_pipeline(  # noqa: C901 PLR0911 PLR0912 PLR091
             logger.info("Enabling attention slicing")
             pipe.enable_attention_slicing()
 
-        if hasattr(pipe, "enable_vae_slicing"):
-            logger.info("Enabling vae slicing")
-            pipe.enable_vae_slicing()
-        elif hasattr(pipe, "vae") and hasattr(pipe.vae, "use_slicing"):
-            logger.info("Enabling vae slicing")
-            pipe.vae.enable_slicing()
-
-        # Enable VAE tiling for low-VRAM decode
-        if hasattr(pipe, "vae") and hasattr(pipe.vae, "enable_tiling"):
-            logger.info("Enabling VAE tiling")
-            pipe.vae.enable_tiling()
-
-        # Temporal VAEs (video pipelines) additionally support framewise encode/decode
-        if hasattr(pipe, "vae") and hasattr(pipe.vae, "use_framewise_decoding"):
-            logger.info("Enabling VAE framewise decoding")
-            pipe.vae.use_framewise_decoding = True
-        if hasattr(pipe, "vae") and hasattr(pipe.vae, "use_framewise_encoding"):
-            logger.info("Enabling VAE framewise encoding")
-            pipe.vae.use_framewise_encoding = True
+        apply_vae_memory_options(getattr(pipe, "vae", None), slicing=True, tiling=True)
 
         # Pipelines loaded with device_map already have device placement handled.
         # Skip .to(device) and CPU offload strategies as they're incompatible.
@@ -275,9 +275,7 @@ def _automatic_optimize_diffusion_pipeline(  # noqa: C901 PLR0911 PLR0912 PLR091
             return
 
         logger.warning("Insufficient memory on %s for Pipeline.", device)
-        if hasattr(pipe, "enable_vae_slicing"):
-            logger.info("Enabling vae slicing")
-            pipe.enable_vae_slicing()
+        apply_vae_memory_options(getattr(pipe, "vae", None), slicing=True, tiling=False)
 
         # Final check after VAE slicing
         if not _check_mps_memory_sufficient(pipe):
@@ -310,24 +308,7 @@ def _manual_optimize_diffusion_pipeline(  # noqa: C901 PLR0912 PLR0913
     if attention_slicing and hasattr(pipe, "enable_attention_slicing"):
         logger.info("Enabling attention slicing")
         pipe.enable_attention_slicing()
-    if vae_slicing:
-        if hasattr(pipe, "enable_vae_slicing"):
-            logger.info("Enabling vae slicing")
-            pipe.enable_vae_slicing()
-        elif hasattr(pipe, "vae") and hasattr(pipe.vae, "use_slicing"):
-            logger.info("Enabling vae slicing")
-            pipe.vae.enable_slicing()
-        elif hasattr(pipe, "vae"):
-            logger.debug("VAE does not support slicing (e.g., AutoencoderKLTemporalDecoder), skipping")
-    if vae_tiling and hasattr(pipe, "vae") and hasattr(pipe.vae, "enable_tiling"):
-        pipe.vae.enable_tiling()
-    # Temporal VAEs (video pipelines) additionally support framewise encode/decode
-    if vae_tiling and hasattr(pipe, "vae") and hasattr(pipe.vae, "use_framewise_decoding"):
-        logger.info("Enabling vae framewise decoding")
-        pipe.vae.use_framewise_decoding = True
-    if vae_tiling and hasattr(pipe, "vae") and hasattr(pipe.vae, "use_framewise_encoding"):
-        logger.info("Enabling vae framewise encoding")
-        pipe.vae.use_framewise_encoding = True
+    apply_vae_memory_options(getattr(pipe, "vae", None), slicing=vae_slicing, tiling=vae_tiling)
     if transformer_layerwise_casting and hasattr(pipe, "transformer"):
         if is_prequantized:
             logger.info("Pipeline is pre-quantized; skipping fp8 layerwise casting for transformer")

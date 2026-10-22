@@ -94,7 +94,7 @@ def collect_runtime_lora_memory(artifact: DiffusionPipelineArtifact) -> list[Lor
                 continue
             path = str(raw_lora.get("path") or raw_path)
             try:
-                identity_path = canonicalize_for_identity(path)
+                identity_path = str(canonicalize_for_identity(path))
             except (OSError, ValueError):
                 identity_path = str(Path(path).expanduser().absolute())
             if identity_path in seen_paths:
