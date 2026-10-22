@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import replace
-from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
@@ -54,7 +53,11 @@ from modular_diffusion_nodes_library.memory_estimation.meta_device_builder impor
     build_component_on_meta_device,
     resolve_base_component_config,
 )
-from modular_diffusion_nodes_library.memory_estimation.quantization_bytes import resolve_effective_bytes_per_element
+from modular_diffusion_nodes_library.memory_estimation.quantization_bytes import (
+    QUANTIZATION_MODE_BYTES_PER_ELEMENT,
+    estimate_component_weight_bytes,
+    resolve_effective_bytes_per_element,
+)
 from modular_diffusion_nodes_library.memory_estimation.text_encoder_formula import (
     estimate_text_encoder_activation_bytes,
 )
@@ -63,6 +66,10 @@ from modular_diffusion_nodes_library.memory_estimation.vae_trace import (
     vae_estimate_warning,
 )
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
+from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
+    ModularDiffusionPipelineTypePipelineParameters,
+)
+from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import MODULAR_PIPELINE_TYPE_PROVIDER_MAP
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_utils import (
     MEMORY_HEADROOM_FACTOR,
@@ -89,6 +96,12 @@ _BASE_PIPELINE_TORCH_DTYPE = torch.bfloat16
 # parameter reported int8/uint8 (halving every activation term) and, in the pre-load path
 # where int4 resolves to 0.5 bytes, `int(0.5)` zeroed them out entirely with no warning.
 _MIN_ACTIVATION_BYTES_PER_ELEMENT = 2
+
+_TRUSTED_BUILDER_CLASSES: dict[tuple[str, str], type[ModularDiffusionPipelineTypePipelineParameters]] = {
+    (parameters_class.__module__, parameters_class.__name__): parameters_class
+    for provider_parameters_class in MODULAR_PIPELINE_TYPE_PROVIDER_MAP.values()
+    for parameters_class in provider_parameters_class.get_pipeline_type_dict().values()
+}
 
 
 def _classify_role(component_name: str) -> ComponentRole:
@@ -510,15 +523,40 @@ def _dtype_element_size(dtype: torch.dtype) -> int:
 
 
 def resolve_pipeline_cls(artifact: DiffusionPipelineArtifact) -> type:
-    """Resolve the Diffusers pipeline class described by a pipeline artifact."""
-    if not artifact.builder_module or not artifact.builder_class_name:
+    """Resolve a registered Diffusers pipeline class without importing artifact data."""
+    builder_module = artifact.builder_module
+    builder_class_name = artifact.builder_class_name
+    if not isinstance(builder_module, str) or not builder_module:
         msg = (
             f"Could not resolve pipeline class for pipeline '{artifact.pipeline_name}': "
-            "the artifact is missing builder_module or builder_class_name."
+            "the artifact is missing a valid builder_module or builder_class_name."
         )
         raise ValueError(msg)
-    builder_class = getattr(import_module(artifact.builder_module), artifact.builder_class_name)
-    return builder_class.pipeline_cls()
+    if not isinstance(builder_class_name, str) or not builder_class_name:
+        msg = (
+            f"Could not resolve pipeline class for pipeline '{artifact.pipeline_name}': "
+            "the artifact is missing a valid builder_module or builder_class_name."
+        )
+        raise ValueError(msg)
+
+    builder_identity = (builder_module, builder_class_name)
+    builder_class = _TRUSTED_BUILDER_CLASSES.get(builder_identity)
+    if builder_class is None:
+        msg = (
+            f"Could not resolve pipeline class for pipeline '{artifact.pipeline_name}': "
+            f"builder identity '{builder_module}.{builder_class_name}' is not registered."
+        )
+        raise ValueError(msg)
+
+    pipeline_cls = builder_class.pipeline_cls()
+    if pipeline_cls.__name__ != artifact.pipeline_name:
+        msg = (
+            f"Could not resolve pipeline class for pipeline '{artifact.pipeline_name}': "
+            f"builder identity '{builder_module}.{builder_class_name}' resolves to "
+            f"'{pipeline_cls.__name__}'."
+        )
+        raise ValueError(msg)
+    return pipeline_cls
 
 
 def _module_component_slots(pipeline_cls: type) -> list[str]:
@@ -698,7 +736,14 @@ def _controlnet_slot_estimates(
             is_prequantized=artifact.is_prequantized,
             supports_layerwise_casting=artifact.supports_layerwise_casting,
         )
-        weight_bytes = int(weight_bytes / stored_bytes_per_element * effective_bytes_per_element)
+        if not artifact.is_prequantized and quantization_mode in QUANTIZATION_MODE_BYTES_PER_ELEMENT:
+            weight_bytes = estimate_component_weight_bytes(
+                meta_component,
+                quantization_mode=quantization_mode,
+                total_weight_bytes=weight_bytes,
+            )
+        else:
+            weight_bytes = int(weight_bytes / stored_bytes_per_element * effective_bytes_per_element)
         # See the matching comment in the base-component loop below: activations are
         # never narrower than the compute floor, regardless of how the weights are stored.
         element_size = max(int(stored_bytes_per_element), _MIN_ACTIVATION_BYTES_PER_ELEMENT)
@@ -789,7 +834,19 @@ def estimate_pipeline_memory_from_build_data(
             is_prequantized=artifact.is_prequantized,
             supports_layerwise_casting=artifact.supports_layerwise_casting,
         )
-        weight_bytes = int(weight_bytes / stored_bytes_per_element * effective_bytes_per_element)
+        if (
+            not artifact.is_prequantized
+            and meta_component is not None
+            and not (transformer_layerwise_casting and slot == "transformer" and artifact.supports_layerwise_casting)
+            and quantization_mode in QUANTIZATION_MODE_BYTES_PER_ELEMENT
+        ):
+            weight_bytes = estimate_component_weight_bytes(
+                meta_component,
+                quantization_mode=quantization_mode,
+                total_weight_bytes=weight_bytes,
+            )
+        else:
+            weight_bytes = int(weight_bytes / stored_bytes_per_element * effective_bytes_per_element)
         # Weights shrink under quantization; activations do not -- they are computed at the
         # compute dtype regardless. Deriving the activation width from
         # `effective_bytes_per_element` halved every activation term under fp8/int8 and, for

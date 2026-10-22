@@ -144,6 +144,7 @@ class PipelineMemoryEstimateNode(SuccessFailureNode):
                 input_types=["LatentArtifact"],
                 tooltip="Latent whose shape determines the token count / resolution used in the estimate.",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
+                serializable=False,
             )
         )
         self.add_parameter(
