@@ -1,6 +1,6 @@
-from typing import override
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
+from typing import override
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
     LatentArtifact,  # type: ignore[reportMissingImports]
@@ -15,6 +15,8 @@ class EmptyLatentNode(NoiseLatentNode):
 
     @override
     def _process(self) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         noise_artifact = super()._process()
         zero_tensor = torch.zeros_like(noise_artifact.to_torch())
         return LatentArtifact.from_torch(

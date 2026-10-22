@@ -20,9 +20,12 @@ import logging
 import math
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import torch  # type: ignore[import]
+from modular_diffusion_nodes_library.utils.torch_utils import no_grad
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -90,6 +93,8 @@ class PartialDenoiseSchedulerProxy:
         """
         Intercept the scheduler's ``set_timesteps`` call and slice the timesteps to the specified range.
         """
+        import torch  # type: ignore[import]
+
         scheduler = object.__getattribute__(self, "_scheduler")
         denoise_begin = object.__getattribute__(self, "_denoise_begin")
         denoise_end = object.__getattribute__(self, "_denoise_end")
@@ -168,7 +173,7 @@ class PartialDenoisePipelineRunner:
     # Public API
     # ------------------------------------------------------------------
 
-    @torch.no_grad()
+    @no_grad
     def __call__(
         self,
         denoise_begin: float,
@@ -186,6 +191,7 @@ class PartialDenoisePipelineRunner:
             Forwarded verbatim to the pipeline's ``__call__``.
             Specify ``output_type="latent"`` to receive raw latents back.
         """
+
         pipe = object.__getattribute__(self, "_pipe")
 
         conflicting_kwargs = {"denoising_start", "denoising_end"} & pipe_kwargs.keys()
