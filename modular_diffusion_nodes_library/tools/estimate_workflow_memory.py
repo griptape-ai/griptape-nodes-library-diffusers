@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import torch  # type: ignore[reportMissingImports]
 
@@ -128,7 +128,7 @@ def _build_shape_only_pipe(artifact: DiffusionPipelineArtifact) -> Any:
     # driver-specific branch (WAN T2V vs. WAN 2.2, for example). The resulting
     # modular pipeline is then populated with config-only components below.
     driver_shell = driver_class.__new__(driver_class)
-    driver_shell._pipe = SimpleNamespace(transformer_2=None)  # noqa: SLF001
+    driver_shell._pipe = cast(Any, SimpleNamespace(transformer_2=None))  # noqa: SLF001
     driver_shell._modular_pipe = None  # noqa: SLF001
     try:
         pipe = driver_class._create_modular_pipe(driver_shell)  # noqa: SLF001
