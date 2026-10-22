@@ -45,7 +45,11 @@ class MediaGenConditioningParameter:
                 name=PARAM_CONDITIONING,
                 output_type=CONDITIONING_OUTPUT_TYPE,
                 allowed_modes={ParameterMode.OUTPUT},
-                tooltip="Media generation conditioning output.",
+                tooltip=(
+                    "Media generation conditioning output. Connect to the matching input on Generate Media Latents, "
+                    "which appears once the same pipeline is connected there (e.g. `conditioning_images` for "
+                    "WAN Image-to-Video, `media_conditions` for LTX / LTX2, `source_media` for WAN VACE)."
+                ),
                 # No `serializable=False`: the payload is URL artifacts, an enum and scalars, and it
                 # declares its own wire form, so it travels. Holding it would hand every consumer -- and
                 # the editor -- a reference, and the consuming node's validation would raise.
