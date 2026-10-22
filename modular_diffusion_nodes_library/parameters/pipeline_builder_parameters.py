@@ -10,6 +10,7 @@ from modular_diffusion_nodes_library.parameters.component_override_parameters im
 from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import (
     MODULAR_PIPELINE_TYPE_PROVIDER_MAP,
     LatentPipelineTypeParameters,
+    find_provider_for_pipeline_type,
 )
 
 if TYPE_CHECKING:
@@ -76,10 +77,28 @@ class LatentDiffusionPipelineBuilderParameters:
         provider_class = MODULAR_PIPELINE_TYPE_PROVIDER_MAP[provider]  # type: ignore[reportArgumentType]
         self._pipeline_type_parameters = provider_class(self._node)
 
+    def sync_provider_for_pipeline_type(self, pipeline_type: str) -> None:
+        if pipeline_type in self.pipeline_type_parameters.pipeline_types:
+            return
+
+        provider = find_provider_for_pipeline_type(pipeline_type)
+        if provider is None:
+            logger.warning(
+                "%s: Failed to sync provider for pipeline_type '%s', no provider lists it.",
+                self._node.name,
+                pipeline_type,
+            )
+            return
+
+        self._node.set_parameter_value("provider", provider)
+
     def before_value_set(self, parameter: Parameter, value: Any) -> None:
         if parameter.name == "provider":
             current_provider = self._node.get_parameter_value("provider")
             self.did_provider_change = current_provider != value
+        if parameter.name == "pipeline_type":
+            # Runs before the base setter, whose Options converter would snap the value.
+            self.sync_provider_for_pipeline_type(value)
         self.pipeline_type_parameters.before_value_set(parameter, value)
 
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
