@@ -1,8 +1,8 @@
-import logging
-from typing import Any
+from __future__ import annotations
 
-import diffusers
-import torch  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar
+
 from griptape_nodes.exe_types.node_types import BaseNode
 
 from modular_diffusion_nodes_library.parameters.connectable_huggingface_repo_parameter import (
@@ -11,6 +11,9 @@ from modular_diffusion_nodes_library.parameters.connectable_huggingface_repo_par
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
 )
+
+if TYPE_CHECKING:
+    import diffusers
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -24,7 +27,14 @@ LTX_REPO_IDS = [
 
 
 class LTXPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-    _pipeline_cls = diffusers.LTXPipeline  # type: ignore[reportAttributeAccessIssue]
+    _pipeline_cls_path = "diffusers:LTXPipeline"
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "tokenizer",
+        "scheduler",
+    ]
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
@@ -64,7 +74,9 @@ class LTXPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> diffusers.LTXPipeline:  # type: ignore[reportAttributeAccessIssue]
-        pipeline = cls._pipeline_cls.from_pretrained(  # type: ignore[reportAttributeAccessIssue]
+        import torch  # type: ignore[reportMissingImports]
+
+        pipeline = cls.pipeline_cls().from_pretrained(  # type: ignore[reportAttributeAccessIssue]
             build_data["base_repo_id"],
             revision=build_data["base_revision"],
             torch_dtype=torch.bfloat16,

@@ -1,8 +1,8 @@
-import logging
-from typing import Any, ClassVar
+from __future__ import annotations
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers.pipelines.ltx2.pipeline_ltx2 import LTX2Pipeline  # type: ignore[reportMissingImports]
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar
+
 from griptape_nodes.exe_types.node_types import BaseNode
 
 from modular_diffusion_nodes_library.parameters.connectable_huggingface_repo_parameter import (
@@ -12,11 +12,21 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
     ModularDiffusionPipelineTypePipelineParameters,
 )
 
+if TYPE_CHECKING:
+    from diffusers.pipelines.ltx2.pipeline_ltx2 import LTX2Pipeline  # type: ignore[reportMissingImports]
+
 logger = logging.getLogger("diffusers_nodes_library")
 
 
 class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-    _pipeline_cls = LTX2Pipeline
+    _pipeline_cls_path = "diffusers.pipelines.ltx2.pipeline_ltx2:LTX2Pipeline"
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "tokenizer",
+        "scheduler",
+    ]
     _repo_ids: ClassVar[list[str]] = [
         "dg845/LTX-2.3-Diffusers",
         "dg845/LTX-2.3-Distilled-Diffusers",
@@ -67,10 +77,21 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> LTX2Pipeline:
-        return LTX2Pipeline.from_pretrained(
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.pipelines.ltx2.pipeline_ltx2 import LTX2Pipeline  # type: ignore[reportMissingImports]
+
+        pipe = LTX2Pipeline.from_pretrained(
             pretrained_model_name_or_path=build_data["base_repo_id"],
             revision=build_data["base_revision"],
             torch_dtype=torch.bfloat16,
             local_files_only=True,
             **overrides,
         )
+        if torch.backends.mps.is_available():
+            # The RoPE modules compute frequencies in float64 by default, which MPS does not support.
+            # Both the transformer and the text connectors build their own RoPE.
+            for root in (pipe.transformer, pipe.connectors):
+                for module in root.modules():
+                    if hasattr(module, "double_precision"):
+                        module.double_precision = False
+        return pipe
