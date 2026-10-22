@@ -61,11 +61,6 @@ class HunyuanVideo15PipelineParameters(ModularDiffusionPipelineTypePipelineParam
     def remove_input_parameters(self) -> None:
         self._model_repo_parameter.remove_input_parameters()
 
-    def get_config_kwargs(self) -> dict:
-        return {
-            "model": self._node.get_parameter_value("model"),
-        }
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
@@ -75,12 +70,14 @@ class HunyuanVideo15PipelineParameters(ModularDiffusionPipelineTypePipelineParam
 
     def get_build_data(self) -> dict[str, Any]:
         repo_id, revision = self._model_repo_parameter.get_repo_revision()
-        return {
-            "base_repo_id": repo_id,
-            "revision": revision,
-        }
+        return self.build_data(repo_id, revision)
 
-    def requires_device_map(self) -> bool:
+    @classmethod
+    def build_data(cls, repo_id: str, revision: str) -> dict[str, Any]:
+        return {"base_repo_id": repo_id, "revision": revision}
+
+    @classmethod
+    def requires_device_map(cls) -> bool:
         # HunyuanVideo 1.5 includes a Qwen2.5-VL-7B text encoder plus the video
         # transformer — total weights exceed 20 GB in bfloat16. Using device_map
         # lets accelerate stream each layer directly to the right device during

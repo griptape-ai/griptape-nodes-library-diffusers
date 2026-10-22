@@ -1,6 +1,7 @@
 from typing import Any, ClassVar, override
 
 from diffusers import FluxFillPipeline  # type: ignore[reportMissingImports]
+from diffusers.modular_pipelines.flux.before_denoise import FluxPrepareLatentsStep  # type: ignore[reportMissingImports]
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
@@ -14,11 +15,34 @@ class FluxFillLatentPipelineDriver(FluxLatentPipelineDriver):
     This pipeline only supports inpainting.
     """
 
+    controlnet_model_class: ClassVar[type | None] = None
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = FluxFillPipeline
 
     @override
     def _get_num_channels_latents(self) -> int:
         return self.pipe.vae.config.latent_channels
+
+    @override
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
+        height, width = source_shape[-2:]
+        device, dtype = self._get_device_and_type()
+        generator = generator_state.to_generator()
+        packed_latents = FluxPrepareLatentsStep.prepare_latents(
+            self.modular_pipe,
+            batch_size=1,
+            num_channels_latents=self._get_num_channels_latents(),
+            height=height,
+            width=width,
+            dtype=dtype,
+            device=device,
+            generator=generator,
+        )
+        latents = self.unpack_latents(packed_latents, height=height, width=width)
+        return self._make_latent_artifact(
+            latents,
+            source_shape=source_shape,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
 
     @override
     def _get_inpaint_pipe(self) -> DiffusionPipeline | None:

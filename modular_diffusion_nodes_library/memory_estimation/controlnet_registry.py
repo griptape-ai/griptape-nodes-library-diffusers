@@ -1,5 +1,6 @@
-"""Maps a diffusers pipeline class name to the ControlNet model class and
-memory-estimation family it uses, mirroring family_registry.py's pattern.
+"""Maps a diffusers pipeline class name to the denoiser-config adapter for its ControlNet.
+The ControlNet model class comes from the driver's `controlnet_model_class`, and the
+activation-memory family from the driver's `memory_family`.
 
 Each ControlNet class is its own `ConfigMixin` with its own `config.json`,
 hosted on its own HF repo -- its shape does NOT match the base pipeline's
@@ -25,49 +26,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from diffusers.models.controlnets.controlnet import ControlNetModel  # type: ignore[reportMissingImports]
-from diffusers.models.controlnets.controlnet_flux import FluxControlNetModel  # type: ignore[reportMissingImports]
-from diffusers.models.controlnets.controlnet_qwenimage import (  # type: ignore[reportMissingImports]
-    QwenImageControlNetModel,
-)
-from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
-from diffusers.models.controlnets.controlnet_z_image import ZImageControlNetModel  # type: ignore[reportMissingImports]
-
-from modular_diffusion_nodes_library.memory_estimation.family_registry import DenoiserConfigFields, MemoryFamily
-
-# pipeline_name -> ControlNet model class this pipeline attaches when a
-# ControlNet Pipeline node wraps it.
-_CONTROLNET_CLASS_BY_PIPELINE_NAME: dict[str, type] = {
-    "FluxPipeline": FluxControlNetModel,
-    "StableDiffusion3Pipeline": SD3ControlNetModel,
-    "StableDiffusionXLPipeline": ControlNetModel,
-    "QwenImagePipeline": QwenImageControlNetModel,
-    "ZImagePipeline": ZImageControlNetModel,
-}
-
-# pipeline_name -> memory family used to estimate that pipeline's ControlNet
-# activation cost. StableDiffusionXL's ControlNetModel has no flat
-# num_layers/hidden_dim (UNet-shaped, not DiT-shaped), so it reuses the
-# UNET_SDPA level-based formula like the base SDXL UNet does -- this
-# overestimates somewhat since the real ControlNetModel has no up-blocks,
-# but matches this codebase's bias-toward-overestimate stance.
-_CONTROLNET_ACTIVATION_FAMILY_BY_PIPELINE_NAME: dict[str, MemoryFamily] = {
-    "FluxPipeline": MemoryFamily.IMAGE_DIT_SDPA,
-    "StableDiffusion3Pipeline": MemoryFamily.IMAGE_DIT_SDPA,
-    "StableDiffusionXLPipeline": MemoryFamily.UNET_SDPA,
-    "QwenImagePipeline": MemoryFamily.IMAGE_DIT_SDPA,
-    "ZImagePipeline": MemoryFamily.IMAGE_DIT_SDPA,
-}
-
-
-def get_controlnet_class(pipeline_name: str) -> type | None:
-    """Return the ControlNet model class *pipeline_name* attaches, or None if unregistered."""
-    return _CONTROLNET_CLASS_BY_PIPELINE_NAME.get(pipeline_name)
-
-
-def get_controlnet_activation_family(pipeline_name: str) -> MemoryFamily | None:
-    """Return the memory family used for *pipeline_name*'s ControlNet activation cost."""
-    return _CONTROLNET_ACTIVATION_FAMILY_BY_PIPELINE_NAME.get(pipeline_name)
+from modular_diffusion_nodes_library.memory_estimation.family_registry import DenoiserConfigFields
 
 
 def _adapt_flux_controlnet(config: Any) -> DenoiserConfigFields:

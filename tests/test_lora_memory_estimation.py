@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any, cast
 
 import torch
 from safetensors.torch import save_file
@@ -62,9 +63,9 @@ def test_estimate_merges_multiple_runtime_loras_into_transformer(tmp_path) -> No
     save_file({"weight": torch.zeros((8,), dtype=torch.float16)}, str(path_b))
     artifact = _artifact_with_loras([str(path_a), str(path_b)])
     lora_adapters = collect_runtime_lora_memory(artifact)
-    pipe = SimpleNamespace(components={"transformer": torch.nn.Linear(4, 4, bias=False)})
+    pipe = cast(Any, SimpleNamespace(components={"transformer": torch.nn.Linear(4, 4, bias=False)}))
 
-    estimate = estimate_pipeline_memory(pipe, _latent(), {}, "SomeUnregisteredPipeline", lora_adapters=lora_adapters)
+    estimate = estimate_pipeline_memory(pipe, _latent(), "SomeUnregisteredPipeline", lora_adapters=lora_adapters)
 
     transformer = estimate.components[0]
     base_bytes = 4 * 4 * 4
@@ -84,4 +85,4 @@ def test_missing_lora_file_is_reported_without_failing_estimate(tmp_path) -> Non
     assert len(estimates) == 1
     assert estimates[0].weight_bytes == 0
     assert estimates[0].is_estimated
-    assert "Attempted to read LoRA weights" in estimates[0].warning
+    assert "Attempted to read LoRA weights" in (estimates[0].warning or "")

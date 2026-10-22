@@ -71,9 +71,12 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     def remove_input_parameters(self) -> None:
         raise NotImplementedError
 
-    @abstractmethod
     def get_config_kwargs(self) -> dict:
-        raise NotImplementedError
+        return self.config_kwargs(self._node.get_parameter_value("model"))
+
+    @classmethod
+    def config_kwargs(cls, model_value: str) -> dict:
+        return {"model": model_value}
 
     @classmethod
     def pipeline_cls(cls) -> type[DiffusionPipeline] | type[ModularPipeline]:
@@ -116,16 +119,17 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         """Return the effective text-conditioning width for this pipeline, or ``None`` to skip."""
         return None
 
-    def get_component_slots(self) -> list[str]:
+    @classmethod
+    def get_component_slots(cls) -> list[str]:
         """Return component slot names available for override on this pipeline type.
 
         Intersects the pipeline's __init__ signature (via
         DiffusionPipeline._get_signature_keys) with ALLOWED_COMPONENT_SLOTS,
         preserving the priority order defined there.
         """
-        if issubclass(self._pipeline_cls, ModularPipeline):
+        if issubclass(cls._pipeline_cls, ModularPipeline):
             return []
-        all_slots, _ = self._pipeline_cls._get_signature_keys(self._pipeline_cls)  # type: ignore[reportAttributeAccessIssue]
+        all_slots, _ = cls._pipeline_cls._get_signature_keys(cls._pipeline_cls)  # type: ignore[reportAttributeAccessIssue]
         all_slots_set = set(all_slots)
         return [slot for slot in ALLOWED_COMPONENT_SLOTS if slot in all_slots_set]
 
@@ -180,6 +184,15 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         raise NotImplementedError
 
     @classmethod
+    def build_data(cls, repo_id: str, revision: str) -> dict[str, Any]:
+        """Build the repository-specific data stored on the pipeline artifact."""
+        return {"base_repo_id": repo_id, "base_revision": revision}
+
+    @classmethod
+    def is_prequantized_repo(cls, repo_id: str) -> bool:
+        return False
+
+    @classmethod
     def _build_pipeline_from_overrides_only(
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> ModularPipeline | DiffusionPipeline | Any | None:
@@ -214,7 +227,8 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         """
         return False
 
-    def supports_layerwise_casting(self) -> bool:
+    @classmethod
+    def supports_layerwise_casting(cls) -> bool:
         """Return True if the pipeline's transformer supports layerwise casting.
 
         Some transformers (e.g., ZImage) check weight dtype before calling modules,
@@ -223,7 +237,8 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         """
         return True
 
-    def requires_device_map(self) -> bool:
+    @classmethod
+    def requires_device_map(cls) -> bool:
         """Return True if the pipeline requires device_map during loading.
 
         Some pipelines (e.g., GLM-Image) have components that must be loaded with

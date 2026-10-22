@@ -23,11 +23,14 @@ class _LTX25PipelineParametersBase(LTX2PipelineParameters):
     _transformer_subfolder: str
     _is_distilled: bool
 
-    def get_build_data(self) -> dict[str, Any]:
-        build_data = super().get_build_data()
-        build_data["is_distilled"] = self._is_distilled
-        build_data["transformer_subfolder"] = self._transformer_subfolder
-        return build_data
+    @classmethod
+    def build_data(cls, repo_id: str, revision: str) -> dict[str, Any]:
+        return {
+            "base_repo_id": repo_id,
+            "base_revision": revision,
+            "is_distilled": cls._is_distilled,
+            "transformer_subfolder": cls._transformer_subfolder,
+        }
 
     @classmethod
     def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> LTX2Pipeline:

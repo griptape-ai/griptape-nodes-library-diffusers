@@ -14,6 +14,7 @@ fails the test instead of failing silently at runtime.
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any, cast
 
 from modular_diffusion_nodes_library.memory_estimation.family_registry import (
     _adapt_flux_family,
@@ -28,7 +29,7 @@ from modular_diffusion_nodes_library.memory_estimation.family_registry import (
 )
 
 
-def _pipe_with_transformer_config(**fields: object) -> SimpleNamespace:
+def _pipe_with_transformer_config(**fields: object) -> Any:
     return SimpleNamespace(transformer=SimpleNamespace(config=SimpleNamespace(**fields)))
 
 
@@ -140,7 +141,7 @@ def test_get_sdxl_unet_levels_reads_per_level_shapes_with_a_flat_int_transformer
         )
     )
 
-    levels = get_sdxl_unet_levels(pipe)
+    levels = get_sdxl_unet_levels(cast(Any, pipe))
 
     assert [level.hidden_dim for level in levels] == [320, 640, 1280]
     assert [level.num_transformer_layers for level in levels] == [2, 2, 2]
@@ -154,6 +155,6 @@ def test_get_sdxl_unet_levels_reads_a_per_level_transformer_layer_list() -> None
         )
     )
 
-    levels = get_sdxl_unet_levels(pipe)
+    levels = get_sdxl_unet_levels(cast(Any, pipe))
 
     assert [level.num_transformer_layers for level in levels] == [1, 2, 10]

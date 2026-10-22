@@ -1,5 +1,6 @@
 from modular_diffusion_nodes_library.memory_estimation.estimate_types import (
     ComponentMemoryEstimate,
+    ComponentRole,
     PipelineMemoryEstimate,
 )
 from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator import (
@@ -9,6 +10,7 @@ from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator
 
 __all__ = [
     "ComponentMemoryEstimate",
+    "ComponentRole",
     "PipelineMemoryEstimate",
     "estimate_component_memory",
     "estimate_pipeline_memory",

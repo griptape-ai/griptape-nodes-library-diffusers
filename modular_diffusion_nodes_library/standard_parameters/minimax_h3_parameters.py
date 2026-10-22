@@ -45,11 +45,6 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
     def remove_input_parameters(self) -> None:
         self._model_repo_parameter.remove_input_parameters()
 
-    def get_config_kwargs(self) -> dict:
-        return {
-            "model": self._node.get_parameter_value("model"),
-        }
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
@@ -59,17 +54,23 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
 
     def get_build_data(self) -> dict[str, Any]:
         repo_id, revision = self._model_repo_parameter.get_repo_revision()
-        return {
-            "repo_id": repo_id,
-            "revision": revision,
-        }
+        return self.build_data(repo_id, revision)
 
-    def requires_device_map(self) -> bool:
+    @classmethod
+    def requires_device_map(cls) -> bool:
         # Used here as an opt-out from post-hoc pipeline optimization, not literally to request an
         # accelerate device_map. MiniMax-H3 is a ModularPipeline, on which
         # `optimize_diffusion_pipeline` would call `.to(device)` (a guaranteed OOM at ~124 GB) while
         # both `enable_*_cpu_offload` calls are hasattr-gated and silently skipped. Placement is
         # instead owned by `build_pipeline_from_build_data` via the ComponentsManager below.
+        return True
+
+    @classmethod
+    def build_data(cls, repo_id: str, revision: str) -> dict[str, Any]:
+        return {"repo_id": repo_id, "revision": revision}
+
+    @classmethod
+    def is_prequantized_repo(cls, repo_id: str) -> bool:
         return True
 
     def is_prequantized(self) -> bool:

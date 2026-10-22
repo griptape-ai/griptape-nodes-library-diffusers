@@ -60,6 +60,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
     read_driver_meta,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
     normalize_to_payloads,
 )
@@ -297,6 +298,7 @@ class _MiniMaxH3CallbackDenoiseStep(MiniMaxH3DenoiseLoopWrapper):
 
 
 class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.VIDEO_DIT_JOINT_SDPA
     produces_video: ClassVar[bool] = True
     # MiniMax-H3 generates at a fixed 24 fps; any other rate desynchronises the soundtrack.
     video_fps: ClassVar[int] = MINIMAX_H3_FPS

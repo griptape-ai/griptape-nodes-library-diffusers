@@ -32,6 +32,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     PipelineOutput,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -82,6 +83,7 @@ class _WanEncodeVideoStep(ModularPipelineBlocks):
 
 
 class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.VIDEO_DIT_JOINT_SDPA
     produces_video: ClassVar[bool] = True
     video_fps: ClassVar[int] = 16
 

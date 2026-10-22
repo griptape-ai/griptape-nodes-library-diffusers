@@ -1,5 +1,4 @@
-"""Maps a diffusers pipeline class name to a memory-estimation "family" and normalizes
-that pipeline's denoiser config into the generic fields the activation formulas need.
+"""Normalize denoiser configs into the generic fields activation formulas need.
 
 Field names for layers/heads/hidden-dim/patch-size are NOT uniform across diffusers
 model configs (verified by reading the real constructor signatures of
@@ -8,56 +7,20 @@ QwenImageTransformer2DModel, WanTransformer3DModel, SD3Transformer2DModel,
 Flux2Transformer2DModel, ZImageTransformer2DModel, HunyuanVideo15Transformer3DModel,
 LTX2VideoTransformer3DModel, MiniMaxH3Transformer3DModel) -- each pipeline class gets
 its own small adapter rather than one generic `pipe.transformer.config.X` lookup.
+
+The activation-memory family is declared by each pipeline driver's `memory_family`
+class variable. The adapters remain keyed by pipeline class name because they normalize
+pipeline-specific denoiser config fields.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-
-
-class MemoryFamily(Enum):
-    """Architecture family used to pick a denoiser activation-memory formula."""
-
-    UNET_SDPA = "unet_sdpa"
-    IMAGE_DIT_SDPA = "image_dit_sdpa"
-    VIDEO_DIT_JOINT_SDPA = "video_dit_joint_sdpa"
-
-
-# Keyed by the same pipeline-class-name strings as
-# latent_pipeline_drivers/driver_factory.py's _DRIVER_REGISTRY (one entry per key there;
-# a unit test asserts the two registries' key sets stay in sync).
-_FAMILY_BY_PIPELINE_NAME: dict[str, MemoryFamily] = {
-    "FluxFillPipeline": MemoryFamily.IMAGE_DIT_SDPA,
-    "HunyuanVideo15Pipeline": MemoryFamily.VIDEO_DIT_JOINT_SDPA,
-    "HunyuanVideo15ImageToVideoPipeline": MemoryFamily.VIDEO_DIT_JOINT_SDPA,
-    "FluxKontextPipeline": MemoryFamily.IMAGE_DIT_SDPA,
-    "FluxPipeline": MemoryFamily.IMAGE_DIT_SDPA,
-    "Flux2Pipeline": MemoryFamily.IMAGE_DIT_SDPA,
-    "Flux2KleinPipeline": MemoryFamily.IMAGE_DIT_SDPA,
-    "LTX2Pipeline": MemoryFamily.VIDEO_DIT_JOINT_SDPA,
-    "MiniMaxH3ModularPipeline": MemoryFamily.VIDEO_DIT_JOINT_SDPA,
-    "QwenImagePipeline": MemoryFamily.IMAGE_DIT_SDPA,
-    "QwenImageEditPipeline": MemoryFamily.IMAGE_DIT_SDPA,
-    "StableDiffusion3Pipeline": MemoryFamily.IMAGE_DIT_SDPA,
-    "StableDiffusionXLPipeline": MemoryFamily.UNET_SDPA,
-    "ZImagePipeline": MemoryFamily.IMAGE_DIT_SDPA,
-    "WanPipeline": MemoryFamily.VIDEO_DIT_JOINT_SDPA,
-    "LTXPipeline": MemoryFamily.VIDEO_DIT_JOINT_SDPA,
-    "WanImageToVideoPipeline": MemoryFamily.VIDEO_DIT_JOINT_SDPA,
-    "WanAnimatePipeline": MemoryFamily.VIDEO_DIT_JOINT_SDPA,
-    "WanVACEPipeline": MemoryFamily.VIDEO_DIT_JOINT_SDPA,
-}
-
-
-def get_memory_family(pipeline_name: str) -> MemoryFamily | None:
-    """Return the memory family for *pipeline_name*, or None if unregistered."""
-    return _FAMILY_BY_PIPELINE_NAME.get(pipeline_name)
 
 
 @dataclass(frozen=True)

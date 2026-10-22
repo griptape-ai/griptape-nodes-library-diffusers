@@ -42,3 +42,6 @@ Node groups mirror the categories in [`griptape-nodes-library.json`](../griptape
 
 ### IO
 - [Save Latent Tensor](nodes/save_latent_tensor.md)
+
+## Command-line tools
+- [Estimate Workflow Memory (CLI)](tools/estimate_workflow_memory.md)
