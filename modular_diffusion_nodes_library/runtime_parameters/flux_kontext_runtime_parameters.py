@@ -1,15 +1,20 @@
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 from griptape.artifacts import ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.runtime_parameters.flux_runtime_parameters import (
     FluxPipelineRuntimeParameters,
 )
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
+
+if TYPE_CHECKING:
+    from PIL.Image import Image
 
 logger = logging.getLogger("diffusers_nodes_library")
 

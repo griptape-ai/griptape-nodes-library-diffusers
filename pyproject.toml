@@ -6,7 +6,23 @@ authors = [
     {name = "Griptape, Inc."}
 ]
 requires-python = "~=3.12.0"
+# What the orchestrator needs to import every node module and build the node classes. Nothing
+# heavy belongs here: the engine splices this environment onto the orchestrator's `sys.path`, so a
+# package present here is a package the orchestrator can reach -- which is how a pipeline came to be
+# built there. `uv sync` installs exactly this, so a dev orchestrator behaves like a real one.
 dependencies = [
+    "griptape[loaders-image]>=1.9.4",
+    # Reads a model's cached config at edit time, which is how the loader and builder nodes answer
+    # questions about a component without diffusers. Declared because the orchestrator imports it: the
+    # host engine happens to provide it today, and that is not a guarantee this library can rely on.
+    "huggingface-hub",
+]
+
+[project.optional-dependencies]
+# The execution set: what a node needs once it runs. Published as `pip_dependencies_exec` and
+# installed into the worker's execution venv, never onto the orchestrator. Install it locally with
+# `uv sync --extra exec` to run the tests that read real diffusers classes.
+exec = [
     "accelerate>=1.6.0",
     "av>=14.0.0",
     "diffusers==0.41.0",
@@ -27,7 +43,6 @@ dependencies = [
     "bitsandbytes>=0.50.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "ftfy>=6.3.1",
     "gguf>=0.10.0",
-    "griptape[loaders-image]>=1.9.4",
     "openexr>=3.3.0",
 ]
 
@@ -44,8 +59,9 @@ packages = [
     "workflows",
 ]
 
-# `uv sync` equivalent of the JSON's `--torch-backend=auto`: pull CUDA torch
-# wheels on Windows/Linux, fall back to PyPI (MPS build) on macOS.
+# This repo's own venvs: CUDA torch wheels on Windows/Linux, PyPI (MPS build) on macOS. A fixed cu128,
+# not the JSON's `--torch-backend=auto`, which resolves per driver -- so a developer venv can hold a
+# different torch build than a user install.
 [tool.uv.sources]
 torch = [
     { index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
@@ -74,6 +90,7 @@ select = [
     "B",      # flake8-bugbear
     "C4",     # flake8-comprehensions
     "UP",     # pyupgrade
+    "TC004",  # a TYPE_CHECKING import used at runtime, which pyright cannot see
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
@@ -92,7 +109,7 @@ exclude = ["workflows/","preconfigured_workflows/", ".venv/", "**/__pycache__"]
 [dependency-groups]
 dev = [
     "nox>=2026.4.0",
-    "griptape-nodes-engine>=0.100.2",
+    "griptape-nodes-engine>=0.104.0",
     "pyright>=1.1.396",
     "ruff>=0.8.0",
     "pytest",

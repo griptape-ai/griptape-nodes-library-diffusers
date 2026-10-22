@@ -13,8 +13,6 @@ from __future__ import annotations
 
 import inspect
 
-from diffusers.loaders.single_file_utils import DIFFUSERS_DEFAULT_PIPELINE_PATHS  # type: ignore[reportMissingImports]
-
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import _DRIVER_REGISTRY
 
 # ``model_type`` -> pipeline class name owning the component. Every value here
@@ -74,19 +72,6 @@ if _unregistered_pipelines:
         f"Failed because these pipeline classes are not registered in "
         f"latent_pipeline_drivers.driver_factory._DRIVER_REGISTRY: "
         f"{_unregistered_pipelines}. Offending entries: {_offending}."
-    )
-    raise RuntimeError(_msg)
-
-# Import-time invariant: every model_type key must also exist in the diffusers
-# ``DIFFUSERS_DEFAULT_PIPELINE_PATHS`` table. Catches typos when diffusers is
-# upgraded and a model_type is renamed or removed upstream.
-_unknown_model_types = sorted(set(MODEL_TYPE_TO_PIPELINE_TYPE) - set(DIFFUSERS_DEFAULT_PIPELINE_PATHS))
-if _unknown_model_types:
-    _msg = (
-        f"Attempted to load MODEL_TYPE_TO_PIPELINE_TYPE. "
-        f"Failed because these model_type keys are not present in "
-        f"diffusers.loaders.single_file_utils.DIFFUSERS_DEFAULT_PIPELINE_PATHS: "
-        f"{_unknown_model_types}."
     )
     raise RuntimeError(_msg)
 

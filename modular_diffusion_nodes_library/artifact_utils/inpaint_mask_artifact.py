@@ -16,15 +16,17 @@ data (PIL images, tensors).
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import torch  # type: ignore[reportMissingImports]
 from griptape.artifacts import ImageArtifact, ImageUrlArtifact
 from griptape.artifacts.blob_artifact import BlobArtifact
-from PIL.Image import Image
 
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
+
+if TYPE_CHECKING:
+    import torch  # type: ignore[reportMissingImports]
+    from PIL.Image import Image
 
 SourceImageInput = ImageArtifact | ImageUrlArtifact | None
 

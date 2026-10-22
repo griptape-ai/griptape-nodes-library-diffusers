@@ -2,18 +2,12 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, override
 
-import torch  # type: ignore[reportMissingImports]
-from diffusers import GGUFQuantizationConfig  # type: ignore[reportMissingImports]
-from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingImports]
-    infer_diffusers_model_type,
-    load_single_file_checkpoint,
-)
-from huggingface_hub import try_to_load_from_cache
+from griptape_nodes.retained_mode.events.event_converter import converter
 
 from modular_diffusion_nodes_library.component_loading.component_slots import component_config_filename
 from modular_diffusion_nodes_library.component_loading.config_resolver import (
@@ -28,6 +22,41 @@ from modular_diffusion_nodes_library.component_loading.pipeline_type_registry im
 )
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
+
+#: Names the concrete subclass in the wire form. Present in the wire form only.
+_COMPONENT_TAG = "__component_artifact__"
+
+#: Every subclass by name, so `structure_component_artifact` can rebuild the one a wire form names.
+#: Populated by `__init_subclass__`, so a subclass in a sibling module registers itself on import.
+_COMPONENT_CLASSES: dict[str, type[ComponentArtifact]] = {}
+
+
+def is_encoded_component_artifact(value: Any) -> bool:
+    """Whether `value` is a component artifact that crossed a process boundary and needs rebuilding."""
+    return isinstance(value, dict) and _COMPONENT_TAG in value
+
+
+def structure_component_artifact(data: dict[str, Any]) -> ComponentArtifact:
+    """Rebuild the concrete `ComponentArtifact` subclass named by `data`'s tag.
+
+    Naming the class rather than letting the converter choose between the subclasses is what makes
+    this work: they are indistinguishable by shape, since every field of every one of them has a
+    default and two of them share `config_source` and `repo_ref`.
+
+    Raises:
+        ValueError: if the tag names a class absent from the registry. Registration is an import side
+            effect, so the likely cause is that this process never imported the module declaring that
+            subclass, rather than a version skew between the two ends.
+    """
+    tag = data.get(_COMPONENT_TAG)
+    artifact_cls = _COMPONENT_CLASSES.get(tag) if isinstance(tag, str) else None
+    if artifact_cls is None:
+        msg = (
+            f"Attempted to rebuild a component artifact. Failed with tag='{tag}' because no component "
+            f"artifact class declares it. Known tags: {sorted(_COMPONENT_CLASSES)}."
+        )
+        raise ValueError(msg)
+    return converter.structure({k: v for k, v in data.items() if k != _COMPONENT_TAG}, artifact_cls)
 
 
 def _pipeline_default_model_type(pipeline_cls: type) -> str | None:
@@ -67,6 +96,23 @@ class ComponentArtifact(ABC):
     source_type: ComponentSourceType
     component: str  # slot name, e.g. "transformer", "vae", "tokenizer"
     torch_dtype: str = "bfloat16"
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        _COMPONENT_CLASSES[cls.__name__] = cls
+
+    def _cattrs_unstructure(self) -> dict[str, Any]:
+        """The wire form: the concrete subclass's name plus every field it declares.
+
+        The engine's documented seam for a class that knows its own wire form. Tagging here rather
+        than registering a converter hook means the tag is present however the value gets encoded,
+        including when the engine serializes this as a bare parameter value having called nothing in
+        this library first.
+        """
+        return {
+            _COMPONENT_TAG: type(self).__name__,
+            **{field.name: converter.unstructure(getattr(self, field.name)) for field in fields(self)},
+        }
 
     @property
     def is_quantized(self) -> bool:
@@ -145,12 +191,15 @@ class ModelComponentArtifact(ComponentArtifact):
             return f"local directory '{self.file_path}'"
         return f"{self.source_type} (details unavailable)"
 
-    def try_read_config(
-        self,
-        *,
-        pipeline_cls: type | None = None,
-    ) -> dict[str, Any] | None:
-        """Read this artifact's config file without materializing weights."""
+    def try_read_config(self) -> dict[str, Any] | None:
+        """Read this artifact's config file without materializing weights.
+
+        Reads only what is already on disk. Deriving a config path from a component class, which is what
+        a single-file checkpoint's HF-repo `config_source` would need, requires diffusers -- and the only
+        caller is the builder's compatibility check, which runs on the orchestrator.
+        """
+        from huggingface_hub import try_to_load_from_cache
+
         config_name = component_config_filename(self.component)
         if self.source_type == ComponentSourceType.HF_REPO:
             if self.repo_ref is None:
@@ -179,12 +228,16 @@ class ModelComponentArtifact(ComponentArtifact):
             return try_load_json_dict(Path(self.file_path) / config_name)
 
         if self.source_type == ComponentSourceType.SINGLE_FILE:
-            return self._try_read_single_file_config(pipeline_cls=pipeline_cls)
+            return self._try_read_single_file_config()
 
         return None
 
     def _infer_single_file_model_type(self, *, pipeline_cls: type, checkpoint: Any) -> tuple[str, str]:
         """Infer the checkpoint model type and the effective config lookup model type."""
+        from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingImports]
+            infer_diffusers_model_type,
+        )
+
         inferred_model_type = infer_diffusers_model_type(checkpoint)
         if inferred_model_type in MODEL_TYPE_TO_PIPELINE_TYPE:
             model_type = inferred_model_type
@@ -192,12 +245,12 @@ class ModelComponentArtifact(ComponentArtifact):
             model_type = _pipeline_default_model_type(pipeline_cls) or inferred_model_type
         return inferred_model_type, model_type
 
-    def _try_read_single_file_config(
-        self,
-        *,
-        pipeline_cls: type | None,
-    ) -> dict[str, Any] | None:
-        """Read config for a single-file artifact from an explicit config source, if provided."""
+    def _try_read_single_file_config(self) -> dict[str, Any] | None:
+        """Read config for a single-file artifact from an explicit config source, if provided.
+
+        A `config_source` naming an HF repo rather than a local path reads as no config: resolving it
+        needs the component class, and `materialize` resolves it for real at build time anyway.
+        """
         if self.config_source is None:
             return None
 
@@ -207,22 +260,11 @@ class ModelComponentArtifact(ComponentArtifact):
             return try_load_json_dict(config_path)
         if config_path.is_dir():
             return try_load_json_dict(config_path / config_name)
-        if pipeline_cls is not None:
-            try:
-                component_cls = get_component_class(pipeline_cls, self.component)
-                config_path = resolve_config_path(
-                    "",
-                    component_cls,
-                    self.config_source,
-                    pipeline_slot=self.component,
-                    artifact_component=self.component,
-                )
-            except (FileNotFoundError, ValueError):
-                return None
-            return try_load_json_dict(config_path if config_path.is_file() else config_path / config_name)
         return None
 
     def _materialize_hf_repo(self, *, pipeline_cls: type, effective_slot: str) -> Any:
+        import torch  # type: ignore[reportMissingImports]
+
         if not self.repo_ref:
             msg = (
                 f"Attempted to materialize {self.component}. "
@@ -265,6 +307,12 @@ class ModelComponentArtifact(ComponentArtifact):
         return component_cls.from_pretrained(**kwargs)
 
     def _materialize_single_file(self, *, pipeline_cls: type, effective_slot: str) -> Any:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers import GGUFQuantizationConfig  # type: ignore[reportMissingImports]
+        from diffusers.loaders.single_file_utils import (  # type: ignore[reportMissingImports]
+            load_single_file_checkpoint,
+        )
+
         if not self.file_path:
             msg = (
                 f"Attempted to materialize {self.component}. "
@@ -343,6 +391,8 @@ class ModelComponentArtifact(ComponentArtifact):
         raise ValueError(msg)
 
     def _materialize_local_dir(self, *, pipeline_cls: type, effective_slot: str) -> Any:
+        import torch  # type: ignore[reportMissingImports]
+
         if not self.file_path:
             msg = (
                 f"Attempted to materialize {self.component}. "

@@ -105,9 +105,9 @@ class LTXPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             **self._media_gen_conditioning_param.get_pipe_kwargs(),
         }
 
-    def validate_before_node_run(self) -> list[Exception] | None:
-        errors = super().validate_before_node_run() or []
-        conditioning_errors = self._media_gen_conditioning_param.validate_before_node_run()
+    def validate_in_execution_environment(self) -> list[Exception] | None:
+        errors = super().validate_in_execution_environment() or []
+        conditioning_errors = self._media_gen_conditioning_param.validate_in_execution_environment()
         if conditioning_errors:
             errors.extend(conditioning_errors)
         return errors or None
