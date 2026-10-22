@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import yaml
 from huggingface_hub import scan_cache_dir  # pyright: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils import (
@@ -30,20 +30,20 @@ from modular_diffusion_nodes_library.utils.lora_apply_utils import lora_adapter_
 
 
 def serialize_pipeline_artifact(artifact: DiffusionPipelineArtifact) -> str:
-    """Serialize a supported pipeline artifact to a versioned JSON recipe."""
+    """Serialize a supported pipeline artifact to a versioned YAML recipe."""
     recipe = {
         "schema_version": PIPELINE_RECIPE_SCHEMA_VERSION,
-        "artifact": artifact.to_recipe_dict(),
+        **artifact.to_recipe_dict(),
     }
-    return json.dumps(recipe, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
+    return yaml.safe_dump(recipe, sort_keys=False, allow_unicode=False)
 
 
-def deserialize_pipeline_artifact(recipe_json: str) -> DiffusionPipelineArtifact:
+def deserialize_pipeline_artifact(recipe_yaml: str) -> DiffusionPipelineArtifact:
     """Deserialize a supported versioned pipeline recipe."""
     try:
-        document = json.loads(recipe_json)
-    except json.JSONDecodeError as error:
-        msg = f"Invalid pipeline recipe JSON: {error.msg}"
+        document = yaml.safe_load(recipe_yaml)
+    except yaml.YAMLError as error:
+        msg = f"Invalid pipeline recipe YAML: {error}"
         raise ValueError(msg) from error
 
     document_data = require_dict(document, "Pipeline recipe")
@@ -52,9 +52,9 @@ def deserialize_pipeline_artifact(recipe_json: str) -> DiffusionPipelineArtifact
         msg = f"Unsupported pipeline recipe schema version: {schema_version!r}"
         raise ValueError(msg)
 
-    return DiffusionPipelineArtifact.from_recipe_dict(
-        require_dict(document_data.get("artifact"), "Pipeline recipe artifact")
-    )
+    artifact_data = dict(document_data)
+    artifact_data.pop("schema_version")
+    return DiffusionPipelineArtifact.from_recipe_dict(artifact_data)
 
 
 def validate_pipeline_recipe_dependencies(artifact: DiffusionPipelineArtifact) -> list[str]:

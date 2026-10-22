@@ -11,8 +11,8 @@ from griptape_nodes.retained_mode.events.event_converter import converter
 
 from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
     COMPONENT_DESERIALIZERS,
-    json_safe,
     optional_string,
+    recipe_safe,
     require_dict,
     require_string,
     resolve_recipe_value,
@@ -148,7 +148,7 @@ class ComponentArtifact(ABC):
 
     @abstractmethod
     def to_recipe_dict(self) -> dict[str, Any]:
-        """Render this component override as a JSON-safe recipe dict."""
+        """Render this component override as a recipe-safe dict."""
         raise NotImplementedError
 
     @classmethod
@@ -197,8 +197,8 @@ class ModelComponentArtifact(ComponentArtifact):
         return {
             **self._base_recipe_dict(),
             "repo_ref": self.repo_ref.to_recipe_dict() if self.repo_ref else None,
-            "file_path": json_safe(self.file_path),
-            "config_source": json_safe(self._config_source_for_recipe()),
+            "file_path": recipe_safe(self.file_path),
+            "config_source": recipe_safe(self._config_source_for_recipe()),
         }
 
     def _config_source_for_recipe(self) -> str | None:

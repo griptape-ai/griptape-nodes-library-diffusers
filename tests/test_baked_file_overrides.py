@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import torch
+import yaml
 from diffusers import Flux2Transformer2DModel  # type: ignore[reportMissingImports]
 from torch import nn
 from transformers import AutoConfig, CLIPTextConfig  # type: ignore[reportMissingImports]
@@ -185,7 +186,9 @@ def test_bake_noops_gguf_save_copies_file_and_records_override(tmp_path: Path) -
     assert (dest / "vae" / "saved.txt").is_file()
     assert not any(dest.joinpath("transformer").glob("*.safetensors"))
 
-    config = json.loads((dest / "baked-config.json").read_text(encoding="utf-8"))
+    serialized_config = (dest / "baked-config.yaml").read_text(encoding="utf-8")
+    config = yaml.safe_load(serialized_config)
+    assert serialized_config.startswith("schema_version: 1\npipeline_name: FluxPipeline\n")
     recorded = config["file_overrides"]["transformer"]
     assert recorded["file_path"] == f"transformer/{src.name}"
     assert recorded["source_type"] == "single_file"
@@ -212,7 +215,7 @@ def test_bake_round_trips_gguf_text_encoder_override(tmp_path: Path) -> None:
 
     save_baked_pipeline(pipe, artifact, dest)
 
-    manifest = json.loads((dest / "baked-config.json").read_text(encoding="utf-8"))
+    manifest = yaml.safe_load((dest / "baked-config.yaml").read_text(encoding="utf-8"))
     recorded = manifest["file_overrides"]["text_encoder"]
     loaded = make_baked_artifact(dest)
     loaded_override = loaded.build_data["_component_overrides"]["text_encoder"]
@@ -249,7 +252,7 @@ def test_bake_preserves_explicit_text_encoder_config_filename(tmp_path: Path) ->
     save_baked_pipeline(pipe, artifact, dest)
 
     slot_dir = dest / "text_encoder"
-    manifest = json.loads((dest / "baked-config.json").read_text(encoding="utf-8"))
+    manifest = yaml.safe_load((dest / "baked-config.yaml").read_text(encoding="utf-8"))
     recorded = manifest["file_overrides"]["text_encoder"]
     loaded = make_baked_artifact(dest)
     loaded_override = loaded.build_data["_component_overrides"]["text_encoder"]
@@ -460,7 +463,7 @@ def test_bake_preserves_hf_repo_config_source_without_copying_sibling(tmp_path: 
 
     save_baked_pipeline(pipe, artifact, dest)
 
-    manifest = json.loads((dest / "baked-config.json").read_text(encoding="utf-8"))
+    manifest = yaml.safe_load((dest / "baked-config.yaml").read_text(encoding="utf-8"))
     recorded = manifest["file_overrides"]["transformer"]
     assert recorded["config_source"] == "org/model"
     assert not (dest / "transformer" / "config.json").exists()
@@ -501,7 +504,9 @@ def test_bake_preserves_explicit_config_filename(tmp_path: Path) -> None:
     baked_config = dest / "transformer" / "transformer.json"
     assert json.loads(baked_config.read_text(encoding="utf-8")) == {"marker": 1}
     assert not (dest / "transformer" / "config.json").exists()
-    recorded = json.loads((dest / "baked-config.json").read_text(encoding="utf-8"))["file_overrides"]["transformer"]
+    recorded = yaml.safe_load((dest / "baked-config.yaml").read_text(encoding="utf-8"))["file_overrides"][
+        "transformer"
+    ]
     assert recorded["config_source"] == "transformer/transformer.json"
 
 

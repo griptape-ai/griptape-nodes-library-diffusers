@@ -1,6 +1,5 @@
-import json
-
 import pytest
+import yaml
 
 from modular_diffusion_nodes_library.artifact_utils import pipeline_recipe
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
@@ -13,6 +12,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
 )
+from modular_diffusion_nodes_library.artifact_utils.pipeline_baking import _write_baked_config
 from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import (
     deserialize_pipeline_artifact,
     format_pipeline_artifact_summary,
@@ -20,6 +20,8 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import (
     validate_pipeline_recipe_dependencies,
 )
 from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact import SchedulerComponentArtifact
+from modular_diffusion_nodes_library.artifact_utils.text_encoder_component_artifact import TextEncoderComponentArtifact
+from modular_diffusion_nodes_library.artifact_utils.tokenizer_component_artifact import TokenizerComponentArtifact
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
 )
@@ -42,26 +44,65 @@ def test_serialize_base_pipeline_artifact() -> None:
         optimization_kwargs={"vae_slicing": True},
     )
 
-    document = json.loads(serialize_pipeline_artifact(artifact))
+    serialized = serialize_pipeline_artifact(artifact)
+    document = yaml.safe_load(serialized)
 
+    assert serialized.startswith("schema_version: 1\npipeline_name: TestPipeline\n")
     assert document == {
         "schema_version": 1,
-        "artifact": {
-            "type": "base",
-            "pipeline_name": "TestPipeline",
-            "config_hash": "pipeline-hash",
-            "builder_module": "test.module",
-            "builder_class_name": "TestParameters",
-            "build_data": {"repo_id": "org/model", "revision": "commit-hash"},
-            "build_data_error": None,
-            "loras": {"/tmp/style.safetensors": 0.8},
-            "runtime_loras": [],
-            "optimization": {"vae_slicing": True},
-            "is_prequantized": False,
-            "supports_layerwise_casting": True,
-            "requires_device_map": False,
-        },
+        "pipeline_name": "TestPipeline",
+        "config_hash": "pipeline-hash",
+        "builder_module": "test.module",
+        "builder_class_name": "TestParameters",
+        "build_data": {"repo_id": "org/model", "revision": "commit-hash"},
+        "loras": {"/tmp/style.safetensors": 0.8},
+        "runtime_loras": [],
+        "optimization": {"vae_slicing": True},
+        "is_prequantized": False,
+        "supports_layerwise_casting": True,
+        "requires_device_map": False,
     }
+
+
+def test_serialize_pipeline_with_build_data_error_is_refused() -> None:
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        config_hash="pipeline-hash",
+        build_data_error="Model parameters are invalid.",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"Pipeline cannot be saved because its build data is unavailable: Model parameters are invalid\.",
+    ):
+        serialize_pipeline_artifact(artifact)
+
+
+def test_config_only_and_baked_manifests_share_artifact_shape(tmp_path) -> None:
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        config_hash="pipeline-hash",
+        builder_module="test.module",
+        builder_class_name="TestParameters",
+        build_data={"repo_id": "org/model", "revision": "commit-hash"},
+        optimization_kwargs={"vae_slicing": True},
+    )
+    config_only = yaml.safe_load(serialize_pipeline_artifact(artifact))
+    _write_baked_config(tmp_path, artifact, "float16", packed_quant_slots=["unet"])
+    baked = yaml.safe_load((tmp_path / "baked-config.yaml").read_text(encoding="utf-8"))
+
+    common_keys = (
+        "pipeline_name",
+        "builder_module",
+        "builder_class_name",
+        "optimization",
+        "supports_layerwise_casting",
+        "requires_device_map",
+    )
+    assert {key: baked[key] for key in common_keys} == {key: config_only[key] for key in common_keys}
+    assert baked["torch_dtype"] == "float16"
+    assert baked["baked_quantization_mode"] is None
+    assert baked["packed_quant_slots"] == ["unet"]
 
 
 def test_serialize_controlnet_pipeline_artifact_is_refused() -> None:
@@ -97,10 +138,10 @@ def test_runtime_loras_round_trip_through_recipe() -> None:
         weight=0.9,
     )
 
-    document = json.loads(serialize_pipeline_artifact(artifact))
+    document = yaml.safe_load(serialize_pipeline_artifact(artifact))
     loaded = deserialize_pipeline_artifact(serialize_pipeline_artifact(artifact))
 
-    assert document["artifact"]["runtime_loras"] == [{"path": "/tmp/hdr-ic-lora.safetensors", "weight": 0.9}]
+    assert document["runtime_loras"] == [{"path": "/tmp/hdr-ic-lora.safetensors", "weight": 0.9}]
     assert loaded.config_hash == "base-hash"
     assert loaded.loras == {"/tmp/style.safetensors": 0.8}
     assert loaded.runtime_loras() == {
@@ -117,9 +158,9 @@ def test_runtime_lora_recipe_preserves_macro_path() -> None:
         weight=0.75,
     )
 
-    document = json.loads(serialize_pipeline_artifact(artifact))
+    document = yaml.safe_load(serialize_pipeline_artifact(artifact))
 
-    assert document["artifact"]["runtime_loras"] == [
+    assert document["runtime_loras"] == [
         {
             "path": "{project_dir}/loras/style.safetensors",
             "weight": 0.75,
@@ -128,12 +169,12 @@ def test_runtime_lora_recipe_preserves_macro_path() -> None:
 
 
 def test_recipe_without_runtime_loras_loads_with_none() -> None:
-    document = json.loads(
+    document = yaml.safe_load(
         serialize_pipeline_artifact(DiffusionPipelineArtifact(pipeline_name="TestPipeline", config_hash="h"))
     )
-    del document["artifact"]["runtime_loras"]
+    del document["runtime_loras"]
 
-    assert deserialize_pipeline_artifact(json.dumps(document)).runtime_adapter_steps() == []
+    assert deserialize_pipeline_artifact(yaml.safe_dump(document)).runtime_adapter_steps() == []
 
 
 def test_serialize_chained_lora_pipeline_nodes_is_refused() -> None:
@@ -269,6 +310,72 @@ def test_deserialize_pipeline_artifact_round_trips_component_overrides() -> None
     loaded_artifact = deserialize_pipeline_artifact(serialize_pipeline_artifact(artifact))
 
     assert loaded_artifact == artifact
+
+
+@pytest.mark.parametrize(
+    ("slot", "override"),
+    [
+        pytest.param(
+            "transformer",
+            ModelComponentArtifact(
+                load_id="model-override",
+                source_type=ComponentSourceType.HF_REPO,
+                component="transformer",
+                repo_ref=HFRepoRef(repo_id="org/model", revision="model-revision", subfolder="transformer"),
+            ),
+            id="model",
+        ),
+        pytest.param(
+            "text_encoder",
+            TextEncoderComponentArtifact(
+                load_id="text-encoder-override",
+                source_type=ComponentSourceType.SINGLE_FILE,
+                component="text_encoder",
+                file_path="/models/text-encoder.gguf",
+                config_source="/models/config.json",
+            ),
+            id="text-encoder",
+        ),
+        pytest.param(
+            "tokenizer",
+            TokenizerComponentArtifact(
+                load_id="tokenizer-override",
+                source_type=ComponentSourceType.LOCAL_DIR,
+                component="tokenizer",
+                file_path="/models/tokenizer",
+            ),
+            id="tokenizer",
+        ),
+        pytest.param(
+            "scheduler",
+            SchedulerComponentArtifact(
+                load_id="scheduler-override",
+                source_type=ComponentSourceType.RAW_CONFIG,
+                component="scheduler",
+                scheduler_class="FlowMatchEulerDiscreteScheduler",
+                text_config={"num_train_timesteps": 1000, "shift": 5.0},
+            ),
+            id="scheduler",
+        ),
+    ],
+)
+def test_component_override_subtypes_round_trip_through_yaml(slot: str, override: ComponentArtifact) -> None:
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        config_hash="pipeline-hash",
+        builder_module="test.module",
+        builder_class_name="TestParameters",
+        build_data={"_component_overrides": {slot: override}},
+    )
+
+    serialized = serialize_pipeline_artifact(artifact)
+    document = yaml.safe_load(serialized)
+    loaded = deserialize_pipeline_artifact(serialized)
+    loaded_override = loaded.build_data["_component_overrides"][slot]
+
+    assert document["build_data"]["_component_overrides"][slot]["artifact_type"] == type(override).__name__
+    assert type(loaded_override) is type(override)
+    assert loaded_override == override
 
 
 def test_validate_pipeline_recipe_dependencies_reports_unavailable_items(monkeypatch) -> None:

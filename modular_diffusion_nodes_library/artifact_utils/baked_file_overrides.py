@@ -202,7 +202,7 @@ def _copy_config_file(config_file: Path, slot_dir: Path) -> Path:
 def resolve_file_overrides(file_overrides: dict[str, Any], baked_path: Path) -> dict[str, ModelComponentArtifact]:
     """Rebuild component artifacts and resolve relative paths against the bake folder.
 
-    ``file_overrides`` is the ``file_overrides`` section from ``baked-config.json``
+    ``file_overrides`` is the ``file_overrides`` section from ``baked-config.yaml``
     """
     from modular_diffusion_nodes_library.artifact_utils import (  # noqa: F401
         text_encoder_component_artifact as _text_encoder_component_artifact,
