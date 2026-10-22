@@ -77,7 +77,7 @@ class LatentDiffusionPipelineBuilderParameters:
         provider_class = MODULAR_PIPELINE_TYPE_PROVIDER_MAP[provider]  # type: ignore[reportArgumentType]
         self._pipeline_type_parameters = provider_class(self._node)
 
-    def sync_provider_for_pipeline_type(self, pipeline_type: str) -> None:
+    def sync_provider_for_pipeline_type(self, pipeline_type: str, *, initial_setup: bool = False) -> None:
         if pipeline_type in self.pipeline_type_parameters.pipeline_types:
             return
 
@@ -90,26 +90,26 @@ class LatentDiffusionPipelineBuilderParameters:
             )
             return
 
-        self._node.set_parameter_value("provider", provider)
+        self._node.set_parameter_value("provider", provider, initial_setup=initial_setup)
 
-    def before_value_set(self, parameter: Parameter, value: Any) -> None:
+    def before_value_set(self, parameter: Parameter, value: Any, *, initial_setup: bool = False) -> None:
         if parameter.name == "provider":
             current_provider = self._node.get_parameter_value("provider")
             self.did_provider_change = current_provider != value
         if parameter.name == "pipeline_type":
             # Runs before the base setter, whose Options converter would snap the value.
-            self.sync_provider_for_pipeline_type(value)
+            self.sync_provider_for_pipeline_type(value, initial_setup=initial_setup)
         self.pipeline_type_parameters.before_value_set(parameter, value)
 
-    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+    def after_value_set(self, parameter: Parameter, value: Any, *, initial_setup: bool = False) -> None:
         if parameter.name == "provider" and self.did_provider_change:
-            self.regenerate_pipeline_type_parameters_for_provider(value)
+            self.regenerate_pipeline_type_parameters_for_provider(value, initial_setup=initial_setup)
         self.pipeline_type_parameters.after_value_set(parameter, value)
 
         if parameter.name in {"provider", "pipeline_type"}:
             self.refresh_component_override_ports()
 
-    def regenerate_pipeline_type_parameters_for_provider(self, provider: str) -> None:
+    def regenerate_pipeline_type_parameters_for_provider(self, provider: str, *, initial_setup: bool = False) -> None:
         # Save parameter properties and connections before removing parameters
         self._node.save_parameter_properties()
         saved_incoming, saved_outgoing = self._node._save_connections()
@@ -122,7 +122,7 @@ class LatentDiffusionPipelineBuilderParameters:
         self._node.set_parameter_value("pipeline_type", first_pipeline_type)
 
         # Restore connections after adding parameters
-        self._node._restore_connections(saved_incoming, saved_outgoing)
+        self._node._restore_connections(saved_incoming, saved_outgoing, initial_setup=initial_setup)
 
         # Reorder parameters to maintain consistent layout
         self._node.reorder_parameters_by_groups()
