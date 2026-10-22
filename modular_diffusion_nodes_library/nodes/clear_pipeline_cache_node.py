@@ -2,7 +2,7 @@ import logging
 
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 
-from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import release_held_pipelines
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -21,9 +21,7 @@ class ClearPipelineCacheNode(SuccessFailureNode):
     def _process(self) -> None:
         self._clear_execution_status()
         try:
-            stats = model_cache.get_cache_stats()
-            pipeline_count = int(stats.get("cached_pipelines", 0))
-            model_cache.clear_pipeline_cache()
+            pipeline_count = release_held_pipelines(self)
             self._set_status_results(
                 was_successful=True,
                 result_details=f"Cleared {pipeline_count} pipeline(s) from cache.",
