@@ -1,14 +1,14 @@
 # Save Pipeline
 
-**Writes a Pipeline Builder config to a JSON recipe, or writes the built weights to a folder.**
+**Writes a Pipeline Builder config as a recipe, or writes the built weights and a manifest to a folder.**
 
 Category: `ModularDiffusion/Pipeline`
 
 ## TL;DR
-- **Config Only** writes a small JSON that records how to rebuild the pipeline (model, fused and runtime LoRAs, quantisation). Load rebuilds, re-fuses, re-quantises, and re-attaches runtime LoRAs.
+- **Config Only** writes a small YAML recipe that records how to rebuild the pipeline (model, fused and runtime LoRAs, quantisation). Load rebuilds, re-fuses, re-quantises, and re-attaches runtime LoRAs.
 - **Full Pipeline** writes the built weights to a folder, including fused LoRAs and post-hoc quantised weights. Runtime LoRAs are copied into `loras/` and re-attached on load.
 - **Full Pipeline does not support pre-quantised Hub repos** (for example bitsandbytes 4-bit or NVFP4 Flux.2 weights). Use Config Only for those.
-- Connect `pipeline` from Pipeline Builder. The destination picker is a `.json` file for Config Only and a folder for Full Pipeline.
+- Connect `pipeline` from Pipeline Builder. The destination picker is a `.yaml` file for Config Only and a folder for Full Pipeline.
 
 ## Typical workflow position
 ```text
@@ -37,8 +37,8 @@ Load Pipeline → Generate Media Latents → Decode Media Latent
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `save_mode` | `Config Only \| Full Pipeline` | `Config Only` | Switches the destination picker between a JSON file and a folder, and changes the default path. |
-| `file_path` | `str` | `{project_dir}/pipeline-config.json` | Destination. Shown as **File Path** in Config Only (default `{project_dir}/pipeline-config.json`) and **Output Folder** in Full Pipeline (default `{project_dir}/baked-pipeline`). `{project_dir}` is the project directory. |
+| `save_mode` | `Config Only \| Full Pipeline` | `Config Only` | Switches the destination picker between a YAML file and a folder, and changes the default path. |
+| `file_path` | `str` | `{project_dir}/config.yaml` | Destination. Shown as **File Path** in Config Only (default `{project_dir}/config.yaml`) and **Output Folder** in Full Pipeline (default `{project_dir}/baked-pipeline`). Full Pipeline writes `baked-config.yaml` inside that folder. `{project_dir}` is the project directory. |
 
 ## Provider / model behavior
 
@@ -57,9 +57,9 @@ Full Pipeline is refused before a build when the config is unsupported. Use Conf
 - **Runtime LoRAs remain runtime adapters.** Full Pipeline copies their files into `loras/`, records their strengths, and never fuses them into the saved weights.
 - **Runtime LoRA filenames must be unique.** Two source files with the same filename cannot both occupy the baked folder's `loras/` directory.
 - **ControlNet is Config Only only.** There is no Full Pipeline path for a ControlNet wrapper yet.
-- **Pick a folder for Full Pipeline, not a `.json` file.** Changing `save_mode` retargets the picker and resets the default path.
+- **Pick a folder for Full Pipeline.** Changing `save_mode` retargets the picker and resets the default path. Load that result by selecting the generated `baked-config.yaml`.
 
 ## See also
 
-- [Load Pipeline](load_pipeline.md) — reads the JSON or folder this node writes.
+- [Load Pipeline](load_pipeline.md) — reads the manifest this node writes.
 - [Modular Diffusion Pipeline Builder](pipeline_builder.md) — typical `pipeline` source.

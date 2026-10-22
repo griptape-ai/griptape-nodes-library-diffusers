@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ComponentSourceType,
@@ -63,7 +63,7 @@ def test_full_pipeline_copies_runtime_loras_and_rebuilds_adapter_step(tmp_path: 
 
     save_baked_pipeline(_FakePipe(), artifact, destination)
 
-    config = json.loads((destination / "baked-config.json").read_text(encoding="utf-8"))
+    config = yaml.safe_load((destination / "baked-config.yaml").read_text(encoding="utf-8"))
     assert config["runtime_loras"] == [
         {"path": "loras/style.safetensors", "weight": 0.75},
         {"path": "loras/hdr.safetensors", "weight": 1.25},
@@ -151,7 +151,7 @@ def test_full_pipeline_preserves_symlink_filename(tmp_path: Path) -> None:
 
     save_baked_pipeline(_FakePipe(), _artifact_with_runtime_loras([(alias, 1.0)]), destination)
 
-    config = json.loads((destination / "baked-config.json").read_text(encoding="utf-8"))
+    config = yaml.safe_load((destination / "baked-config.yaml").read_text(encoding="utf-8"))
     assert config["runtime_loras"] == [{"path": "loras/named-style.safetensors", "weight": 1.0}]
     assert (destination / "loras" / alias.name).read_bytes() == source.read_bytes()
 
@@ -161,10 +161,10 @@ def test_baked_runtime_lora_path_must_be_relative(tmp_path: Path) -> None:
     source = tmp_path / "style.safetensors"
     source.write_bytes(b"style-lora")
     save_baked_pipeline(_FakePipe(), _artifact_with_runtime_loras([(source, 1.0)]), destination)
-    config_path = destination / "baked-config.json"
-    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config_path = destination / "baked-config.yaml"
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["runtime_loras"][0]["path"] = str(source)
-    config_path.write_text(json.dumps(config), encoding="utf-8")
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
 
     with pytest.raises(ValueError, match="must be relative"):
         make_baked_artifact(destination)

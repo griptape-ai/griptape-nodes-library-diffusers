@@ -11,9 +11,9 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     HFRepoRef,
 )
 from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
-    json_safe,
     optional_dict,
     optional_string,
+    recipe_safe,
     require_string,
     resolve_recipe_value,
 )
@@ -39,9 +39,9 @@ class SchedulerComponentArtifact(ComponentArtifact):
         return {
             **self._base_recipe_dict(),
             "scheduler_class": self.scheduler_class,
-            "config_source": json_safe(self.config_source),
+            "config_source": recipe_safe(self.config_source),
             "repo_ref": self.repo_ref.to_recipe_dict() if self.repo_ref else None,
-            "text_config": json_safe(self.text_config),
+            "text_config": recipe_safe(self.text_config),
         }
 
     @classmethod

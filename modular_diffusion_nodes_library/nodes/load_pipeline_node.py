@@ -11,7 +11,11 @@ from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.utils import resolve_workspace_path
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
-from modular_diffusion_nodes_library.artifact_utils.pipeline_baking import make_baked_artifact
+from modular_diffusion_nodes_library.artifact_utils.pipeline_baking import (
+    BAKED_CONFIG_FILENAME,
+    detect_baked_layout,
+    make_baked_artifact,
+)
 from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import (
     deserialize_pipeline_artifact,
     format_baked_pipeline_summary,
@@ -27,7 +31,7 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
-    """Load a pipeline configuration from a JSON recipe or baked Diffusers directory."""
+    """Load a pipeline from a YAML manifest."""
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -36,18 +40,17 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self._setting_optimization_parameters = False
         self._file_path_param = FilePathParameter(
             self,
-            file_types=[".json"],
+            file_types=[".yaml"],
             tooltip=(
-                "A recipe JSON file or a baked pipeline folder. "
+                "A Config Only recipe YAML or baked-config.yaml manifest. "
                 "Relative paths are resolved against the project directory."
             ),
             display_name="File Path",
             allowed_modes={ParameterMode.PROPERTY},
-            default_value="{project_dir}/pipeline-config.json",
+            default_value="{project_dir}/config.yaml",
         )
         self._file_path_param.add_input_parameters()
-        # Accept both a recipe .json file and a baked Diffusers repo directory.
-        self._file_path_param.set_picker_mode(allow_files=True, allow_directories=True, file_types=[".json"])
+        self._file_path_param.set_picker_mode(allow_files=True, allow_directories=False, file_types=[".yaml"])
         self.add_parameter(
             Parameter(
                 name="pipeline",
@@ -116,6 +119,8 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         file_path = self.get_parameter_value("file_path")
         if not isinstance(file_path, str) or not file_path.strip():
             return [ValueError(f"Parameter 'file_path' on node '{self.name}' must be a non-empty string.")]
+        if Path(file_path).suffix.lower() != ".yaml":
+            return [ValueError(f"Parameter 'file_path' on node '{self.name}' must point to a .yaml file.")]
         return None
 
     def _publish_pipeline(self, pipeline: DiffusionPipelineArtifact | None) -> None:
@@ -144,12 +149,18 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         workspace_path = GriptapeNodes.ConfigManager().workspace_path
         resolved_path = resolve_workspace_path(Path(expanded_path), workspace_path)
 
+        if resolved_path.suffix.lower() != ".yaml":
+            raise ValueError(f"Pipeline source must point to a .yaml file: {resolved_path}")
+
         if resolved_path.is_dir():
-            self._loaded_from_baked_dir = True
-            return make_baked_artifact(resolved_path)
+            raise ValueError(f"Pipeline source must point to a .yaml file, not a directory: {resolved_path}")
 
         if not resolved_path.is_file():
-            raise FileNotFoundError(f"Pipeline source does not exist: {resolved_path}")
+            raise FileNotFoundError(f"Pipeline manifest does not exist: {resolved_path}")
+
+        if resolved_path.name == BAKED_CONFIG_FILENAME and detect_baked_layout(resolved_path.parent) is not None:
+            self._loaded_from_baked_dir = True
+            return make_baked_artifact(resolved_path.parent)
 
         self._loaded_from_baked_dir = False
         pipeline = deserialize_pipeline_artifact(resolved_path.read_text(encoding="utf-8"))

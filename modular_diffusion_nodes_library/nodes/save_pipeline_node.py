@@ -31,12 +31,12 @@ class SaveMode(StrEnum):
     FULL_PIPELINE = "Full Pipeline"
 
 
-_RECIPE_DEFAULT_PATH = "{project_dir}/pipeline-config.json"
+_RECIPE_DEFAULT_PATH = "{project_dir}/config.yaml"
 _BAKED_DEFAULT_PATH = "{project_dir}/baked-pipeline"
 
 
 class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
-    """Save a pipeline configuration recipe (JSON) or a baked Diffusers repo."""
+    """Save a pipeline configuration recipe or a baked Diffusers repo."""
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -56,7 +56,7 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             type="str",
             default_value=SaveMode.CONFIG_ONLY,
             traits={Options(choices=list(SaveMode))},
-            tooltip="Config Only = leightweight config JSON. Full Pipeline = folder with weights.",
+            tooltip="Config Only = lightweight rebuild recipe. Full Pipeline = folder with weights.",
             allowed_modes={ParameterMode.PROPERTY},
             ui_options={"display_name": "Save Mode"},
         )
@@ -64,7 +64,7 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             variant="help",
             title="Config Only vs Full Pipeline",
             message=(
-                "**Config Only** — Saves a small JSON that records how to rebuild the pipeline "
+                "**Config Only** — Saves a small YAML recipe that records how to rebuild the pipeline "
                 "(model, fused and runtime LoRA paths, quantisation). Rebuilds, re-fuses, "
                 "re-quantises, and re-attaches runtime LoRAs on load.\n\n"
                 "**Full Pipeline** — Saves the weights into a folder, including fused LoRAs "
@@ -75,8 +75,8 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         self._file_path_param = FilePathParameter(
             self,
-            file_types=[".json"],
-            tooltip="Destination for the recipe JSON. Relative paths are resolved against the project directory.",
+            file_types=[".yaml"],
+            tooltip="Destination for the recipe YAML. Relative paths are resolved against the project directory.",
             display_name="File Path",
             allow_create=True,
             allowed_modes={ParameterMode.PROPERTY},
@@ -118,7 +118,7 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 param.ui_options = {**param.ui_options, "display_name": "Output Folder"}
             self.set_parameter_value("file_path", _BAKED_DEFAULT_PATH, emit_change=False)
             return
-        self._file_path_param.set_picker_mode(allow_files=True, allow_directories=False, file_types=[".json"])
+        self._file_path_param.set_picker_mode(allow_files=True, allow_directories=False, file_types=[".yaml"])
         if param is not None:
             param.ui_options = {**param.ui_options, "display_name": "File Path"}
         self.set_parameter_value("file_path", _RECIPE_DEFAULT_PATH, emit_change=False)
@@ -138,6 +138,10 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         file_path = self.get_parameter_value("file_path")
         if not isinstance(file_path, str) or not file_path.strip():
             exceptions.append(ValueError(f"Parameter 'file_path' on node '{self.name}' must be a non-empty string."))
+        elif (
+            self.get_parameter_value("save_mode") == SaveMode.CONFIG_ONLY and Path(file_path).suffix.lower() != ".yaml"
+        ):
+            exceptions.append(ValueError(f"Parameter 'file_path' on node '{self.name}' must point to a .yaml file."))
 
         if exceptions:
             self._set_status_results(
@@ -177,6 +181,8 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 )
                 return resolved_path
 
+            if resolved_path.suffix.lower() != ".yaml":
+                raise ValueError(f"Config Only destination must point to a .yaml file: {resolved_path}")
             resolved_path.parent.mkdir(parents=True, exist_ok=True)
             temp_path = resolved_path.with_suffix(f"{resolved_path.suffix}.tmp")
             temp_path.write_text(serialize_pipeline_artifact(pipeline), encoding="utf-8")
