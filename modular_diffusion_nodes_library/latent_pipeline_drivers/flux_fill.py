@@ -26,6 +26,29 @@ class FluxFillLatentPipelineDriver(FluxLatentPipelineDriver):
         return self.pipe.vae.config.latent_channels
 
     @override
+    def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
+		from diffusers.modular_pipelines.flux.before_denoise import FluxPrepareLatentsStep  # type: ignore[reportMissingImports]
+        height, width = source_shape[-2:]
+        device, dtype = self._get_device_and_type()
+        generator = generator_state.to_generator()
+        packed_latents = FluxPrepareLatentsStep.prepare_latents(
+            self.modular_pipe,
+            batch_size=1,
+            num_channels_latents=self._get_num_channels_latents(),
+            height=height,
+            width=width,
+            dtype=dtype,
+            device=device,
+            generator=generator,
+        )
+        latents = self.unpack_latents(packed_latents, height=height, width=width)
+        return self._make_latent_artifact(
+            latents,
+            source_shape=source_shape,
+            meta=GeneratorState.from_generator(generator).as_meta(),
+        )
+
+    @override
     def _get_inpaint_pipe(self) -> DiffusionPipeline | None:
         return self.pipe
 
