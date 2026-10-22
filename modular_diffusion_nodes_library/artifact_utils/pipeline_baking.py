@@ -9,7 +9,6 @@ wrapped back into the normal `DiffusionPipelineArtifact` build/cache path.
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import os
 import shutil
@@ -17,6 +16,8 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from modular_diffusion_nodes_library.artifact_utils.baked_file_overrides import (
     assert_baked_save_feasible,
@@ -35,6 +36,9 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DEFAULT_BAKED_DTYPE,
     DiffusionPipelineArtifact,
 )
+from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
+    PIPELINE_RECIPE_SCHEMA_VERSION,
+)
 from modular_diffusion_nodes_library.utils.lora_apply_utils import lora_adapter_name
 from modular_diffusion_nodes_library.utils.pipeline_utils import prepare_pipeline_for_baked_save
 
@@ -42,8 +46,7 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 _MODEL_INDEX = "model_index.json"
 _MODULAR_MODEL_INDEX = "modular_model_index.json"
-_BAKED_CONFIG_FILE = "baked-config.json"
-_BAKED_CONFIG_SCHEMA_VERSION = 1
+BAKED_CONFIG_FILENAME = "baked-config.yaml"
 _RUNTIME_LORA_FOLDER = Path("loras")
 
 
@@ -214,22 +217,32 @@ def _write_baked_config(
     dtype_name: str,
     **extra: Any,
 ) -> None:
-    """Always write a config, wrapping the artifact's own fields in folder-level metadata."""
+    """Write a flat pipeline manifest with baked-only metadata appended."""
+    artifact_config = artifact.to_baked_config_dict()
+    baked_quantization_mode = artifact_config.pop("baked_quantization_mode")
     config = {
-        "schema_version": _BAKED_CONFIG_SCHEMA_VERSION,
-        "torch_dtype": dtype_name,  # pipeline-wide
-        **artifact.to_baked_config_dict(),
+        "schema_version": PIPELINE_RECIPE_SCHEMA_VERSION,
+        **artifact_config,
+        "torch_dtype": dtype_name,
+        "baked_quantization_mode": baked_quantization_mode,
         **extra,
     }
-    (folder / _BAKED_CONFIG_FILE).write_text(json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (folder / BAKED_CONFIG_FILENAME).write_text(
+        yaml.safe_dump(config, sort_keys=False, allow_unicode=False),
+        encoding="utf-8",
+    )
 
 
 def read_baked_config(folder: Path) -> dict[str, Any]:
     """Read the sidecar baked config, or {} if a folder was baked without one."""
-    config_path = folder / _BAKED_CONFIG_FILE
+    config_path = folder / BAKED_CONFIG_FILENAME
     if not config_path.is_file():
         return {}
-    return json.loads(config_path.read_text(encoding="utf-8"))
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    if not isinstance(config, dict):
+        msg = f"Baked pipeline manifest must contain a mapping: {config_path}"
+        raise ValueError(msg)
+    return config
 
 
 def make_baked_artifact(folder: Path) -> DiffusionPipelineArtifact:
@@ -239,13 +252,20 @@ def make_baked_artifact(folder: Path) -> DiffusionPipelineArtifact:
         msg = f"Folder is not a baked Diffusers/modular repo: {folder}"
         raise ValueError(msg)
 
-    config = read_baked_config(folder)
-    if not config.get("builder_module") or not config.get("builder_class_name"):
+    manifest = read_baked_config(folder)
+    schema_version = manifest.get("schema_version")
+    if schema_version != PIPELINE_RECIPE_SCHEMA_VERSION:
+        msg = f"Unsupported baked pipeline manifest schema version: {schema_version!r}"
+        raise ValueError(msg)
+
+    if not manifest.get("builder_module") or not manifest.get("builder_class_name"):
         msg = (
-            f"Baked folder is missing '{_BAKED_CONFIG_FILE}' (or builder info within it): {folder}. "
+            f"Baked folder is missing '{BAKED_CONFIG_FILENAME}' (or builder info within it): {folder}. "
             "It cannot be reloaded without knowing which pipeline builder to use."
         )
         raise ValueError(msg)
+    config = dict(manifest)
+    config.pop("schema_version")
 
     # Fold a content signature into the cache key so re-baking the same folder invalidates
     # the in-session pipeline cache instead of returning a stale build.
@@ -258,7 +278,7 @@ def make_baked_artifact(folder: Path) -> DiffusionPipelineArtifact:
 def _baked_content_signature(folder: Path, layout: BakedLayout) -> str:
     """Fingerprint index + sidecar files so map-only edits invalidate the cache."""
     paths = [folder / layout.index_filename()]
-    paths.append(folder / _BAKED_CONFIG_FILE)
+    paths.append(folder / BAKED_CONFIG_FILENAME)
     paths.extend(sorted(folder.rglob(QUANT_MAP_FILENAME)))
     paths.extend(sorted(folder.rglob("*.gguf")))
     parts: list[str] = []

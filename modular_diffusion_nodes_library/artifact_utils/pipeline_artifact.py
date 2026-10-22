@@ -23,8 +23,8 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_build_steps import 
     run_build_steps,
 )
 from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
-    json_safe,
     optional_string,
+    recipe_safe,
     require_bool,
     require_dict,
     require_loras,
@@ -334,6 +334,9 @@ class DiffusionPipelineArtifact:
         }
 
     def _ensure_recipe_serializable(self) -> None:
+        if self.build_data_error is not None:
+            msg = f"Pipeline cannot be saved because its build data is unavailable: {self.build_data_error}"
+            raise ValueError(msg)
         steps = self.runtime_adapter_steps()
         if len(steps) > 1:
             msg = (
@@ -355,24 +358,22 @@ class DiffusionPipelineArtifact:
         return specs
 
     def to_recipe_dict(self) -> dict[str, Any]:
-        """Render this pipeline configuration as a JSON-safe recipe dict."""
+        """Render this pipeline configuration as a recipe-safe dict."""
         self._ensure_recipe_serializable()
         if type(self) is not DiffusionPipelineArtifact:
             msg = f"Unsupported pipeline artifact type: {type(self).__name__}"
             raise ValueError(msg)
         return {
-            "type": "base",
             "pipeline_name": self.pipeline_name,
             "config_hash": self.config_hash,
             "builder_module": self.builder_module,
             "builder_class_name": self.builder_class_name,
-            "build_data": json_safe(self.build_data),
-            "build_data_error": self.build_data_error,
-            "loras": json_safe(self.loras),
-            "runtime_loras": json_safe(
+            "build_data": recipe_safe(self.build_data),
+            "loras": recipe_safe(self.loras),
+            "runtime_loras": recipe_safe(
                 [{"path": spec.path, "weight": float(spec.weight)} for spec in self.runtime_loras().values()]
             ),
-            "optimization": json_safe(self.optimization_kwargs),
+            "optimization": recipe_safe(self.optimization_kwargs),
             "is_prequantized": self.is_prequantized,
             "supports_layerwise_casting": self.supports_layerwise_casting,
             "requires_device_map": self.requires_device_map,
@@ -408,7 +409,8 @@ class DiffusionPipelineArtifact:
     def to_baked_config_dict(self) -> dict[str, Any]:
         """Render the artifact-owned half of a baked folder's sidecar config.
 
-        Schema version, layout, dtype of the built pipe) are added by the caller, mirroring how
+        Schema version and baked-only metadata, including layout and built-pipeline dtype, are added
+        by the caller, mirroring how
         `serialize_pipeline_artifact` wraps `to_recipe_dict`.
         """
         self.check_full_pipeline_bake_policy()
@@ -461,10 +463,6 @@ class DiffusionPipelineArtifact:
     @classmethod
     def from_recipe_dict(cls, data: dict[str, Any]) -> DiffusionPipelineArtifact:
         """Reconstruct a base pipeline artifact from its recipe dict."""
-        artifact_type = data.get("type")
-        if artifact_type != "base":
-            msg = f"Unsupported pipeline recipe artifact type: {artifact_type!r}"
-            raise ValueError(msg)
         runtime_loras = require_runtime_loras(resolve_recipe_value(data.get("runtime_loras", [])))
         artifact = cls(
             pipeline_name=require_string(data.get("pipeline_name"), "Pipeline name"),
@@ -472,7 +470,6 @@ class DiffusionPipelineArtifact:
             builder_module=optional_string(data.get("builder_module"), "Pipeline builder module"),
             builder_class_name=optional_string(data.get("builder_class_name"), "Pipeline builder class name"),
             build_data=require_dict(resolve_recipe_value(data.get("build_data")), "Pipeline build data"),
-            build_data_error=optional_string(data.get("build_data_error"), "Pipeline build data error"),
             loras=require_loras(resolve_recipe_value(data.get("loras"))),
             optimization_kwargs=require_dict(resolve_recipe_value(data.get("optimization")), "Pipeline optimization"),
             is_prequantized=require_bool(data.get("is_prequantized"), "Pipeline is_prequantized flag"),

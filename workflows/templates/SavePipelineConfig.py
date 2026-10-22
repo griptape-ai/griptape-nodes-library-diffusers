@@ -7,7 +7,7 @@
 # engine_version_created_with = "0.101.0"
 # node_libraries_referenced = [["Griptape Nodes Library", "0.72.0"], ["Griptape Modular Diffusion Nodes Library", "0.6.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "LoadPipelineNode"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "SavePipelineNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Library", "Note"]]
-# description = "Save a Modular Diffusion pipeline configuration to a JSON recipe and reload it."
+# description = "Save a Modular Diffusion pipeline configuration to a YAML recipe and reload it."
 # image = "https://raw.githubusercontent.com/griptape-ai/griptape-nodes-library-diffusers/main/workflows/templates/SavePipelineConfig.webp"
 # is_griptape_provided = true
 # is_template = true

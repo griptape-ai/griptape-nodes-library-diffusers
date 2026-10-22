@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 from modular_diffusion_nodes_library.nodes.save_pipeline_node import SaveMode, SavePipelineNode
 
 
@@ -38,3 +39,20 @@ def test_validation_error_is_reported_in_save_pipeline_status() -> None:
         was_successful=False,
         result_details=str(collision),
     )
+
+
+def test_config_only_validation_requires_yaml_destination() -> None:
+    node = MagicMock()
+    node.name = "Save Pipeline"
+    node.get_parameter_value.side_effect = {
+        "pipeline": DiffusionPipelineArtifact(pipeline_name="TestPipeline"),
+        "save_mode": SaveMode.CONFIG_ONLY,
+        "file_path": "/tmp/config.json",
+    }.get
+
+    errors = SavePipelineNode.validate_before_node_run(node)
+
+    assert errors is not None
+    assert [str(error) for error in errors] == [
+        "Parameter 'file_path' on node 'Save Pipeline' must point to a .yaml file."
+    ]

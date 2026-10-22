@@ -1,7 +1,7 @@
 """Shared, dependency-free codec helpers for pipeline recipes.
 
 This module owns the cross-cutting concerns of recipe (de)serialisation — the
-schema version, JSON-safety/macro conversion, the component-override registry,
+schema version, value normalization/macro conversion, the component-override registry,
 and the small value validators — so that the per-class ``to_recipe_dict`` /
 ``from_recipe_dict`` methods on the artifact classes can stay colocated with
 their fields without importing each other. It must not import any artifact
@@ -24,13 +24,13 @@ COMPONENT_DESERIALIZERS: dict[str, Callable[[dict[str, Any]], Any]] = {}
 
 @runtime_checkable
 class RecipeSerializable(Protocol):
-    """Any object that knows how to render itself as a JSON-safe recipe dict."""
+    """Any object that knows how to render itself as a recipe-safe dict."""
 
     def to_recipe_dict(self) -> dict[str, Any]: ...
 
 
-def json_safe(value: Any) -> Any:
-    """Recursively convert a value into JSON-safe primitives.
+def recipe_safe(value: Any) -> Any:
+    """Recursively convert a value into recipe-safe primitives.
 
     Objects implementing ``to_recipe_dict`` (component artifacts, repo refs) are
     delegated to; strings and paths are mapped to project macros where possible.
@@ -44,16 +44,16 @@ def json_safe(value: Any) -> Any:
     if isinstance(value, Path):
         return resolve_path_to_macro(str(value))
     if isinstance(value, list | tuple):
-        return [json_safe(item) for item in value]
+        return [recipe_safe(item) for item in value]
     if isinstance(value, dict):
-        return {str(key): json_safe(item) for key, item in value.items()}
+        return {str(key): recipe_safe(item) for key, item in value.items()}
 
-    msg = f"Pipeline recipe contains non-JSON value: {type(value).__name__}"
+    msg = f"Pipeline recipe contains an unsupported value: {type(value).__name__}"
     raise TypeError(msg)
 
 
 def resolve_recipe_value(value: Any) -> Any:
-    """Recursively reverse :func:`json_safe`: expand macros and rebuild overrides."""
+    """Recursively reverse :func:`recipe_safe`: expand macros and rebuild overrides."""
     if isinstance(value, dict) and value.get("type") == "component_override":
         artifact_type = require_string(value.get("artifact_type"), "Component override artifact type")
         deserializer = COMPONENT_DESERIALIZERS.get(artifact_type)
