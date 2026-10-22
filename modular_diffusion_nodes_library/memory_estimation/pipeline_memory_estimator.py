@@ -12,12 +12,16 @@ from dataclasses import replace
 from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import torch  # type: ignore[reportMissingImports]
 from huggingface_hub import try_to_load_from_cache
 
-from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact, ComponentSourceType
+from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
+    ComponentArtifact,
+    ComponentSourceType,
+    ModelComponentArtifact,
+)
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import ControlNetDiffusionPipelineArtifact
 from modular_diffusion_nodes_library.component_loading.component_slots import slot_component_kind
 from modular_diffusion_nodes_library.component_loading.config_resolver import try_load_json_dict
@@ -596,6 +600,12 @@ def _stored_bytes_for_override(
     GGUF file that size already reflects its final quantized bytes) rather than the
     meta-built component's shape-derived count.
     """
+    if not isinstance(override, ModelComponentArtifact):
+        msg = (
+            f"Attempted to estimate memory for override component '{effective_slot}'. "
+            f"Failed because '{type(override).__name__}' is not a ModelComponentArtifact."
+        )
+        raise TypeError(msg)
     torch_dtype = getattr(torch, override.torch_dtype)
     config_dict = override.try_read_config(pipeline_cls=pipeline_cls)
     meta_component = None
@@ -729,7 +739,7 @@ def estimate_pipeline_memory_from_build_data(
 
     component_overrides: dict[str, ComponentArtifact] = build_data.get("_component_overrides", {})
     is_all_overrides = bool(build_data.get("_all_overrides"))
-    base_repo_id = build_data.get("base_repo_id") or build_data.get("repo_id")
+    base_repo_id = str(build_data.get("base_repo_id") or build_data.get("repo_id") or "")
     base_revision = build_data.get("base_revision") or build_data.get("revision")
 
     if not is_all_overrides and not base_repo_id:
@@ -868,7 +878,7 @@ def estimate_pipeline_memory_from_build_data(
         # denoiser slot such as WAN 2.2's `transformer_2` is exposed under its canonical name.
         # Family adapters read the canonical `.transformer` / `.unet` attribute, so a second
         # denoiser slot such as WAN 2.2's `transformer_2` is exposed under its canonical name.
-        denoiser_pipe_stub = SimpleNamespace(**{slot_component_kind(slot): meta_component})
+        denoiser_pipe_stub = cast(Any, SimpleNamespace(**{slot_component_kind(slot): meta_component}))
         activation_bytes, warning = _estimate_denoiser_activation_bytes(
             meta_component, denoiser_pipe_stub, pipeline_name, latent, element_size
         )
@@ -947,12 +957,14 @@ def estimate_pipeline_memory_from_artifact(
     estimator. See docs/spikes/memory_estimation_preload_api_plan.md, Decision 1.
     """
     lora_adapters = collect_runtime_lora_memory(artifact)
+    cached_pipe = None
     if artifact.config_hash and model_cache.has_pipeline(artifact.config_hash):
-        pipe = model_cache.get_pipeline(artifact.config_hash)
-        return estimate_pipeline_memory(
-            pipe,
-            latent,
-            artifact.pipeline_name,
-            lora_adapters=lora_adapters,
-        )
-    return estimate_pipeline_memory_from_build_data(artifact, latent, lora_adapters=lora_adapters)
+        cached_pipe = model_cache.get_pipeline(artifact.config_hash)
+    if cached_pipe is None:
+        return estimate_pipeline_memory_from_build_data(artifact, latent, lora_adapters=lora_adapters)
+    return estimate_pipeline_memory(
+        cached_pipe,
+        latent,
+        artifact.pipeline_name,
+        lora_adapters=lora_adapters,
+    )

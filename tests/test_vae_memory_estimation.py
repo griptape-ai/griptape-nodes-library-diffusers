@@ -245,7 +245,7 @@ def test_trace_excludes_registered_buffer_storage() -> None:
         def encode(self, input_tensor: torch.Tensor, return_dict: bool = True) -> Any:
             """Read the buffer and return its encoded activation."""
             del return_dict
-            encoded = input_tensor[:, :1] + self.resident
+            encoded = input_tensor[:, :1] + self.get_buffer("resident")
             return NS(latent_dist=Posterior(encoded))
 
         def decode(self, input_tensor: torch.Tensor, return_dict: bool = True) -> torch.Tensor:
