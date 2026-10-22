@@ -33,7 +33,7 @@ def _adapt_flux_controlnet(config: Any) -> DenoiserConfigFields:
     return DenoiserConfigFields(
         hidden_dim=config.num_attention_heads * config.attention_head_dim,
         num_layers=config.num_layers + config.num_single_layers,
-        patch_size_spatial=config.patch_size,
+        patch_size_spatial=2 * config.patch_size,
         patch_size_temporal=1,
     )
 

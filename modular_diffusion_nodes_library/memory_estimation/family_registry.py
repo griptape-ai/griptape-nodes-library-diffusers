@@ -47,6 +47,16 @@ def _adapt_flux_family(pipe: DiffusionPipeline) -> DenoiserConfigFields:
     return DenoiserConfigFields(
         hidden_dim=cfg.num_attention_heads * cfg.attention_head_dim,
         num_layers=cfg.num_layers + cfg.num_single_layers,
+        patch_size_spatial=2 * cfg.patch_size,
+        patch_size_temporal=1,
+    )
+
+
+def _adapt_flux2_family(pipe: DiffusionPipeline) -> DenoiserConfigFields:
+    cfg = pipe.transformer.config
+    return DenoiserConfigFields(
+        hidden_dim=cfg.num_attention_heads * cfg.attention_head_dim,
+        num_layers=cfg.num_layers + cfg.num_single_layers,
         patch_size_spatial=cfg.patch_size,
         patch_size_temporal=1,
     )
@@ -132,8 +142,8 @@ _DENOISER_FIELD_ADAPTERS: dict[str, Callable[[DiffusionPipeline], DenoiserConfig
     "FluxPipeline": _adapt_flux_family,
     "FluxFillPipeline": _adapt_flux_family,
     "FluxKontextPipeline": _adapt_flux_family,
-    "Flux2Pipeline": _adapt_flux_family,
-    "Flux2KleinPipeline": _adapt_flux_family,
+    "Flux2Pipeline": _adapt_flux2_family,
+    "Flux2KleinPipeline": _adapt_flux2_family,
     "QwenImagePipeline": _adapt_qwen_family,
     "QwenImageEditPipeline": _adapt_qwen_family,
     "StableDiffusion3Pipeline": _adapt_sd3,

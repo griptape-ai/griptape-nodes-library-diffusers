@@ -13,6 +13,7 @@ import torch  # type: ignore[reportMissingImports]
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
+from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact import SchedulerComponentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_class
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import GeneratorState
 from modular_diffusion_nodes_library.memory_estimation.meta_device_builder import (
@@ -95,8 +96,15 @@ def _pipeline_repository(artifact: DiffusionPipelineArtifact) -> tuple[str, str 
 _SHAPE_COMPONENT_SLOTS = {"vae", "transformer", "transformer_2", "unet", "scheduler"}
 
 
-def _shape_component_slots(pipe: Any) -> list[str]:
-    return [name for name, component in pipe.components.items() if component is None and name in _SHAPE_COMPONENT_SLOTS]
+def _shape_component_slots(pipe: Any, pipeline_cls: type) -> list[str]:
+    # The driver's block set can declare slots the pipeline class lacks (Wan22Blocks has
+    # transformer_2, WanAnimatePipeline does not), so only request configs for declared slots.
+    declared_slots, _ = pipeline_cls._get_signature_keys(pipeline_cls)  # noqa: SLF001
+    return [
+        name
+        for name, component in pipe.components.items()
+        if component is None and name in _SHAPE_COMPONENT_SLOTS and name in declared_slots
+    ]
 
 
 def _component_class(component_spec: Any) -> type | None:
@@ -138,21 +146,24 @@ def _build_shape_only_pipe(artifact: DiffusionPipelineArtifact) -> Any:
             "does not expose a modular prepare-latents pipeline."
         ) from error
 
-    repo_id, revision = _pipeline_repository(artifact)
     pipeline_cls = resolve_pipeline_cls(artifact)
     components: dict[str, Any] = {}
-    for slot in _shape_component_slots(pipe):
+    overrides = artifact.build_data.get("_component_overrides", {})
+    for slot in _shape_component_slots(pipe, pipeline_cls):
         spec = pipe.get_component_spec(slot)
         if _component_class(spec) is None:
             raise WorkflowExtractionError(
                 f"Could not resolve latent shape for pipeline '{artifact.pipeline_name}' because component "
                 f"'{slot}' has no concrete config class."
             )
-        overrides = artifact.build_data.get("_component_overrides", {})
         override = overrides.get(slot) if isinstance(overrides, dict) else None
+        if isinstance(override, SchedulerComponentArtifact):
+            components[slot] = override.materialize(pipeline_cls=pipeline_cls, slot=slot)
+            continue
         if override is not None:
             config_dict = override.try_read_config(pipeline_cls=pipeline_cls)
         else:
+            repo_id, revision = _pipeline_repository(artifact)
             config_dict = resolve_base_component_config(repo_id, slot, revision)
         if config_dict is None:
             raise ComponentConfigNotCachedError(

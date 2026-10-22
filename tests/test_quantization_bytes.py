@@ -8,8 +8,11 @@ result for a given input is a real behavior regression, not measurement noise.
 
 from __future__ import annotations
 
+import torch
+
 from modular_diffusion_nodes_library.memory_estimation.quantization_bytes import (
     LAYERWISE_CASTING_BYTES_PER_ELEMENT,
+    estimate_component_weight_bytes,
     resolve_effective_bytes_per_element,
 )
 
@@ -27,6 +30,24 @@ def test_prequantized_component_ignores_requested_optimization() -> None:
     )
 
     assert effective == 1.0
+
+
+class _ProjectionModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.linear = torch.nn.Linear(4, 2, bias=True, dtype=torch.bfloat16, device="meta")
+        self.proj_out = torch.nn.Linear(4, 2, bias=True, dtype=torch.bfloat16, device="meta")
+
+
+def test_quantization_estimate_keeps_excluded_proj_out_at_stored_width() -> None:
+    module = _ProjectionModule()
+
+    total_weight_bytes = sum(parameter.numel() * parameter.element_size() for parameter in module.parameters())
+    estimated = estimate_component_weight_bytes(module, quantization_mode="int8", total_weight_bytes=total_weight_bytes)
+    expected = module.linear.weight.numel() + module.linear.bias.numel() * 2
+    expected += module.proj_out.weight.numel() * 2 + module.proj_out.bias.numel() * 2
+
+    assert estimated == expected
 
 
 def test_int4_quantization_resolves_to_half_a_byte() -> None:

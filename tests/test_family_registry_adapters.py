@@ -42,7 +42,7 @@ def test_adapt_flux_family_reads_flux_field_names() -> None:
 
     assert fields.hidden_dim == 24 * 128
     assert fields.num_layers == 19 + 38
-    assert fields.patch_size_spatial == 1
+    assert fields.patch_size_spatial == 2
     assert fields.patch_size_temporal == 1
 
 

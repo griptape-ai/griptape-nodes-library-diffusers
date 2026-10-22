@@ -8,11 +8,16 @@ deterministic rather than calibrated.
 
 Both are gated pipeline-wide by `is_prequantized` / `supports_layerwise_casting`,
 mirroring `_manual_optimize_diffusion_pipeline` (pipeline_utils.py:305-341) exactly:
-quantization_mode scopes to every real pipeline component; layerwise casting scopes to
-the "transformer" slot only (`hasattr(pipe, "transformer")`, pipeline_utils.py:331).
+quantization_mode scopes to every real pipeline component except excluded submodules;
+layerwise casting scopes to the "transformer" slot only (`hasattr(pipe, "transformer")`,
+pipeline_utils.py:331).
 """
 
 from __future__ import annotations
+
+from fnmatch import fnmatch
+
+import torch
 
 QUANTIZATION_MODE_BYTES_PER_ELEMENT: dict[str, float] = {
     "fp8": 1.0,
@@ -51,3 +56,34 @@ def resolve_effective_bytes_per_element(
         effective_bytes_per_element = LAYERWISE_CASTING_BYTES_PER_ELEMENT
 
     return effective_bytes_per_element
+
+
+def estimate_component_weight_bytes(
+    module: torch.nn.Module,
+    *,
+    quantization_mode: str,
+    total_weight_bytes: int,
+) -> int:
+    """Adjust stored component bytes for Quanto-quantized weights only."""
+    target_bytes_per_element = QUANTIZATION_MODE_BYTES_PER_ELEMENT.get(quantization_mode)
+    if target_bytes_per_element is None:
+        return total_weight_bytes
+
+    quantized_weight_delta = 0.0
+    stored_tensor_bytes = sum(parameter.numel() * parameter.element_size() for parameter in module.parameters())
+    stored_tensor_bytes += sum(buffer.numel() * buffer.element_size() for buffer in module.buffers())
+    for module_name, child_module in module.named_modules():
+        if fnmatch(module_name, "proj_out"):
+            continue
+        if not isinstance(child_module, (torch.nn.Linear, torch.nn.Conv2d)):
+            continue
+
+        weight = child_module.weight
+        if weight is not None:
+            quantized_weight_delta += weight.numel() * (target_bytes_per_element - weight.element_size())
+
+    if stored_tensor_bytes == 0:
+        return total_weight_bytes
+
+    estimated_fraction = (stored_tensor_bytes + quantized_weight_delta) / stored_tensor_bytes
+    return int(total_weight_bytes * estimated_fraction)

@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
+from modular_diffusion_nodes_library.memory_estimation import pipeline_memory_estimator
+from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import MODULAR_PIPELINE_TYPE_PROVIDER_MAP
 from modular_diffusion_nodes_library.tools import estimate_workflow_memory as workflow_memory
 from modular_diffusion_nodes_library.tools import workflow_extraction
 
@@ -94,23 +96,70 @@ def test_extract_repository_text_to_image_template() -> None:
     assert extracted.builders[0].dimensions.height == TEMPLATE_SIZE
     assert extracted.builders[0].dimensions.num_frames == 41
 
+def test_resolve_pipeline_cls_uses_registered_builder_identity() -> None:
+    builder_class = next(
+        parameters_class
+        for provider_parameters_class in MODULAR_PIPELINE_TYPE_PROVIDER_MAP.values()
+        for parameters_class in provider_parameters_class.get_pipeline_type_dict().values()
+        if parameters_class.pipeline_cls().__name__ == "FluxPipeline"
+    )
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="FluxPipeline",
+        builder_module=builder_class.__module__,
+        builder_class_name=builder_class.__name__,
+    )
 
-def test_extract_new_schema_text_to_image() -> None:
-    path = LIBRARY_ROOT / "Text2Image.py"
+    assert pipeline_memory_estimator.resolve_pipeline_cls(artifact) is builder_class.pipeline_cls()
 
-    extracted = workflow_memory.extract_workflow(path)
 
-    assert len(extracted.builders) == 1
-    builder = extracted.builders[0]
-    assert builder.artifact.pipeline_name == "FluxPipeline"
-    assert builder.artifact.builder_class_name == "FluxPipelineParameters"
-    assert builder.artifact.build_data["base_repo_id"] == "black-forest-labs/FLUX.1-dev"
-    assert builder.artifact.build_data["base_revision"] == "main"
-    assert builder.dimensions.width == TEMPLATE_SIZE
-    assert builder.dimensions.height == TEMPLATE_SIZE
-    assert builder.dimensions.num_frames == 41
-    assert builder.artifact.optimization_kwargs["cpu_offload_strategy"] == "Sequential"
-    assert builder.artifact.optimization_kwargs["attention_slicing"] is True
+def test_resolve_pipeline_cls_rejects_mismatched_pipeline_name() -> None:
+    builder_class = next(
+        parameters_class
+        for provider_parameters_class in MODULAR_PIPELINE_TYPE_PROVIDER_MAP.values()
+        for parameters_class in provider_parameters_class.get_pipeline_type_dict().values()
+        if parameters_class.pipeline_cls().__name__ == "FluxPipeline"
+    )
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="ZImagePipeline",
+        builder_module=builder_class.__module__,
+        builder_class_name=builder_class.__name__,
+    )
+
+    with pytest.raises(ValueError, match="resolves to 'FluxPipeline'"):
+        pipeline_memory_estimator.resolve_pipeline_cls(artifact)
+
+
+def test_serialized_untrusted_builder_identity_is_rejected_before_import(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module_name = f"untrusted_builder_{tmp_path.name.replace('-', '_')}"
+    import_marker = tmp_path / "module_imported.txt"
+    malicious_module = tmp_path / f"{module_name}.py"
+    malicious_module.write_text(
+        "from pathlib import Path\n"
+        f"Path({str(import_marker)!r}).write_text('imported', encoding='utf-8')\n"
+        "class UntrustedBuilder:\n"
+        "    @classmethod\n"
+        "    def pipeline_cls(cls):\n"
+        "        return object\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="FluxPipeline",
+        builder_module=module_name,
+        builder_class_name="UntrustedBuilder",
+        build_data={"base_repo_id": "org/model"},
+    )
+    workflow_path = tmp_path / "workflow.py"
+    workflow_path.write_text(_synthetic_workflow(pipeline_name="FluxPipeline", value=artifact), encoding="utf-8")
+    extracted = workflow_memory.extract_workflow(workflow_path)
+
+    with pytest.raises(ValueError, match="is not registered"):
+        workflow_memory.estimate_workflow(extracted)
+
+    assert not import_marker.exists()
 
 
 def test_new_workflow_schema_requires_supported_value_expressions(tmp_path: Path) -> None:
