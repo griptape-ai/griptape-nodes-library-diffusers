@@ -9,13 +9,12 @@ from griptape.artifacts.video_url_artifact import VideoUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.files.project_file import ProjectFileDestination
-from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_spec
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import DecodeOutput
+from modular_diffusion_nodes_library.mixins.parameter_removal_mixin import ParameterRemovalMixin
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.pillow_utils import pil_to_image_artifact
@@ -23,7 +22,7 @@ from modular_diffusion_nodes_library.utils.pillow_utils import pil_to_image_arti
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
-class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
+class VaeDecodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, SuccessFailureNode):
     def __init__(self, **kwargs) -> None:
         self._initializing = True
         self._current_output_type = "image"
@@ -79,13 +78,6 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         if not self.does_name_exist(param.name):
             super().add_parameter(param)
 
-    def remove_parameter_element_by_name(self, element_name: str) -> None:
-        # Use the retained mode request so connections are also removed.
-        if self.get_element_by_name_and_type(element_name):
-            GriptapeNodes.handle_request(
-                RemoveParameterFromNodeRequest(parameter_name=element_name, node_name=self.name)
-            )
-
     def set_parameter_value(
         self,
         param_name: str,
@@ -118,7 +110,9 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.pipe_params.runtime_parameters.after_value_set(parameter, value)
 
         if param_name == "pipeline":
-            self._update_output_parameter()
+            # Loading only connects parameters the saved node had, and it had none of the ones being swapped out.
+            with self.removing_locally_while_loading(initial_setup=initial_setup):
+                self._update_output_parameter()
 
     def _update_output_parameter(self) -> None:
         # The declared spec rather than the driver class: this runs on the orchestrator, where

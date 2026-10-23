@@ -146,6 +146,11 @@ class ControlNetNode(ParameterConnectionPreservationMixin, ControlNode):
             skip_before_value_set=skip_before_value_set,
         )
 
+        # The provider's parameter type is node state process() reads, so it is swapped here rather than in
+        # after_value_set, which the engine does not run when loading.
+        if parameter.name == "provider" and self.did_provider_change:
+            self.regenerate_controlnet_parameter_type_for_provider(value, initial_setup=initial_setup)
+
         if initial_setup and fire_hooks_on_initial_setup:
             self.after_value_set(parameter, value)
 
@@ -156,16 +161,19 @@ class ControlNetNode(ParameterConnectionPreservationMixin, ControlNode):
         return super().before_value_set(parameter, value)
 
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
-        if parameter.name == "provider" and self.did_provider_change:
-            self.regenerate_controlnet_parameter_type_for_provider(value)
-        elif parameter.name == CONTROLNET_MODEL_PARAMETER_NAME:
+        if parameter.name == CONTROLNET_MODEL_PARAMETER_NAME:
             self._controlnet_parameter_type.on_model_changed(value)
         return super().after_value_set(parameter, value)
 
-    def regenerate_controlnet_parameter_type_for_provider(self, provider: str) -> None:
+    def regenerate_controlnet_parameter_type_for_provider(self, provider: str, *, initial_setup: bool = False) -> None:
         # Save parameter properties and connections before removing parameters
         self.save_parameter_properties()
-        saved_incoming, saved_outgoing = self._save_connections()
+        saved_incoming = []
+        saved_outgoing = []
+        # Loading creates this node's connections itself. Provider parameters are removed locally and
+        # re-added under the same names, so those connections still resolve.
+        if not initial_setup:
+            saved_incoming, saved_outgoing = self._save_connections()
 
         self.controlnet_parameter_type.remove_input_parameters()
         self.set_controlnet_parameter_type(provider)

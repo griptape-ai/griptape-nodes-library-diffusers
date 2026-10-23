@@ -27,10 +27,8 @@ def _switch_output_type(node: VaeDecodeNode, monkeypatch: pytest.MonkeyPatch, *,
     )
     monkeypatch.setattr(vae_decoder, "get_driver_spec", lambda _pipeline_class: driver_spec)
     # Outside a running engine there are no connections to clean up, so remove directly.
-    monkeypatch.setattr(
-        node, "remove_parameter_element_by_name", super(VaeDecodeNode, node).remove_parameter_element_by_name
-    )
-    node._update_output_parameter()
+    with node.removing_locally_while_loading(initial_setup=True):
+        node._update_output_parameter()
 
 
 def _saves_output_value(node: VaeDecodeNode, parameter_name: str) -> bool:

@@ -158,8 +158,13 @@ class LatentPipelineTypeParameters(ABC):
             self.did_pipeline_type_change = current_pipeline_type != value
 
     def after_value_set(self, parameter: Parameter, value: Any, *, initial_setup: bool = False) -> None:
-        if parameter.name == "pipeline_type" and self.did_pipeline_type_change and not initial_setup:
-            self.regenerate_elements_for_pipeline_type(value)
+        if parameter.name != "pipeline_type" or not self.did_pipeline_type_change:
+            return
+        if initial_setup:
+            # The loaded parameters already belong to this pipeline type; only the helper that reads them is rebound.
+            self.set_pipeline_type_pipeline_params(value)
+            return
+        self.regenerate_elements_for_pipeline_type(value)
 
     def regenerate_elements_for_pipeline_type(self, pipeline_type: str) -> None:
         self._node.save_parameter_properties()
