@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage
@@ -31,6 +32,8 @@ from modular_diffusion_nodes_library.utils.lora_utils import LorasParameter
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
+
+_RENAMED_PIPELINE_TYPE = re.compile(r"pipeline_type(_\d+)+")
 
 # This code was duplicated/copied from diffusers_nodes_library/common/nodes/diffusion_pipeline_builder_node.py.
 
@@ -225,10 +228,15 @@ class LatentDiffusionPipelineBuilderNode(
         if self._initializing:
             super().add_parameter(param)
             return
+        # Workflows saved before pipeline_type stopped being user-defined add it again on load, and the
+        # engine renames that add to pipeline_type_<n> because __init__ already made one.
+        if _RENAMED_PIPELINE_TYPE.fullmatch(param.name) and self.does_name_exist("pipeline_type"):
+            return
 
         # Dynamic mode: prevent duplicates and mark as user-defined
         if not self.does_name_exist(param.name):
-            if not self._parent_manages_own_serialization(param):
+            # __init__ always makes pipeline_type, so a save describes it as a change, not an addition.
+            if param.name != "pipeline_type" and not self._parent_manages_own_serialization(param):
                 param.user_defined = True
 
             # Restore cached parameter properties using mixin method

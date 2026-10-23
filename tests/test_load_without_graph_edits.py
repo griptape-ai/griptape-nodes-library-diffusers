@@ -36,6 +36,7 @@ from griptape_nodes.retained_mode.events.node_events import (
 )
 from griptape_nodes.retained_mode.events.object_events import ClearAllObjectStateRequest
 from griptape_nodes.retained_mode.events.parameter_events import (
+    AddParameterToNodeRequest,
     GetConnectionsForParameterRequest,
     RemoveParameterFromNodeRequest,
     SetParameterValueRequest,
@@ -43,8 +44,10 @@ from griptape_nodes.retained_mode.events.parameter_events import (
 from griptape_nodes.retained_mode.events.resource_events import CreateResourceInstanceRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.retained_mode.managers.event_manager import EventManager
+from griptape_nodes.traits.options import Options
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
+from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import LatentFlux2PipelineTypeParameters
 from modular_diffusion_nodes_library.standard_parameters.flux2_parameters import Flux2PipelineParameters
 
 LIBRARY_NAME = "Griptape Modular Diffusion Nodes Library"
@@ -307,6 +310,58 @@ def test_pipeline_builder_rebinds_helpers_without_graph_requests(
     assert _builder_state(loaded) == edited_state
     loaded_types = _parameter_types(loaded)
     assert {name: loaded_types.get(name) for name in edited_types} == edited_types
+
+
+def _pipeline_type_parameters(node: BaseNode) -> list[str]:
+    return sorted(parameter.name for parameter in node.parameters if parameter.name.startswith("pipeline_type"))
+
+
+def _pipeline_type_choices(node: BaseNode) -> list[str]:
+    parameter = node.get_parameter_by_name("pipeline_type")
+    assert parameter is not None
+    (options,) = parameter.find_elements_by_type(Options)
+    return list(options.choices)
+
+
+def test_pipeline_builder_saves_pipeline_type_as_a_change_and_reopens_it_once(
+    flow: None,  # noqa: ARG001
+) -> None:
+    node = _create("LatentDiffusionPipelineBuilderNode", "builder")
+    _edit(node, {"provider": "Flux2", "pipeline_type": "Flux2KleinPipeline"})
+
+    serialized = _serialize_and_delete(node)
+    loaded = _load(serialized)
+
+    adds = [
+        command.parameter_name
+        for command in serialized.element_commands
+        if isinstance(command, AddParameterToNodeRequest)
+    ]
+    assert "pipeline_type" not in adds
+    assert _pipeline_type_parameters(loaded) == ["pipeline_type"]
+    assert loaded.get_parameter_value("pipeline_type") == "Flux2KleinPipeline"
+    assert _pipeline_type_choices(loaded) == list(LatentFlux2PipelineTypeParameters.get_pipeline_type_dict())
+
+
+def test_pipeline_builder_reopens_a_workflow_saved_with_pipeline_type_added(
+    flow: None,  # noqa: ARG001
+) -> None:
+    """Earlier saves add pipeline_type, and each later save of the reopened workflow adds the copy it got."""
+    node = _create("LatentDiffusionPipelineBuilderNode", "builder")
+    _edit(node, {"provider": "Flux2", "pipeline_type": "Flux2KleinPipeline"})
+    pipeline_type = node.get_parameter_by_name("pipeline_type")
+    assert pipeline_type is not None
+    saved_adds = [
+        AddParameterToNodeRequest.create(**{**pipeline_type.save_dict(), "name": name}, initial_setup=True)
+        for name in ("pipeline_type", "pipeline_type_1", "pipeline_type_1_1")
+    ]
+    serialized = _serialize_and_delete(node)
+    serialized = serialized._replace(element_commands=[*saved_adds, *serialized.element_commands])
+
+    loaded = _load(serialized)
+
+    assert _pipeline_type_parameters(loaded) == ["pipeline_type"]
+    assert loaded.get_parameter_value("pipeline_type") == "Flux2KleinPipeline"
 
 
 def _assert_builder_keeps_saved_transformer_override_connection(recorder: RequestRecorder) -> None:

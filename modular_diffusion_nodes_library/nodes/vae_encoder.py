@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any
 from griptape.artifacts import ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DiffusionPipelineArtifact,
