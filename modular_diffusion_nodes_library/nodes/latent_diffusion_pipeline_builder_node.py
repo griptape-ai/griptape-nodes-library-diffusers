@@ -263,7 +263,7 @@ class LatentDiffusionPipelineBuilderNode(
         if parameter.name == "pipeline":
             value = normalize_diffusion_pipeline_value(value, node_name=self.name)
 
-        self.params.before_value_set(parameter, value)
+        self.params.before_value_set(parameter, value, initial_setup=initial_setup)
 
         super().set_parameter_value(
             param_name,

@@ -139,13 +139,18 @@ class ParameterConnectionPreservationMixin:
         return filtered_incoming, outgoing
 
     def _restore_connections(
-        self, saved_incoming: list[IncomingConnection], saved_outgoing: list[OutgoingConnection]
+        self,
+        saved_incoming: list[IncomingConnection],
+        saved_outgoing: list[OutgoingConnection],
+        *,
+        initial_setup: bool = False,
     ) -> None:
         """Restore connections for parameters that still exist after parameter changes.
 
         Args:
             saved_incoming: List of incoming connections to restore
             saved_outgoing: List of outgoing connections to restore
+            initial_setup: When True, restored connections do not push upstream values into targets.
         """
         for conn in saved_incoming:
             target_name = self._resolve_incoming_target(conn.target_parameter_name)
@@ -157,6 +162,7 @@ class ParameterConnectionPreservationMixin:
                     source_parameter_name=conn.source_parameter_name,
                     target_node_name=self.name,  # type: ignore[attr-defined]
                     target_parameter_name=target_name,
+                    initial_setup=initial_setup,
                 )
             )
 
@@ -168,6 +174,7 @@ class ParameterConnectionPreservationMixin:
                         source_parameter_name=conn.source_parameter_name,
                         target_node_name=conn.target_node_name,
                         target_parameter_name=conn.target_parameter_name,
+                        initial_setup=initial_setup,
                     )
                 )
 
