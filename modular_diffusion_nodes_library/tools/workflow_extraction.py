@@ -1111,8 +1111,7 @@ def _build_artifact(
         "cpu_offload_strategy": values.get("cpu_offload_strategy", "None"),
         "quantization_mode": values.get("quantization_mode", "None"),
     }
-    parameters_instance = object.__new__(parameters_class)
-    pipeline_name = parameters_instance.pipeline_name
+    pipeline_name = parameters_class.pipeline_name()
     if build_data.get("_all_overrides"):
         config_kwargs = {"provider": provider}
         for slot, artifact in component_overrides.items():

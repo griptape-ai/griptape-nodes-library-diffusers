@@ -96,36 +96,59 @@ def test_extract_repository_text_to_image_template() -> None:
     assert extracted.builders[0].dimensions.height == TEMPLATE_SIZE
     assert extracted.builders[0].dimensions.num_frames == 41
 
-def test_resolve_pipeline_cls_uses_registered_builder_identity() -> None:
-    builder_class = next(
+
+def _builder_class_for(canonical_name: str) -> type:
+    return next(
         parameters_class
         for provider_parameters_class in MODULAR_PIPELINE_TYPE_PROVIDER_MAP.values()
         for parameters_class in provider_parameters_class.get_pipeline_type_dict().values()
-        if parameters_class.pipeline_cls().__name__ == "FluxPipeline"
+        if parameters_class.pipeline_name() == canonical_name
     )
+
+
+@pytest.mark.parametrize(
+    ("canonical_name", "loaded_class_name"),
+    [
+        ("FluxPipeline", "FluxPipeline"),
+        ("StableDiffusionXLPipeline", "StableDiffusionXLImg2ImgPipeline"),
+        ("StableDiffusion3Pipeline", "StableDiffusion3Img2ImgPipeline"),
+    ],
+)
+def test_resolve_pipeline_cls_uses_registered_builder_identity(canonical_name: str, loaded_class_name: str) -> None:
+    builder_class = _builder_class_for(canonical_name)
     artifact = DiffusionPipelineArtifact(
-        pipeline_name="FluxPipeline",
+        pipeline_name=canonical_name,
         builder_module=builder_class.__module__,
         builder_class_name=builder_class.__name__,
     )
 
-    assert pipeline_memory_estimator.resolve_pipeline_cls(artifact) is builder_class.pipeline_cls()
+    resolved = pipeline_memory_estimator.resolve_pipeline_cls(artifact)
+
+    assert resolved is builder_class.pipeline_cls()
+    assert resolved.__name__ == loaded_class_name
 
 
 def test_resolve_pipeline_cls_rejects_mismatched_pipeline_name() -> None:
-    builder_class = next(
-        parameters_class
-        for provider_parameters_class in MODULAR_PIPELINE_TYPE_PROVIDER_MAP.values()
-        for parameters_class in provider_parameters_class.get_pipeline_type_dict().values()
-        if parameters_class.pipeline_cls().__name__ == "FluxPipeline"
-    )
+    builder_class = _builder_class_for("FluxPipeline")
     artifact = DiffusionPipelineArtifact(
         pipeline_name="ZImagePipeline",
         builder_module=builder_class.__module__,
         builder_class_name=builder_class.__name__,
     )
 
-    with pytest.raises(ValueError, match="resolves to 'FluxPipeline'"):
+    with pytest.raises(ValueError, match="registered for 'FluxPipeline'"):
+        pipeline_memory_estimator.resolve_pipeline_cls(artifact)
+
+
+def test_resolve_pipeline_cls_rejects_loaded_class_name_as_identity() -> None:
+    builder_class = _builder_class_for("StableDiffusionXLPipeline")
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="StableDiffusionXLImg2ImgPipeline",
+        builder_module=builder_class.__module__,
+        builder_class_name=builder_class.__name__,
+    )
+
+    with pytest.raises(ValueError, match="registered for 'StableDiffusionXLPipeline'"):
         pipeline_memory_estimator.resolve_pipeline_cls(artifact)
 
 

@@ -82,9 +82,9 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     def pipeline_cls(cls) -> type[DiffusionPipeline] | type[ModularPipeline]:
         return cls._pipeline_cls
 
-    @property
-    def pipeline_name(self) -> str:
-        return self._pipeline_cls.__name__
+    @classmethod
+    def pipeline_name(cls) -> str:
+        return cls._pipeline_cls.__name__
 
     @staticmethod
     def _extract_text_conditioning_width(config: dict[str, Any] | None) -> int | None:

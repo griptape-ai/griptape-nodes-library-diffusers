@@ -43,8 +43,8 @@ class StableDiffusionXLPipelineParameters(ModularDiffusionPipelineTypePipelinePa
     def remove_input_parameters(self) -> None:
         self._huggingface_repo_parameter.remove_input_parameters()
 
-    @property
-    def pipeline_name(self) -> str:
+    @classmethod
+    def pipeline_name(cls) -> str:
         return "StableDiffusionXLPipeline"
 
     def validate_before_node_run(self) -> list[Exception] | None:
