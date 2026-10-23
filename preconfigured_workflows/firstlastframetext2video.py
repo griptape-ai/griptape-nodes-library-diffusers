@@ -164,8 +164,8 @@ async def build_workflow() -> None:
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='image_0_strength', node_name=node1_name, value=top_level_unique_values_dict['dad189fa-24f3-4f44-917d-290a4bfaacde'], initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='image_1_strength', node_name=node1_name, value=top_level_unique_values_dict['c8dc65ab-7069-4e01-b427-ab81ef575593'], initial_setup=True, is_output=False))
         with GriptapeNodes.ContextManager().node(node2_name):
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='provider', node_name=node2_name, value='LTX', initial_setup=False, is_output=False))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline_type', node_name=node2_name, value='LTXPipeline', initial_setup=False, is_output=False))
+            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='provider', node_name=node2_name, value='LTX', initial_setup=True, is_output=False))
+            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline_type', node_name=node2_name, value='LTXPipeline', initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='memory_optimization_strategy', node_name=node2_name, value=top_level_unique_values_dict['cf5e9cdb-9ce3-442a-a00d-c0f3e804bb62'], initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='attention_slicing', node_name=node2_name, value=top_level_unique_values_dict['4b208aef-1a54-4256-8557-a4b7f3703057'], initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='vae_slicing', node_name=node2_name, value=top_level_unique_values_dict['4b208aef-1a54-4256-8557-a4b7f3703057'], initial_setup=True, is_output=False))

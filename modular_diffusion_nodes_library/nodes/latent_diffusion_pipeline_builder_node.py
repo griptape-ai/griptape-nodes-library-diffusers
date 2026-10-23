@@ -273,7 +273,7 @@ class LatentDiffusionPipelineBuilderNode(
             skip_before_value_set=skip_before_value_set,
         )
 
-        self.params.after_value_set(parameter, value, initial_setup=initial_setup)
+        self.params.after_value_set(parameter, value)
         self.huggingface_pipeline_params.after_value_set(parameter, value)
         if parameter.name != "pipeline":
             self.set_pipeline_artifact()

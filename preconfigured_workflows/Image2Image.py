@@ -130,7 +130,7 @@ async def build_workflow() -> None:
         with GriptapeNodes.ContextManager().node(node0_name):
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline', node_name=node0_name, value=top_level_unique_values_dict['2aabfbb5-6515-49ac-89ae-5bebb50c25c3'], initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline', node_name=node0_name, value=top_level_unique_values_dict['2aabfbb5-6515-49ac-89ae-5bebb50c25c3'], initial_setup=True, is_output=True))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='provider', node_name=node0_name, value=top_level_unique_values_dict['afa68b96-c105-4a07-8e5b-bf8ecf93adfd'], initial_setup=False, is_output=False))
+            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='provider', node_name=node0_name, value=top_level_unique_values_dict['afa68b96-c105-4a07-8e5b-bf8ecf93adfd'], initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='memory_optimization_strategy', node_name=node0_name, value=top_level_unique_values_dict['7df63370-9a66-46dc-887b-c6a926776cd6'], initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='attention_slicing', node_name=node0_name, value=top_level_unique_values_dict['3c12ea83-ddbc-4120-b0f4-501bdc134585'], initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='vae_slicing', node_name=node0_name, value=top_level_unique_values_dict['3c12ea83-ddbc-4120-b0f4-501bdc134585'], initial_setup=True, is_output=False))
@@ -141,7 +141,7 @@ async def build_workflow() -> None:
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='loras', node_name=node0_name, value=top_level_unique_values_dict['7ae30d33-00fd-405b-a5bf-0e964ee2ae68'], initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='was_successful', node_name=node0_name, value=top_level_unique_values_dict['3c12ea83-ddbc-4120-b0f4-501bdc134585'], initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='logs', node_name=node0_name, value=top_level_unique_values_dict['0f5d13ea-0d62-4772-a770-4c20a08890c3'], initial_setup=True, is_output=True))
-            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline_type', node_name=node0_name, value=top_level_unique_values_dict['ef17dc5c-235d-4bba-a90e-9684a8d6266c'], initial_setup=False, is_output=False))
+            await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline_type', node_name=node0_name, value=top_level_unique_values_dict['ef17dc5c-235d-4bba-a90e-9684a8d6266c'], initial_setup=True, is_output=False))
         with GriptapeNodes.ContextManager().node(node1_name):
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='pipeline', node_name=node1_name, value=top_level_unique_values_dict['042d97fd-374f-4c7e-a6f5-7bc86ca113d8'], initial_setup=True, is_output=False))
             await GriptapeNodes.ahandle_request(SetParameterValueRequest(parameter_name='add_noise', node_name=node1_name, value=top_level_unique_values_dict['67288f24-65bf-43c0-9cca-0a3579ca4c26'], initial_setup=True, is_output=False))
