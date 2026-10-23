@@ -548,15 +548,18 @@ def resolve_pipeline_cls(artifact: DiffusionPipelineArtifact) -> type:
         )
         raise ValueError(msg)
 
-    pipeline_cls = builder_class.pipeline_cls()
-    if pipeline_cls.__name__ != artifact.pipeline_name:
+    # The artifact carries the builder's canonical name (its identity). The returned class
+    # is the one the builder loads, which can be a variant such as an Img2Img class.
+    # See ModularDiffusionPipelineTypePipelineParameters.pipeline_name().
+    canonical_name = builder_class.pipeline_name()
+    if canonical_name != artifact.pipeline_name:
         msg = (
             f"Could not resolve pipeline class for pipeline '{artifact.pipeline_name}': "
-            f"builder identity '{builder_module}.{builder_class_name}' resolves to "
-            f"'{pipeline_cls.__name__}'."
+            f"builder identity '{builder_module}.{builder_class_name}' is registered for "
+            f"'{canonical_name}'."
         )
         raise ValueError(msg)
-    return pipeline_cls
+    return builder_class.pipeline_cls()
 
 
 def _module_component_slots(pipeline_cls: type) -> list[str]:

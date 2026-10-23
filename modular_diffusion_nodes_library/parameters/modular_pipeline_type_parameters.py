@@ -104,10 +104,10 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         module_name, _, attribute = cls._pipeline_cls_path.partition(":")
         return getattr(importlib.import_module(module_name), attribute)
 
-    @property
-    def pipeline_name(self) -> str:
+    @classmethod
+    def pipeline_name(cls) -> str:
         """Read off the configured path, so naming a pipeline never imports diffusers."""
-        return self._pipeline_cls_path.rpartition(":")[2]
+        return cls._pipeline_cls_path.rpartition(":")[2]
 
     @staticmethod
     def _extract_text_conditioning_width(config: dict[str, Any] | None) -> int | None:
