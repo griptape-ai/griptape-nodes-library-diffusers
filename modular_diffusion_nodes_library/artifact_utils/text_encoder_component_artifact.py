@@ -30,7 +30,7 @@ class TextEncoderComponentArtifact(ModelComponentArtifact):
                 f"Attempted to materialize {self.component} as {component_cls.__name__}. "
                 f"Failed with file_path='{self.file_path}' because it is not a file. "
                 f"Provide the path to the GGUF file directly (e.g. /path/to/model-Q4_K_M.gguf); "
-                f"its parent directory must contain a config.json."
+                f"its parent directory must contain a config.json unless config_source is provided."
             )
             raise FileNotFoundError(msg)
 
@@ -48,37 +48,56 @@ class TextEncoderComponentArtifact(ModelComponentArtifact):
             "local_files_only": True,
             "torch_dtype": getattr(torch, self.torch_dtype),
         }
+        config = None
+        if self.config_source:
+            from transformers import AutoConfig
+
+            try:
+                config = AutoConfig.from_pretrained(self.config_source, local_files_only=True)
+            except (OSError, ValueError) as config_exc:
+                msg = (
+                    f"Attempted to materialize {self.component} as {component_cls.__name__} from '{file_path}'. "
+                    f"Failed because config source '{self.config_source}' could not be loaded."
+                )
+                raise ValueError(msg) from config_exc
+            # With gguf_file set, Transformers treats a string config path as a GGUF checkpoint.
+            kwargs["config"] = config
         try:
             return component_cls.from_pretrained(str(file_path.parent), **kwargs)
         except (ValueError, OSError, RuntimeError) as exc:
             if "not supported yet" not in str(exc):
                 raise
-            return self._materialize_gguf_hf_keys(component_cls, file_path, exc)
+            return self._materialize_gguf_hf_keys(component_cls, file_path, exc, config)
 
-    def _materialize_gguf_hf_keys(self, component_cls: type, file_path: Path, official_exc: Exception) -> Any:
+    def _materialize_gguf_hf_keys(
+        self,
+        component_cls: type,
+        file_path: Path,
+        official_exc: Exception,
+        config: Any | None = None,
+    ) -> Any:
         """Load a city96-style GGUF whose tensors still use Hugging Face key names.
 
         transformers `from_pretrained(..., gguf_file=)` only accepts llama.cpp
         architectures. A converted CLIP still has `text_model.*` / `encoder.*` keys.
         """
+        import torch  # type: ignore[reportMissingImports]
         from diffusers.models.model_loading_utils import load_gguf_checkpoint
         from transformers import AutoConfig
 
         from modular_diffusion_nodes_library.artifact_utils.packed_quant_io import align_state_dict_to_module_keys
 
-        config_dir = file_path.parent
-        if not (config_dir / "config.json").is_file() and self.config_source:
-            config_candidate = Path(self.config_source)
-            config_dir = config_candidate if config_candidate.is_dir() else config_candidate.parent
-        if not (config_dir / "config.json").is_file():
-            msg = (
-                f"Attempted to materialize {self.component} as {component_cls.__name__} from '{file_path}'. "
-                f"Failed because transformers rejected the GGUF ({official_exc}) and no config.json "
-                "was found next to the file or on config_source."
-            )
-            raise ValueError(msg) from official_exc
-
-        config = AutoConfig.from_pretrained(str(config_dir), local_files_only=True)
+        if config is None:
+            config_source = str(file_path.parent)
+            try:
+                config = AutoConfig.from_pretrained(config_source, local_files_only=True)
+            except (OSError, ValueError) as config_exc:
+                msg = (
+                    f"Attempted to materialize {self.component} as {component_cls.__name__} from '{file_path}'. "
+                    f"Failed because transformers rejected the GGUF ({official_exc}) and config source "
+                    f"'{config_source}' could not be loaded."
+                )
+                raise ValueError(msg) from config_exc
         builder = getattr(component_cls, "from_config", None) or component_cls._from_config
         model = builder(config)
         state = load_gguf_checkpoint(str(file_path))
