@@ -14,6 +14,7 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore
 
 from modular_diffusion_nodes_library.artifact_utils.recipe_codec import resolve_recipe_value
 from modular_diffusion_nodes_library.component_loading.component_slots import component_config_filename
+from modular_diffusion_nodes_library.component_loading.config_resolver import HF_REPO_ID_PATTERN
 
 if TYPE_CHECKING:
     from modular_diffusion_nodes_library.artifact_utils.component_artifact import ModelComponentArtifact
@@ -162,22 +163,40 @@ def copy_gguf_override(override: ModelComponentArtifact, slot_dir: Path, baked_r
 
 def _copy_override_config(override: ModelComponentArtifact, src: Path, slot_dir: Path) -> Path | None:
     config_name = component_config_filename(override.component)
-    dest = slot_dir / config_name
+    config_source = override.config_source
+    # An explicit config source is authoritative; only use a sibling config when none was supplied.
+    if config_source:
+        cfg = Path(config_source)
+        if cfg.is_file():
+            return _copy_config_file(cfg, slot_dir)
+        if cfg.is_dir():
+            config_file = cfg / config_name
+            if not config_file.is_file():
+                msg = (
+                    f"Attempted to copy config for '{override.component}'. "
+                    f"Failed because explicit config directory '{cfg}' does not contain '{config_name}'."
+                )
+                raise FileNotFoundError(msg)
+            return _copy_config_file(config_file, slot_dir)
+        if HF_REPO_ID_PATTERN.fullmatch(config_source):
+            # Preserve an explicit HF repo ID; do not replace it with a sibling config file.
+            return None
+        msg = (
+            f"Attempted to copy config for '{override.component}'. "
+            f"Failed because explicit config source '{config_source}' does not exist."
+        )
+        raise FileNotFoundError(msg)
+
     sibling = src.parent / config_name
     if sibling.is_file():
-        shutil.copy2(sibling, dest)
-        return dest
-    config_source = override.config_source
-    if not config_source:
-        return None
-    cfg = Path(config_source)
-    if cfg.is_file():
-        shutil.copy2(cfg, dest)
-        return dest
-    if cfg.is_dir() and (cfg / config_name).is_file():
-        shutil.copy2(cfg / config_name, dest)
-        return dest
+        return _copy_config_file(sibling, slot_dir)
     return None
+
+
+def _copy_config_file(config_file: Path, slot_dir: Path) -> Path:
+    dest = slot_dir / config_file.name
+    shutil.copy2(config_file, dest)
+    return dest
 
 
 def resolve_file_overrides(file_overrides: dict[str, Any], baked_path: Path) -> dict[str, ModelComponentArtifact]:
