@@ -54,7 +54,8 @@ def test_loads_config_only_recipe_from_custom_yaml_filename(tmp_path: Path) -> N
 
     node, loaded = _load_from_path(recipe_path)
 
-    assert loaded == artifact
+    assert loaded.to_recipe_dict() == artifact.to_recipe_dict()
+    assert loaded.config_hash is not None
     assert node._loaded_from_baked_dir is False
 
 

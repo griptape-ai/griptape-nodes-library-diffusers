@@ -25,11 +25,12 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_build_steps import 
 from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
     optional_string,
     recipe_safe,
+    recipe_safe_loras,
     require_bool,
     require_dict,
-    require_loras,
     require_runtime_loras,
     require_string,
+    resolve_recipe_loras,
     resolve_recipe_value,
 )
 from modular_diffusion_nodes_library.component_loading.component_slots import slot_component_kind
@@ -357,6 +358,25 @@ class DiffusionPipelineArtifact:
                 specs.update(step.loras)
         return specs
 
+    def _recipe_cache_key(self) -> str:
+        """Derive the base-pipeline cache key from resolved recipe inputs."""
+        return BasePipelineIdentity(
+            pipeline_name=self.pipeline_name,
+            config_kwargs={
+                "recipe_build": {
+                    "builder_module": self.builder_module,
+                    "builder_class_name": self.builder_class_name,
+                    "build_data": self.build_data,
+                    "is_prequantized": self.is_prequantized,
+                    "supports_layerwise_casting": self.supports_layerwise_casting,
+                    "requires_device_map": self.requires_device_map,
+                }
+            },
+            loras=self.loras,
+            optimization_kwargs=self.optimization_kwargs,
+            torch_dtype=DEFAULT_BAKED_DTYPE,
+        ).cache_key()
+
     def to_recipe_dict(self) -> dict[str, Any]:
         """Render this pipeline configuration as a recipe-safe dict."""
         self._ensure_recipe_serializable()
@@ -365,11 +385,10 @@ class DiffusionPipelineArtifact:
             raise ValueError(msg)
         return {
             "pipeline_name": self.pipeline_name,
-            "config_hash": self.config_hash,
             "builder_module": self.builder_module,
             "builder_class_name": self.builder_class_name,
             "build_data": recipe_safe(self.build_data),
-            "loras": recipe_safe(self.loras),
+            "loras": recipe_safe_loras(self.loras),
             "runtime_loras": recipe_safe(
                 [{"path": spec.path, "weight": float(spec.weight)} for spec in self.runtime_loras().values()]
             ),
@@ -466,11 +485,10 @@ class DiffusionPipelineArtifact:
         runtime_loras = require_runtime_loras(resolve_recipe_value(data.get("runtime_loras", [])))
         artifact = cls(
             pipeline_name=require_string(data.get("pipeline_name"), "Pipeline name"),
-            config_hash=require_string(data.get("config_hash"), "Pipeline config hash"),
             builder_module=optional_string(data.get("builder_module"), "Pipeline builder module"),
             builder_class_name=optional_string(data.get("builder_class_name"), "Pipeline builder class name"),
             build_data=require_dict(resolve_recipe_value(data.get("build_data")), "Pipeline build data"),
-            loras=require_loras(resolve_recipe_value(data.get("loras"))),
+            loras=resolve_recipe_loras(data.get("loras")),
             optimization_kwargs=require_dict(resolve_recipe_value(data.get("optimization")), "Pipeline optimization"),
             is_prequantized=require_bool(data.get("is_prequantized"), "Pipeline is_prequantized flag"),
             supports_layerwise_casting=require_bool(
@@ -478,6 +496,7 @@ class DiffusionPipelineArtifact:
             ),
             requires_device_map=require_bool(data.get("requires_device_map"), "Pipeline requires_device_map flag"),
         )
+        artifact.config_hash = artifact._recipe_cache_key()
         if not runtime_loras:
             return artifact
         specs = {entry["path"]: LoraSpec(path=entry["path"], weight=float(entry["weight"])) for entry in runtime_loras}

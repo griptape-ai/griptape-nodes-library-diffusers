@@ -115,6 +115,47 @@ def require_loras(value: Any) -> dict[str, float]:
     return {path: float(weight) for path, weight in loras.items()}
 
 
+# Generic recipe conversion only transforms dictionary values, while fused
+# LoRA paths are stored as dictionary keys and must be handled explicitly.
+def _map_lora_paths(
+    loras: dict[str, float],
+    map_path: Callable[[str], str],
+    *,
+    collision_description: str,
+) -> dict[str, float]:
+    resolved: dict[str, float] = {}
+    source_paths: dict[str, str] = {}
+    for path, weight in loras.items():
+        mapped_path = map_path(path)
+        if mapped_path in resolved:
+            msg = (
+                f"Pipeline LoRA paths {source_paths[mapped_path]!r} and {path!r} "
+                f"both {collision_description} {mapped_path!r}."
+            )
+            raise ValueError(msg)
+        resolved[mapped_path] = float(weight)
+        source_paths[mapped_path] = path
+    return resolved
+
+
+def recipe_safe_loras(value: dict[str, float]) -> dict[str, float]:
+    """Map fused LoRA path keys to portable recipe macros."""
+    return _map_lora_paths(
+        value,
+        resolve_path_to_macro,
+        collision_description="map to recipe path",
+    )
+
+
+def resolve_recipe_loras(value: Any) -> dict[str, float]:
+    """Validate fused LoRAs and expand path macros stored as dictionary keys."""
+    return _map_lora_paths(
+        require_loras(value),
+        expand_path_macros,
+        collision_description="expand to",
+    )
+
+
 def require_runtime_loras(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         msg = "Pipeline runtime LoRAs must be a list."
