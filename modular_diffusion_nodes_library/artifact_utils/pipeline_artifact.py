@@ -6,7 +6,7 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -67,7 +67,12 @@ _UNSENDABLE_BUILD_DATA_KEYS = frozenset({"_pipeline_cls"})
 
 
 def _unstructure_build_data(build_data: dict[str, Any]) -> dict[str, Any]:
-    """`build_data` with live objects dropped and component descriptors encoded."""
+    """Return stable JSON-ready build data for wire encoding and cache keys.
+
+    Component descriptors otherwise fall back to order-sensitive ``repr``.
+    Unstructuring exposes their nested mappings to ``sort_keys=True`` while
+    retaining the descriptor type tag.
+    """
     out: dict[str, Any] = {}
     for key, value in build_data.items():
         if key in _UNSENDABLE_BUILD_DATA_KEYS:
@@ -163,30 +168,6 @@ def _baked_runtime_loras(data: dict[str, Any], baked_path: Path) -> dict[str, Lo
             raise ValueError(msg)
         specs[path] = LoraSpec(path=path, weight=float(entry["weight"]))
     return specs
-
-
-def _unstructure_cache_value(value: Any) -> Any:
-    """Convert build data to canonical JSON-ready values for recipe cache keys.
-
-    Component dataclasses otherwise fall back to order-sensitive ``repr``.
-    Recursing lets ``sort_keys=True`` normalise nested mappings, while the
-    class tag distinguishes descriptor types with identical fields.
-    """
-    if not isinstance(value, type) and is_dataclass(value):
-        return {
-            "__dataclass_type__": f"{type(value).__module__}.{type(value).__qualname__}",
-            **{field.name: _unstructure_cache_value(getattr(value, field.name)) for field in fields(value)},
-        }
-    if isinstance(value, dict):
-        return {key: _unstructure_cache_value(item) for key, item in value.items()}
-    if isinstance(value, list | tuple):
-        return [_unstructure_cache_value(item) for item in value]
-    return value
-
-
-def _unstructure_build_data(build_data: dict[str, Any]) -> dict[str, Any]:
-    """Convert live build descriptors into canonical nested primitives."""
-    return _unstructure_cache_value(build_data)
 
 
 def _digest(parts: dict[str, Any]) -> str:
