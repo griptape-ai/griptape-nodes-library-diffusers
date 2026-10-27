@@ -648,7 +648,7 @@ def _stored_bytes_for_override(
         )
         raise TypeError(msg)
     torch_dtype = getattr(torch, override.torch_dtype)
-    config_dict = override.try_read_config(pipeline_cls=pipeline_cls)
+    config_dict = override.try_read_config()
     meta_component = None
     if config_dict is not None:
         component_cls = get_component_class(pipeline_cls, effective_slot)

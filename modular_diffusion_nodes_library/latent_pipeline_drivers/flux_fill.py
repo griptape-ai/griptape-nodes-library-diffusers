@@ -27,7 +27,10 @@ class FluxFillLatentPipelineDriver(FluxLatentPipelineDriver):
 
     @override
     def create_noise_latent(self, source_shape: tuple[int, ...], generator_state: GeneratorState) -> LatentArtifact:
-        from diffusers.modular_pipelines.flux.before_denoise import FluxPrepareLatentsStep  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.flux.before_denoise import (
+            FluxPrepareLatentsStep,  # type: ignore[reportMissingImports]
+        )
+
         height, width = source_shape[-2:]
         device, dtype = self._get_device_and_type()
         generator = generator_state.to_generator()

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, override
 
+from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     SequentialPipelineBlocks,
@@ -100,7 +101,6 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         pipe: ModularPipeline | DiffusionPipeline,
         control_net_model_lists: list[str] | str | None,
     ) -> ModularPipeline | DiffusionPipeline:
-        from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
         from diffusers.pipelines.controlnet_sd3.pipeline_stable_diffusion_3_controlnet import (  # type: ignore[reportMissingImports]
             StableDiffusion3ControlNetPipeline,
         )

@@ -161,7 +161,7 @@ def _build_shape_only_pipe(artifact: DiffusionPipelineArtifact) -> Any:
             components[slot] = override.materialize(pipeline_cls=pipeline_cls, slot=slot)
             continue
         if override is not None:
-            config_dict = override.try_read_config(pipeline_cls=pipeline_cls)
+            config_dict = override.try_read_config()
         else:
             repo_id, revision = _pipeline_repository(artifact)
             config_dict = resolve_base_component_config(repo_id, slot, revision)

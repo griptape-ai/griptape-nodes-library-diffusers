@@ -8,15 +8,34 @@ silently downgrading the estimate to weights-only.
 
 from __future__ import annotations
 
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import _DRIVER_REGISTRY
+import pytest
+
+pytest.importorskip("diffusers", reason="Loads real driver classes; run in the execution environment.")
+
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import (
+    get_driver_class,
+    supported_pipeline_classes,
+)
 from modular_diffusion_nodes_library.memory_estimation.family_registry import _DENOISER_FIELD_ADAPTERS
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
+
+
+def _registered_driver_classes():
+    driver_classes = {}
+    for pipeline_name in supported_pipeline_classes():
+        driver_class = get_driver_class(pipeline_name)
+        assert driver_class is not None, f"{pipeline_name}: no driver class is registered."
+        driver_classes[pipeline_name] = driver_class
+    return driver_classes
+
+
+_DRIVER_CLASSES = _registered_driver_classes()
 
 
 def test_every_driver_pipeline_has_a_memory_family() -> None:
     """Every registered driver must declare a family, or estimates degrade to weights-only."""
     missing = {
-        pipeline_name for pipeline_name, driver_class in _DRIVER_REGISTRY.items() if driver_class.memory_family is None
+        pipeline_name for pipeline_name, driver_class in _DRIVER_CLASSES.items() if driver_class.memory_family is None
     }
     assert missing == set(), (
         f"These pipelines are registered in _DRIVER_REGISTRY but their drivers have no memory_family: {sorted(missing)}."
@@ -34,7 +53,7 @@ def test_every_non_unet_driver_pipeline_has_a_denoiser_adapter() -> None:
     """
     missing = {
         pipeline_name
-        for pipeline_name, driver_class in _DRIVER_REGISTRY.items()
+        for pipeline_name, driver_class in _DRIVER_CLASSES.items()
         if driver_class.memory_family != MemoryFamily.UNET_SDPA and pipeline_name not in _DENOISER_FIELD_ADAPTERS
     }
     assert missing == set(), (
@@ -46,7 +65,7 @@ def test_every_non_unet_driver_pipeline_has_a_denoiser_adapter() -> None:
 
 def test_no_orphaned_denoiser_adapters() -> None:
     """An adapter for a pipeline with no driver is dead code that nothing ever calls."""
-    orphaned = set(_DENOISER_FIELD_ADAPTERS) - set(_DRIVER_REGISTRY)
+    orphaned = set(_DENOISER_FIELD_ADAPTERS) - set(supported_pipeline_classes())
     assert orphaned == set(), (
         f"These pipelines have a _DENOISER_FIELD_ADAPTERS entry in family_registry.py but no driver in "
         f"_DRIVER_REGISTRY (driver_factory.py): {sorted(orphaned)}."
@@ -55,7 +74,7 @@ def test_no_orphaned_denoiser_adapters() -> None:
 
 def test_every_memory_family_is_used() -> None:
     """An unused MemoryFamily value suggests dead code or a forgotten wiring."""
-    used_families = {driver_class.memory_family for driver_class in _DRIVER_REGISTRY.values()}
+    used_families = {driver_class.memory_family for driver_class in _DRIVER_CLASSES.values()}
     unused = set(MemoryFamily) - used_families
     assert unused == set(), (
         f"These MemoryFamily values are never assigned to any pipeline: {sorted(family.value for family in unused)}."

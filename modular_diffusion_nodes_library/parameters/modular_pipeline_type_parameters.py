@@ -150,7 +150,7 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         signature change upstream surfaces as a failing test rather than wrong ports in the builder.
         That test needs diffusers, so it runs under `make test/exec` and not in `make check`.
         """
-        return list(self._component_slots)
+        return list(cls._component_slots)
 
     @classmethod
     def _materialize_overrides(cls, build_data: dict[str, Any], *, pipeline_cls: type) -> dict[str, Any]:

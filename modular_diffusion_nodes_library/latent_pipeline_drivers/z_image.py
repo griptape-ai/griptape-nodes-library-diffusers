@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, override
 
+from diffusers.models.controlnets.controlnet_z_image import ZImageControlNetModel  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     SequentialPipelineBlocks,
@@ -104,9 +105,6 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
     def control_pipe_from_standard(
         cls, pipe: ModularPipeline | DiffusionPipeline, control_net_model_lists: list[str] | str | None
     ):
-        from diffusers.models.controlnets.controlnet_z_image import (
-            ZImageControlNetModel,  # type: ignore[reportMissingImports]
-        )
         from diffusers.pipelines.z_image.pipeline_z_image_controlnet import (  # type: ignore[reportMissingImports]
             ZImageControlNetPipeline,
         )
