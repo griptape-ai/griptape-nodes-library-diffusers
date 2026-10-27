@@ -341,19 +341,9 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
 
-        packed_latents = self._pack_latents(latents)
-
-        num_frames = latents.shape[2]
-        pixel_height = latents.shape[3] * self._vae_spatial_compression_ratio
-        pixel_width = latents.shape[4] * self._vae_spatial_compression_ratio
-        pixel_num_frames = (num_frames - 1) * self._vae_temporal_compression_ratio + 1
-
         output_state = self._call_block(
             LTXVaeDecoderStep(),
-            latents=packed_latents,
-            height=pixel_height,
-            width=pixel_width,
-            num_frames=pixel_num_frames,
+            latents=latents,
             batch_size=1,
             dtype=dtype,
             output_type="pil",

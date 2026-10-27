@@ -203,11 +203,21 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 tooltip="Guidance rescale factor for the audio modality. Applies the same overexposure-correction logic as guidance_rescale. Defaults to the video guidance_rescale value when not set explicitly.",
             )
         )
+        self._node.add_parameter(
+            Parameter(
+                name="motion_speed",
+                default_value=1.0,
+                type="float",
+                tooltip="Speed of the motion relative to real time. The model is conditioned on the frame rate divided by this value, so values below 1.0 slow the motion down (for example 0.2 for the LTX-2.5 slow-motion control LoRA's 5x slow motion). Playback frame rate is unchanged. Must be greater than 0. Not used by the HDR IC-LoRA pipeline.",
+            )
+        )
         self._text_embeddings_path_param.add_input_parameters()
         if self._is_hdr_lora_active:
             self._node.show_parameter_by_name("text_embeddings_path")
+            self._node.hide_parameter_by_name("motion_speed")
         else:
             self._node.hide_parameter_by_name("text_embeddings_path")
+            self._node.show_parameter_by_name("motion_speed")
 
         if self._is_ic_lora_active:
             self._reference_conditions_param.add_input_parameters()
@@ -278,6 +288,7 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         self._node.remove_parameter_element_by_name("audio_stg_scale")
         self._node.remove_parameter_element_by_name("audio_modality_scale")
         self._node.remove_parameter_element_by_name("audio_guidance_rescale")
+        self._node.remove_parameter_element_by_name("motion_speed")
         self._node.remove_parameter_element_by_name("text_embeddings_path")
 
     def publish_output_image_preview_placeholder(self) -> None:
@@ -285,6 +296,11 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         pass
 
     def validate_before_node_run(self) -> list[Exception] | None:
+        motion_speed = self._node.get_parameter_value("motion_speed")
+        if not self._is_hdr_lora_active and motion_speed <= 0:
+            msg = f"{self._node.name}: Attempted to run LTX2 generation. Failed with motion_speed={motion_speed} because it must be greater than 0."
+            return [ValueError(msg)]
+
         text_embeddings_path = self._node.get_parameter_value("text_embeddings_path")
         if text_embeddings_path and self._is_hdr_lora_active:
             try:
@@ -325,6 +341,7 @@ class LTX2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         if self._is_distilled:
             pipe_kwargs["use_stage_2"] = bool(self._node.get_parameter_value("use_stage_2"))
         if not self._is_hdr_lora_active:
+            pipe_kwargs["motion_speed"] = self._node.get_parameter_value("motion_speed")
             pipe_kwargs.update(self._media_gen_conditioning_param.get_pipe_kwargs())
         if self._is_ic_lora_active:
             pipe_kwargs.update(self._reference_conditions_param.get_pipe_kwargs())
