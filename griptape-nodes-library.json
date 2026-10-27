@@ -44,7 +44,7 @@
         "dependencies": {
             "pip_dependencies": [
                 "griptape[loaders-image]>=1.9.4",
-                "huggingface-hub"
+                "huggingface-hub>=1.5.0,<2.0"
             ],
             "pip_install_flags": [
                 "--preview",
@@ -52,10 +52,10 @@
             ],
             "pip_dependencies_exec": [
                 "griptape[loaders-image]>=1.9.4",
-                "huggingface-hub",
+                "huggingface-hub>=1.5.0,<2.0",
                 "accelerate>=1.6.0",
                 "av>=14.0.0",
-                "diffusers==0.41.0",
+                "diffusers==0.42.0",
                 "imageio[ffmpeg]>=2.37.2",
                 "numpy>=2.2.4",
                 "opencv-python>=4.11.0.86",
