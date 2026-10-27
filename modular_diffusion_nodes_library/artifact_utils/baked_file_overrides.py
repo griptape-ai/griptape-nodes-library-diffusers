@@ -9,14 +9,14 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias
 
-from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-
 from modular_diffusion_nodes_library.artifact_utils.recipe_codec import resolve_recipe_value
 from modular_diffusion_nodes_library.component_loading.component_slots import component_config_filename
 from modular_diffusion_nodes_library.component_loading.config_resolver import HF_REPO_ID_PATTERN
 
 if TYPE_CHECKING:
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+
     from modular_diffusion_nodes_library.artifact_utils.component_artifact import ModelComponentArtifact
     from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 

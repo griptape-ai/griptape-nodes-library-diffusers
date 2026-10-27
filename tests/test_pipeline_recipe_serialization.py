@@ -51,7 +51,6 @@ def test_serialize_base_pipeline_artifact() -> None:
     assert document == {
         "schema_version": 1,
         "pipeline_name": "TestPipeline",
-        "config_hash": "pipeline-hash",
         "builder_module": "test.module",
         "builder_class_name": "TestParameters",
         "build_data": {"repo_id": "org/model", "revision": "commit-hash"},
@@ -142,7 +141,7 @@ def test_runtime_loras_round_trip_through_recipe() -> None:
     loaded = deserialize_pipeline_artifact(serialize_pipeline_artifact(artifact))
 
     assert document["runtime_loras"] == [{"path": "/tmp/hdr-ic-lora.safetensors", "weight": 0.9}]
-    assert loaded.config_hash == "base-hash"
+    assert loaded.config_hash is not None
     assert loaded.loras == {"/tmp/style.safetensors": 0.8}
     assert loaded.runtime_loras() == {
         "/tmp/hdr-ic-lora.safetensors": LoraSpec(path="/tmp/hdr-ic-lora.safetensors", weight=0.9)
@@ -166,6 +165,141 @@ def test_runtime_lora_recipe_preserves_macro_path() -> None:
             "weight": 0.75,
         }
     ]
+
+
+def test_fused_lora_recipe_round_trips_macro_path_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    absolute_path = "/workspace/project/loras/style.safetensors"
+    macro_path = "{project_dir}/loras/style.safetensors"
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.artifact_utils.recipe_codec.resolve_path_to_macro",
+        lambda value: macro_path if value == absolute_path else value,
+    )
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.artifact_utils.recipe_codec.expand_path_macros",
+        lambda value: absolute_path if value == macro_path else value,
+    )
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        loras={absolute_path: 0.75},
+    )
+
+    serialized = serialize_pipeline_artifact(artifact)
+    loaded = deserialize_pipeline_artifact(serialized)
+
+    assert yaml.safe_load(serialized)["loras"] == {macro_path: 0.75}
+    assert loaded.loras == {absolute_path: 0.75}
+
+
+def test_fused_lora_recipe_rejects_paths_that_collide_after_macro_conversion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    macro_path = "{project_dir}/loras/style.safetensors"
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.artifact_utils.recipe_codec.resolve_path_to_macro",
+        lambda _value: macro_path,
+    )
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        loras={"/workspace/a.safetensors": 0.5, "/workspace/b.safetensors": 0.75},
+    )
+
+    with pytest.raises(ValueError, match="both map to recipe path"):
+        serialize_pipeline_artifact(artifact)
+
+
+def test_fused_lora_recipe_rejects_paths_that_collide_after_macro_expansion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expanded_path = "/workspace/project/loras/style.safetensors"
+    document = yaml.safe_load(serialize_pipeline_artifact(DiffusionPipelineArtifact(pipeline_name="TestPipeline")))
+    document["loras"] = {
+        "{project_dir}/loras/style.safetensors": 0.5,
+        expanded_path: 0.75,
+    }
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.artifact_utils.recipe_codec.expand_path_macros",
+        lambda _value: expanded_path,
+    )
+
+    with pytest.raises(ValueError, match="both expand to"):
+        deserialize_pipeline_artifact(yaml.safe_dump(document))
+
+
+def _cache_identity_artifact() -> DiffusionPipelineArtifact:
+    return DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        builder_module="test.module",
+        builder_class_name="TestBuilder",
+        build_data={"base_repo_id": "org/model", "revision": "revision-a"},
+        loras={"/models/style.safetensors": 0.8},
+        optimization_kwargs={"vae_slicing": False},
+    )
+
+
+def test_identical_recipes_derive_same_nonempty_cache_identity() -> None:
+    serialized = serialize_pipeline_artifact(_cache_identity_artifact())
+
+    first = deserialize_pipeline_artifact(serialized)
+    second = deserialize_pipeline_artifact(serialized)
+
+    assert first.config_hash is not None
+    assert first.config_hash == second.config_hash
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("build_data", "base_repo_id"), "org/edited-model"),
+        (("build_data", "revision"), "revision-b"),
+        (("optimization", "vae_slicing"), True),
+        (("loras", "/models/style.safetensors"), 0.25),
+        (("builder_module",), "edited.module"),
+        (("builder_class_name",), "EditedBuilder"),
+    ],
+)
+def test_edited_recipe_build_inputs_change_cache_identity(path: tuple[str, ...], value: object) -> None:
+    document = yaml.safe_load(serialize_pipeline_artifact(_cache_identity_artifact()))
+    original = deserialize_pipeline_artifact(yaml.safe_dump(document))
+    target = document
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+
+    edited = deserialize_pipeline_artifact(yaml.safe_dump(document))
+
+    assert original.config_hash != edited.config_hash
+
+
+def test_edited_component_override_changes_cache_identity() -> None:
+    override = ModelComponentArtifact(
+        load_id="override-id",
+        source_type=ComponentSourceType.HF_REPO,
+        component="unet",
+        repo_ref=HFRepoRef(repo_id="org/original", revision="revision-a", subfolder="unet"),
+    )
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        builder_module="test.module",
+        builder_class_name="TestBuilder",
+        build_data={"_component_overrides": {"unet": override}},
+    )
+    document = yaml.safe_load(serialize_pipeline_artifact(artifact))
+    original = deserialize_pipeline_artifact(yaml.safe_dump(document))
+    document["build_data"]["_component_overrides"]["unet"]["repo_ref"]["repo_id"] = "org/edited"
+
+    edited = deserialize_pipeline_artifact(yaml.safe_dump(document))
+
+    assert original.config_hash != edited.config_hash
+
+
+def test_runtime_lora_edits_share_base_cache_identity() -> None:
+    document = yaml.safe_load(serialize_pipeline_artifact(_cache_identity_artifact()))
+    original = deserialize_pipeline_artifact(yaml.safe_dump(document))
+    document["runtime_loras"] = [{"path": "/models/runtime.safetensors", "weight": 0.5}]
+
+    edited = deserialize_pipeline_artifact(yaml.safe_dump(document))
+
+    assert original.config_hash == edited.config_hash
 
 
 def test_recipe_without_runtime_loras_loads_with_none() -> None:
@@ -221,7 +355,8 @@ def test_deserialize_pipeline_artifact_round_trip() -> None:
 
     loaded_artifact = deserialize_pipeline_artifact(serialize_pipeline_artifact(artifact))
 
-    assert loaded_artifact == artifact
+    assert loaded_artifact.to_recipe_dict() == artifact.to_recipe_dict()
+    assert loaded_artifact.config_hash is not None
 
 
 def test_pipeline_artifact_recipe_dict_round_trips_directly() -> None:
@@ -235,7 +370,10 @@ def test_pipeline_artifact_recipe_dict_round_trips_directly() -> None:
         optimization_kwargs={"vae_slicing": True},
     )
 
-    assert DiffusionPipelineArtifact.from_recipe_dict(artifact.to_recipe_dict()) == artifact
+    loaded_artifact = DiffusionPipelineArtifact.from_recipe_dict(artifact.to_recipe_dict())
+
+    assert loaded_artifact.to_recipe_dict() == artifact.to_recipe_dict()
+    assert loaded_artifact.config_hash is not None
 
 
 def test_pipeline_artifact_with_optimization_overrides_updates_cache_identity() -> None:
@@ -309,7 +447,8 @@ def test_deserialize_pipeline_artifact_round_trips_component_overrides() -> None
 
     loaded_artifact = deserialize_pipeline_artifact(serialize_pipeline_artifact(artifact))
 
-    assert loaded_artifact == artifact
+    assert loaded_artifact.to_recipe_dict() == artifact.to_recipe_dict()
+    assert loaded_artifact.config_hash is not None
 
 
 @pytest.mark.parametrize(
