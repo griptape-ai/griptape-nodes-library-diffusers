@@ -16,7 +16,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any, cast
 
-from modular_diffusion_nodes_library.memory_estimation.family_registry import (
+import pytest
+
+pytest.importorskip("torch", reason="Uses execution dependencies; run in the execution environment.")
+
+from modular_diffusion_nodes_library.memory_estimation.family_registry import (  # noqa: E402
     _adapt_flux_family,
     _adapt_hunyuan_video15,
     _adapt_ltx_family,

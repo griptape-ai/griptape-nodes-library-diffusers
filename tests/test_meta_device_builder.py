@@ -2,11 +2,21 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import torch
-from diffusers.models.controlnets.controlnet_flux import FluxControlNetModel
-from transformers import PreTrainedModel
+import pytest
 
-from modular_diffusion_nodes_library.memory_estimation.meta_device_builder import build_component_on_meta_device
+pytest.importorskip("torch", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("diffusers", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("accelerate", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("transformers", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("safetensors", reason="Uses execution dependencies; run in the execution environment.")
+
+import torch  # noqa: E402
+from diffusers.models.controlnets.controlnet_flux import FluxControlNetModel  # noqa: E402
+from transformers import PreTrainedModel  # noqa: E402
+
+from modular_diffusion_nodes_library.memory_estimation.meta_device_builder import (  # noqa: E402
+    build_component_on_meta_device,
+)
 
 _TINY_FLUX_CONTROLNET_CONFIG = {
     "patch_size": 1,

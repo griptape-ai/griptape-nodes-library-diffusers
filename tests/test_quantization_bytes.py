@@ -8,9 +8,17 @@ result for a given input is a real behavior regression, not measurement noise.
 
 from __future__ import annotations
 
-import torch
+import pytest
 
-from modular_diffusion_nodes_library.memory_estimation.quantization_bytes import (
+pytest.importorskip("torch", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("diffusers", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("safetensors", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("accelerate", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("transformers", reason="Uses execution dependencies; run in the execution environment.")
+
+import torch  # noqa: E402
+
+from modular_diffusion_nodes_library.memory_estimation.quantization_bytes import (  # noqa: E402
     LAYERWISE_CASTING_BYTES_PER_ELEMENT,
     estimate_component_weight_bytes,
     resolve_effective_bytes_per_element,

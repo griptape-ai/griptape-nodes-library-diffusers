@@ -12,9 +12,16 @@ a spurious "unrecognized component" warning.
 
 from __future__ import annotations
 
-import torch
+import pytest
 
-from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator import (
+pytest.importorskip("torch", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("safetensors", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("accelerate", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("transformers", reason="Uses execution dependencies; run in the execution environment.")
+
+import torch  # noqa: E402
+
+from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator import (  # noqa: E402
     _MIN_ACTIVATION_BYTES_PER_ELEMENT,
     _activation_element_size,
     _classify_role,

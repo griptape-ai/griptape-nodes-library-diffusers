@@ -16,21 +16,25 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import patch
 
-import torch
-from diffusers.models.controlnets.controlnet import ControlNetModel
-from diffusers.models.controlnets.controlnet_flux import FluxControlNetModel, FluxMultiControlNetModel
+import pytest
 
-from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
+pytest.importorskip("torch", reason="Uses execution dependencies; run in the execution environment.")
+
+import torch  # noqa: E402
+from diffusers.models.controlnets.controlnet import ControlNetModel  # noqa: E402
+from diffusers.models.controlnets.controlnet_flux import FluxControlNetModel, FluxMultiControlNetModel  # noqa: E402
+
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact  # noqa: E402
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (  # noqa: E402
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
 )
-from modular_diffusion_nodes_library.memory_estimation import pipeline_memory_estimator as pme
-from modular_diffusion_nodes_library.memory_estimation.meta_device_builder import (
+from modular_diffusion_nodes_library.memory_estimation import pipeline_memory_estimator as pme  # noqa: E402
+from modular_diffusion_nodes_library.memory_estimation.meta_device_builder import (  # noqa: E402
     ComponentConfigNotCachedError,
     build_component_on_meta_device,
 )
-from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator import (
+from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator import (  # noqa: E402
     _classify_role,
     _controlnet_slot_estimates,
     estimate_pipeline_memory,

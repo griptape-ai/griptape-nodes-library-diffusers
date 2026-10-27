@@ -5,11 +5,19 @@ from pathlib import Path
 
 import pytest
 
-from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
-from modular_diffusion_nodes_library.memory_estimation import pipeline_memory_estimator
-from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import MODULAR_PIPELINE_TYPE_PROVIDER_MAP
-from modular_diffusion_nodes_library.tools import estimate_workflow_memory as workflow_memory
-from modular_diffusion_nodes_library.tools import workflow_extraction
+pytest.importorskip("torch", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("diffusers", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("safetensors", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("accelerate", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("transformers", reason="Uses execution dependencies; run in the execution environment.")
+
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact  # noqa: E402
+from modular_diffusion_nodes_library.memory_estimation import pipeline_memory_estimator  # noqa: E402
+from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import (  # noqa: E402
+    MODULAR_PIPELINE_TYPE_PROVIDER_MAP,
+)
+from modular_diffusion_nodes_library.tools import estimate_workflow_memory as workflow_memory  # noqa: E402
+from modular_diffusion_nodes_library.tools import workflow_extraction  # noqa: E402
 
 LIBRARY_ROOT = Path(__file__).parents[1]
 

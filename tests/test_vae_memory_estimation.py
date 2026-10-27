@@ -7,28 +7,35 @@ from types import SimpleNamespace as NS
 from typing import Any
 
 import pytest
-import torch
-from accelerate import init_empty_weights
-from diffusers.models.autoencoders.autoencoder_kl import AutoencoderKL
-from diffusers.models.autoencoders.autoencoder_kl_flux2 import AutoencoderKLFlux2
-from diffusers.models.autoencoders.autoencoder_kl_hunyuanvideo15 import (
+
+pytest.importorskip("torch", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("diffusers", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("safetensors", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("accelerate", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("transformers", reason="Uses execution dependencies; run in the execution environment.")
+
+import torch  # noqa: E402
+from accelerate import init_empty_weights  # noqa: E402
+from diffusers.models.autoencoders.autoencoder_kl import AutoencoderKL  # noqa: E402
+from diffusers.models.autoencoders.autoencoder_kl_flux2 import AutoencoderKLFlux2  # noqa: E402
+from diffusers.models.autoencoders.autoencoder_kl_hunyuanvideo15 import (  # noqa: E402
     AutoencoderKLHunyuanVideo15,
     HunyuanVideo15AttnBlock,
 )
-from diffusers.models.autoencoders.autoencoder_kl_ltx import AutoencoderKLLTXVideo
-from diffusers.models.autoencoders.autoencoder_kl_ltx2 import AutoencoderKLLTX2Video
-from diffusers.models.autoencoders.autoencoder_kl_minimax_h3 import AutoencoderKLMiniMaxH3
-from diffusers.models.autoencoders.autoencoder_kl_qwenimage import AutoencoderKLQwenImage
-from diffusers.models.autoencoders.autoencoder_kl_wan import AutoencoderKLWan
-from diffusers.modular_pipelines.flux2.decoders import Flux2DecodeStep
+from diffusers.models.autoencoders.autoencoder_kl_ltx import AutoencoderKLLTXVideo  # noqa: E402
+from diffusers.models.autoencoders.autoencoder_kl_ltx2 import AutoencoderKLLTX2Video  # noqa: E402
+from diffusers.models.autoencoders.autoencoder_kl_minimax_h3 import AutoencoderKLMiniMaxH3  # noqa: E402
+from diffusers.models.autoencoders.autoencoder_kl_qwenimage import AutoencoderKLQwenImage  # noqa: E402
+from diffusers.models.autoencoders.autoencoder_kl_wan import AutoencoderKLWan  # noqa: E402
+from diffusers.modular_pipelines.flux2.decoders import Flux2DecodeStep  # noqa: E402
 
-from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
-from modular_diffusion_nodes_library.memory_estimation import pipeline_memory_estimator as pme
-from modular_diffusion_nodes_library.memory_estimation.tiled_vae_trace import (
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact  # noqa: E402
+from modular_diffusion_nodes_library.memory_estimation import pipeline_memory_estimator as pme  # noqa: E402
+from modular_diffusion_nodes_library.memory_estimation.tiled_vae_trace import (  # noqa: E402
     reuse_tiled_forwards,
     spatial_tile_strides,
 )
-from modular_diffusion_nodes_library.memory_estimation.vae_trace import (
+from modular_diffusion_nodes_library.memory_estimation.vae_trace import (  # noqa: E402
     VaeMetaTraceError,
     _trace_exact,
     _trace_input_shapes,
@@ -36,8 +43,8 @@ from modular_diffusion_nodes_library.memory_estimation.vae_trace import (
     trace_vae_activation_memory,
     vae_estimate_warning,
 )
-from modular_diffusion_nodes_library.memory_estimation.vae_trace_common import LivenessTracker
-from modular_diffusion_nodes_library.utils.pipeline_utils import (
+from modular_diffusion_nodes_library.memory_estimation.vae_trace_common import LivenessTracker  # noqa: E402
+from modular_diffusion_nodes_library.utils.pipeline_utils import (  # noqa: E402
     _automatic_optimize_diffusion_pipeline,
     _manual_optimize_diffusion_pipeline,
     apply_vae_memory_options,
@@ -507,7 +514,8 @@ def test_prebuild_vae_options_follow_saved_strategy(
     vae_class, config, source_shape, latent_shape = _case("AutoencoderKL")
     vae = _meta_vae(vae_class, config)
     observed_state: list[tuple[bool, bool, bool, bool]] = []
-    monkeypatch.setattr(pme, "_resolve_pipeline_cls", lambda _artifact: object)
+    monkeypatch.setattr(pme, "resolve_pipeline_cls", lambda _artifact: object)
+    monkeypatch.setattr(pme, "_load_base_model_index", lambda _repo_id, _revision: {})
     monkeypatch.setattr(pme, "_weight_bearing_slots", lambda *_args, **_kwargs: ["vae"])
     monkeypatch.setattr(pme, "_stored_bytes_for_base_component", lambda *_args: (0, BF16, vae))
 
@@ -541,7 +549,8 @@ def test_prebuild_vae_options_follow_saved_strategy(
 def test_unsupported_trace_becomes_weights_only_warning(monkeypatch: pytest.MonkeyPatch) -> None:
     vae_class, config, source_shape, latent_shape = _case("AutoencoderKL")
     vae = _meta_vae(vae_class, config)
-    monkeypatch.setattr(pme, "_resolve_pipeline_cls", lambda _artifact: object)
+    monkeypatch.setattr(pme, "resolve_pipeline_cls", lambda _artifact: object)
+    monkeypatch.setattr(pme, "_load_base_model_index", lambda _repo_id, _revision: {})
     monkeypatch.setattr(pme, "_weight_bearing_slots", lambda *_args, **_kwargs: ["vae"])
     monkeypatch.setattr(pme, "_stored_bytes_for_base_component", lambda *_args: (1024, BF16, vae))
     monkeypatch.setattr(

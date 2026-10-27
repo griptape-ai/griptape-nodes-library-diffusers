@@ -6,10 +6,20 @@ import math
 from types import SimpleNamespace
 
 import pytest
-import torch
 
-from modular_diffusion_nodes_library.memory_estimation.vae_trace import _extrapolate, _reduced_extent
-from modular_diffusion_nodes_library.memory_estimation.vae_trace_common import LivenessTracker, patched_attribute
+pytest.importorskip("torch", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("diffusers", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("safetensors", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("accelerate", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("transformers", reason="Uses execution dependencies; run in the execution environment.")
+
+import torch  # noqa: E402
+
+from modular_diffusion_nodes_library.memory_estimation.vae_trace import _extrapolate, _reduced_extent  # noqa: E402
+from modular_diffusion_nodes_library.memory_estimation.vae_trace_common import (  # noqa: E402
+    LivenessTracker,
+    patched_attribute,
+)
 
 
 def test_patched_attribute_restores_previous_value() -> None:

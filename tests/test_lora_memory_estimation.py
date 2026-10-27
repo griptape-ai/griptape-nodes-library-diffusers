@@ -3,15 +3,22 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any, cast
 
-import torch
-from safetensors.torch import save_file
+import pytest
 
-from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
-from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
-from modular_diffusion_nodes_library.memory_estimation.lora_memory import collect_runtime_lora_memory
-from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator import estimate_pipeline_memory
-from modular_diffusion_nodes_library.utils.lora_apply_utils import LoraPipelineRuntimeAdapterStep
-from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec
+pytest.importorskip("torch", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("safetensors", reason="Uses execution dependencies; run in the execution environment.")
+
+import torch  # noqa: E402
+from safetensors.torch import save_file  # noqa: E402
+
+from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact  # noqa: E402
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact  # noqa: E402
+from modular_diffusion_nodes_library.memory_estimation.lora_memory import collect_runtime_lora_memory  # noqa: E402
+from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator import (  # noqa: E402
+    estimate_pipeline_memory,
+)
+from modular_diffusion_nodes_library.utils.lora_apply_utils import LoraPipelineRuntimeAdapterStep  # noqa: E402
+from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec  # noqa: E402
 
 
 def _artifact_with_loras(paths: list[str]) -> DiffusionPipelineArtifact:
