@@ -336,25 +336,50 @@ def test_pipeline_builder_reopens_with_one_pipeline_type_of_its_provider(
     assert _pipeline_type_choices(loaded) == list(LatentFlux2PipelineTypeParameters.get_pipeline_type_dict())
 
 
-def test_pipeline_builder_drops_renamed_pipeline_type_copies_a_workflow_carries(
+def _pipeline_type_as_earlier_releases_saved_it(name: str) -> AddParameterToNodeRequest:
+    """The add the shipped templates carry: choices only in ui_options, no Options trait, no alter."""
+    return AddParameterToNodeRequest(
+        parameter_name=name,
+        tooltip="Specific pipeline variant within the selected provider.",
+        type="str",
+        input_types=["str"],
+        output_type="str",
+        ui_options={"simple_dropdown": ["Flux2Pipeline", "Flux2KleinPipeline"]},
+        mode_allowed_input=False,
+        mode_allowed_output=False,
+        initial_setup=True,
+    )
+
+
+def test_pipeline_builder_reopens_a_workflow_an_earlier_release_saved(
     flow: None,  # noqa: ARG001
 ) -> None:
-    """Workflows saved while __init__ also made pipeline_type carry the copies each reopen and save added."""
+    """Earlier saves describe pipeline_type with no choices, and carry the copies each reopen and save added."""
     node = _create("LatentDiffusionPipelineBuilderNode", "builder")
     _edit(node, {"provider": "Flux2", "pipeline_type": "Flux2KleinPipeline"})
-    pipeline_type = node.get_parameter_by_name("pipeline_type")
-    assert pipeline_type is not None
-    saved_copies = [
-        AddParameterToNodeRequest.create(**{**pipeline_type.save_dict(), "name": name}, initial_setup=True)
-        for name in ("pipeline_type_1", "pipeline_type_1_1")
-    ]
     serialized = _serialize_and_delete(node)
-    serialized = serialized._replace(element_commands=[*serialized.element_commands, *saved_copies])
+    commands = [
+        command
+        for command in serialized.element_commands
+        if getattr(command, "parameter_name", None) != "pipeline_type"
+    ]
+    earlier_adds = [
+        _pipeline_type_as_earlier_releases_saved_it(name)
+        for name in ("pipeline_type", "pipeline_type_1", "pipeline_type_1_1")
+    ]
+    serialized = serialized._replace(element_commands=[*earlier_adds, *commands])
 
     loaded = _load(serialized)
 
     assert _pipeline_type_parameters(loaded) == ["pipeline_type"]
     assert loaded.get_parameter_value("pipeline_type") == "Flux2KleinPipeline"
+    assert _pipeline_type_choices(loaded) == list(LatentFlux2PipelineTypeParameters.get_pipeline_type_dict())
+    assert _builder_state(loaded)["pipeline_name"] == "Flux2KleinPipeline"
+
+    resaved = _load(_serialize_and_delete(loaded))
+
+    assert resaved.get_parameter_value("pipeline_type") == "Flux2KleinPipeline"
+    assert _pipeline_type_choices(resaved) == list(LatentFlux2PipelineTypeParameters.get_pipeline_type_dict())
 
 
 def _assert_builder_keeps_saved_transformer_override_connection(recorder: RequestRecorder) -> None:

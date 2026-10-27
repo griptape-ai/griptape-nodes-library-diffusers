@@ -109,8 +109,10 @@ class LatentDiffusionPipelineBuilderParameters:
         # already describes, corrupting the engine's connection bookkeeping.
         if parameter.name == "provider" and self.did_provider_change:
             if initial_setup:
-                # The loaded parameters already belong to this provider; only the helper that reads them is rebound.
+                # The loaded parameters already belong to this provider; only the helper that reads them is
+                # rebound, and pipeline_type offers this provider's choices.
                 self.set_pipeline_type_parameters(value)
+                self.pipeline_type_parameters.bind_pipeline_type_choices()
             else:
                 self.regenerate_pipeline_type_parameters_for_provider(value)
         self.pipeline_type_parameters.after_value_set(parameter, value, initial_setup=initial_setup)
