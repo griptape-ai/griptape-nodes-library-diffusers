@@ -150,7 +150,10 @@ test/exec: ## Run the tests that need the execution environment (diffusers, torc
 
 .PHONY: test/workflows
 test/workflows: ## Run workflow tests.
-	@uv run pytest -s tests/workflows
+	@# A separate venv on purpose: .venv is the edit-time environment the engine splices onto the
+	@# orchestrator, and fattening it would hide exactly the bugs that separation exists to expose.
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv sync --extra exec --all-groups
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv run pytest -s tests/workflows
 
 .DEFAULT_GOAL := help
 .PHONY: help

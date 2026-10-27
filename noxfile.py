@@ -5,12 +5,18 @@ import nox
 nox.options.sessions = ["workflow_collect", "workflow_tests"]
 
 REPO_ROOT = Path(__file__).parent.resolve()
+EXEC_TEST_VENV = REPO_ROOT / ".venv-test-exec"
 WORKFLOW_TEST_FILE = REPO_ROOT / "tests" / "workflows" / "test_workflows.py"
 WORKFLOW_TEMPLATE_DIR = REPO_ROOT / "workflows" / "templates"
 
 
 def _run_pytest(session: nox.Session, *pytest_args: str, success_codes: tuple[int, ...] = (0,)) -> None:
-    session.run("uv", "run", "pytest", "-q", "-ra", *pytest_args, success_codes=list(success_codes))
+    execution_env = {
+        "UV_PROJECT_ENVIRONMENT": str(EXEC_TEST_VENV),
+        "VIRTUAL_ENV": str(EXEC_TEST_VENV),
+    }
+    session.run("uv", "sync", "--extra", "exec", "--all-groups", env=execution_env)
+    session.run("uv", "run", "pytest", "-q", "-ra", *pytest_args, success_codes=list(success_codes), env=execution_env)
 
 
 def _resolve_template_path(session: nox.Session, template_arg: str) -> Path:
