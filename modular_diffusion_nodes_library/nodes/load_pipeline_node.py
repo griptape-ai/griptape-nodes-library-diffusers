@@ -63,6 +63,8 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
         self.huggingface_pipeline_params = HuggingFacePipelineParameter(self, include_quantization=False)
         self.huggingface_pipeline_params.add_input_parameters()
+        # Start tracking only after constructor defaults have been registered.
+        self._explicit_optimization_parameters: set[str] = set()
         self._create_status_parameters()
 
     def set_parameter_value(
@@ -74,6 +76,12 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         emit_change: bool = True,
         skip_before_value_set: bool = False,
     ) -> None:
+        explicit_parameters = getattr(self, "_explicit_optimization_parameters", None)
+        track_explicit_value = (
+            explicit_parameters is not None
+            and param_name in self.huggingface_pipeline_params.parameter_names
+            and not self._setting_optimization_parameters
+        )
         super().set_parameter_value(
             param_name,
             value,
@@ -81,6 +89,8 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             emit_change=emit_change,
             skip_before_value_set=skip_before_value_set,
         )
+        if track_explicit_value:
+            explicit_parameters.add(param_name)
         if (
             initial_setup
             and param_name == "memory_optimization_strategy"
@@ -171,11 +181,13 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             raise RuntimeError(f"Pipeline recipe dependencies are unavailable:\n{details}")
         return pipeline
 
-    def _set_optimization_parameters_from_pipeline(self, pipeline: DiffusionPipelineArtifact) -> None:
+    def _initialize_untouched_optimization_parameters(self, pipeline: DiffusionPipelineArtifact) -> None:
         saved_parameters = pipeline.optimization_kwargs
         self._setting_optimization_parameters = True
         try:
             for parameter_name in self.huggingface_pipeline_params.parameter_names:
+                if parameter_name in self._explicit_optimization_parameters:
+                    continue
                 parameter = self.get_parameter_by_name(parameter_name)
                 if parameter is None:
                     raise RuntimeError(f"Load Pipeline optimization parameter is missing: {parameter_name}")
@@ -223,7 +235,7 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             return
 
         try:
-            self._set_optimization_parameters_from_pipeline(pipeline)
+            self._initialize_untouched_optimization_parameters(pipeline)
             self._source_pipeline = pipeline
             pipeline = self._effective_pipeline()
             self._publish_pipeline(pipeline)
@@ -241,7 +253,9 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         def load() -> DiffusionPipelineArtifact:
             self._source_pipeline = None
-            self._source_pipeline = self._load_pipeline_from_path()
+            source_pipeline = self._load_pipeline_from_path()
+            self._initialize_untouched_optimization_parameters(source_pipeline)
+            self._source_pipeline = source_pipeline
             pipeline = self._effective_pipeline()
             self._publish_pipeline(pipeline)
             return pipeline
