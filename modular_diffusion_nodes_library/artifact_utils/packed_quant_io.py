@@ -11,10 +11,11 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import torch
-from torch import nn
+if TYPE_CHECKING:
+    import torch
+    from torch import nn
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -32,6 +33,8 @@ def _module_has_packed_weights(component: Any) -> bool:
 
 
 def component_quantization_map(component: Any) -> dict[str, dict[str, str]]:
+    from torch import nn
+
     try:
         from optimum.quanto import quantization_map
     except ImportError:
@@ -147,6 +150,8 @@ def _assert_qmodules_frozen(component: nn.Module, qmap: dict[str, dict[str, str]
 
 
 def _cast_unpacked_floats(model: nn.Module, dtype: torch.dtype) -> None:
+    from torch import nn
+
     for module in model.modules():
         for name, param in list(module.named_parameters(recurse=False)):
             if hasattr(param, "_data"):
@@ -164,6 +169,7 @@ def requantize_component(
     *,
     unpacked_dtype: torch.dtype | None = None,
 ) -> None:
+    import torch
     from optimum.quanto import requantize
 
     folder = Path(folder)
@@ -186,6 +192,8 @@ def apply_packed_quant_from_folder(
     unpacked_dtype: torch.dtype | None = None,
 ) -> list[str]:
     """Requantize every slot that has a map. Mutates `pipe` components in place."""
+    from torch import nn
+
     folder = Path(folder)
     applied: list[str] = []
     for name, component in _iter_components(pipe):
