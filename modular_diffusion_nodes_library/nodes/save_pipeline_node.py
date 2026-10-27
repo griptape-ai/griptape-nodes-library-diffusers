@@ -7,7 +7,6 @@ from typing import Any
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import SuccessFailureNode
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.options import Options
 from griptape_nodes.utils import resolve_workspace_path
 
@@ -21,6 +20,7 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_baking import (
 from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import serialize_pipeline_artifact
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.file_path_parameter import FilePathParameter
+from modular_diffusion_nodes_library.utils.config_utils import get_workspace_path
 from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -166,7 +166,7 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 raise ValueError(f"Parameter 'file_path' on node '{self.name}' must be a non-empty string.")
 
             expanded_path = expand_path_macros(file_path)
-            workspace_path = GriptapeNodes.ConfigManager().workspace_path
+            workspace_path = get_workspace_path()
             resolved_path = resolve_workspace_path(Path(expanded_path), workspace_path)
 
             if self.get_parameter_value("save_mode") == SaveMode.FULL_PIPELINE:
