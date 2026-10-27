@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, Any
 
 from modular_diffusion_nodes_library.artifact_utils.recipe_codec import resolve_recipe_value
 from modular_diffusion_nodes_library.component_loading.component_slots import component_config_filename
@@ -20,8 +20,8 @@ if TYPE_CHECKING:
     from modular_diffusion_nodes_library.artifact_utils.component_artifact import ModelComponentArtifact
     from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 
-BuiltPipeline: TypeAlias = ModularPipeline | DiffusionPipeline | Any
-PipeComponent: TypeAlias = Any
+type BuiltPipeline = ModularPipeline | DiffusionPipeline | Any
+type PipeComponent = Any
 
 
 def gguf_overrides_from_artifact(artifact: DiffusionPipelineArtifact) -> dict[str, ModelComponentArtifact]:
@@ -134,17 +134,11 @@ def copy_gguf_override(override: ModelComponentArtifact, slot_dir: Path, baked_r
     """Copy the .gguf (and its config) into `slot_dir`. Return a recipe dict."""
     raw_path = override.file_path
     if not raw_path:
-        msg = (
-            f"Attempted to copy a GGUF override for '{override.component}'. "
-            "Failed because file_path is missing."
-        )
+        msg = f"Attempted to copy a GGUF override for '{override.component}'. Failed because file_path is missing."
         raise ValueError(msg)
     src = Path(raw_path)
     if not src.is_file():
-        msg = (
-            f"Attempted to copy a GGUF override for '{override.component}'. "
-            f"Failed because '{src}' is not a file."
-        )
+        msg = f"Attempted to copy a GGUF override for '{override.component}'. Failed because '{src}' is not a file."
         raise ValueError(msg)
 
     slot_dir = Path(slot_dir)
@@ -210,7 +204,6 @@ def resolve_file_overrides(file_overrides: dict[str, Any], baked_path: Path) -> 
     from modular_diffusion_nodes_library.artifact_utils import (  # noqa: F401
         tokenizer_component_artifact as _tokenizer_component_artifact,
     )
-
     from modular_diffusion_nodes_library.artifact_utils.component_artifact import ModelComponentArtifact
 
     baked_path = Path(baked_path)
