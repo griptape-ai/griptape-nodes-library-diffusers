@@ -292,6 +292,32 @@ def test_edited_component_override_changes_cache_identity() -> None:
     assert original.config_hash != edited.config_hash
 
 
+def test_component_override_mapping_order_does_not_change_cache_identity() -> None:
+    def cache_identity(text_config: dict[str, int]) -> str | None:
+        override = SchedulerComponentArtifact(
+            load_id="scheduler-override",
+            source_type=ComponentSourceType.RAW_CONFIG,
+            component="scheduler",
+            scheduler_class="TestScheduler",
+            text_config=text_config,
+        )
+        artifact = DiffusionPipelineArtifact(
+            pipeline_name="TestPipeline",
+            builder_module="test.module",
+            builder_class_name="TestBuilder",
+            build_data={"_component_overrides": {"scheduler": override}},
+        )
+        return deserialize_pipeline_artifact(serialize_pipeline_artifact(artifact)).config_hash
+
+    original = cache_identity({"alpha": 1, "beta": 2})
+    reordered = cache_identity({"beta": 2, "alpha": 1})
+    edited = cache_identity({"alpha": 1, "beta": 3})
+
+    assert original is not None
+    assert original == reordered
+    assert original != edited
+
+
 def test_runtime_lora_edits_share_base_cache_identity() -> None:
     document = yaml.safe_load(serialize_pipeline_artifact(_cache_identity_artifact()))
     original = deserialize_pipeline_artifact(yaml.safe_dump(document))

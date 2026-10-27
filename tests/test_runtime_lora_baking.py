@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 import yaml
 
+from modular_diffusion_nodes_library.artifact_utils import pipeline_baking
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ComponentSourceType,
     ModelComponentArtifact,
@@ -31,6 +32,15 @@ class _FakePipe:
         (destination / "model_index.json").write_text('{"_class_name": "TestPipeline"}\n', encoding="utf-8")
 
 
+def _base_artifact() -> DiffusionPipelineArtifact:
+    return DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        config_hash="pipeline-hash",
+        builder_module="test.module",
+        builder_class_name="TestBuilder",
+    )
+
+
 def _artifact_with_runtime_loras(
     loras: list[tuple[Path, float]],
     *,
@@ -47,6 +57,108 @@ def _artifact_with_runtime_loras(
     )
     specs = {str(path): LoraSpec(path=str(path), weight=weight) for path, weight in loras}
     return artifact.with_additional_runtime_adapter_steps([LoraPipelineRuntimeAdapterStep(specs)])
+
+
+def test_full_pipeline_replaces_existing_bake_and_removes_backup(tmp_path: Path) -> None:
+    destination = tmp_path / "baked"
+    destination.mkdir()
+    (destination / "old.txt").write_text("old", encoding="utf-8")
+
+    save_baked_pipeline(_FakePipe(), _base_artifact(), destination)
+
+    assert (destination / "model_index.json").is_file()
+    assert not (destination / "old.txt").exists()
+    assert not destination.with_name("baked.previous-bake").exists()
+    assert not destination.with_name("baked.tmp-bake").exists()
+
+
+def test_full_pipeline_restores_existing_bake_when_installation_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "baked"
+    destination.mkdir()
+    marker = destination / "old.txt"
+    marker.write_text("old", encoding="utf-8")
+    tmp_bake = destination.with_name("baked.tmp-bake")
+    real_replace = pipeline_baking.os.replace
+
+    def fail_install(source: str | Path, target: str | Path) -> None:
+        if Path(source) == tmp_bake and Path(target) == destination:
+            raise OSError("installation failed")
+        real_replace(source, target)
+
+    monkeypatch.setattr(pipeline_baking.os, "replace", fail_install)
+
+    with pytest.raises(OSError, match="installation failed"):
+        save_baked_pipeline(_FakePipe(), _base_artifact(), destination)
+
+    assert marker.read_text(encoding="utf-8") == "old"
+    assert not destination.with_name("baked.previous-bake").exists()
+    assert not tmp_bake.exists()
+
+
+def test_full_pipeline_retains_backup_when_installation_and_restore_fail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "baked"
+    destination.mkdir()
+    (destination / "old.txt").write_text("old", encoding="utf-8")
+    tmp_bake = destination.with_name("baked.tmp-bake")
+    backup = destination.with_name("baked.previous-bake")
+    real_replace = pipeline_baking.os.replace
+
+    def fail_install_and_restore(source: str | Path, target: str | Path) -> None:
+        source_path = Path(source)
+        target_path = Path(target)
+        if source_path == tmp_bake and target_path == destination:
+            raise OSError("installation failed")
+        if source_path == backup and target_path == destination:
+            raise OSError("restore failed")
+        real_replace(source, target)
+
+    monkeypatch.setattr(pipeline_baking.os, "replace", fail_install_and_restore)
+
+    with pytest.raises(RuntimeError, match="previous bake remains"):
+        save_baked_pipeline(_FakePipe(), _base_artifact(), destination)
+
+    assert not destination.exists()
+    assert (backup / "old.txt").read_text(encoding="utf-8") == "old"
+    assert not tmp_bake.exists()
+
+
+def test_full_pipeline_refuses_existing_destination_and_recovery_backup(tmp_path: Path) -> None:
+    destination = tmp_path / "baked"
+    destination.mkdir()
+    (destination / "current.txt").write_text("current", encoding="utf-8")
+    backup = destination.with_name("baked.previous-bake")
+    backup.mkdir()
+    (backup / "previous.txt").write_text("previous", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="Preserving both directories"):
+        save_baked_pipeline(_FakePipe(), _base_artifact(), destination)
+
+    assert (destination / "current.txt").read_text(encoding="utf-8") == "current"
+    assert (backup / "previous.txt").read_text(encoding="utf-8") == "previous"
+    assert not destination.with_name("baked.tmp-bake").exists()
+
+
+def test_full_pipeline_recovers_orphaned_previous_bake_before_validating_new_save(tmp_path: Path) -> None:
+    destination = tmp_path / "baked"
+    backup = destination.with_name("baked.previous-bake")
+    backup.mkdir()
+    marker = backup / "previous.txt"
+    marker.write_text("previous", encoding="utf-8")
+    invalid_artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        build_data_error="invalid build data",
+    )
+
+    with pytest.raises(ValueError, match="invalid build data"):
+        save_baked_pipeline(_FakePipe(), invalid_artifact, destination)
+
+    assert (destination / marker.name).read_text(encoding="utf-8") == "previous"
+    assert not backup.exists()
+    assert not destination.with_name("baked.tmp-bake").exists()
 
 
 def test_full_pipeline_copies_runtime_loras_and_rebuilds_adapter_step(tmp_path: Path) -> None:
