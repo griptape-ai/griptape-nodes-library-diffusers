@@ -228,15 +228,14 @@ class LatentDiffusionPipelineBuilderNode(
         if self._initializing:
             super().add_parameter(param)
             return
-        # Workflows saved before pipeline_type stopped being user-defined add it again on load, and the
-        # engine renames that add to pipeline_type_<n> because __init__ already made one.
+        # Workflows saved while __init__ also made pipeline_type carry the engine's renamed copies of it,
+        # pipeline_type_<n>, which a load would otherwise add back.
         if _RENAMED_PIPELINE_TYPE.fullmatch(param.name) and self.does_name_exist("pipeline_type"):
             return
 
         # Dynamic mode: prevent duplicates and mark as user-defined
         if not self.does_name_exist(param.name):
-            # __init__ always makes pipeline_type, so a save describes it as a change, not an addition.
-            if param.name != "pipeline_type" and not self._parent_manages_own_serialization(param):
+            if not self._parent_manages_own_serialization(param):
                 param.user_defined = True
 
             # Restore cached parameter properties using mixin method
@@ -271,7 +270,7 @@ class LatentDiffusionPipelineBuilderNode(
         if parameter.name == "pipeline":
             value = normalize_diffusion_pipeline_value(value, node_name=self.name)
 
-        self.params.before_value_set(parameter, value)
+        self.params.before_value_set(parameter, value, initial_setup=initial_setup)
 
         super().set_parameter_value(
             param_name,

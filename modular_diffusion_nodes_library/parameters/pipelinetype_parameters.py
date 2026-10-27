@@ -149,7 +149,7 @@ class LatentPipelineTypeParameters(ABC):
         pipeline_type_param.allowed_modes = pipeline_type_param.allowed_modes | {ParameterMode.INPUT}
 
     def remove_input_parameters(self) -> None:
-        self._node.remove_parameter_element_by_name("pipeline_type")
+        self._node.remove_parameter_with_connection_cleanup("pipeline_type")
         self.pipeline_type_pipeline_params.remove_input_parameters()
 
     def before_value_set(self, parameter: Parameter, value: Any) -> None:

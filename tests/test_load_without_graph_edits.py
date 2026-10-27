@@ -323,40 +323,33 @@ def _pipeline_type_choices(node: BaseNode) -> list[str]:
     return list(options.choices)
 
 
-def test_pipeline_builder_saves_pipeline_type_as_a_change_and_reopens_it_once(
+def test_pipeline_builder_reopens_with_one_pipeline_type_of_its_provider(
     flow: None,  # noqa: ARG001
 ) -> None:
     node = _create("LatentDiffusionPipelineBuilderNode", "builder")
     _edit(node, {"provider": "Flux2", "pipeline_type": "Flux2KleinPipeline"})
 
-    serialized = _serialize_and_delete(node)
-    loaded = _load(serialized)
+    loaded = _load(_serialize_and_delete(node))
 
-    adds = [
-        command.parameter_name
-        for command in serialized.element_commands
-        if isinstance(command, AddParameterToNodeRequest)
-    ]
-    assert "pipeline_type" not in adds
     assert _pipeline_type_parameters(loaded) == ["pipeline_type"]
     assert loaded.get_parameter_value("pipeline_type") == "Flux2KleinPipeline"
     assert _pipeline_type_choices(loaded) == list(LatentFlux2PipelineTypeParameters.get_pipeline_type_dict())
 
 
-def test_pipeline_builder_reopens_a_workflow_saved_with_pipeline_type_added(
+def test_pipeline_builder_drops_renamed_pipeline_type_copies_a_workflow_carries(
     flow: None,  # noqa: ARG001
 ) -> None:
-    """Earlier saves add pipeline_type, and each later save of the reopened workflow adds the copy it got."""
+    """Workflows saved while __init__ also made pipeline_type carry the copies each reopen and save added."""
     node = _create("LatentDiffusionPipelineBuilderNode", "builder")
     _edit(node, {"provider": "Flux2", "pipeline_type": "Flux2KleinPipeline"})
     pipeline_type = node.get_parameter_by_name("pipeline_type")
     assert pipeline_type is not None
-    saved_adds = [
+    saved_copies = [
         AddParameterToNodeRequest.create(**{**pipeline_type.save_dict(), "name": name}, initial_setup=True)
-        for name in ("pipeline_type", "pipeline_type_1", "pipeline_type_1_1")
+        for name in ("pipeline_type_1", "pipeline_type_1_1")
     ]
     serialized = _serialize_and_delete(node)
-    serialized = serialized._replace(element_commands=[*saved_adds, *serialized.element_commands])
+    serialized = serialized._replace(element_commands=[*serialized.element_commands, *saved_copies])
 
     loaded = _load(serialized)
 
