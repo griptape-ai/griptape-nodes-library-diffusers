@@ -7,7 +7,7 @@ driver.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     import numpy as np
@@ -18,15 +18,13 @@ TextEncodings = dict[str, Any]
 
 
 @dataclass(frozen=True)
-class DecodeOutput:
+class DecodeResult:
     media: Image | list[Image] | np.ndarray
     audio: torch.Tensor | None = None
     audio_sample_rate: int | None = None
 
 
-# `type` rather than a plain assignment: the right-hand side is evaluated only when something
-# introspects the alias, so naming these types does not import numpy or PIL.
-type DecodeResult = DecodeOutput | Image | list[Image] | np.ndarray
+DecodeOutputType = Literal["pil", "np"]
 
 
 @dataclass(frozen=True)

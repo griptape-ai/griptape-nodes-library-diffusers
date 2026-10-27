@@ -827,6 +827,16 @@
             }
         },
         {
+            "class_name": "SaveExrNode",
+            "file_path": "./modular_diffusion_nodes_library/nodes/save_exr_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/IO",
+                "description": "Write FloatMediaArtifact RGB frames unchanged to an OpenEXR sequence.",
+                "display_name": "Save EXR Sequence",
+                "group": "diffusion"
+            }
+        },
+        {
             "class_name": "VaeEncodeNode",
             "file_path": "./modular_diffusion_nodes_library/nodes/vae_encoder.py",
             "metadata": {
@@ -861,9 +871,25 @@
             "file_path": "./modular_diffusion_nodes_library/nodes/decode_hdr_node.py",
             "metadata": {
                 "category": "ModularDiffusion/Encode\\Decode",
-                "description": "Decode HDR VAE latent, apply tone mapping, and optionally save a raw EXR sequence.",
+                "description": "Decode VAE latents to float RGB media, expose raw media, and publish a configurable SDR preview.",
                 "display_name": "Decode HDR Latents",
                 "group": "diffusion"
+            }
+        },
+        {
+            "class_name": "LatentToMediaNode",
+            "file_path": "./modular_diffusion_nodes_library/nodes/latent_to_media_node.py",
+            "metadata": {
+                "category": "ModularDiffusion/Encode\\Decode",
+                "description": "Standalone alternative to Decode Media: runs its own model (e.g. a diffusion decode model), to turn image or video latents into media, with no pipeline required.",
+                "display_name": "Latent to Media (Standalone Decoder)",
+                "group": "diffusion",
+                "declarations": [
+                    {
+                        "type": "model_usage",
+                        "model_ids": ["md_ltx_2_5_diffusers"]
+                    }
+                ]
             }
         },
         {

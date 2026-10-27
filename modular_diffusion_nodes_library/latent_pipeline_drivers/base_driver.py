@@ -16,6 +16,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers._base_driver_forwar
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
     META_DRIVER_KEY,
+    DecodeOutputType,
     DecodeResult,
     GeneratorState,
     ImageMedia,
@@ -343,9 +344,46 @@ class LatentPipelineDriver(ABC):
         return PipelineOutput(media=pipe_output.images)
 
     @abstractmethod
-    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         """Return decoded image. See class docstring for the input latent shape contract."""
         ...
+
+    @staticmethod
+    def _get_decoded_media(
+        state: dict[str, Any],
+        key: str,
+        output_type: DecodeOutputType,
+        *,
+        is_video: bool,
+    ) -> DecodeResult:
+        import numpy as np
+        from PIL import Image
+
+        value = state.get(key)
+        media_kind = "video" if is_video else "image"
+        if output_type == "np":
+            expected_ndim = 4 if is_video else 3
+            if not isinstance(value, np.ndarray) or value.ndim != expected_ndim + 1 or value.shape[0] < 1:
+                raise ValueError(
+                    f"Expected a batched NumPy {media_kind} array for state key '{key}', got {type(value).__name__}."
+                )
+            media = value[0]
+            if media.ndim != expected_ndim or media.shape[-1] != 3:
+                raise ValueError(f"Expected unbatched NumPy RGB {media_kind} for state key '{key}', got {media.shape}.")
+            return DecodeResult(media=media)
+        if not isinstance(value, list) or not value:
+            raise ValueError(
+                f"Expected a non-empty PIL {media_kind} batch for state key '{key}', got {type(value).__name__}."
+            )
+        media = value[0]
+        if is_video:
+            if not isinstance(media, list) or not media or not all(isinstance(frame, Image.Image) for frame in media):
+                raise ValueError(
+                    f"Expected non-empty PIL video frames for state key '{key}', got {type(media).__name__}."
+                )
+        elif not isinstance(media, Image.Image):
+            raise ValueError(f"Expected a PIL image for state key '{key}', got {type(media).__name__}.")
+        return DecodeResult(media=media)
 
     @abstractmethod
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:

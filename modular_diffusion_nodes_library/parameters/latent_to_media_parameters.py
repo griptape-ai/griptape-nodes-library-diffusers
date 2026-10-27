@@ -1,0 +1,227 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
+from griptape_nodes.exe_types.param_components.huggingface.huggingface_repo_parameter import HuggingFaceRepoParameter
+
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import read_driver_meta
+from modular_diffusion_nodes_library.misc.neighborhood_attention import ChunkedNeighborhoodAttnProcessor
+from modular_diffusion_nodes_library.utils.hdr_video_utils import inverse_logc3
+from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
+from modular_diffusion_nodes_library.utils.torch_utils import get_best_device
+
+if TYPE_CHECKING:
+    import numpy as np
+    from griptape_nodes.exe_types.node_types import BaseNode
+    from PIL import Image
+
+    from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+
+LTX25_DIFFUSION_DECODER_REPO = "Lightricks/LTX-2.5-Diffusers"
+DIFFUSION_DECODER_SUBFOLDER = "diffusion_decoder"
+
+
+@dataclass(frozen=True)
+class LatentToMediaSpec:
+    media_type: Literal["image", "video"]
+    fps: int | None = None
+
+
+type DecoderOutput = list[Image.Image] | list[list[Image.Image]] | np.ndarray
+
+
+class BaseLatentToMediaParameters:
+    model_family = ""
+    spec: LatentToMediaSpec
+    _DYNAMIC_PARAMETERS = {
+        "output_image",
+        "output_video",
+        "raw_media",
+        "fps",
+        "enable_raw_output",
+    }
+
+    def __init__(self, node: BaseNode) -> None:
+        self._node = node
+
+    def add_parameters(self) -> None:
+        raise NotImplementedError
+
+    def remove_parameters(self) -> None:
+        raise NotImplementedError
+
+    def validate_before_node_run(self) -> list[Exception] | None:
+        raise NotImplementedError
+
+    def decode(self, latent: LatentArtifact, seed: int, output_type: Literal["pil", "np"]) -> DecoderOutput:
+        """Decode to PIL frames or pipeline-postprocessed floating-point RGB media."""
+        raise NotImplementedError
+
+
+class LTX25DiffusionDecoderParameters(BaseLatentToMediaParameters):
+    model_family = "LTX-2.5"
+    spec = LatentToMediaSpec(media_type="video", fps=24)
+    _DYNAMIC_PARAMETERS = BaseLatentToMediaParameters._DYNAMIC_PARAMETERS | {
+        "diffusion_decoder_model",
+        "diffusion_decoder_model_download",
+        "decoder_num_inference_steps",
+        "decoder_use_tiling",
+        "decoder_use_flex_attention",
+    }
+
+    def __init__(self, node: BaseNode) -> None:
+        super().__init__(node)
+        self._model_repo_parameter = HuggingFaceRepoParameter(
+            node,
+            repo_ids=[LTX25_DIFFUSION_DECODER_REPO],
+            parameter_name="diffusion_decoder_model",
+        )
+
+    def add_parameters(self) -> None:
+        self._model_repo_parameter.add_input_parameters()
+        self._node.add_parameter(
+            Parameter(
+                name="decoder_num_inference_steps",
+                default_value=1,
+                type="int",
+                tooltip="Number of denoising steps used by the diffusion decoder. The LTX-2.5 decoder defaults to one step.",
+                allowed_modes={ParameterMode.PROPERTY},
+                user_defined=True,
+            )
+        )
+        self._node.add_parameter(
+            Parameter(
+                name="decoder_use_tiling",
+                default_value=True,
+                type="bool",
+                tooltip="Decode large videos in overlapping tiles to reduce peak memory use.",
+                allowed_modes={ParameterMode.PROPERTY},
+                user_defined=True,
+            )
+        )
+        flex_attention_parameter = Parameter(
+            name="decoder_use_flex_attention",
+            default_value=False,
+            type="bool",
+            tooltip=(
+                "Use the original FlexAttention path instead of chunked attention. "
+                "At video resolutions, it can require tens of GB of GPU memory and may run out of memory."
+            ),
+            allowed_modes={ParameterMode.PROPERTY},
+            user_defined=True,
+        )
+        flex_attention_parameter.set_badge(
+            variant="warning",
+            title="FlexAttention high VRAM requirements",
+            message=(
+                "Uses the decoder's original FlexAttention path for behavior closer to the reference implementation. "
+                "Choose this when matching the original attention behavior matters more than memory efficiency. "
+                "**Memory impact:** at video resolutions this can require *tens of GB of GPU VRAM* and may cause "
+                "an out-of-memory error. Leave this off unless you have ample VRAM; the default chunked attention "
+                "path uses less memory."
+            ),
+        )
+        self._node.add_parameter(flex_attention_parameter)
+
+    def remove_parameters(self) -> None:
+        self._model_repo_parameter.remove_input_parameters()
+        self._node.remove_parameter_element_by_name("decoder_num_inference_steps")
+        self._node.remove_parameter_element_by_name("decoder_use_tiling")
+        self._node.remove_parameter_element_by_name("decoder_use_flex_attention")
+
+    def validate_before_node_run(self) -> list[Exception] | None:
+        errors = self._model_repo_parameter.validate_before_node_run() or []
+        steps = self._node.get_parameter_value("decoder_num_inference_steps")
+        try:
+            steps_int = int(steps)
+            if steps_int <= 0:
+                errors.append(ValueError(f"Decoder inference steps must be positive, got {steps_int}."))
+        except (TypeError, ValueError):
+            errors.append(ValueError(f"Decoder inference steps must be an integer, got {steps!r}."))
+        return errors or None
+
+    def decode(self, latent: LatentArtifact, seed: int, output_type: Literal["pil", "np"]) -> DecoderOutput:
+        """Return PIL frames or pipeline-postprocessed floating-point RGB media."""
+        errors = self.validate_before_node_run()
+        if errors:
+            raise errors[0]
+        import numpy as np
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.models.autoencoders.ltx2_diffusion_decoder import (  # type: ignore[reportMissingImports]
+            LTX2VideoDiffusionDecoderModel,
+            LTX2VideoVaeNeighborhoodAttnProcessor,
+        )
+        from diffusers.pipelines.ltx2.pipeline_ltx2_diffusion_decode import (  # type: ignore[reportMissingImports]
+            LTX2VideoDiffusionDecodePipeline,
+        )
+        from diffusers.schedulers.scheduling_flow_match_euler_discrete import (  # type: ignore[reportMissingImports]
+            FlowMatchEulerDiscreteScheduler,
+        )
+
+        repo_id, revision = self._model_repo_parameter.get_repo_revision()
+        device = get_best_device()
+        decoder = LTX2VideoDiffusionDecoderModel.from_pretrained(
+            repo_id,
+            subfolder=DIFFUSION_DECODER_SUBFOLDER,
+            revision=revision,
+            torch_dtype=torch.bfloat16,
+        )
+        if self._node.get_parameter_value("decoder_use_flex_attention"):
+            decoder.set_attn_processor(LTX2VideoVaeNeighborhoodAttnProcessor())  # pyright: ignore[reportArgumentType]
+        else:
+            decoder.set_attn_processor(ChunkedNeighborhoodAttnProcessor())  # pyright: ignore[reportArgumentType]
+        if self._node.get_parameter_value("decoder_use_tiling"):
+            decoder.enable_tiling()
+
+        try:
+            decoder.decoder.default_num_inference_steps = int(
+                self._node.get_parameter_value("decoder_num_inference_steps")
+            )
+            pipeline = LTX2VideoDiffusionDecodePipeline(
+                diffusion_decoder=decoder,
+                scheduler=FlowMatchEulerDiscreteScheduler(),
+            )
+            pipeline.to(device=device)
+            generator = None
+            if seed >= 0:
+                generator = torch.Generator(device="cpu").manual_seed(int(seed))
+            latents = latent.to_torch(device=device, dtype=torch.bfloat16)
+            pipeline_output = pipeline(
+                latents=latents,
+                generator=generator,
+                output_type=output_type,
+                return_dict=False,
+                denormalize=True,
+            )[0]
+            if output_type == "np":
+                if isinstance(pipeline_output, torch.Tensor):
+                    result = pipeline_output.float().cpu().numpy()
+                else:
+                    result = np.asarray(pipeline_output, dtype=np.float32)
+                pipeline_class = read_driver_meta(latent, "pipeline_class", "LTX2PipelineDriver")
+                if pipeline_class == "LTX2HDRPipeline":
+                    result = inverse_logc3(result)
+            else:
+                result = pipeline_output
+        finally:
+            decoder.cpu()
+            cleanup_memory_caches()
+        return result
+
+
+LATENT_TO_MEDIA_TYPE_MAP: dict[str, type[BaseLatentToMediaParameters]] = {
+    LTX25DiffusionDecoderParameters.model_family: LTX25DiffusionDecoderParameters,
+}
+
+
+def create_latent_to_media_parameters(model_family: str, node: BaseNode) -> BaseLatentToMediaParameters:
+    decoder_cls = LATENT_TO_MEDIA_TYPE_MAP.get(model_family)
+    if decoder_cls is None:
+        msg = (
+            f"Attempted to create latent-to-media parameters. Failed with model_family='{model_family}' "
+            f"because it is not a known model family. Known types: {list(LATENT_TO_MEDIA_TYPE_MAP.keys())}"
+        )
+        raise ValueError(msg)
+    return decoder_cls(node)
