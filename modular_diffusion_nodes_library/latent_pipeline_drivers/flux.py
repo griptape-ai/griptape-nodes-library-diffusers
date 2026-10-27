@@ -258,14 +258,10 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
     @override
     def decode_latent(self, latent: LatentArtifact) -> Image:
         device, dtype = self._get_device_and_type()
-        source_shape = latent.source_shape
-        height, width = source_shape[-2], source_shape[-1]
         latents = latent.to_torch(device=device, dtype=dtype)
 
-        packed = self.pack_latents(latents, latents.shape[-2], latents.shape[-1])
-
         decode_pipeline = self.modular_pipe.blocks.sub_blocks["decode"]
-        output_state = self._call_block(decode_pipeline, latents=packed, output_type="pil", width=width, height=height)
+        output_state = self._call_block(decode_pipeline, latents=latents, output_type="pil")
         images = self._get_required(output_state, "images", list)
         return images[0]
 
