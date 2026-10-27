@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,8 +18,12 @@ def _load_from_path(path: Path) -> tuple[MagicMock, DiffusionPipelineArtifact]:
     node.get_parameter_value.return_value = str(path)
     with (
         patch(
+            "modular_diffusion_nodes_library.nodes.load_pipeline_node.get_workspace_path",
+            return_value=path.parent,
+        ),
+        patch(
             "modular_diffusion_nodes_library.nodes.load_pipeline_node.GriptapeNodes.ConfigManager",
-            return_value=SimpleNamespace(workspace_path=path.parent),
+            side_effect=AssertionError("worker execution must not access ConfigManager"),
         ),
         patch(
             "modular_diffusion_nodes_library.nodes.load_pipeline_node.resolve_workspace_path",
