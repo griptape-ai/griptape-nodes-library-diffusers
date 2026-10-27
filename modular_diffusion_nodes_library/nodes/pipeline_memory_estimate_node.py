@@ -1,16 +1,12 @@
 import logging
 from typing import Any
 
-import torch  # type: ignore[reportMissingImports]
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.traits.widget import Widget
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
-from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator import (
-    estimate_pipeline_memory_from_artifact,
-)
 from modular_diffusion_nodes_library.utils.pipeline_utils import MEMORY_HEADROOM_FACTOR
 from modular_diffusion_nodes_library.utils.torch_utils import to_human_readable_size
 
@@ -44,6 +40,8 @@ def _empty_memory_report(status: str, *, message: str | None = None) -> dict[str
 
 
 def _memory_report_from_estimate(estimate: Any, optimization_summary: str) -> dict[str, Any]:
+    import torch  # type: ignore[reportMissingImports]
+
     components = []
     total_bytes = 0
     for component in estimate.components:
@@ -209,6 +207,10 @@ class PipelineMemoryEstimateNode(SuccessFailureNode):
             )
             self._set_status_results(was_successful=False, result_details="Missing required 'latent' input.")
             return
+
+        from modular_diffusion_nodes_library.memory_estimation.pipeline_memory_estimator import (
+            estimate_pipeline_memory_from_artifact,
+        )
 
         try:
             estimate = estimate_pipeline_memory_from_artifact(pipeline_artifact, latent_artifact)
