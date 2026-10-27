@@ -48,6 +48,8 @@ _MODEL_INDEX = "model_index.json"
 _MODULAR_MODEL_INDEX = "modular_model_index.json"
 BAKED_CONFIG_FILENAME = "baked-config.yaml"
 _RUNTIME_LORA_FOLDER = Path("loras")
+_TEMP_BAKE_SUFFIX = ".tmp-bake"
+_PREVIOUS_BAKE_SUFFIX = ".previous-bake"
 
 
 class BakedLayout(Enum):
@@ -122,14 +124,17 @@ def save_baked_pipeline(
     """Atomically save the built pipe (weights + baked config) into `folder`.
 
     save_pretrained is not atomic, so a failure would otherwise leave a corrupt
-    partial repo. Save into a sibling temp dir, then swap it into place in one
-    rename so `folder` is only ever a complete bake or untouched.
+    partial repo. Save into a sibling temp dir, retain any existing bake under
+    a recovery name, then install the completed replacement.
     """
+    folder = folder.resolve()
+    tmp_dir = folder.with_name(folder.name + _TEMP_BAKE_SUFFIX)
+    backup_dir = folder.with_name(folder.name + _PREVIOUS_BAKE_SUFFIX)
+    _recover_previous_bake(folder, backup_dir)
+
     artifact.check_full_pipeline_bake_policy()
     if runtime_lora_copies is None:
         runtime_lora_copies = plan_runtime_lora_copies(artifact)
-    folder = folder.resolve()
-    tmp_dir = folder.with_name(folder.name + ".tmp-bake")
     if tmp_dir.exists():
         shutil.rmtree(tmp_dir)
     tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -160,12 +165,61 @@ def save_baked_pipeline(
             extra["file_overrides"] = file_overrides
         _write_baked_config(tmp_dir, artifact, dtype_name, **extra)
 
-        if folder.exists():
-            shutil.rmtree(folder)
-        os.replace(tmp_dir, folder)
+        _install_completed_bake(tmp_dir, folder, backup_dir)
     except BaseException:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         raise
+
+
+def _recover_previous_bake(folder: Path, backup_dir: Path) -> None:
+    backup_exists = backup_dir.exists() or backup_dir.is_symlink()
+    if not backup_exists:
+        return
+    if folder.exists() or folder.is_symlink():
+        msg = (
+            f"Cannot save baked pipeline to '{folder}' because recovery path '{backup_dir}' already exists. "
+            "Preserving both directories; remove or relocate the recovery path before retrying."
+        )
+        raise FileExistsError(msg)
+    if not backup_dir.is_dir() or backup_dir.is_symlink():
+        msg = f"Cannot recover previous baked pipeline because '{backup_dir}' is not a directory."
+        raise FileExistsError(msg)
+    logger.warning("Restoring interrupted baked pipeline installation from %s", backup_dir)
+    os.replace(backup_dir, folder)
+
+
+def _install_completed_bake(tmp_dir: Path, folder: Path, backup_dir: Path) -> None:
+    had_previous_bake = folder.exists()
+    if had_previous_bake:
+        if not folder.is_dir() or folder.is_symlink():
+            msg = f"Cannot replace baked pipeline because destination '{folder}' is not a directory."
+            raise NotADirectoryError(msg)
+        os.replace(folder, backup_dir)
+
+    try:
+        os.replace(tmp_dir, folder)
+    except BaseException as install_error:
+        if had_previous_bake:
+            try:
+                os.replace(backup_dir, folder)
+            except BaseException as restore_error:
+                msg = (
+                    f"Installing baked pipeline to '{folder}' failed, and restoring the previous bake also failed. "
+                    f"The previous bake remains at '{backup_dir}'. Installation error: {install_error}"
+                )
+                raise RuntimeError(msg) from restore_error
+        raise
+
+    if had_previous_bake:
+        try:
+            shutil.rmtree(backup_dir)
+        except OSError:
+            logger.warning(
+                "Installed baked pipeline at %s but could not remove previous bake at %s",
+                folder,
+                backup_dir,
+                exc_info=True,
+            )
 
 
 def _copy_runtime_loras(copies: list[RuntimeLoraCopy], folder: Path) -> list[dict[str, Any]]:
