@@ -138,15 +138,6 @@ wheels = [
 ]
 
 [[package]]
-name = "binaryornot"
-version = "0.6.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/86/72/4755b85101f37707c71526a301c1203e413c715a0016ecb592de3d2dcfff/binaryornot-0.6.0.tar.gz", hash = "sha256:cc8d57cfa71d74ff8c28a7726734d53a851d02fad9e3a5581fb807f989f702f0", size = 478718, upload-time = "2026-03-08T16:26:28.804Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/cd/0c/31cfaa6b56fe23488ecb993bc9fc526c0d84d89607decdf2a10776426c2e/binaryornot-0.6.0-py3-none-any.whl", hash = "sha256:900adfd5e1b821255ba7e63139b0396b14c88b9286e74e03b6f51e0200331337", size = 14185, upload-time = "2026-03-08T16:26:27.466Z" },
-]
-
-[[package]]
 name = "bitsandbytes"
 version = "0.50.2"
 source = { registry = "https://pypi.org/simple" }
@@ -589,13 +580,12 @@ loaders-image = [
 
 [[package]]
 name = "griptape-nodes-engine"
-version = "0.104.0"
+version = "0.105.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "asyncio-thread-runner" },
     { name = "attrs" },
-    { name = "binaryornot" },
     { name = "cattrs" },
     { name = "fastapi" },
     { name = "fileseq" },
@@ -609,10 +599,10 @@ dependencies = [
     { name = "pillow" },
     { name = "portalocker" },
     { name = "pydantic" },
+    { name = "pydantic-ai-harness" },
     { name = "pydantic-ai-skills" },
     { name = "pydantic-ai-slim", extra = ["mcp", "openai"] },
     { name = "python-dotenv" },
-    { name = "python-multipart" },
     { name = "rich" },
     { name = "ruamel-yaml" },
     { name = "semver" },
@@ -628,9 +618,9 @@ dependencies = [
     { name = "websockets" },
     { name = "xdg-base-dirs" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bd/f9/4b0b06bc26989c4e0ff915925ae505ef6efec3f72f289fa07a511fc387d0/griptape_nodes_engine-0.104.0.tar.gz", hash = "sha256:b737d568a4c00342a2e4afeede098668f9775388563985307b40b94946477d3e", size = 1517943, upload-time = "2026-10-12T23:31:35.985Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5f/b7/c141bc2bc1c07e939190f52b2bbebc118e03871b99754de040e64ff78df0/griptape_nodes_engine-0.105.0.tar.gz", hash = "sha256:d87913428fb81151ba924ecc4f274ba8f95dbbb527949c9f457d490e18849be0", size = 1590231, upload-time = "2026-10-27T19:48:03.057Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ef/b9/0528ccb095b09c4a0eff41ca26c3f64647e4092836d7a54da85511a1d80c/griptape_nodes_engine-0.104.0-py3-none-any.whl", hash = "sha256:30601a499a8af2d7bb7de625fe28ace867576481f43d997b3926d6e20139532e", size = 1786833, upload-time = "2026-10-12T23:31:34.622Z" },
+    { url = "https://files.pythonhosted.org/packages/55/a8/88e837054c7a7e2c3ac923cdbf7847af061548a1e627777d9fb614f0ba45/griptape_nodes_engine-0.105.0-py3-none-any.whl", hash = "sha256:5dd647b92a3d6fc78fabedb2130fcf4c93403653821918d86a68cd7b66c6bce3", size = 1868431, upload-time = "2026-10-27T19:48:01.628Z" },
 ]
 
 [[package]]
@@ -713,7 +703,7 @@ provides-extras = ["exec"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "griptape-nodes-engine", specifier = ">=0.104.0" },
+    { name = "griptape-nodes-engine", specifier = ">=0.105.0" },
     { name = "nox", specifier = ">=2026.4.0" },
     { name = "pyright", specifier = ">=1.1.396" },
     { name = "pytest" },
