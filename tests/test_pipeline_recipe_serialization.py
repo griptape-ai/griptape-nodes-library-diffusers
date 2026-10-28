@@ -63,6 +63,87 @@ def test_serialize_base_pipeline_artifact() -> None:
     }
 
 
+def test_recipe_safe_only_maps_absolute_string_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    absolute_path = "/workspace/project/models/model.safetensors"
+    macro_path = "{project_dir}/models/model.safetensors"
+    mapped_values: list[str] = []
+
+    def map_absolute_path(value: str) -> str:
+        mapped_values.append(value)
+        return macro_path
+
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.artifact_utils.recipe_codec.resolve_path_to_macro",
+        map_absolute_path,
+    )
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.artifact_utils.recipe_codec.expand_path_macros",
+        lambda value: absolute_path if value == macro_path else value,
+    )
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        builder_module="test.module",
+        builder_class_name="TestParameters",
+        build_data={
+            "repo_id": "org/model",
+            "revision": "commit-hash",
+            "relative_path": "models/model.safetensors",
+            "checkpoint": absolute_path,
+        },
+        optimization_kwargs={
+            "memory_optimization_strategy": "Manual",
+            "quantization_mode": "None",
+        },
+    )
+
+    serialized = serialize_pipeline_artifact(artifact)
+    document = yaml.safe_load(serialized)
+    loaded = deserialize_pipeline_artifact(serialized)
+
+    assert mapped_values == [absolute_path]
+    assert document["build_data"] == {
+        "repo_id": "org/model",
+        "revision": "commit-hash",
+        "relative_path": "models/model.safetensors",
+        "checkpoint": macro_path,
+    }
+    assert document["optimization"] == {
+        "memory_optimization_strategy": "Manual",
+        "quantization_mode": "None",
+    }
+    assert loaded.build_data == artifact.build_data
+    assert loaded.optimization_kwargs == artifact.optimization_kwargs
+
+
+def test_recipe_safe_preserves_existing_macro_string_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    macro_path = "{project_dir}/models/model.safetensors"
+    absolute_path = "/workspace/project/models/model.safetensors"
+
+    def fail_if_remapped(value: str) -> str:
+        pytest.fail(f"Existing macro path was remapped: {value}")
+
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.artifact_utils.recipe_codec.resolve_path_to_macro",
+        fail_if_remapped,
+    )
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.artifact_utils.recipe_codec.expand_path_macros",
+        lambda value: absolute_path if value == macro_path else value,
+    )
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        builder_module="test.module",
+        builder_class_name="TestParameters",
+        build_data={"checkpoint": macro_path},
+    )
+
+    serialized = serialize_pipeline_artifact(artifact)
+    loaded = deserialize_pipeline_artifact(serialized)
+
+    assert yaml.safe_load(serialized)["build_data"]["checkpoint"] == macro_path
+    assert loaded.build_data["checkpoint"] == absolute_path
+
+
 def test_serialize_pipeline_with_build_data_error_is_refused() -> None:
     artifact = DiffusionPipelineArtifact(
         pipeline_name="TestPipeline",
@@ -447,7 +528,17 @@ def test_component_artifact_recipe_normalizes_local_config_directory(tmp_path) -
     assert recipe["config_source"] == str(config_file)
 
 
-def test_component_artifact_recipe_preserves_config_repo_id() -> None:
+def test_component_artifact_recipe_preserves_config_repo_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    mapped_values: list[str] = []
+
+    def record_mapped_path(value: str) -> str:
+        mapped_values.append(value)
+        return value
+
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.artifact_utils.recipe_codec.resolve_path_to_macro",
+        record_mapped_path,
+    )
     override = ModelComponentArtifact(
         load_id="override-id",
         source_type=ComponentSourceType.SINGLE_FILE,
@@ -457,6 +548,7 @@ def test_component_artifact_recipe_preserves_config_repo_id() -> None:
     )
 
     assert override.to_recipe_dict()["config_source"] == "org/model"
+    assert mapped_values == ["/models/unet.gguf"]
 
 
 def test_deserialize_pipeline_artifact_round_trips_component_overrides() -> None:
