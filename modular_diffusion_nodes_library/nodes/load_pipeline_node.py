@@ -76,6 +76,9 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         emit_change: bool = True,
         skip_before_value_set: bool = False,
     ) -> None:
+        # Restored output-only values bypass this setter, so file_path is the reliable signal to reload the manifest.
+        restoring_pipeline_source = initial_setup and param_name == "file_path"
+        discard_restored_pipeline = initial_setup and param_name == "pipeline"
         explicit_parameters = getattr(self, "_explicit_optimization_parameters", None)
         track_explicit_value = (
             explicit_parameters is not None
@@ -84,11 +87,13 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
         super().set_parameter_value(
             param_name,
-            value,
+            None if discard_restored_pipeline else value,
             initial_setup=initial_setup,
             emit_change=emit_change,
             skip_before_value_set=skip_before_value_set,
         )
+        if restoring_pipeline_source or discard_restored_pipeline:
+            self.state = NodeResolutionState.UNRESOLVED
         if track_explicit_value:
             explicit_parameters.add(param_name)
         if (
@@ -114,17 +119,6 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         if current != value:
             return
         self._publish_from_committed_path()
-
-    @property
-    def state(self) -> NodeResolutionState:
-        """Always reload the recipe instead of trusting a serialized output artifact."""
-        if self.get_parameter_value("pipeline") is not None:
-            return NodeResolutionState.UNRESOLVED
-        return super().state
-
-    @state.setter
-    def state(self, new_state: NodeResolutionState) -> None:
-        self._state = new_state
 
     def validate_before_node_run(self) -> list[Exception] | None:
         file_path = self.get_parameter_value("file_path")
