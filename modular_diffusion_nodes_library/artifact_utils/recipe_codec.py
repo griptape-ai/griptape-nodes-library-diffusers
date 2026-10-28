@@ -33,12 +33,13 @@ def recipe_safe(value: Any) -> Any:
     """Recursively convert a value into recipe-safe primitives.
 
     Objects implementing ``to_recipe_dict`` (component artifacts, repo refs) are
-    delegated to; strings and paths are mapped to project macros where possible.
+    delegated to; absolute string paths and ``Path`` values are mapped to project
+    macros where possible.
     """
     if isinstance(value, RecipeSerializable):
         return value.to_recipe_dict()
     if value is None or isinstance(value, str | int | float | bool):
-        if isinstance(value, str):
+        if isinstance(value, str) and Path(value).is_absolute():
             return resolve_path_to_macro(value)
         return value
     if isinstance(value, Path):
