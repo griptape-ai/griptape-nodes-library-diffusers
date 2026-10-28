@@ -167,6 +167,7 @@ def requantize_component(
     component: nn.Module,
     folder: Path,
     *,
+    state: dict[str, torch.Tensor] | None = None,
     unpacked_dtype: torch.dtype | None = None,
 ) -> None:
     import torch
@@ -177,7 +178,9 @@ def requantize_component(
     if not qmap:
         msg = f"Attempted to requantize {type(component).__name__} from {folder}. Failed because {QUANT_MAP_FILENAME} is missing."
         raise FileNotFoundError(msg)
-    state = _align_state_dict_to_qmap(load_slot_state_dict(folder), qmap)
+    if state is None:
+        state = load_slot_state_dict(folder)
+    state = _align_state_dict_to_qmap(state, qmap)
     # Not a second quantisation pass: requantize restores QModules from saved weight._data + map.
     requantize(component, state, qmap, device=torch.device("cpu"))
     _assert_qmodules_frozen(component, qmap, folder)
@@ -214,6 +217,6 @@ def apply_packed_quant_from_folder(
             )
             continue
         logger.info("Reloading packed quanto weights for %s from %s", name, slot_dir)
-        requantize_component(component, slot_dir, unpacked_dtype=unpacked_dtype)
+        requantize_component(component, slot_dir, state=state, unpacked_dtype=unpacked_dtype)
         applied.append(name)
     return sorted(applied)

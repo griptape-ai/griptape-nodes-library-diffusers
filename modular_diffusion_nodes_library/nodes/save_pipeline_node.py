@@ -104,24 +104,24 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             emit_change=emit_change,
             skip_before_value_set=skip_before_value_set,
         )
-        if initial_setup:
-            return
         if param_name == "save_mode" and isinstance(value, str):
-            self._apply_save_mode(value)
+            self._apply_save_mode(value, reset_path=not initial_setup)
 
-    def _apply_save_mode(self, mode: str) -> None:
+    def _apply_save_mode(self, mode: str, *, reset_path: bool) -> None:
         """Reshape the destination picker to match the selected save mode."""
         param = self.get_parameter_by_name("file_path")
         if mode == SaveMode.FULL_PIPELINE:
             self._file_path_param.set_picker_mode(allow_files=False, allow_directories=True, file_types=None)
             if param is not None:
                 param.ui_options = {**param.ui_options, "display_name": "Output Folder"}
-            self.set_parameter_value("file_path", _BAKED_DEFAULT_PATH, emit_change=False)
+            if reset_path:
+                self.set_parameter_value("file_path", _BAKED_DEFAULT_PATH, emit_change=False)
             return
         self._file_path_param.set_picker_mode(allow_files=True, allow_directories=False, file_types=[".yaml"])
         if param is not None:
             param.ui_options = {**param.ui_options, "display_name": "File Path"}
-        self.set_parameter_value("file_path", _RECIPE_DEFAULT_PATH, emit_change=False)
+        if reset_path:
+            self.set_parameter_value("file_path", _RECIPE_DEFAULT_PATH, emit_change=False)
 
     def validate_before_node_run(self) -> list[Exception] | None:
         exceptions: list[Exception] = []

@@ -42,7 +42,8 @@ Load Pipeline → Generate Media Latents → Decode Media Latent
 
 ## Provider / model behavior
 
-Full Pipeline is refused before a build when the config is unsupported. Use Config Only in these cases:
+Full Pipeline is refused before a build when the config is unsupported. Use Config Only where the table recommends
+it; for a ControlNet wrapper, save the base pipeline and reconnect ControlNet after loading.
 
 | Config | Behavior |
 | --- | --- |
@@ -56,7 +57,7 @@ Full Pipeline is refused before a build when the config is unsupported. Use Conf
 - **Full Pipeline writes the session as built.** Fused LoRAs and post-hoc quantisation are already in the folder; changing those settings later requires a new save.
 - **Runtime LoRAs remain runtime adapters.** Full Pipeline copies their files into `loras/`, records their strengths, and never fuses them into the saved weights.
 - **Runtime LoRA filenames must be unique.** Two source files with the same filename cannot both occupy the baked folder's `loras/` directory.
-- **ControlNet is Config Only only.** There is no Full Pipeline path for a ControlNet wrapper yet.
+- **ControlNet wrappers cannot be saved.** Save the base pipeline, then reconnect ControlNet after loading.
 - **Pick a folder for Full Pipeline.** Changing `save_mode` retargets the picker and resets the default path. Load that result by selecting the generated `baked-config.yaml`.
 
 ## See also

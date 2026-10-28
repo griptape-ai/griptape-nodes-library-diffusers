@@ -4,9 +4,36 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
+from griptape_nodes.traits.file_system_picker import FileSystemPicker
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 from modular_diffusion_nodes_library.nodes.save_pipeline_node import SaveMode, SavePipelineNode
+
+
+def test_initial_setup_restores_full_pipeline_picker_without_resetting_destination() -> None:
+    node = SavePipelineNode(name="Save Pipeline")
+    restored_path = "{project_dir}/saved-bake"
+
+    node.set_parameter_value("file_path", restored_path, initial_setup=True)
+    node.set_parameter_value("save_mode", SaveMode.FULL_PIPELINE, initial_setup=True)
+
+    parameter = node.get_parameter_by_name("file_path")
+    assert parameter is not None
+    picker = next(iter(parameter.find_elements_by_type(FileSystemPicker)))
+    assert node.get_parameter_value("file_path") == restored_path
+    assert parameter.ui_options["display_name"] == "Output Folder"
+    assert picker.allow_files is False
+    assert picker.allow_directories is True
+    assert picker.file_types == []
+
+
+def test_interactive_save_mode_change_resets_destination() -> None:
+    node = SavePipelineNode(name="Save Pipeline")
+    node.set_parameter_value("file_path", "{project_dir}/custom.yaml")
+
+    node.set_parameter_value("save_mode", SaveMode.FULL_PIPELINE)
+
+    assert node.get_parameter_value("file_path") == "{project_dir}/baked-pipeline"
 
 
 def test_validation_error_is_reported_in_save_pipeline_status() -> None:

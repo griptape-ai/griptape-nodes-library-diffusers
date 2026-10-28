@@ -846,7 +846,10 @@ class ControlNetDiffusionPipelineArtifact(BaseDiffusionPipelineArtifact):
 
     def check_full_pipeline_bake_policy(self) -> None:
         """Raise if Full Pipeline save is unsupported for this config (artifact-only; no build)."""
-        msg = "Full Pipeline save does not yet support ControlNet pipelines. Use Config Only instead."
+        msg = (
+            "Full Pipeline save does not support ControlNet pipelines. "
+            "Save the base pipeline and reconnect ControlNet after loading."
+        )
         raise ValueError(msg)
 
     def _get_reuse_log_context(self) -> str:

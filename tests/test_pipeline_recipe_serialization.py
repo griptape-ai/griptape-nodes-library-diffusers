@@ -117,8 +117,11 @@ def test_serialize_controlnet_pipeline_artifact_is_refused() -> None:
         config_hash="controlnet-hash",
     )
 
-    with pytest.raises(ValueError, match="ControlNet pipelines cannot be saved"):
+    recovery = "Save the base pipeline and reconnect ControlNet after loading"
+    with pytest.raises(ValueError, match=recovery):
         serialize_pipeline_artifact(artifact)
+    with pytest.raises(ValueError, match=recovery):
+        artifact.check_full_pipeline_bake_policy()
 
 
 def _with_runtime_lora(
@@ -665,6 +668,8 @@ class _OverridesOnlyBuilder(ModularDiffusionPipelineTypePipelineParameters):
 
 
 def test_overrides_only_pipeline_saves_and_rebuilds_with_builder_class() -> None:
+    pytest.importorskip("diffusers", reason="requires Diffusers to materialize the scheduler")
+
     scheduler = SchedulerComponentArtifact(
         load_id="scheduler-load-id",
         source_type=ComponentSourceType.RAW_CONFIG,
