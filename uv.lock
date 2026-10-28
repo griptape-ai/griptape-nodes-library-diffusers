@@ -653,6 +653,7 @@ source = { editable = "." }
 dependencies = [
     { name = "griptape", extra = ["loaders-image"] },
     { name = "huggingface-hub" },
+    { name = "pyyaml" },
 ]
 
 [package.optional-dependencies]
@@ -672,7 +673,6 @@ exec = [
     { name = "pillow" },
     { name = "prodigyopt", marker = "sys_platform == 'win32'" },
     { name = "protobuf" },
-    { name = "pyyaml" },
     { name = "safetensors" },
     { name = "scipy" },
     { name = "sentencepiece" },
@@ -715,7 +715,7 @@ requires-dist = [
     { name = "pillow", marker = "extra == 'exec'", specifier = ">=11.2.1" },
     { name = "prodigyopt", marker = "sys_platform == 'win32' and extra == 'exec'", specifier = ">=1.1.2" },
     { name = "protobuf", marker = "extra == 'exec'", specifier = ">=6.31.0" },
-    { name = "pyyaml", marker = "extra == 'exec'", specifier = ">=6.0.2" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "safetensors", marker = "extra == 'exec'", specifier = ">=0.8.0rc0" },
     { name = "scipy", marker = "extra == 'exec'", specifier = ">=1.10.0" },
     { name = "sentencepiece", marker = "extra == 'exec'", specifier = ">=0.2.0" },
