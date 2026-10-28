@@ -12,6 +12,7 @@ import hashlib
 import logging
 import os
 import shutil
+import tempfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -72,6 +73,23 @@ def detect_baked_layout(folder: Path) -> BakedLayout | None:
     return None
 
 
+def _validate_replaceable_bake_directory(folder: Path, *, role: str) -> None:
+    if not folder.exists() and not folder.is_symlink():
+        return
+    if not folder.is_dir() or folder.is_symlink():
+        msg = f"Cannot use baked pipeline {role} '{folder}' because it is not a regular directory."
+        raise NotADirectoryError(msg)
+    if next(folder.iterdir(), None) is None:
+        return
+    if detect_baked_layout(folder) is not None and (folder / BAKED_CONFIG_FILENAME).is_file():
+        return
+    msg = (
+        f"Cannot use baked pipeline {role} '{folder}' because it is nonempty and is not a generated "
+        "Full Pipeline bake. No files were changed. Choose an empty directory or an existing Full Pipeline bake."
+    )
+    raise FileExistsError(msg)
+
+
 @dataclass(frozen=True)
 class RuntimeLoraCopy:
     source_path: Path
@@ -124,51 +142,60 @@ def save_baked_pipeline(
     """Atomically save the built pipe (weights + baked config) into `folder`.
 
     save_pretrained is not atomic, so a failure would otherwise leave a corrupt
-    partial repo. Save into a sibling temp dir, retain any existing bake under
-    a recovery name, then install the completed replacement.
+    partial repo. Save into a unique sibling temp dir, retain any existing bake
+    under a recovery name, then install the completed replacement.
     """
-    folder = folder.resolve()
-    tmp_dir = folder.with_name(folder.name + _TEMP_BAKE_SUFFIX)
+    folder = folder.expanduser().absolute()
     backup_dir = folder.with_name(folder.name + _PREVIOUS_BAKE_SUFFIX)
     _recover_previous_bake(folder, backup_dir)
+    _validate_replaceable_bake_directory(folder, role="destination")
 
     artifact.check_full_pipeline_bake_policy()
     if runtime_lora_copies is None:
         runtime_lora_copies = plan_runtime_lora_copies(artifact)
-    if tmp_dir.exists():
-        shutil.rmtree(tmp_dir)
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-
-    try:
-        skip_slots = skip_official_save_slots(pipe, artifact)
-        assert_baked_save_feasible(pipe, artifact, skip_slots)
-        with prepare_pipeline_for_baked_save(pipe, artifact.config_hash):
-            if skip_slots:
-                logger.warning(
-                    "Skipping official save_pretrained for %s (GGUF); copying .gguf files.",
-                    sorted(skip_slots),
-                )
-            with noop_official_saves(pipe, skip_slots):
-                pipe.save_pretrained(str(tmp_dir))
-            file_overrides = _write_skipped_slots(pipe, artifact, tmp_dir, skip_slots)
-            packed_slots = write_packed_quant_maps(pipe, tmp_dir)
-        runtime_loras = _copy_runtime_loras(runtime_lora_copies, tmp_dir)
-        if packed_slots:
-            logger.info("Wrote packed quanto maps for slots: %s", packed_slots)
-        # baked-config top-level "torch_dtype": pipe.dtype at bake → _baked_dtype → from_pretrained / quanto reload.
-        dtype_name = str(getattr(pipe, "dtype", None) or f"torch.{DEFAULT_BAKED_DTYPE}").replace("torch.", "")
-        extra: dict[str, Any] = {
-            "packed_quant_slots": packed_slots,
-            "runtime_loras": runtime_loras,
-        }
-        if file_overrides:
-            extra["file_overrides"] = file_overrides
-        _write_baked_config(tmp_dir, artifact, dtype_name, **extra)
-
+    folder.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix=f"{folder.name}{_TEMP_BAKE_SUFFIX}-",
+        dir=folder.parent,
+        ignore_cleanup_errors=True,
+    ) as temporary_path:
+        tmp_dir = Path(temporary_path) / "bake"
+        tmp_dir.mkdir()
+        _write_baked_pipeline_contents(pipe, artifact, tmp_dir, runtime_lora_copies)
         _install_completed_bake(tmp_dir, folder, backup_dir)
-    except BaseException:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-        raise
+
+
+def _write_baked_pipeline_contents(
+    pipe: Any,
+    artifact: DiffusionPipelineArtifact,
+    folder: Path,
+    runtime_lora_copies: list[RuntimeLoraCopy],
+) -> None:
+    skip_slots = skip_official_save_slots(pipe, artifact)
+    assert_baked_save_feasible(pipe, artifact, skip_slots)
+    with prepare_pipeline_for_baked_save(pipe, artifact.config_hash):
+        if skip_slots:
+            logger.warning(
+                "Skipping official save_pretrained for %s (GGUF); copying .gguf files.",
+                sorted(skip_slots),
+            )
+        with noop_official_saves(pipe, skip_slots):
+            pipe.save_pretrained(str(folder))
+        file_overrides = _write_skipped_slots(pipe, artifact, folder, skip_slots)
+        packed_slots = write_packed_quant_maps(pipe, folder)
+
+    runtime_loras = _copy_runtime_loras(runtime_lora_copies, folder)
+    if packed_slots:
+        logger.info("Wrote packed quanto maps for slots: %s", packed_slots)
+    # baked-config top-level "torch_dtype": pipe.dtype at bake → _baked_dtype → from_pretrained / quanto reload.
+    dtype_name = str(getattr(pipe, "dtype", None) or f"torch.{DEFAULT_BAKED_DTYPE}").replace("torch.", "")
+    extra: dict[str, Any] = {
+        "packed_quant_slots": packed_slots,
+        "runtime_loras": runtime_loras,
+    }
+    if file_overrides:
+        extra["file_overrides"] = file_overrides
+    _write_baked_config(folder, artifact, dtype_name, **extra)
 
 
 def _recover_previous_bake(folder: Path, backup_dir: Path) -> None:
@@ -181,33 +208,60 @@ def _recover_previous_bake(folder: Path, backup_dir: Path) -> None:
             "Preserving both directories; remove or relocate the recovery path before retrying."
         )
         raise FileExistsError(msg)
-    if not backup_dir.is_dir() or backup_dir.is_symlink():
-        msg = f"Cannot recover previous baked pipeline because '{backup_dir}' is not a directory."
-        raise FileExistsError(msg)
+    _validate_replaceable_bake_directory(backup_dir, role="recovery path")
     logger.warning("Restoring interrupted baked pipeline installation from %s", backup_dir)
     os.replace(backup_dir, folder)
 
 
+def _restore_previous_destination(
+    backup_dir: Path,
+    folder: Path,
+    *,
+    operation: str,
+    error: BaseException,
+) -> None:
+    try:
+        os.replace(backup_dir, folder)
+    except BaseException as restore_error:
+        msg = (
+            f"{operation} failed, and restoring the previous destination also failed. "
+            f"The previous bake remains at '{backup_dir}'. Original error: {error}"
+        )
+        raise RuntimeError(msg) from restore_error
+
+
 def _install_completed_bake(tmp_dir: Path, folder: Path, backup_dir: Path) -> None:
-    had_previous_bake = folder.exists()
+    had_previous_bake = folder.exists() or folder.is_symlink()
     if had_previous_bake:
-        if not folder.is_dir() or folder.is_symlink():
-            msg = f"Cannot replace baked pipeline because destination '{folder}' is not a directory."
-            raise NotADirectoryError(msg)
+        _validate_replaceable_bake_directory(folder, role="destination")
+        if backup_dir.exists() or backup_dir.is_symlink():
+            msg = (
+                f"Cannot save baked pipeline to '{folder}' because recovery path '{backup_dir}' already exists. "
+                "Preserving both directories; remove or relocate the recovery path before retrying."
+            )
+            raise FileExistsError(msg)
         os.replace(folder, backup_dir)
+        try:
+            _validate_replaceable_bake_directory(backup_dir, role="previous destination")
+        except BaseException as validation_error:
+            _restore_previous_destination(
+                backup_dir,
+                folder,
+                operation=f"Validating the previous destination at '{backup_dir}'",
+                error=validation_error,
+            )
+            raise
 
     try:
         os.replace(tmp_dir, folder)
     except BaseException as install_error:
         if had_previous_bake:
-            try:
-                os.replace(backup_dir, folder)
-            except BaseException as restore_error:
-                msg = (
-                    f"Installing baked pipeline to '{folder}' failed, and restoring the previous bake also failed. "
-                    f"The previous bake remains at '{backup_dir}'. Installation error: {install_error}"
-                )
-                raise RuntimeError(msg) from restore_error
+            _restore_previous_destination(
+                backup_dir,
+                folder,
+                operation=f"Installing baked pipeline to '{folder}'",
+                error=install_error,
+            )
         raise
 
     if had_previous_bake:
