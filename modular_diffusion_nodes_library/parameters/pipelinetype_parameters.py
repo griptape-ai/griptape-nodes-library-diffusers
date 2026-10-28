@@ -19,6 +19,10 @@ from modular_diffusion_nodes_library.standard_parameters.flux2_klein_parameters 
 from modular_diffusion_nodes_library.standard_parameters.flux2_parameters import (
     Flux2PipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.flux3_parameters import (
+    Flux3DistilledPipelineParameters,
+    Flux3PipelineParameters,
+)
 from modular_diffusion_nodes_library.standard_parameters.flux_fill_parameters import (
     FluxFillPipelineParameters,
 )
@@ -255,6 +259,22 @@ class LatentFlux2PipelineTypeParameters(LatentPipelineTypeParameters):
         }
 
 
+class LatentFlux3PipelineTypeParameters(LatentPipelineTypeParameters):
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        return (
+            "- `Flux3Pipeline` — FLUX.3 Image Klein base, with classifier-free guidance and 50-step sampling.\n"
+            "- `Flux3DistilledPipeline` — Step-distilled FLUX.3 Image Klein, with 16-step sampling and no negative prompt."
+        )
+
+    @classmethod
+    def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
+        return {
+            "Flux3Pipeline": Flux3PipelineParameters,
+            "Flux3DistilledPipeline": Flux3DistilledPipelineParameters,
+        }
+
+
 class LatentHunyuanVideo15PipelineTypeParameters(LatentPipelineTypeParameters):
     @property
     def pipeline_type_badge_message(self) -> str:
@@ -425,6 +445,7 @@ class LatentZImagePipelineTypeParameters(LatentPipelineTypeParameters):
 MODULAR_PIPELINE_TYPE_PROVIDER_MAP: dict[Provider, type[LatentPipelineTypeParameters]] = {
     Provider.FLUX: LatentFluxPipelineTypeParameters,
     Provider.FLUX2: LatentFlux2PipelineTypeParameters,
+    Provider.FLUX3: LatentFlux3PipelineTypeParameters,
     Provider.HUNYUAN_VIDEO_1_5: LatentHunyuanVideo15PipelineTypeParameters,
     Provider.LTX: LatentLTXPipelineTypeParameters,
     Provider.LTX2: LatentLTX2PipelineTypeParameters,

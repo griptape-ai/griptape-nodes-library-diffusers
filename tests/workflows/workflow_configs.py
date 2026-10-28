@@ -235,6 +235,14 @@ WORKFLOW_CONFIGS: dict[str, tuple[WorkflowConfig, ...]] = {
             overrides=builder_overrides("Flux2", "Flux2Pipeline", "diffusers/FLUX.2-dev-bnb-4bit"),
         ),
         WorkflowConfig(
+            config_id="flux3-klein-distilled",
+            repos=(
+                "black-forest-labs/flux-3-image-klein",
+                "black-forest-labs/flux-3-image-klein-pup",
+            ),
+            overrides=builder_overrides("Flux3", "Flux3DistilledPipeline", "black-forest-labs/flux-3-image-klein"),
+        ),
+        WorkflowConfig(
             config_id="qwen-image",
             repos=("Qwen/Qwen-Image",),
             overrides=builder_overrides("Qwen", "QwenImagePipeline", "Qwen/Qwen-Image"),
@@ -296,6 +304,15 @@ WORKFLOW_CONFIGS: dict[str, tuple[WorkflowConfig, ...]] = {
             config_id="flux2-dev",
             repos=("diffusers/FLUX.2-dev-bnb-4bit",),
             overrides=builder_overrides("Flux2", "Flux2Pipeline", "diffusers/FLUX.2-dev-bnb-4bit"),
+            enable_auto_resize=True,
+        ),
+        WorkflowConfig(
+            config_id="flux3-klein-base",
+            repos=(
+                "black-forest-labs/flux-3-image-klein-base",
+                "black-forest-labs/flux-3-image-klein-pup",
+            ),
+            overrides=builder_overrides("Flux3", "Flux3Pipeline", "black-forest-labs/flux-3-image-klein-base"),
             enable_auto_resize=True,
         ),
         WorkflowConfig(
@@ -413,11 +430,43 @@ WORKFLOW_CONFIGS: dict[str, tuple[WorkflowConfig, ...]] = {
             enable_auto_resize=True,
         ),
     ),
+    "Flux3LayoutControlText2Image": (
+        WorkflowConfig(
+            config_id="flux3-klein-default",
+            repos=(
+                "black-forest-labs/flux-3-image-klein",
+                "black-forest-labs/flux-3-image-klein-pup",
+            ),
+            overrides=builder_overrides("Flux3", "Flux3DistilledPipeline", "black-forest-labs/flux-3-image-klein"),
+            enable_auto_resize=True,
+        ),
+    ),
     # Edit-pipeline templates (Kontext, Klein, QwenImageEdit) are locked to one pipeline_type each,
     # so they get a single documenting entry rather than the provider variety above.
     "FluxKontextImageEdit": (
         WorkflowConfig(
             config_id="flux1-kontext-dev", repos=("black-forest-labs/FLUX.1-Kontext-dev", "google/t5-v1_1-xxl")
+        ),
+        WorkflowConfig(
+            config_id="flux3-klein-distilled",
+            repos=("black-forest-labs/flux-3-image-klein", "black-forest-labs/flux-3-image-klein-pup"),
+            overrides=(
+                DeleteNodeOverride("Load Pipeline Component"),
+                DeleteNodeOverride("Load Pipeline Component_1"),
+                *builder_overrides(
+                    "Flux3",
+                    "Flux3DistilledPipeline",
+                    "black-forest-labs/flux-3-image-klein",
+                    node_name="Modular Diffusion Pipeline Builder_1",
+                ),
+                ConnectOverride(
+                    source_node_name="Load Image",
+                    source_parameter_name="image",
+                    target_node_name=GENERATE_NODE_NAME,
+                    target_parameter_name="reference_images",
+                ),
+            ),
+            enable_auto_resize=True,
         ),
     ),
     "FluxKontextInpainting": (
