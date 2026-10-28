@@ -204,6 +204,27 @@
                                 "key_support": "REQUIRES_CUSTOMER_KEY",
                                 "notes": "Gated repo under the FLUX.2 Non-Commercial License (HuggingFace reports license_name=flux-non-commercial-license and gated). The klein line splits by size tier: the 4B releases are Apache-2.0 and ungated, the 9B releases are neither."
                             },
+                            "md_flux_3_image_klein_base": {
+                                "display_name": "FLUX.3 Image Klein Base",
+                                "provider_model_id": "black-forest-labs/flux-3-image-klein-base",
+                                "family": "FLUX.3",
+                                "key_support": "REQUIRES_CUSTOMER_KEY",
+                                "notes": "Gated repo under the FLUX Kommunity License. Accept the license and authenticate with Hugging Face before downloading."
+                            },
+                            "md_flux_3_image_klein_distilled": {
+                                "display_name": "FLUX.3 Image Klein Distilled",
+                                "provider_model_id": "black-forest-labs/flux-3-image-klein",
+                                "family": "FLUX.3",
+                                "key_support": "REQUIRES_CUSTOMER_KEY",
+                                "notes": "Gated repo under the FLUX Kommunity License. Accept the license and authenticate with Hugging Face before downloading."
+                            },
+                            "md_flux_3_image_klein_pup": {
+                                "display_name": "FLUX.3 Image Klein Prompt Upsampler",
+                                "provider_model_id": "black-forest-labs/flux-3-image-klein-pup",
+                                "family": "FLUX.3",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "Apache-2.0 prompt upsampler loaded as a separate optional component by both FLUX.3 Image Klein pipeline types."
+                            },
                             "md_flux_1_dev_controlnet_union_instantx": {
                                 "display_name": "FLUX.1 [dev] ControlNet Union (InstantX)",
                                 "provider_model_id": "InstantX/FLUX.1-dev-Controlnet-Union",
@@ -713,6 +734,9 @@
                             "md_flux_2_klein_9b_nvfp4",
                             "md_flux_2_klein_base_4b",
                             "md_flux_2_klein_base_9b",
+                            "md_flux_3_image_klein_base",
+                            "md_flux_3_image_klein_distilled",
+                            "md_flux_3_image_klein_pup",
                             "md_hunyuan_video_1_5_480p_i2v",
                             "md_hunyuan_video_1_5_480p_i2v_distilled",
                             "md_hunyuan_video_1_5_480p_i2v_step_distilled",
@@ -1075,6 +1099,7 @@
         "workflows/templates/WanAnimate.py",
         "workflows/templates/WanReplace.py",
         "workflows/templates/Multi-ViewPromptBatcher.py",
-        "workflows/templates/CustomPipelineText2Image.py"
+        "workflows/templates/CustomPipelineText2Image.py",
+        "workflows/templates/Flux3LayoutControlText2Image.py"
     ]
 }
