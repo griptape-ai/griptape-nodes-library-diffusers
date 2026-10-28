@@ -9,6 +9,14 @@ from typing import Any, override
 
 from griptape_nodes.retained_mode.events.event_converter import converter
 
+from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
+    COMPONENT_DESERIALIZERS,
+    optional_string,
+    recipe_safe,
+    require_dict,
+    require_string,
+    resolve_recipe_value,
+)
 from modular_diffusion_nodes_library.component_loading.component_slots import component_config_filename
 from modular_diffusion_nodes_library.component_loading.config_resolver import (
     loadable_class_name,
@@ -73,6 +81,20 @@ class HFRepoRef:
     revision: str | None = None
     subfolder: str | None = None
 
+    def to_recipe_dict(self) -> dict[str, str | None]:
+        return {"repo_id": self.repo_id, "revision": self.revision, "subfolder": self.subfolder}
+
+    @classmethod
+    def from_recipe_dict(cls, value: Any) -> HFRepoRef | None:
+        if value is None:
+            return None
+        data = require_dict(value, "Component override repository reference")
+        return cls(
+            repo_id=require_string(data.get("repo_id"), "Component override repository ID"),
+            revision=optional_string(data.get("revision"), "Component override repository revision"),
+            subfolder=optional_string(data.get("subfolder"), "Component override repository subfolder"),
+        )
+
 
 class ComponentSourceType(StrEnum):
     HF_REPO = "hf_repo"
@@ -100,6 +122,7 @@ class ComponentArtifact(ABC):
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         _COMPONENT_CLASSES[cls.__name__] = cls
+        COMPONENT_DESERIALIZERS[cls.__name__] = cls._from_recipe_dict
 
     def _cattrs_unstructure(self) -> dict[str, Any]:
         """The wire form: the concrete subclass's name plus every field it declares.
@@ -123,6 +146,41 @@ class ComponentArtifact(ABC):
     def materialize(self, *, pipeline_cls: type, slot: str | None = None) -> Any:
         raise NotImplementedError
 
+    @abstractmethod
+    def to_recipe_dict(self) -> dict[str, Any]:
+        """Render this component override as a recipe-safe dict."""
+        raise NotImplementedError
+
+    @classmethod
+    def from_recipe_dict(cls, data: dict[str, Any]) -> ComponentArtifact:
+        """Reconstruct a component override, dispatching on its recorded type."""
+        return resolve_recipe_value(data)
+
+    @classmethod
+    def _from_recipe_dict(cls, data: dict[str, Any]) -> ComponentArtifact:
+        raise NotImplementedError
+
+    def _base_recipe_dict(self) -> dict[str, Any]:
+        return {
+            "type": "component_override",
+            "artifact_type": type(self).__name__,
+            "load_id": self.load_id,
+            "source_type": self.source_type.value,
+            "component": self.component,
+            "torch_dtype": self.torch_dtype,
+        }
+
+    @classmethod
+    def _common_kwargs(cls, data: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "load_id": require_string(data.get("load_id"), "Component override load ID"),
+            "source_type": ComponentSourceType(
+                require_string(data.get("source_type"), "Component override source type")
+            ),
+            "component": require_string(data.get("component"), "Component override component"),
+            "torch_dtype": require_string(data.get("torch_dtype"), "Component override torch dtype"),
+        }
+
 
 @dataclass(frozen=True)
 class ModelComponentArtifact(ComponentArtifact):
@@ -134,6 +192,34 @@ class ModelComponentArtifact(ComponentArtifact):
     # SINGLE_FILE / LOCAL_DIR
     file_path: str | None = None
     config_source: str | None = None  # local path OR HF repo_id
+
+    def to_recipe_dict(self) -> dict[str, Any]:
+        return {
+            **self._base_recipe_dict(),
+            "repo_ref": self.repo_ref.to_recipe_dict() if self.repo_ref else None,
+            "file_path": recipe_safe(self.file_path),
+            "config_source": recipe_safe(self._config_source_for_recipe()),
+        }
+
+    def _config_source_for_recipe(self) -> str | None:
+        if self.config_source is None:
+            return None
+        config_path = Path(self.config_source)
+        if not config_path.is_dir():
+            return self.config_source
+        config_file = config_path / component_config_filename(self.component)
+        return str(config_file) if config_file.is_file() else self.config_source
+
+    @classmethod
+    def _from_recipe_dict(cls, data: dict[str, Any]) -> ModelComponentArtifact:
+        return cls(
+            **cls._common_kwargs(data),
+            repo_ref=HFRepoRef.from_recipe_dict(data.get("repo_ref")),
+            file_path=optional_string(resolve_recipe_value(data.get("file_path")), "Component override file path"),
+            config_source=optional_string(
+                resolve_recipe_value(data.get("config_source")), "Component override config source"
+            ),
+        )
 
     @property
     @override

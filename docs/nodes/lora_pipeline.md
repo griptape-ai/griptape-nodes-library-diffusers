@@ -40,6 +40,7 @@ Pipeline Builder ──→ [LoRA Pipeline] ←── Load LoRA
 - **Connect at least one LoRA.** The node requires at least one entry in `loras` to activate — wire one or more [Load LoRA](load_lora.md) nodes before running.
 - **The `lora_pipeline` output shares the cache with the input `pipeline`.** You can wire both to separate Generate Media Latents nodes (one with LoRAs, one without) without loading the model twice.
 - **LoRA weights are applied per run.** Unlike fused LoRAs, changing `weight` on a Load LoRA node between runs does not rebuild the pipeline.
+- **The `lora_pipeline` output can be saved.** Save Pipeline records its LoRAs as runtime LoRAs, and Load Pipeline reattaches them, so they stay unfused. Chained LoRA Pipeline nodes cannot be saved; connect all LoRAs to one node.
 
 ## See also
 

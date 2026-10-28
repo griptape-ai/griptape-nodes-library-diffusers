@@ -41,6 +41,7 @@ Configure ControlNet ─┘
 - **Pipeline class compatibility.** Not every base pipeline supports ControlNet stacking; the node validates the driver before running and surfaces which combination is unsupported.
 - **Stack multiple ControlNets within a single node.** Use multiple `control_nets` entries on one ControlNet Pipeline node rather than chaining two ControlNet Pipeline nodes — the second node will error if the input is already a ControlNet artifact.
 - **Pipeline reuse** ControlNet weights may be loaded for the selected control_nets; the base pipeline itself is reused from cache when available.
+- **This pipeline cannot be saved.** Save Pipeline refuses a ControlNet wrapper. Save the base pipeline from Pipeline Builder, then reconnect this node after loading.
 
 ## See also
 

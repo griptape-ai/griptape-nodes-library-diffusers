@@ -81,7 +81,9 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
         return True
 
     @classmethod
-    def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> ModularPipeline:  # type: ignore[reportAttributeAccessIssue]
+    def _build_pipeline_from_source(
+        cls, source: str, *, revision: str | None = None, dtype: Any = None
+    ) -> ModularPipeline:
         # `from_pretrained` resolves the component specs but loads no weights; `load_components`
         # fetches them. Only the `t2va` / `fl2va` half is touched, never `transformer_ref/`.
         import torch  # type: ignore[reportMissingImports]
@@ -89,12 +91,12 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
 
         manager = ComponentsManager()
         pipe = ModularPipeline.from_pretrained(
-            build_data["repo_id"],
-            revision=build_data["revision"],
+            source,
+            revision=revision,
             components_manager=manager,
             local_files_only=True,
         )
-        pipe.load_components(workflow="fl2va", dtype=torch.bfloat16)
+        pipe.load_components(workflow="fl2va", dtype=dtype or torch.bfloat16)
         manager.enable_auto_cpu_offload(
             device=get_best_device(),
             memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
@@ -102,22 +104,14 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
         return pipe  # type: ignore[reportReturnType]
 
     @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> ModularPipeline:
-        # `from_pretrained` resolves the component specs but loads no weights; `load_components`
-        # fetches them. Only the `t2va` / `fl2va` half is touched, never `transformer_ref/`.
-        import torch  # type: ignore[reportMissingImports]
-        from diffusers import ComponentsManager, ModularPipeline  # type: ignore[reportMissingImports]
+    def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> ModularPipeline:  # type: ignore[reportAttributeAccessIssue]
+        return cls._build_pipeline_from_source(build_data["repo_id"], revision=build_data["revision"])
 
-        manager = ComponentsManager()
-        pipe = ModularPipeline.from_pretrained(
-            build_data["repo_id"],
-            revision=build_data["revision"],
-            components_manager=manager,
-            local_files_only=True,
-        )
-        pipe.load_components(workflow="fl2va", dtype=torch.bfloat16)
-        manager.enable_auto_cpu_offload(
-            device=get_best_device(),
-            memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
-        )
-        return pipe  # type: ignore[reportReturnType]
+    @classmethod
+    def _build_pipeline_from_baked(cls, build_data: dict[str, Any], *, pipeline_cls: type) -> ModularPipeline:
+        # Same recipe as build_pipeline_from_build_data, pointed at a local baked folder instead
+        # of the hub repo: same workflow restriction, same ComponentsManager offload requirement.
+        import torch  # type: ignore[reportMissingImports]
+
+        dtype = getattr(torch, build_data.get("_baked_dtype") or "bfloat16", torch.bfloat16)
+        return cls._build_pipeline_from_source(build_data["_baked_path"], dtype=dtype)

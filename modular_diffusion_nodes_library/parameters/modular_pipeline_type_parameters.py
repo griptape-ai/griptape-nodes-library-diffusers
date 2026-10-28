@@ -5,12 +5,14 @@ import inspect
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_model_parameter import HuggingFaceModelParameter
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact
+from modular_diffusion_nodes_library.artifact_utils.packed_quant_io import apply_packed_quant_from_folder
 from modular_diffusion_nodes_library.component_loading.component_slots import ALLOWED_COMPONENT_SLOTS
 
 if TYPE_CHECKING:
@@ -203,20 +205,49 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> ModularPipeline | DiffusionPipeline | Any | None:
         """Build pipeline directly from materialized component overrides."""
-        pipeline_cls = build_data.get("_pipeline_cls") or cls.pipeline_cls()
+        pipeline_cls = cls.pipeline_cls()
         return pipeline_cls(**overrides)
 
     @classmethod
     def build_pipeline_from_build_data(
         cls, build_data: dict[str, Any]
     ) -> ModularPipeline | DiffusionPipeline | Any | None:
-        """Build pipeline from build_data. Routes to overrides-only or repo path."""
-        pipeline_cls = build_data.get("_pipeline_cls") or cls.pipeline_cls()
+        """Build pipeline from build_data. Routes to baked, overrides-only, or repo path."""
+        pipeline_cls = cls.pipeline_cls()
+        if "_baked_path" in build_data:
+            return cls._build_pipeline_from_baked(build_data, pipeline_cls=pipeline_cls)
+
         overrides = cls._materialize_overrides(build_data, pipeline_cls=pipeline_cls)
 
         if build_data.get("_all_overrides"):
             return cls._build_pipeline_from_overrides_only(build_data, overrides)
         return cls._build_pipeline_from_repo(build_data, overrides)
+
+    @classmethod
+    def _build_pipeline_from_baked(
+        cls, build_data: dict[str, Any], *, pipeline_cls: type
+    ) -> ModularPipeline | DiffusionPipeline | Any | None:
+        """Rebuild from a local baked (save_pretrained'd) folder.
+
+        Default: from_pretrained the folder directly, plus load_components() for
+        ModularPipeline subclasses. Override for pipeline types with special load
+        requirements (e.g. MiniMaxH3's ComponentsManager offload).
+        """
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
+
+        baked_path = build_data["_baked_path"]
+        dtype = getattr(torch, build_data.get("_baked_dtype") or "bfloat16", torch.bfloat16)
+        overrides = cls._materialize_overrides(build_data, pipeline_cls=pipeline_cls)
+        if issubclass(pipeline_cls, ModularPipeline):
+            pipe = pipeline_cls.from_pretrained(baked_path)
+            if overrides:
+                pipe.update_components(**overrides)
+            pipe.load_components(dtype=dtype)
+        else:
+            pipe = pipeline_cls.from_pretrained(baked_path, torch_dtype=dtype, local_files_only=True, **overrides)
+        apply_packed_quant_from_folder(pipe, Path(baked_path), unpacked_dtype=dtype)
+        return pipe
 
     @classmethod
     @abstractmethod

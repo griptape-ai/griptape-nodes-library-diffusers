@@ -7,6 +7,7 @@ import logging
 from abc import ABC, abstractmethod
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.retained_mode.events.event_converter import converter
@@ -21,7 +22,24 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_build_steps import 
     LoadPipelineStep,
     run_build_steps,
 )
+from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
+    optional_string,
+    recipe_safe,
+    recipe_safe_loras,
+    require_bool,
+    require_dict,
+    require_runtime_loras,
+    require_string,
+    resolve_recipe_loras,
+    resolve_recipe_value,
+)
+from modular_diffusion_nodes_library.component_loading.component_slots import slot_component_kind
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
+from modular_diffusion_nodes_library.utils.lora_apply_utils import (
+    LoraPipelineRuntimeAdapterStep,
+    lora_adapter_name,
+)
+from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec
 from modular_diffusion_nodes_library.utils.pipeline_runtime_adapter_step import (
     PipelineRuntimeAdapterStep,
     rebuild_runtime_adapter_step,
@@ -32,6 +50,8 @@ if TYPE_CHECKING:
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
+
+DEFAULT_BAKED_DTYPE = "bfloat16"
 
 
 #: Marks a dict as an encoded artifact and names which class to rebuild. Present in the wire form only.
@@ -47,7 +67,12 @@ _UNSENDABLE_BUILD_DATA_KEYS = frozenset({"_pipeline_cls"})
 
 
 def _unstructure_build_data(build_data: dict[str, Any]) -> dict[str, Any]:
-    """`build_data` with live objects dropped and component descriptors encoded."""
+    """Return stable JSON-ready build data for wire encoding and cache keys.
+
+    Component descriptors otherwise fall back to order-sensitive ``repr``.
+    Unstructuring exposes their nested mappings to ``sort_keys=True`` while
+    retaining the descriptor type tag.
+    """
     out: dict[str, Any] = {}
     for key, value in build_data.items():
         if key in _UNSENDABLE_BUILD_DATA_KEYS:
@@ -91,6 +116,58 @@ def structure_pipeline_artifact(data: dict[str, Any]) -> DiffusionPipelineArtifa
         )
         raise ValueError(msg)
     return artifact_cls._structure_fields(data)  # noqa: SLF001 - the inverse of this module's own encoding
+
+
+def _optimization_kwargs_for_baked(data: dict[str, Any]) -> dict[str, Any]:
+    """Never re-apply UI quant on load when the folder already holds packed tensors."""
+    kwargs = dict(data.get("optimization") or {})
+    if data.get("baked_quantization_mode") or data.get("packed_quant_slots"):
+        kwargs["quantization_mode"] = "None"
+    return kwargs
+
+
+def _baked_file_override_build_data(data: dict[str, Any], baked_path: Path) -> dict[str, Any]:
+    file_overrides = data.get("file_overrides") or {}
+    if not isinstance(file_overrides, dict) or not file_overrides:
+        return {}
+    from modular_diffusion_nodes_library.artifact_utils.baked_file_overrides import resolve_file_overrides
+
+    return {"_component_overrides": resolve_file_overrides(file_overrides, baked_path)}
+
+
+def _resolve_baked_runtime_lora_path(raw_path: str, baked_root: Path) -> Path:
+    relative_path = Path(raw_path)
+    if relative_path.is_absolute():
+        msg = f"Baked runtime LoRA path must be relative to the baked folder: {raw_path}"
+        raise ValueError(msg)
+
+    resolved_path = (baked_root / relative_path).resolve()
+    if not resolved_path.is_relative_to(baked_root):
+        msg = f"Baked runtime LoRA path escapes the baked folder: {raw_path}"
+        raise ValueError(msg)
+
+    if not resolved_path.is_file():
+        adapter_name = lora_adapter_name(str(resolved_path))
+        msg = (
+            f"Runtime LoRA adapter '{adapter_name}' cannot be loaded because "
+            f"'{relative_path.as_posix()}' is missing from baked pipeline '{baked_root}'."
+        )
+        raise FileNotFoundError(msg)
+    return resolved_path
+
+
+def _baked_runtime_loras(data: dict[str, Any], baked_path: Path) -> dict[str, LoraSpec]:
+    entries = require_runtime_loras(data.get("runtime_loras", []))
+    baked_root = baked_path.resolve()
+    specs: dict[str, LoraSpec] = {}
+    for entry in entries:
+        resolved_path = _resolve_baked_runtime_lora_path(entry["path"], baked_root)
+        path = str(resolved_path)
+        if path in specs:
+            msg = f"Baked pipeline contains duplicate runtime LoRA path: {entry['path']}"
+            raise ValueError(msg)
+        specs[path] = LoraSpec(path=path, weight=float(entry["weight"]))
+    return specs
 
 
 def _digest(parts: dict[str, Any]) -> str:
@@ -262,6 +339,174 @@ class DiffusionPipelineArtifact:
             "runtime_adapter_steps": [step.metadata for step in self.runtime_adapter_steps()],
         }
 
+    def _ensure_recipe_serializable(self) -> None:
+        if self.build_data_error is not None:
+            msg = f"Pipeline cannot be saved because its build data is unavailable: {self.build_data_error}"
+            raise ValueError(msg)
+        steps = self.runtime_adapter_steps()
+        if len(steps) > 1:
+            msg = (
+                "Pipelines with more than one LoRA Pipeline node cannot be saved. "
+                "Connect all runtime LoRAs to a single LoRA Pipeline node."
+            )
+            raise ValueError(msg)
+        for step in steps:
+            if not isinstance(step, LoraPipelineRuntimeAdapterStep):
+                msg = f"Pipelines with a '{step.KIND}' runtime adapter cannot be saved."
+                raise ValueError(msg)
+
+    def runtime_loras(self) -> dict[str, LoraSpec]:
+        """LoRAs activated per generation by a LoRA Pipeline node; empty when there are none."""
+        specs: dict[str, LoraSpec] = {}
+        for step in self.runtime_adapter_steps():
+            if isinstance(step, LoraPipelineRuntimeAdapterStep):
+                specs.update(step.loras)
+        return specs
+
+    def _recipe_cache_key(self) -> str:
+        """Derive the base-pipeline cache key from resolved recipe inputs."""
+        return BasePipelineIdentity(
+            pipeline_name=self.pipeline_name,
+            config_kwargs={
+                "recipe_build": {
+                    "builder_module": self.builder_module,
+                    "builder_class_name": self.builder_class_name,
+                    "build_data": _unstructure_build_data(self.build_data),
+                    "is_prequantized": self.is_prequantized,
+                    "supports_layerwise_casting": self.supports_layerwise_casting,
+                    "requires_device_map": self.requires_device_map,
+                }
+            },
+            loras=self.loras,
+            optimization_kwargs=self.optimization_kwargs,
+            torch_dtype=DEFAULT_BAKED_DTYPE,
+        ).cache_key()
+
+    def to_recipe_dict(self) -> dict[str, Any]:
+        """Render this pipeline configuration as a recipe-safe dict."""
+        self._ensure_recipe_serializable()
+        if type(self) is not DiffusionPipelineArtifact:
+            msg = f"Unsupported pipeline artifact type: {type(self).__name__}"
+            raise ValueError(msg)
+        return {
+            "pipeline_name": self.pipeline_name,
+            "builder_module": self.builder_module,
+            "builder_class_name": self.builder_class_name,
+            "build_data": recipe_safe(self.build_data),
+            "loras": recipe_safe_loras(self.loras),
+            "runtime_loras": recipe_safe(
+                [{"path": spec.path, "weight": float(spec.weight)} for spec in self.runtime_loras().values()]
+            ),
+            "optimization": recipe_safe(self.optimization_kwargs),
+            "is_prequantized": self.is_prequantized,
+            "supports_layerwise_casting": self.supports_layerwise_casting,
+            "requires_device_map": self.requires_device_map,
+        }
+
+    def _gguf_override_slots(self) -> list[str]:
+        overrides = self.build_data.get("_component_overrides") or {}
+        if not isinstance(overrides, dict):
+            return []
+        return [str(slot) for slot, override in overrides.items() if getattr(override, "is_quantized", False)]
+
+    def check_full_pipeline_bake_policy(self) -> None:
+        """Raise if Full Pipeline save is unsupported for this config (artifact-only; no build)."""
+        self._ensure_recipe_serializable()
+        gguf_slots = self._gguf_override_slots()
+        if self.is_prequantized and not gguf_slots:
+            msg = (
+                "Full Pipeline save does not yet support pre-quantised models "
+                "(e.g. bnb-4bit repos); their quantised weights are not verified to round-trip "
+                "through save_pretrained. Use Config Only instead."
+            )
+            raise ValueError(msg)
+        gguf_denoisers = [slot for slot in gguf_slots if slot_component_kind(slot) in {"unet", "transformer"}]
+        if self.loras and gguf_denoisers:
+            names = ", ".join(gguf_denoisers)
+            msg = (
+                f"Full Pipeline save cannot persist LoRAs together with a GGUF denoiser override "
+                f"({names}); the .gguf file is copied as-is and LoRAs usually fuse into that slot. "
+                "Use Config Only instead."
+            )
+            raise ValueError(msg)
+
+    def to_baked_config_dict(self) -> dict[str, Any]:
+        """Render the artifact-owned half of a baked folder's sidecar config.
+
+        Schema version and baked-only metadata, including layout and built-pipeline dtype, are added
+        by the caller, mirroring how
+        `serialize_pipeline_artifact` wraps `to_recipe_dict`.
+        """
+        self.check_full_pipeline_bake_policy()
+        optimization_kwargs = dict(self.optimization_kwargs)
+        baked_quantization_mode = optimization_kwargs.get("quantization_mode", "None")
+        if baked_quantization_mode != "None":
+            optimization_kwargs["quantization_mode"] = "None"
+        return {
+            "pipeline_name": self.pipeline_name,
+            "builder_module": self.builder_module,
+            "builder_class_name": self.builder_class_name,
+            "optimization": optimization_kwargs,
+            "baked_quantization_mode": baked_quantization_mode if baked_quantization_mode != "None" else None,
+            "supports_layerwise_casting": self.supports_layerwise_casting,
+            "requires_device_map": self.requires_device_map,
+        }
+
+    @classmethod
+    def from_baked_config_dict(
+        cls, data: dict[str, Any], *, baked_path: Path, config_hash: str
+    ) -> DiffusionPipelineArtifact:
+        """Reconstruct an artifact that rebuilds from `baked_path` instead of a hub repo.
+
+        Rebuilding still goes through the pipeline type's own builder, so any
+        pipeline-specific load behavior (e.g. MiniMaxH3's ComponentsManager
+        offload) is preserved.
+        """
+        artifact = cls(
+            pipeline_name=data.get("pipeline_name", baked_path.name),
+            config_hash=config_hash,
+            builder_module=optional_string(data.get("builder_module"), "Baked pipeline builder module"),
+            builder_class_name=optional_string(data.get("builder_class_name"), "Baked pipeline builder class name"),
+            build_data={
+                "_baked_path": str(baked_path),
+                "_baked_dtype": data.get("torch_dtype", DEFAULT_BAKED_DTYPE),
+                "_baked_quantization_mode": data.get("baked_quantization_mode"),
+                "_packed_quant_slots": list(data.get("packed_quant_slots") or []),
+                **_baked_file_override_build_data(data, baked_path),
+            },
+            loras={},  # already fused into the saved weights
+            optimization_kwargs=_optimization_kwargs_for_baked(data),
+            supports_layerwise_casting=data.get("supports_layerwise_casting", True),
+            requires_device_map=data.get("requires_device_map", False),
+        )
+        runtime_loras = _baked_runtime_loras(data, baked_path)
+        if not runtime_loras:
+            return artifact
+        return artifact.with_additional_runtime_adapter_steps([LoraPipelineRuntimeAdapterStep(runtime_loras)])
+
+    @classmethod
+    def from_recipe_dict(cls, data: dict[str, Any]) -> DiffusionPipelineArtifact:
+        """Reconstruct a base pipeline artifact from its recipe dict."""
+        runtime_loras = require_runtime_loras(resolve_recipe_value(data.get("runtime_loras", [])))
+        artifact = cls(
+            pipeline_name=require_string(data.get("pipeline_name"), "Pipeline name"),
+            builder_module=optional_string(data.get("builder_module"), "Pipeline builder module"),
+            builder_class_name=optional_string(data.get("builder_class_name"), "Pipeline builder class name"),
+            build_data=require_dict(resolve_recipe_value(data.get("build_data")), "Pipeline build data"),
+            loras=resolve_recipe_loras(data.get("loras")),
+            optimization_kwargs=require_dict(resolve_recipe_value(data.get("optimization")), "Pipeline optimization"),
+            is_prequantized=require_bool(data.get("is_prequantized"), "Pipeline is_prequantized flag"),
+            supports_layerwise_casting=require_bool(
+                data.get("supports_layerwise_casting"), "Pipeline supports_layerwise_casting flag"
+            ),
+            requires_device_map=require_bool(data.get("requires_device_map"), "Pipeline requires_device_map flag"),
+        )
+        artifact.config_hash = artifact._recipe_cache_key()
+        if not runtime_loras:
+            return artifact
+        specs = {entry["path"]: LoraSpec(path=entry["path"], weight=float(entry["weight"])) for entry in runtime_loras}
+        return artifact.with_additional_runtime_adapter_steps([LoraPipelineRuntimeAdapterStep(specs)])
+
     def get_or_build_pipeline(self, log_params: Any | None = None) -> ModularPipeline | DiffusionPipeline | Any:
         if not self.config_hash:
             raise ValueError("Config hash is required to get or build pipeline from artifact.")
@@ -331,6 +576,21 @@ class DiffusionPipelineArtifact:
         """
         clone = copy.copy(self)
         clone._extra_runtime_adapter_steps = [*self.runtime_adapter_steps(), *steps]
+        return clone
+
+    def with_optimization_overrides(self, overrides: dict[str, Any]) -> DiffusionPipelineArtifact:
+        """Return an artifact with merged optimization overrides and a matching cache key."""
+        optimization_kwargs = self.optimization_kwargs
+        optimization_kwargs.update(copy.deepcopy(overrides))
+        if optimization_kwargs == self._optimization_kwargs:
+            return self
+
+        clone = copy.copy(self)
+        clone._optimization_kwargs = optimization_kwargs
+        clone.config_hash = (
+            f"{self.pipeline_name}-"
+            f"{_digest({'source_config_hash': self.config_hash, 'optimization': optimization_kwargs})}-0"
+        )
         return clone
 
     @contextmanager
@@ -579,6 +839,18 @@ class ControlNetDiffusionPipelineArtifact(BaseDiffusionPipelineArtifact):
             }
         )
         return metadata
+
+    def _ensure_recipe_serializable(self) -> None:
+        msg = "ControlNet pipelines cannot be saved. Save the base pipeline and reconnect ControlNet after loading."
+        raise ValueError(msg)
+
+    def check_full_pipeline_bake_policy(self) -> None:
+        """Raise if Full Pipeline save is unsupported for this config (artifact-only; no build)."""
+        msg = (
+            "Full Pipeline save does not support ControlNet pipelines. "
+            "Save the base pipeline and reconnect ControlNet after loading."
+        )
+        raise ValueError(msg)
 
     def _get_reuse_log_context(self) -> str:
         return "control net"
