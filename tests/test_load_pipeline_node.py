@@ -4,6 +4,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from griptape_nodes.exe_types.local_objects import cache_outputs_for_egress, is_reference
+from griptape_nodes.exe_types.node_types import NodeResolutionState
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
@@ -43,6 +45,51 @@ def test_file_picker_accepts_only_yaml_files() -> None:
     assert picker.allow_files is True
     assert picker.allow_directories is False
     assert picker.file_types == [".yaml"]
+
+
+@pytest.mark.parametrize("restored_pipeline", [None, DiffusionPipelineArtifact(pipeline_name="TestPipeline")])
+def test_restored_pipeline_is_discarded_and_node_is_unresolved(
+    restored_pipeline: DiffusionPipelineArtifact | None,
+) -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    node.state = NodeResolutionState.RESOLVED
+
+    node.set_parameter_value("pipeline", restored_pipeline, initial_setup=True)
+
+    assert node.get_parameter_value("pipeline") is None
+    assert node.state is NodeResolutionState.UNRESOLVED
+
+
+def test_restored_file_path_invalidates_node_without_pipeline_value() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    node.state = NodeResolutionState.RESOLVED
+
+    node.set_parameter_value("file_path", "{project_dir}/pipeline.yaml", initial_setup=True)
+
+    assert node.state is NodeResolutionState.UNRESOLVED
+
+
+@pytest.mark.parametrize("state", list(NodeResolutionState))
+def test_pipeline_value_does_not_override_node_state(state: NodeResolutionState) -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    artifact = DiffusionPipelineArtifact(pipeline_name="TestPipeline")
+    node.set_parameter_value("pipeline", artifact)
+
+    node.state = state
+
+    assert node.get_parameter_value("pipeline") is artifact
+    assert node.state is state
+
+
+def test_pipeline_output_is_not_parked_for_worker_egress() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    artifact = DiffusionPipelineArtifact(pipeline_name="TestPipeline")
+    node.parameter_output_values["pipeline"] = artifact
+
+    egressed = cache_outputs_for_egress(node.parameter_output_values, node=node)["pipeline"]
+
+    assert not is_reference(egressed)
+    assert egressed is artifact
 
 
 def test_loads_config_only_recipe_from_custom_yaml_filename(tmp_path: Path) -> None:
