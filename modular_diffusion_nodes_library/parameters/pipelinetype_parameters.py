@@ -117,6 +117,21 @@ class LatentPipelineTypeParameters(ABC):
             logger.error(msg)
             raise ValueError(msg) from e
 
+    def bind_pipeline_type_choices(self) -> None:
+        """Offer this provider's pipeline types on the node's pipeline_type parameter, changing only the node.
+
+        A loaded pipeline_type carries whatever its save described, and saves from earlier releases describe
+        it with no choices, so the saved value would otherwise reopen with no dropdown.
+        """
+        parameter = self._node.get_parameter_by_name("pipeline_type")
+        if parameter is None:
+            return
+        options = parameter.find_elements_by_type(Options)
+        if options:
+            options[0].choices = self.pipeline_types
+            return
+        parameter.add_trait(Options(choices=self.pipeline_types))
+
     @property
     def pipeline_type_pipeline_params(self) -> ModularDiffusionPipelineTypePipelineParameters:
         if self._pipeline_type_pipeline_params is None:
@@ -157,9 +172,14 @@ class LatentPipelineTypeParameters(ABC):
             current_pipeline_type = self._node.get_parameter_value("pipeline_type")
             self.did_pipeline_type_change = current_pipeline_type != value
 
-    def after_value_set(self, parameter: Parameter, value: Any) -> None:
-        if parameter.name == "pipeline_type" and self.did_pipeline_type_change:
-            self.regenerate_elements_for_pipeline_type(value)
+    def after_value_set(self, parameter: Parameter, value: Any, *, initial_setup: bool = False) -> None:
+        if parameter.name != "pipeline_type" or not self.did_pipeline_type_change:
+            return
+        if initial_setup:
+            # The loaded parameters already belong to this pipeline type; only the helper that reads them is rebound.
+            self.set_pipeline_type_pipeline_params(value)
+            return
+        self.regenerate_elements_for_pipeline_type(value)
 
     def regenerate_elements_for_pipeline_type(self, pipeline_type: str) -> None:
         self._node.save_parameter_properties()

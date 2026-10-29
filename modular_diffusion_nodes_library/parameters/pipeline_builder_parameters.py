@@ -102,12 +102,25 @@ class LatentDiffusionPipelineBuilderParameters:
         self.pipeline_type_parameters.before_value_set(parameter, value)
 
     def after_value_set(self, parameter: Parameter, value: Any, *, initial_setup: bool = False) -> None:
+        # During initial_setup (workflow load), a saved script already contains the fully
+        # resolved pipeline_type/model sub-parameters via explicit AddParameterToNodeRequest
+        # and CreateConnectionRequest calls. Regenerating them here would redundantly tear down
+        # and recreate connections (e.g. an incoming "pipeline_type" connection) that the script
+        # already describes, corrupting the engine's connection bookkeeping.
         if parameter.name == "provider" and self.did_provider_change:
-            self.regenerate_pipeline_type_parameters_for_provider(value, initial_setup=initial_setup)
-        self.pipeline_type_parameters.after_value_set(parameter, value)
+            if initial_setup:
+                # The loaded parameters already belong to this provider; only the helper that reads them is
+                # rebound, and pipeline_type offers this provider's choices.
+                self.set_pipeline_type_parameters(value)
+                self.pipeline_type_parameters.bind_pipeline_type_choices()
+            else:
+                self.regenerate_pipeline_type_parameters_for_provider(value)
+        self.pipeline_type_parameters.after_value_set(parameter, value, initial_setup=initial_setup)
 
         if parameter.name in {"provider", "pipeline_type"}:
-            self.refresh_component_override_ports()
+            # Component override ports are never re-serialized explicitly in a saved script,
+            # so this must still run during initial_setup to add e.g. Flux's optional ports.
+            self.refresh_component_override_ports(initial_setup=initial_setup)
 
     def regenerate_pipeline_type_parameters_for_provider(self, provider: str, *, initial_setup: bool = False) -> None:
         # Save parameter properties and connections before removing parameters
