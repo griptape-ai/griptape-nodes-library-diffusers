@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from griptape_nodes.exe_types.node_types import BaseNode
 
+from modular_diffusion_nodes_library.misc.bfl_fp8 import require_fp8r_support
 from modular_diffusion_nodes_library.parameters.connectable_huggingface_repo_parameter import (
     ConnectableHuggingFaceRepoParameter,
     ConnectableHuggingFaceRepoVariantParameter,
@@ -130,6 +131,9 @@ class _Flux3ModularPipelineParameters(ModularDiffusionPipelineTypePipelineParame
             Flux3Transformer2DModel,  # type: ignore[reportMissingImports]
             ModularPipeline,  # type: ignore[reportMissingImports]
         )
+
+        if build_data["variant"] == "fp8r":
+            require_fp8r_support(get_best_device())
 
         manager = ComponentsManager()
         pipe = cast(
