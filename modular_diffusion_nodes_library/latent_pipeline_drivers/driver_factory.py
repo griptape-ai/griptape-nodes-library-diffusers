@@ -151,6 +151,19 @@ _DRIVER_REGISTRY: dict[str, DriverSpec] = {
         video_fps=16,
         supports_inpainting=False,
     ),
+    "WanAnimate2ModularPipeline": DriverSpec(
+        "wan_animate_2:WanAnimate2LatentPipelineDriver",
+        produces_video=True,
+        video_fps=24,
+        supports_inpainting=False,
+    ),
+    # Same driver: the distilled pipeline differs only in its defaults (10 steps, guidance 1.0).
+    "WanAnimate2DistilledModularPipeline": DriverSpec(
+        "wan_animate_2:WanAnimate2LatentPipelineDriver",
+        produces_video=True,
+        video_fps=24,
+        supports_inpainting=False,
+    ),
     "WanVACEPipeline": DriverSpec(
         "wan_vace:WanVaceLatentPipelineDriver",
         produces_video=True,

@@ -61,6 +61,10 @@ from modular_diffusion_nodes_library.standard_parameters.stable_diffusion_3_para
 from modular_diffusion_nodes_library.standard_parameters.stable_diffusion_sdxl_parameters import (
     StableDiffusionXLPipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.wan_animate_2_parameters import (
+    WanAnimate2DistilledPipelineParameters,
+    WanAnimate2PipelineParameters,
+)
 from modular_diffusion_nodes_library.standard_parameters.wan_animate_parameters import (
     WanAnimatePipelineParameters,
 )
@@ -411,7 +415,12 @@ class LatentWanPipelineTypeParameters(LatentPipelineTypeParameters):
         return (
             "- `WanPipeline` — Text-to-video generation (Alibaba WAN).\n"
             "- `WanImageToVideoPipeline` — Image-to-video. Requires a dedicated I2V checkpoint. "
-            "Cannot be used with base WAN weights.\n\n"
+            "Cannot be used with base WAN weights.\n"
+            "- `WanAnimate2ModularPipeline` — WAN Animate 2: animates a character image with the motion of "
+            "an ordinary driving video. Long videos run in overlapping segments. Needs Triton (on Windows, "
+            "install `triton-windows`).\n"
+            "- `WanAnimate2DistilledModularPipeline` — The distilled WAN Animate 2 checkpoint: 10 steps, "
+            "no classifier-free guidance. Same Triton requirement.\n\n"
             "For first/last-frame conditioning, connect a Media Gen Conditioning node to the "
             "`conditioning_images` input of Generate Media Latents."
         )
@@ -421,6 +430,8 @@ class LatentWanPipelineTypeParameters(LatentPipelineTypeParameters):
         return {
             "WanPipeline": WanPipelineParameters,
             "WanAnimatePipeline": WanAnimatePipelineParameters,
+            "WanAnimate2ModularPipeline": WanAnimate2PipelineParameters,
+            "WanAnimate2DistilledModularPipeline": WanAnimate2DistilledPipelineParameters,
             "WanImageToVideoPipeline": WanImageToVideoPipelineParameters,
             "WanVACEPipeline": WanVacePipelineParameters,
         }

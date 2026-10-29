@@ -427,6 +427,20 @@
                                 "key_support": "NO_KEY_REQUIRED",
                                 "notes": "Apache-2.0."
                             },
+                            "md_wan_2_2_animate_2_14b": {
+                                "display_name": "Wan 2.2 Animate 2 14B",
+                                "provider_model_id": "Wan-AI/Wan2.2-Animate-2-14B-Diffusers",
+                                "family": "Wan",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "Apache-2.0."
+                            },
+                            "md_wan_2_2_animate_2_14b_distilled": {
+                                "display_name": "Wan 2.2 Animate 2 14B Distilled",
+                                "provider_model_id": "Wan-AI/Wan2.2-Animate-2-14B-Distilled-Diffusers",
+                                "family": "Wan",
+                                "key_support": "NO_KEY_REQUIRED",
+                                "notes": "Apache-2.0."
+                            },
                             "md_z_image_turbo": {
                                 "display_name": "Z-Image Turbo",
                                 "provider_model_id": "Tongyi-MAI/Z-Image-Turbo",
@@ -772,6 +786,8 @@
                             "md_wan_2_1_vace_14b",
                             "md_wan_2_1_vace_1_3b",
                             "md_wan_2_2_animate_14b",
+                            "md_wan_2_2_animate_2_14b",
+                            "md_wan_2_2_animate_2_14b_distilled",
                             "md_wan_2_2_i2v_a14b",
                             "md_wan_2_2_t2v_a14b",
                             "md_z_image_turbo"
