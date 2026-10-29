@@ -113,10 +113,14 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self._update_optimization_reset_button_visibility()
 
     def _update_optimization_reset_button_visibility(self) -> None:
-        if self._current_optimization_overrides():
+        if self._source_pipeline is not None and self._current_optimization_overrides():
             self.show_parameter_by_name(_OPTIMIZATION_OVERRIDES_PARAMETER)
             return
         self.hide_parameter_by_name(_OPTIMIZATION_OVERRIDES_PARAMETER)
+
+    def _set_source_pipeline(self, pipeline: DiffusionPipelineArtifact | None) -> None:
+        self._source_pipeline = pipeline
+        self._update_optimization_reset_button_visibility()
 
     @contextmanager
     def _synchronizing_optimization_parameters(self) -> Iterator[None]:
@@ -351,7 +355,7 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         return self._source_pipeline.with_optimization_overrides(self._current_optimization_overrides())
 
     def _clear_pipeline_output(self) -> None:
-        self._source_pipeline = None
+        self._set_source_pipeline(None)
         self._publish_pipeline(None)
 
     def _clear_pipeline_output_safely(self) -> None:
@@ -372,7 +376,7 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def _publish_from_committed_path(self) -> None:
         """Load and publish when the editor commits a path. Never reject the path change."""
         self._loaded_from_baked_dir = False
-        self._source_pipeline = None
+        self._set_source_pipeline(None)
         try:
             pipeline = self._load_pipeline_from_path()
         except Exception as error:
@@ -383,7 +387,7 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         try:
             self._reconcile_optimization_parameters(pipeline)
-            self._source_pipeline = pipeline
+            self._set_source_pipeline(pipeline)
             pipeline = self._effective_pipeline()
             self._publish_pipeline(pipeline)
         except Exception as error:
@@ -399,10 +403,10 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self._loaded_from_baked_dir = False
 
         def load() -> DiffusionPipelineArtifact:
-            self._source_pipeline = None
+            self._set_source_pipeline(None)
             source_pipeline = self._load_pipeline_from_path()
             self._reconcile_optimization_parameters(source_pipeline)
-            self._source_pipeline = source_pipeline
+            self._set_source_pipeline(source_pipeline)
             pipeline = self._effective_pipeline()
             self._publish_pipeline(pipeline)
             return pipeline
