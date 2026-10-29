@@ -74,7 +74,7 @@ def test_recovered_recipe_shows_reset_button_when_override_remains() -> None:
     assert reset_button.ui_options["hide"] is False
 
 
-def test_recovers_after_restored_recipe_becomes_available() -> None:
+def test_recovered_recipe_preserves_matching_override() -> None:
     node = LoadPipelineNode(name="Load Pipeline")
     source_pipeline = _pipeline_with_optimization(cpu_offload_strategy="Sequential")
     node.set_parameter_value(
@@ -90,10 +90,12 @@ def test_recovers_after_restored_recipe_becomes_available() -> None:
     node._publish_pipeline.reset_mock()
     node.process()
 
-    assert node.get_parameter_value("_optimization_overrides") == {}
+    assert node.get_parameter_value("_optimization_overrides") == {
+        "cpu_offload_strategy": "Sequential",
+    }
     reset_button = node.get_parameter_by_name("_optimization_overrides")
     assert reset_button is not None
-    assert reset_button.ui_options["hide"] is True
+    assert reset_button.ui_options["hide"] is False
     effective_pipeline = node._publish_pipeline.call_args.args[0]
     assert effective_pipeline.optimization_kwargs["cpu_offload_strategy"] == "Sequential"
 
@@ -301,7 +303,7 @@ def test_new_recipe_preserves_only_user_edited_parameters() -> None:
     assert node.get_parameter_value("cpu_offload_strategy") == "Model"
 
 
-def test_new_recipe_clears_matching_user_override() -> None:
+def test_new_recipe_preserves_matching_user_override_as_pinned() -> None:
     node = LoadPipelineNode(name="Load Pipeline")
     first_pipeline = _pipeline_with_optimization(
         name="FirstPipeline",
@@ -313,17 +315,27 @@ def test_new_recipe_clears_matching_user_override() -> None:
         config_hash="second-hash",
         cpu_offload_strategy="None",
     )
-    node._load_pipeline_from_path = Mock(side_effect=[first_pipeline, second_pipeline])
+    third_pipeline = _pipeline_with_optimization(
+        name="ThirdPipeline",
+        config_hash="third-hash",
+        cpu_offload_strategy="Model",
+    )
+    node._load_pipeline_from_path = Mock(side_effect=[first_pipeline, second_pipeline, third_pipeline])
     node._publish_pipeline = Mock()
 
     node._publish_from_committed_path()
     node.set_parameter_value("cpu_offload_strategy", "None")
     node._publish_from_committed_path()
 
-    assert node.get_parameter_value("_optimization_overrides") == {}
+    assert node.get_parameter_value("_optimization_overrides") == {
+        "cpu_offload_strategy": "None",
+    }
     reset_button = node.get_parameter_by_name("_optimization_overrides")
     assert reset_button is not None
-    assert reset_button.ui_options["hide"] is True
+    assert reset_button.ui_options["hide"] is False
+
+    node._publish_from_committed_path()
+
     effective_pipeline = node._publish_pipeline.call_args.args[0]
     assert effective_pipeline.optimization_kwargs["cpu_offload_strategy"] == "None"
 
@@ -350,7 +362,9 @@ def test_recipe_publish_failure_keeps_reconciled_settings() -> None:
 
     node._publish_from_committed_path()
 
-    assert node.get_parameter_value("_optimization_overrides") == {}
+    assert node.get_parameter_value("_optimization_overrides") == {
+        "cpu_offload_strategy": "None",
+    }
     assert node.get_parameter_value("cpu_offload_strategy") == "None"
     reset_button = node.get_parameter_by_name("_optimization_overrides")
     assert reset_button is not None
