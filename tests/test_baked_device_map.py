@@ -6,19 +6,31 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-import torch
-from diffusers import ConfigMixin, DiffusionPipeline, ModelMixin  # type: ignore[reportMissingImports]
-from diffusers.configuration_utils import register_to_config  # type: ignore[reportMissingImports]
-from optimum.quanto import freeze, qint8, quantize  # type: ignore[reportMissingImports]
-from torch import nn
 
-from modular_diffusion_nodes_library.artifact_utils.packed_quant_io import write_packed_quant_maps
-from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
-from modular_diffusion_nodes_library.artifact_utils.pipeline_build_steps import LoadPipelineStep
-from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
+torch = pytest.importorskip("torch", reason="Requires execution dependencies; run `make test/exec`.")
+diffusers = pytest.importorskip("diffusers", reason="Requires execution dependencies; run `make test/exec`.")
+quanto = pytest.importorskip("optimum.quanto", reason="Requires execution dependencies; run `make test/exec`.")
+
+from modular_diffusion_nodes_library.artifact_utils.packed_quant_io import write_packed_quant_maps  # noqa: E402
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (  # noqa: E402
+    DiffusionPipelineArtifact,
+)
+from modular_diffusion_nodes_library.artifact_utils.pipeline_build_steps import LoadPipelineStep  # noqa: E402
+from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (  # noqa: E402
     ModularDiffusionPipelineTypePipelineParameters,
 )
-from modular_diffusion_nodes_library.standard_parameters.minimax_h3_parameters import MiniMaxH3PipelineParameters
+from modular_diffusion_nodes_library.standard_parameters.minimax_h3_parameters import (  # noqa: E402
+    MiniMaxH3PipelineParameters,
+)
+
+ConfigMixin = diffusers.ConfigMixin
+DiffusionPipeline = diffusers.DiffusionPipeline
+ModelMixin = diffusers.ModelMixin
+register_to_config = diffusers.configuration_utils.register_to_config
+freeze = quanto.freeze
+qint8 = quanto.qint8
+quantize = quanto.quantize
+nn = torch.nn
 
 
 class _TinyModel(ModelMixin, ConfigMixin):
