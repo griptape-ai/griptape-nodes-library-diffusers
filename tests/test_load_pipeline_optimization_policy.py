@@ -13,7 +13,7 @@ def _optimization_parameters():
     return LoadPipelineNode(name="Load Pipeline")._optimization_parameters()
 
 
-def test_reconciliation_preserves_only_overrides_that_differ_from_recipe() -> None:
+def test_reconciliation_preserves_valid_overrides_that_match_recipe() -> None:
     parameters = _optimization_parameters()
 
     result = reconcile_optimization_settings(
@@ -28,7 +28,10 @@ def test_reconciliation_preserves_only_overrides_that_differ_from_recipe() -> No
         },
     )
 
-    assert result.overrides == {"vae_slicing": False}
+    assert result.overrides == {
+        "cpu_offload_strategy": "Sequential",
+        "vae_slicing": False,
+    }
     assert result.displayed_values["cpu_offload_strategy"] == "Sequential"
     assert result.displayed_values["vae_slicing"] is False
 

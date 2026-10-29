@@ -60,8 +60,6 @@ def reconcile_optimization_settings(
             parameter,
             recipe_values.get(name, parameter.default_value),
         )
-        if name in reconciled_overrides and reconciled_overrides[name] == recipe_value:
-            reconciled_overrides.pop(name)
         displayed_values[name] = reconciled_overrides.get(name, recipe_value)
     return ReconciledOptimizationSettings(
         overrides=reconciled_overrides,
