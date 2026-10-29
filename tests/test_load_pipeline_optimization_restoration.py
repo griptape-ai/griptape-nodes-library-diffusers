@@ -46,9 +46,32 @@ def test_missing_recipe_preserves_restored_overrides() -> None:
     }
     reset_button = node.get_parameter_by_name("_optimization_overrides")
     assert reset_button is not None
-    assert reset_button.ui_options["hide"] is False
+    assert reset_button.ui_options["hide"] is True
     assert node._source_pipeline is None
     node._publish_pipeline.assert_called_once_with(None)
+
+
+def test_recovered_recipe_shows_reset_button_when_override_remains() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    source_pipeline = _pipeline_with_optimization(cpu_offload_strategy="Sequential")
+    node.set_parameter_value(
+        "_optimization_overrides",
+        {"cpu_offload_strategy": "None"},
+        initial_setup=True,
+    )
+    node._load_pipeline_from_path = Mock(side_effect=[FileNotFoundError("missing recipe"), source_pipeline])
+    node._publish_pipeline = Mock()
+    node._handle_failure_exception = Mock()
+
+    node.process()
+    node.process()
+
+    assert node.get_parameter_value("_optimization_overrides") == {
+        "cpu_offload_strategy": "None",
+    }
+    reset_button = node.get_parameter_by_name("_optimization_overrides")
+    assert reset_button is not None
+    assert reset_button.ui_options["hide"] is False
 
 
 def test_recovers_after_restored_recipe_becomes_available() -> None:
