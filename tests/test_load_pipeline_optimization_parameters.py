@@ -264,7 +264,7 @@ def test_load_pipeline_reset_button_requires_loaded_recipe() -> None:
     }
     reset_button = node.get_parameter_by_name("_optimization_overrides")
     assert reset_button is not None
-    assert reset_button.ui_options["hide"] is False
+    assert reset_button.ui_options["hide"] is True
 
 
 def test_load_pipeline_reset_button_recipe_validation_failure_does_not_change_workflow() -> None:
