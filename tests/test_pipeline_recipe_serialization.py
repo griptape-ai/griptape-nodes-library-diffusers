@@ -185,6 +185,60 @@ def test_config_only_and_baked_manifests_share_artifact_shape(tmp_path) -> None:
     assert baked["packed_quant_slots"] == ["unet"]
 
 
+@pytest.mark.parametrize("is_distilled", [False, True])
+def test_baked_artifact_preserves_allowlisted_runtime_metadata(tmp_path, *, is_distilled: bool) -> None:
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="LTX2Pipeline",
+        config_hash="pipeline-hash",
+        builder_module="test.module",
+        builder_class_name="LTX2Parameters",
+        build_data={
+            "base_repo_id": "org/model",
+            "base_revision": "commit-hash",
+            "is_distilled": is_distilled,
+        },
+    )
+
+    baked_config = artifact.to_baked_config_dict()
+    loaded = DiffusionPipelineArtifact.from_baked_config_dict(
+        baked_config,
+        baked_path=tmp_path,
+        config_hash="baked-hash",
+    )
+
+    assert baked_config["runtime_metadata"] == {"is_distilled": is_distilled}
+    assert loaded.metadata["build_data"]["is_distilled"] is is_distilled
+    assert "base_repo_id" not in loaded.build_data
+    assert "base_revision" not in loaded.build_data
+
+
+def test_baked_artifact_rejects_invalid_runtime_metadata(tmp_path) -> None:
+    with pytest.raises(ValueError, match="Baked pipeline is_distilled runtime metadata must be a boolean"):
+        DiffusionPipelineArtifact.from_baked_config_dict(
+            {
+                "pipeline_name": "LTX2Pipeline",
+                "builder_module": "test.module",
+                "builder_class_name": "LTX2Parameters",
+                "optimization": {},
+                "runtime_metadata": {"is_distilled": "true"},
+                "supports_layerwise_casting": True,
+                "requires_device_map": False,
+            },
+            baked_path=tmp_path,
+            config_hash="baked-hash",
+        )
+
+
+def test_baked_artifact_rejects_invalid_runtime_metadata_on_save() -> None:
+    artifact = DiffusionPipelineArtifact(
+        pipeline_name="LTX2Pipeline",
+        build_data={"is_distilled": "true"},
+    )
+
+    with pytest.raises(ValueError, match="Pipeline is_distilled runtime metadata must be a boolean"):
+        artifact.to_baked_config_dict()
+
+
 def test_serialize_controlnet_pipeline_artifact_is_refused() -> None:
     base_artifact = DiffusionPipelineArtifact(
         pipeline_name="TestPipeline",

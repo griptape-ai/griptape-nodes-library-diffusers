@@ -52,6 +52,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 DEFAULT_BAKED_DTYPE = "bfloat16"
+_BAKED_RUNTIME_METADATA_KEYS = frozenset({"is_distilled"})
 
 
 #: Marks a dict as an encoded artifact and names which class to rebuild. Present in the wire form only.
@@ -124,6 +125,34 @@ def _optimization_kwargs_for_baked(data: dict[str, Any]) -> dict[str, Any]:
     if data.get("baked_quantization_mode") or data.get("packed_quant_slots"):
         kwargs["quantization_mode"] = "None"
     return kwargs
+
+
+def _baked_runtime_metadata_for_save(build_data: dict[str, Any]) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    if "is_distilled" in build_data:
+        metadata["is_distilled"] = require_bool(
+            build_data["is_distilled"],
+            "Pipeline is_distilled runtime metadata",
+        )
+    return metadata
+
+
+def _baked_runtime_metadata_for_load(data: dict[str, Any]) -> dict[str, Any]:
+    metadata = require_dict(data.get("runtime_metadata", {}), "Baked pipeline runtime metadata")
+    unsupported_keys = set(metadata) - _BAKED_RUNTIME_METADATA_KEYS
+    if unsupported_keys:
+        names = ", ".join(sorted(str(key) for key in unsupported_keys))
+        msg = f"Baked pipeline contains unsupported runtime metadata: {names}"
+        raise ValueError(msg)
+
+    if "is_distilled" not in metadata:
+        return {}
+    return {
+        "is_distilled": require_bool(
+            metadata["is_distilled"],
+            "Baked pipeline is_distilled runtime metadata",
+        )
+    }
 
 
 def _baked_file_override_build_data(data: dict[str, Any], baked_path: Path) -> dict[str, Any]:
@@ -448,6 +477,7 @@ class DiffusionPipelineArtifact:
             "builder_class_name": self.builder_class_name,
             "optimization": optimization_kwargs,
             "baked_quantization_mode": baked_quantization_mode if baked_quantization_mode != "None" else None,
+            "runtime_metadata": _baked_runtime_metadata_for_save(self.build_data),
             "supports_layerwise_casting": self.supports_layerwise_casting,
             "requires_device_map": self.requires_device_map,
         }
@@ -473,6 +503,7 @@ class DiffusionPipelineArtifact:
                 "_baked_dtype": data.get("torch_dtype", DEFAULT_BAKED_DTYPE),
                 "_baked_quantization_mode": data.get("baked_quantization_mode"),
                 "_packed_quant_slots": list(data.get("packed_quant_slots") or []),
+                **_baked_runtime_metadata_for_load(data),
                 **_baked_file_override_build_data(data, baked_path),
             },
             loras={},  # already fused into the saved weights
