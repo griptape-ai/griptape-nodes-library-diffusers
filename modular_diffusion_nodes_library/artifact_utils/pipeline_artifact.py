@@ -462,6 +462,7 @@ class DiffusionPipelineArtifact:
         pipeline-specific load behavior (e.g. MiniMaxH3's ComponentsManager
         offload) is preserved.
         """
+        requires_device_map = require_bool(data.get("requires_device_map"), "Baked pipeline requires_device_map flag")
         artifact = cls(
             pipeline_name=data.get("pipeline_name", baked_path.name),
             config_hash=config_hash,
@@ -477,7 +478,7 @@ class DiffusionPipelineArtifact:
             loras={},  # already fused into the saved weights
             optimization_kwargs=_optimization_kwargs_for_baked(data),
             supports_layerwise_casting=data.get("supports_layerwise_casting", True),
-            requires_device_map=data.get("requires_device_map", False),
+            requires_device_map=requires_device_map,
         )
         runtime_loras = _baked_runtime_loras(data, baked_path)
         if not runtime_loras:
@@ -614,11 +615,17 @@ class DiffusionPipelineArtifact:
 
     def _load_and_fuse_steps(self) -> list[BuildStep]:
         """Common prefix used by both base and subclass step compositions."""
+        build_data = self._build_data
+        if "_baked_path" in build_data:
+            build_data = {
+                **build_data,
+                "_baked_requires_device_map": self._requires_device_map,
+            }
         return [
             LoadPipelineStep(
                 builder_module=self._builder_module,
                 builder_class_name=self._builder_class_name,
-                build_data=self._build_data,
+                build_data=build_data,
                 build_data_error=self._build_data_error,
             ),
             FuseLorasStep(self._loras),

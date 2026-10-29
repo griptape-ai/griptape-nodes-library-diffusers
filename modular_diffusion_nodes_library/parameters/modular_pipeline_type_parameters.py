@@ -245,7 +245,14 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
                 pipe.update_components(**overrides)
             pipe.load_components(dtype=dtype)
         else:
-            pipe = pipeline_cls.from_pretrained(baked_path, torch_dtype=dtype, local_files_only=True, **overrides)
+            load_kwargs = {
+                "torch_dtype": dtype,
+                "local_files_only": True,
+                **overrides,
+            }
+            if build_data["_baked_requires_device_map"] is True:
+                load_kwargs["device_map"] = "balanced"
+            pipe = pipeline_cls.from_pretrained(baked_path, **load_kwargs)
         apply_packed_quant_from_folder(pipe, Path(baked_path), unpacked_dtype=dtype)
         return pipe
 
