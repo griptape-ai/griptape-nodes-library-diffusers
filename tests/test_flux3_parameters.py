@@ -90,6 +90,11 @@ def test_loader_loads_or_omits_prompt_upsampler_and_quantized_transformer(
     monkeypatch.setattr(
         "modular_diffusion_nodes_library.standard_parameters.flux3_parameters.get_best_device", lambda: "cpu"
     )
+    fp8r_checks: list[Any] = []
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.standard_parameters.flux3_parameters.require_fp8r_support",
+        fp8r_checks.append,
+    )
     weights_path = f"/cache/snapshots/base-revision/variants/{variant}/model.safetensors"
     build_data = {
         "repo_id": "black-forest-labs/flux-3-image-klein-base",
@@ -118,10 +123,12 @@ def test_loader_loads_or_omits_prompt_upsampler_and_quantized_transformer(
         assert kwargs["local_files_only"] is True
         assert isinstance(kwargs["quantization_config"], diffusers_module.BFLQuantizationConfig)
         assert pipeline.updated_components == {"transformer": transformer}
+        assert fp8r_checks == (["cpu"] if variant == "fp8r" else [])
     else:
         assert "transformer" in pipeline.loaded_names
         assert single_file_calls == []
         assert pipeline.updated_components == {}
+        assert fp8r_checks == []
     if upsampler_selected:
         assert all(name in pipeline.loaded_names for name in PROMPT_UPSAMPLER_COMPONENTS)
         assert pipeline.load_kwargs["pretrained_model_name_or_path"] == dict.fromkeys(
