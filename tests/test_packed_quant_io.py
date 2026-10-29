@@ -1,10 +1,13 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import torch
-from torch import nn
+import pytest
 
-from modular_diffusion_nodes_library.artifact_utils import packed_quant_io
+torch = pytest.importorskip("torch", reason="Requires execution dependencies; run `make test/exec`.")
+nn = torch.nn
+pytest.importorskip("optimum.quanto", reason="Requires execution dependencies; run `make test/exec`.")
+
+from modular_diffusion_nodes_library.artifact_utils import packed_quant_io  # noqa: E402
 
 
 def test_apply_packed_quant_reuses_loaded_slot_state(tmp_path, monkeypatch) -> None:
