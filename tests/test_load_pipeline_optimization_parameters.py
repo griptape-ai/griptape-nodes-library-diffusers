@@ -49,6 +49,9 @@ def test_load_pipeline_exposes_optimization_parameters_without_quantization() ->
     assert node.get_parameter_by_name("transformer_layerwise_casting") is not None
     assert node.get_parameter_by_name("cpu_offload_strategy") is not None
     assert node.get_parameter_by_name("quantization_mode") is None
+    reset_button = node.get_parameter_by_name("_optimization_overrides")
+    assert reset_button is not None
+    assert reset_button.ui_options["hide"] is True
 
 
 def test_load_pipeline_automatic_mode_hides_manual_optimization_parameters() -> None:
@@ -80,7 +83,7 @@ def test_load_pipeline_sets_optimization_parameters_from_pipeline() -> None:
         quantization_mode="int8",
     )
 
-    node._initialize_untouched_optimization_parameters(pipeline)
+    node._reconcile_optimization_parameters(pipeline)
 
     assert node.huggingface_pipeline_params.get_hf_pipeline_parameters() == {
         "memory_optimization_strategy": "Manual",
@@ -122,7 +125,7 @@ def test_load_pipeline_clears_output_when_path_preparation_fails() -> None:
         config_hash="source-hash",
     )
     node._load_pipeline_from_path = Mock(return_value=source_pipeline)
-    node._initialize_untouched_optimization_parameters = Mock(side_effect=ValueError("invalid optimization"))
+    node._reconcile_optimization_parameters = Mock(side_effect=ValueError("invalid optimization"))
     node._publish_pipeline = Mock()
 
     node._publish_from_committed_path()
@@ -166,31 +169,143 @@ def test_load_pipeline_path_selection_sets_parameters_and_publishes_pipeline() -
     node._publish_pipeline.assert_called_once_with(source_pipeline)
 
 
-def test_load_pipeline_process_preserves_initial_setup_parameters() -> None:
+def test_load_pipeline_user_edit_persists_override_provenance() -> None:
     node = LoadPipelineNode(name="Load Pipeline")
-    source_pipeline = _pipeline_with_optimization(
-        attention_slicing=True,
-        vae_tiling=True,
-        quantization_mode="int8",
-    )
-    node.set_parameter_value("vae_slicing", True, initial_setup=True)
-    node.set_parameter_value("cpu_offload_strategy", "Sequential", initial_setup=True)
+    source_pipeline = _pipeline_with_optimization(cpu_offload_strategy="Sequential")
     node._load_pipeline_from_path = Mock(return_value=source_pipeline)
     node._publish_pipeline = Mock()
+    node._publish_from_committed_path()
 
-    node.process()
+    node.set_parameter_value("cpu_offload_strategy", "None")
 
+    assert node.get_parameter_value("_optimization_overrides") == {
+        "cpu_offload_strategy": "None",
+    }
+    reset_button = node.get_parameter_by_name("_optimization_overrides")
+    assert reset_button is not None
+    assert reset_button.ui_options["hide"] is False
     effective_pipeline = node._publish_pipeline.call_args.args[0]
-    assert node.get_parameter_value("attention_slicing") is True
-    assert node.get_parameter_value("vae_tiling") is True
-    assert effective_pipeline.optimization_kwargs["vae_slicing"] is True
+    assert effective_pipeline.optimization_kwargs["cpu_offload_strategy"] == "None"
+
+
+def test_load_pipeline_user_edit_matching_recipe_clears_override() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    source_pipeline = _pipeline_with_optimization(cpu_offload_strategy="Sequential")
+    node._load_pipeline_from_path = Mock(return_value=source_pipeline)
+    node._publish_pipeline = Mock()
+    node._publish_from_committed_path()
+    node.set_parameter_value("cpu_offload_strategy", "None")
+
+    node.set_parameter_value("cpu_offload_strategy", "Sequential")
+
+    assert node.get_parameter_value("_optimization_overrides") == {}
+    reset_button = node.get_parameter_by_name("_optimization_overrides")
+    assert reset_button is not None
+    assert reset_button.ui_options["hide"] is True
+    effective_pipeline = node._publish_pipeline.call_args.args[0]
     assert effective_pipeline.optimization_kwargs["cpu_offload_strategy"] == "Sequential"
-    assert effective_pipeline.optimization_kwargs["attention_slicing"] is True
-    assert effective_pipeline.optimization_kwargs["vae_tiling"] is True
-    assert effective_pipeline.optimization_kwargs["quantization_mode"] == "int8"
 
 
-def test_load_pipeline_process_initializes_untouched_parameters_from_recipe() -> None:
+def test_load_pipeline_recipe_default_value_does_not_create_override() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    source_pipeline = DiffusionPipelineArtifact(
+        pipeline_name="TestPipeline",
+        config_hash="source-hash",
+        optimization_kwargs={},
+    )
+    node._load_pipeline_from_path = Mock(return_value=source_pipeline)
+    node._publish_pipeline = Mock()
+    node._publish_from_committed_path()
+
+    node.set_parameter_value("cpu_offload_strategy", "None")
+
+    assert node.get_parameter_value("_optimization_overrides") == {}
+
+
+def test_load_pipeline_reset_button_clears_overrides_and_follows_recipe() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    source_pipeline = _pipeline_with_optimization(cpu_offload_strategy="Sequential")
+    node._load_pipeline_from_path = Mock(return_value=source_pipeline)
+    node._publish_pipeline = Mock()
+    node._publish_from_committed_path()
+    node.set_parameter_value("cpu_offload_strategy", "None")
+    node._emit_parameter_lifecycle_event = Mock()
+
+    result = node._on_use_recipe_optimization_settings(Mock(), Mock())
+
+    assert result.success
+    assert result.details == ""
+    assert result.altered_workflow_state
+    assert node.get_parameter_value("_optimization_overrides") == {}
+    assert node.get_parameter_value("cpu_offload_strategy") == "Sequential"
+    reset_button = node.get_parameter_by_name("_optimization_overrides")
+    assert reset_button is not None
+    assert reset_button.ui_options["hide"] is True
+    changed_parameters = {call.args[0].name for call in node._emit_parameter_lifecycle_event.call_args_list}
+    assert "cpu_offload_strategy" in changed_parameters
+    effective_pipeline = node._publish_pipeline.call_args.args[0]
+    assert effective_pipeline.optimization_kwargs["cpu_offload_strategy"] == "Sequential"
+
+
+def test_load_pipeline_reset_button_requires_loaded_recipe() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    node.set_parameter_value(
+        "_optimization_overrides",
+        {"cpu_offload_strategy": "Sequential"},
+        initial_setup=True,
+    )
+
+    result = node._on_use_recipe_optimization_settings(Mock(), Mock())
+
+    assert not result.success
+    assert not result.altered_workflow_state
+    assert node.get_parameter_value("_optimization_overrides") == {
+        "cpu_offload_strategy": "Sequential",
+    }
+    reset_button = node.get_parameter_by_name("_optimization_overrides")
+    assert reset_button is not None
+    assert reset_button.ui_options["hide"] is False
+
+
+def test_load_pipeline_reset_button_recipe_validation_failure_does_not_change_workflow() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    node._source_pipeline = _pipeline_with_optimization(cpu_offload_strategy="invalid")
+    node._set_status_results = Mock()
+
+    result = node._on_use_recipe_optimization_settings(Mock(), Mock())
+
+    assert not result.success
+    assert not result.altered_workflow_state
+    assert node.get_parameter_value("_optimization_overrides") == {}
+    assert node.get_parameter_value("cpu_offload_strategy") == "None"
+    node._set_status_results.assert_called_once()
+    assert node._set_status_results.call_args.kwargs["was_successful"] is False
+
+
+def test_load_pipeline_reset_button_keeps_recipe_settings_when_publish_fails() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    source_pipeline = _pipeline_with_optimization(cpu_offload_strategy="Sequential")
+    node._source_pipeline = source_pipeline
+    node._publish_pipeline = Mock()
+    node.set_parameter_value("cpu_offload_strategy", "None")
+    node._publish_pipeline.reset_mock()
+    node._publish_pipeline.side_effect = RuntimeError("publish rejected")
+    node._set_status_results = Mock()
+
+    result = node._on_use_recipe_optimization_settings(Mock(), Mock())
+
+    assert not result.success
+    assert result.altered_workflow_state
+    assert node.get_parameter_value("_optimization_overrides") == {}
+    assert node.get_parameter_value("cpu_offload_strategy") == "Sequential"
+    reset_button = node.get_parameter_by_name("_optimization_overrides")
+    assert reset_button is not None
+    assert reset_button.ui_options["hide"] is True
+    node._set_status_results.assert_called_once()
+    assert node._set_status_results.call_args.kwargs["was_successful"] is False
+
+
+def test_load_pipeline_process_reconciles_parameters_from_recipe() -> None:
     node = LoadPipelineNode(name="Load Pipeline")
     source_pipeline = _pipeline_with_optimization(
         attention_slicing=True,
@@ -217,77 +332,22 @@ def test_load_pipeline_process_initializes_untouched_parameters_from_recipe() ->
     assert effective_pipeline.optimization_kwargs == source_pipeline.optimization_kwargs
 
 
-def test_load_pipeline_process_preserves_preload_user_edit() -> None:
+def test_load_pipeline_invalid_recipe_optimization_does_not_partially_update_controls() -> None:
     node = LoadPipelineNode(name="Load Pipeline")
-    source_pipeline = _pipeline_with_optimization(
+    invalid_pipeline = _pipeline_with_optimization(
         attention_slicing=True,
-        vae_tiling=True,
-        cpu_offload_strategy="Sequential",
+        cpu_offload_strategy="invalid",
     )
-    node.set_parameter_value("vae_slicing", True)
-    node._load_pipeline_from_path = Mock(return_value=source_pipeline)
+    node._load_pipeline_from_path = Mock(return_value=invalid_pipeline)
     node._publish_pipeline = Mock()
 
-    node.process()
-
-    effective_pipeline = node._publish_pipeline.call_args.args[0]
-    assert effective_pipeline.optimization_kwargs["vae_slicing"] is True
-    assert effective_pipeline.optimization_kwargs["attention_slicing"] is True
-    assert effective_pipeline.optimization_kwargs["cpu_offload_strategy"] == "Sequential"
-
-
-def test_load_pipeline_new_recipe_replaces_automatically_initialized_parameters() -> None:
-    node = LoadPipelineNode(name="Load Pipeline")
-    first_pipeline = _pipeline_with_optimization(
-        name="FirstPipeline",
-        config_hash="first-hash",
-        attention_slicing=True,
-        vae_slicing=True,
-        cpu_offload_strategy="Sequential",
-    )
-    second_pipeline = _pipeline_with_optimization(
-        name="SecondPipeline",
-        config_hash="second-hash",
-        vae_tiling=True,
-        transformer_layerwise_casting=True,
-        cpu_offload_strategy="Model",
-    )
-    node._load_pipeline_from_path = Mock(side_effect=[first_pipeline, second_pipeline])
-    node._publish_pipeline = Mock()
-
-    node._publish_from_committed_path()
     node._publish_from_committed_path()
 
     assert node.get_parameter_value("attention_slicing") is False
-    assert node.get_parameter_value("vae_slicing") is False
-    assert node.get_parameter_value("vae_tiling") is True
-    assert node.get_parameter_value("transformer_layerwise_casting") is True
-    assert node.get_parameter_value("cpu_offload_strategy") == "Model"
-
-
-def test_load_pipeline_new_recipe_preserves_only_user_edited_parameters() -> None:
-    node = LoadPipelineNode(name="Load Pipeline")
-    first_pipeline = _pipeline_with_optimization(name="FirstPipeline", config_hash="first-hash")
-    second_pipeline = _pipeline_with_optimization(
-        name="SecondPipeline",
-        config_hash="second-hash",
-        attention_slicing=True,
-        vae_tiling=True,
-        transformer_layerwise_casting=True,
-        cpu_offload_strategy="Model",
-    )
-    node._load_pipeline_from_path = Mock(side_effect=[first_pipeline, second_pipeline])
-    node._publish_pipeline = Mock()
-
-    node._publish_from_committed_path()
-    node.set_parameter_value("vae_slicing", True)
-    node._publish_from_committed_path()
-
-    assert node.get_parameter_value("vae_slicing") is True
-    assert node.get_parameter_value("attention_slicing") is True
-    assert node.get_parameter_value("vae_tiling") is True
-    assert node.get_parameter_value("transformer_layerwise_casting") is True
-    assert node.get_parameter_value("cpu_offload_strategy") == "Model"
+    assert node.get_parameter_value("cpu_offload_strategy") == "None"
+    assert node.get_parameter_value("_optimization_overrides") == {}
+    assert node._source_pipeline is None
+    node._publish_pipeline.assert_called_once_with(None)
 
 
 def test_load_pipeline_missing_recipe_settings_use_parameter_defaults() -> None:
@@ -319,6 +379,7 @@ def test_load_pipeline_baked_settings_populate_parameters(tmp_path: Path) -> Non
             "pipeline_name": "TestPipeline",
             "builder_module": "test.module",
             "builder_class_name": "TestParameters",
+            "requires_device_map": False,
             "optimization": {
                 "memory_optimization_strategy": "Manual",
                 "attention_slicing": False,
@@ -340,17 +401,6 @@ def test_load_pipeline_baked_settings_populate_parameters(tmp_path: Path) -> Non
     assert node.get_parameter_value("vae_slicing") is True
     assert node.get_parameter_value("vae_tiling") is True
     assert node.get_parameter_value("cpu_offload_strategy") == "Model"
-
-
-def test_load_pipeline_initial_setup_restores_automatic_mode_visibility() -> None:
-    node = LoadPipelineNode(name="Load Pipeline")
-
-    node.set_parameter_value("memory_optimization_strategy", "Automatic", initial_setup=True)
-
-    for parameter_name in node.huggingface_pipeline_params.parameter_names[1:]:
-        parameter = node.get_parameter_by_name(parameter_name)
-        assert parameter is not None
-        assert parameter.ui_options["hide"] is True
 
 
 def test_load_pipeline_recipe_automatic_mode_hides_manual_optimization_parameters() -> None:

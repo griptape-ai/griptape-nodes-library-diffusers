@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
+from griptape_nodes.exe_types.core_types import NodeMessageResult, Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import NodeResolutionState, SuccessFailureNode
+from griptape_nodes.exe_types.param_types.parameter_button import ParameterButton
 from griptape_nodes.retained_mode.events.parameter_events import SetParameterValueRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
+from griptape_nodes.traits.button import Button, ButtonDetailsMessagePayload
 from griptape_nodes.utils import resolve_workspace_path
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
@@ -23,12 +27,19 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import (
     validate_pipeline_recipe_dependencies,
 )
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
+from modular_diffusion_nodes_library.nodes.load_pipeline_optimization import (
+    ReconciledOptimizationSettings,
+    reconcile_optimization_settings,
+    validated_optimization_overrides,
+)
 from modular_diffusion_nodes_library.parameters.file_path_parameter import FilePathParameter
 from modular_diffusion_nodes_library.parameters.huggingface_pipeline_parameter import HuggingFacePipelineParameter
 from modular_diffusion_nodes_library.utils.config_utils import get_workspace_path
 from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
+
+_OPTIMIZATION_OVERRIDES_PARAMETER = "_optimization_overrides"
 
 
 class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
@@ -38,7 +49,7 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         super().__init__(**kwargs)
         self._loaded_from_baked_dir = False
         self._source_pipeline: DiffusionPipelineArtifact | None = None
-        self._setting_optimization_parameters = False
+        self._is_synchronizing_optimization_parameters = False
         self._file_path_param = FilePathParameter(
             self,
             file_types=[".yaml"],
@@ -63,9 +74,168 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
         self.huggingface_pipeline_params = HuggingFacePipelineParameter(self, include_quantization=False)
         self.huggingface_pipeline_params.add_input_parameters()
-        # Start tracking only after constructor defaults have been registered.
-        self._explicit_optimization_parameters: set[str] = set()
+        self.add_parameter(
+            ParameterButton(
+                name=_OPTIMIZATION_OVERRIDES_PARAMETER,
+                default_value={},
+                label="Use Recipe Optimization Settings",
+                icon="list-restart",
+                variant="secondary",
+                full_width=True,
+                on_click=self._on_use_recipe_optimization_settings,
+                tooltip="Clear Load Pipeline overrides and use the optimization settings from the loaded recipe.",
+                hide=True,
+            )
+        )
         self._create_status_parameters()
+
+    def _optimization_parameters(self) -> dict[str, Parameter]:
+        parameters: dict[str, Parameter] = {}
+        for name in self.huggingface_pipeline_params.parameter_names:
+            parameter = self.get_parameter_by_name(name)
+            if parameter is None:
+                raise RuntimeError(f"Load Pipeline optimization parameter is missing: {name}")
+            parameters[name] = parameter
+        return parameters
+
+    def _validated_optimization_overrides(self, value: Any) -> dict[str, Any]:
+        return validated_optimization_overrides(value, self._optimization_parameters())
+
+    def _current_optimization_overrides(self) -> dict[str, Any]:
+        return self._validated_optimization_overrides(self.get_parameter_value(_OPTIMIZATION_OVERRIDES_PARAMETER))
+
+    def _store_optimization_overrides(self, overrides: dict[str, Any]) -> None:
+        super().set_parameter_value(
+            _OPTIMIZATION_OVERRIDES_PARAMETER,
+            dict(overrides),
+            emit_change=False,
+        )
+        self._update_optimization_reset_button_visibility()
+
+    def _update_optimization_reset_button_visibility(self) -> None:
+        if self._current_optimization_overrides():
+            self.show_parameter_by_name(_OPTIMIZATION_OVERRIDES_PARAMETER)
+            return
+        self.hide_parameter_by_name(_OPTIMIZATION_OVERRIDES_PARAMETER)
+
+    @contextmanager
+    def _synchronizing_optimization_parameters(self) -> Iterator[None]:
+        was_synchronizing_optimization_parameters = self._is_synchronizing_optimization_parameters
+        self._is_synchronizing_optimization_parameters = True
+        try:
+            yield
+        finally:
+            self._is_synchronizing_optimization_parameters = was_synchronizing_optimization_parameters
+
+    def _apply_reconciled_optimization_settings(self, settings: ReconciledOptimizationSettings) -> None:
+        self._store_optimization_overrides(settings.overrides)
+        with self._synchronizing_optimization_parameters():
+            for parameter_name, value in settings.displayed_values.items():
+                self.set_parameter_value(parameter_name, value)
+
+    def _report_optimization_override_error(self, error: Exception) -> None:
+        details = f"Could not restore Load Pipeline optimization overrides: {error}"
+        logger.error("%s: %s", self.name, details)
+        self._set_status_results(was_successful=False, result_details=details)
+
+    def _on_use_recipe_optimization_settings(
+        self,
+        _button: Button,
+        _details: ButtonDetailsMessagePayload,
+    ) -> NodeMessageResult:
+        if self._source_pipeline is None:
+            return NodeMessageResult(
+                success=False,
+                details="Cannot use recipe optimization settings because no pipeline recipe is loaded.",
+                altered_workflow_state=False,
+            )
+
+        try:
+            settings = reconcile_optimization_settings(
+                parameters=self._optimization_parameters(),
+                recipe_values=self._source_pipeline.optimization_kwargs,
+                overrides={},
+            )
+        except Exception as error:
+            logger.exception("%s: Failed to prepare recipe optimization settings", self.name)
+            details = f"Could not use recipe optimization settings: {error}"
+            self._set_status_results(was_successful=False, result_details=details)
+            return NodeMessageResult(success=False, details=details, altered_workflow_state=False)
+
+        try:
+            self._apply_reconciled_optimization_settings(settings)
+            self._publish_pipeline(self._effective_pipeline())
+        except Exception as error:
+            logger.exception("%s: Failed to apply recipe optimization settings", self.name)
+            details = f"Could not use recipe optimization settings: {error}"
+            self._set_status_results(was_successful=False, result_details=details)
+            return NodeMessageResult(success=False, details=details, altered_workflow_state=True)
+
+        return NodeMessageResult(
+            success=True,
+            details="",
+            altered_workflow_state=True,
+        )
+
+    def _record_user_optimization_override(self, param_name: str, value: Any) -> None:
+        overrides = self._current_optimization_overrides()
+        parameter = self.get_parameter_by_name(param_name)
+        if parameter is None:
+            raise RuntimeError(f"Load Pipeline optimization parameter is missing: {param_name}")
+        if self._source_pipeline is None:
+            overrides[param_name] = value
+        elif value == self._source_pipeline.optimization_kwargs.get(param_name, parameter.default_value):
+            overrides.pop(param_name, None)
+        else:
+            overrides[param_name] = value
+        self._store_optimization_overrides(overrides)
+
+    def _prepare_parameter_assignment(
+        self,
+        param_name: str,
+        value: Any,
+        *,
+        initial_setup: bool,
+    ) -> tuple[Any, bool]:
+        if param_name == _OPTIMIZATION_OVERRIDES_PARAMETER:
+            try:
+                return self._validated_optimization_overrides(value), True
+            except (TypeError, ValueError) as error:
+                if not initial_setup:
+                    raise
+                self._report_optimization_override_error(error)
+                return value, False
+
+        track_user_override = (
+            param_name in self.huggingface_pipeline_params.parameter_names
+            and not initial_setup
+            and not self._is_synchronizing_optimization_parameters
+        )
+        if track_user_override:
+            self._record_user_optimization_override(param_name, value)
+        return value, True
+
+    def _handle_parameter_assignment(self, param_name: str, *, initial_setup: bool) -> None:
+        if initial_setup and param_name in {"file_path", "pipeline"}:
+            self.state = NodeResolutionState.UNRESOLVED
+
+        if param_name == _OPTIMIZATION_OVERRIDES_PARAMETER:
+            self._update_optimization_reset_button_visibility()
+            if self._source_pipeline is not None:
+                try:
+                    self._reconcile_optimization_parameters(self._source_pipeline)
+                    self._publish_pipeline(self._effective_pipeline())
+                except Exception as error:
+                    self._report_optimization_override_error(error)
+
+        if (
+            initial_setup
+            and param_name == "memory_optimization_strategy"
+            and hasattr(self, "huggingface_pipeline_params")
+        ):
+            parameter = self.get_parameter_by_name(param_name)
+            if parameter is not None:
+                self.huggingface_pipeline_params.after_value_set(parameter, self.get_parameter_value(param_name))
 
     def set_parameter_value(
         self,
@@ -77,14 +247,15 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         skip_before_value_set: bool = False,
     ) -> None:
         # Restored output-only values bypass this setter, so file_path is the reliable signal to reload the manifest.
-        restoring_pipeline_source = initial_setup and param_name == "file_path"
         discard_restored_pipeline = initial_setup and param_name == "pipeline"
-        explicit_parameters = getattr(self, "_explicit_optimization_parameters", None)
-        track_explicit_value = (
-            explicit_parameters is not None
-            and param_name in self.huggingface_pipeline_params.parameter_names
-            and not self._setting_optimization_parameters
+        value, should_assign = self._prepare_parameter_assignment(
+            param_name,
+            value,
+            initial_setup=initial_setup,
         )
+        if not should_assign:
+            return
+
         super().set_parameter_value(
             param_name,
             None if discard_restored_pipeline else value,
@@ -92,24 +263,15 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             emit_change=emit_change,
             skip_before_value_set=skip_before_value_set,
         )
-        if restoring_pipeline_source or discard_restored_pipeline:
-            self.state = NodeResolutionState.UNRESOLVED
-        if track_explicit_value:
-            explicit_parameters.add(param_name)
-        if (
-            initial_setup
-            and param_name == "memory_optimization_strategy"
-            and hasattr(self, "huggingface_pipeline_params")
-        ):
-            parameter = self.get_parameter_by_name(param_name)
-            if parameter is not None:
-                self.huggingface_pipeline_params.after_value_set(parameter, self.get_parameter_value(param_name))
+        self._handle_parameter_assignment(param_name, initial_setup=initial_setup)
 
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        if parameter.name == _OPTIMIZATION_OVERRIDES_PARAMETER:
+            return
         self._file_path_param.on_after_value_set(parameter, value)
         self.huggingface_pipeline_params.after_value_set(parameter, value)
         if parameter.name in self.huggingface_pipeline_params.parameter_names:
-            if not self._setting_optimization_parameters and self._source_pipeline is not None:
+            if not self._is_synchronizing_optimization_parameters and self._source_pipeline is not None:
                 self._publish_pipeline(self._effective_pipeline())
             return
         if parameter.name != "file_path":
@@ -175,27 +337,18 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             raise RuntimeError(f"Pipeline recipe dependencies are unavailable:\n{details}")
         return pipeline
 
-    def _initialize_untouched_optimization_parameters(self, pipeline: DiffusionPipelineArtifact) -> None:
-        saved_parameters = pipeline.optimization_kwargs
-        self._setting_optimization_parameters = True
-        try:
-            for parameter_name in self.huggingface_pipeline_params.parameter_names:
-                if parameter_name in self._explicit_optimization_parameters:
-                    continue
-                parameter = self.get_parameter_by_name(parameter_name)
-                if parameter is None:
-                    raise RuntimeError(f"Load Pipeline optimization parameter is missing: {parameter_name}")
-                value = saved_parameters.get(parameter_name, parameter.default_value)
-                self.set_parameter_value(parameter_name, value, emit_change=False)
-        finally:
-            self._setting_optimization_parameters = False
+    def _reconcile_optimization_parameters(self, pipeline: DiffusionPipelineArtifact) -> None:
+        settings = reconcile_optimization_settings(
+            parameters=self._optimization_parameters(),
+            recipe_values=pipeline.optimization_kwargs,
+            overrides=self._current_optimization_overrides(),
+        )
+        self._apply_reconciled_optimization_settings(settings)
 
     def _effective_pipeline(self) -> DiffusionPipelineArtifact:
         if self._source_pipeline is None:
             raise RuntimeError("No pipeline source has been loaded.")
-        return self._source_pipeline.with_optimization_overrides(
-            self.huggingface_pipeline_params.get_hf_pipeline_parameters()
-        )
+        return self._source_pipeline.with_optimization_overrides(self._current_optimization_overrides())
 
     def _clear_pipeline_output(self) -> None:
         self._source_pipeline = None
@@ -229,7 +382,7 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             return
 
         try:
-            self._initialize_untouched_optimization_parameters(pipeline)
+            self._reconcile_optimization_parameters(pipeline)
             self._source_pipeline = pipeline
             pipeline = self._effective_pipeline()
             self._publish_pipeline(pipeline)
@@ -248,7 +401,7 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         def load() -> DiffusionPipelineArtifact:
             self._source_pipeline = None
             source_pipeline = self._load_pipeline_from_path()
-            self._initialize_untouched_optimization_parameters(source_pipeline)
+            self._reconcile_optimization_parameters(source_pipeline)
             self._source_pipeline = source_pipeline
             pipeline = self._effective_pipeline()
             self._publish_pipeline(pipeline)

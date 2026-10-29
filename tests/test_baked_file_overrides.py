@@ -573,7 +573,11 @@ def test_build_pipeline_from_baked_passes_gguf_module_to_from_pretrained(
 
     monkeypatch.setattr(ModelComponentArtifact, "materialize", lambda self, **kwargs: sentinel)
     ModularDiffusionPipelineTypePipelineParameters._build_pipeline_from_baked(
-        {**loaded.build_data, "_pipeline_cls": DummyPipeline},
+        {
+            **loaded.build_data,
+            "_baked_requires_device_map": loaded.requires_device_map,
+            "_pipeline_cls": DummyPipeline,
+        },
         pipeline_cls=DummyPipeline,
     )
     assert captured["transformer"] is sentinel
