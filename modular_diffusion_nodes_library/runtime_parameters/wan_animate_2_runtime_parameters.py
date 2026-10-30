@@ -1,5 +1,5 @@
 import logging
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.exe_types.node_types import BaseNode
@@ -26,16 +26,22 @@ class WanAnimate2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
 
     There are no height, width or frame-count parameters: the input latent owns the geometry, and the
     driver stretches the reference image and the driving video to it.
+
+    Serves both checkpoints. The distilled one only changes the defaults (from its diffusers blocks and
+    guider config), so they are read from `is_distilled` in the build data, as `LTX2PipelineRuntimeParameters`
+    does.
     """
 
     CONDITIONING_CONFIG: ClassVar[MediaGenConditioningConfig | None] = None
 
-    #: Defaults from the diffusers blocks (`num_inference_steps`) and the guider's config (`guidance_scale`).
-    _DEFAULT_NUM_INFERENCE_STEPS: ClassVar[int] = 40
-    _DEFAULT_GUIDANCE_SCALE: ClassVar[float] = 3.0
-
-    def __init__(self, node: BaseNode):
+    def __init__(self, node: BaseNode, pipeline_metadata: dict[str, Any]):
         super().__init__(node)
+        self._pipeline_metadata = pipeline_metadata
+
+    @property
+    def _is_distilled(self) -> bool:
+        build_data = self._pipeline_metadata.get("build_data", {})
+        return build_data.get("is_distilled", False)
 
     def add_input_parameters(self) -> None:
         # Overridden only to change the num_inference_steps default, which the base hard-codes.
@@ -43,7 +49,7 @@ class WanAnimate2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         self._node.add_parameter(
             Parameter(
                 name="num_inference_steps",
-                default_value=self._DEFAULT_NUM_INFERENCE_STEPS,
+                default_value=10 if self._is_distilled else 40,
                 type="int",
                 tooltip="The number of denoising steps. More denoising steps usually lead to a higher quality video at the expense of slower inference.",
             )
@@ -79,7 +85,7 @@ class WanAnimate2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         self._node.add_parameter(
             Parameter(
                 name="guidance_scale",
-                default_value=self._DEFAULT_GUIDANCE_SCALE,
+                default_value=1.0 if self._is_distilled else 3.0,
                 type="float",
                 tooltip="Classifier-Free Guidance scale. Higher values steer generation more strongly toward the prompt. 1.0 disables guidance and runs only one model pass per step.",
             )
@@ -234,10 +240,3 @@ class WanAnimate2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             )
 
         return errors or None
-
-
-class WanAnimate2DistilledPipelineRuntimeParameters(WanAnimate2PipelineRuntimeParameters):
-    """Runtime surface for the distilled WAN Animate 2 checkpoint: few steps, no classifier-free guidance."""
-
-    _DEFAULT_NUM_INFERENCE_STEPS: ClassVar[int] = 10
-    _DEFAULT_GUIDANCE_SCALE: ClassVar[float] = 1.0

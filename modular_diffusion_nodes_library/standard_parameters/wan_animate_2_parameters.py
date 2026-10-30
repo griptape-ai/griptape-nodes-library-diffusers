@@ -22,11 +22,21 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 class WanAnimate2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls_path = "diffusers.modular_pipelines.wan_animate_2.modular_pipeline:WanAnimate2ModularPipeline"
     _component_slots: ClassVar[list[str]] = []
-    _repo_ids: ClassVar[list[str]] = ["Wan-AI/Wan2.2-Animate-2-14B-Diffusers"]
+    _repo_ids: ClassVar[list[str]] = [
+        "Wan-AI/Wan2.2-Animate-2-14B-Diffusers",
+        "Wan-AI/Wan2.2-Animate-2-14B-Distilled-Diffusers",
+    ]
+
+    @property
+    def pipeline_name(self) -> str:
+        # One pipeline type for both checkpoints. The distilled repo loads as the
+        # `WanAnimate2DistilledModularPipeline` subclass, which only changes block defaults; the runtime
+        # parameters read `is_distilled` from the build data instead.
+        return "WanAnimate2Pipeline"
 
     @classmethod
     def supports_build_from_overrides_only(cls) -> bool:
-        """WanAnimate2ModularPipeline does not support overrides."""
+        """WanAnimate2Pipeline does not support overrides."""
         return False
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
@@ -61,6 +71,7 @@ class WanAnimate2PipelineParameters(ModularDiffusionPipelineTypePipelineParamete
         return {
             "repo_id": repo_id,
             "revision": revision,
+            "is_distilled": "distilled" in repo_id.lower(),
         }
 
     def requires_device_map(self) -> bool:
@@ -102,10 +113,3 @@ class WanAnimate2PipelineParameters(ModularDiffusionPipelineTypePipelineParamete
         pipe.load_components(dtype=torch.bfloat16)
         manager.enable_auto_cpu_offload(device=get_best_device())
         return pipe  # type: ignore[reportReturnType]
-
-
-class WanAnimate2DistilledPipelineParameters(WanAnimate2PipelineParameters):
-    _pipeline_cls_path = (
-        "diffusers.modular_pipelines.wan_animate_2.modular_pipeline:WanAnimate2DistilledModularPipeline"
-    )
-    _repo_ids: ClassVar[list[str]] = ["Wan-AI/Wan2.2-Animate-2-14B-Distilled-Diffusers"]

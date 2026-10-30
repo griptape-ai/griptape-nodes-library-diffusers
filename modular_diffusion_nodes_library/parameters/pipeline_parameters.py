@@ -16,6 +16,9 @@ from modular_diffusion_nodes_library.runtime_parameters.runtime_parameters impor
     DiffusionPipelineRuntimeParameters,
 )
 from modular_diffusion_nodes_library.runtime_parameters.runtime_params_registry import get_runtime_params_class
+from modular_diffusion_nodes_library.runtime_parameters.wan_animate_2_runtime_parameters import (
+    WanAnimate2PipelineRuntimeParameters,
+)
 
 if TYPE_CHECKING:
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
@@ -49,6 +52,10 @@ class ModularDiffusionPipelineParameters:
         # Special case: LTX2 runtime-param class takes more than (node,) — it needs the artifact's metadata.
         if runtime_cls is LTX2PipelineRuntimeParameters:
             self._runtime_parameters = LTX2PipelineRuntimeParameters(self._node, pipeline_artifact.metadata)
+            return
+        # Same for WAN Animate 2: its defaults depend on `is_distilled` in the build data.
+        if runtime_cls is WanAnimate2PipelineRuntimeParameters:
+            self._runtime_parameters = WanAnimate2PipelineRuntimeParameters(self._node, pipeline_artifact.metadata)
             return
         self._runtime_parameters = runtime_cls(self._node)
 
