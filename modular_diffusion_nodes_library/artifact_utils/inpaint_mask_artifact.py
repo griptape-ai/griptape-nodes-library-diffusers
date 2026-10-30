@@ -10,8 +10,9 @@ This artifact carries:
 - the masked-image latent,
 - the inpaint denoising ``strength``.
 
-This artifact is intentionally NOT serializable as it holds large runtime
-data (PIL images, tensors).
+The latents are large runtime data and never leave the process that encoded
+them. An artifact without latents, such as the typed placeholder the encode
+node seeds its output with, travels between processes as data.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from griptape.artifacts import ImageArtifact, ImageUrlArtifact
 from griptape.artifacts.blob_artifact import BlobArtifact
+from griptape_nodes.serialization.values import ValueEncodeError, register_value_codec
 
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
@@ -31,6 +33,7 @@ if TYPE_CHECKING:
 SourceImageInput = ImageArtifact | ImageUrlArtifact | None
 
 
+@register_value_codec
 class InpaintMaskArtifact(BlobArtifact):
     """Bundles a mask image, source/masked latents and denoising strength."""
 
@@ -123,6 +126,45 @@ class InpaintMaskArtifact(BlobArtifact):
         if device is None and dtype is None:
             return tensor
         return tensor.to(device=device, dtype=dtype)
+
+    # ------------------------------------------------------------------
+    # Crossing a process boundary.
+    #
+    # The engine encodes every parameter value it sends to a worker, including the
+    # placeholder on the encode node's output. `register_value_codec` makes `to_state`
+    # and `from_state` that codec, in place of griptape's `to_dict`.
+    # ------------------------------------------------------------------
+
+    def to_state(self) -> dict[str, Any]:
+        if self._source_latent is not None or self._masked_latent is not None:
+            msg = (
+                f"Attempted to send {self!r} to another process. Failed because its latents are held in "
+                "the process that encoded them and cannot be sent as data."
+            )
+            raise ValueEncodeError(msg)
+
+        return {
+            "mask_mode": self._mask_image.mode,
+            "mask_size": list(self._mask_image.size),
+            "mask_bytes": self._mask_image.tobytes(),
+            "source_image": self._source_image_artifact,
+            "source_shape": list(self._source_shape),
+            "strength": self._strength,
+            "meta": self.meta,
+        }
+
+    @classmethod
+    def from_state(cls, state: dict[str, Any]) -> InpaintMaskArtifact:
+        from PIL import Image as PILImage  # type: ignore[reportMissingImports]
+
+        mask_image = PILImage.frombytes(state["mask_mode"], tuple(state["mask_size"]), state["mask_bytes"])
+        return cls(
+            mask_image=mask_image,
+            source_image=state["source_image"],
+            source_shape=tuple(state["source_shape"]),
+            strength=state["strength"],
+            meta=state["meta"],
+        )
 
     def __repr__(self) -> str:
         size_str = f"{self._mask_image.size[0]}x{self._mask_image.size[1]}" if self._mask_image else "None"

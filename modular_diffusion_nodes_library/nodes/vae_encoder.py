@@ -25,6 +25,7 @@ from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimen
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
+from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 from modular_diffusion_nodes_library.utils.video_utils import load_video_frames_from_url_artifact
 
 if TYPE_CHECKING:
@@ -213,7 +214,11 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
     def process(self) -> AsyncResult:
         self._clear_execution_status()
         yield lambda: self._run_with_status(
-            self._encode, success_msg="Encoded successfully.", failure_log="VAE encode failed", logger=logger
+            self._encode,
+            success_msg="Encoded successfully.",
+            failure_log="VAE encode failed",
+            logger=logger,
+            on_error=cleanup_memory_caches,
         )
 
     def _encode(self) -> None:
@@ -221,6 +226,7 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
             self.convert_video_to_latent()
         else:
             self.convert_image_to_latent()
+        cleanup_memory_caches()
 
     def convert_image_to_latent(self) -> None:
         from PIL.Image import Resampling

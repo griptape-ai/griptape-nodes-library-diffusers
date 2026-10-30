@@ -24,6 +24,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     PipelineOutput,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
     MediaGenConditioningPayload,
     normalize_to_payloads,
@@ -204,6 +205,7 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
     ``_prepare_input_latent`` / ``prepare_output_latent``.
     """
 
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.VIDEO_DIT_JOINT_SDPA
     produces_video: ClassVar[bool] = True
     video_fps: ClassVar[int] = 25
 

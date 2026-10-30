@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, ClassVar, override
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
@@ -12,6 +12,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     MaskMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult
 
 if TYPE_CHECKING:
@@ -24,6 +25,8 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
+
     def __init__(self, pipe: DiffusionPipeline):
         super().__init__(pipe)
 
