@@ -19,6 +19,7 @@ from unittest.mock import patch
 import pytest
 
 pytest.importorskip("torch", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("diffusers", reason="Uses real Diffusers components; run in the execution environment.")
 
 import torch  # noqa: E402
 from diffusers.models.controlnets.controlnet import ControlNetModel  # noqa: E402

@@ -19,8 +19,10 @@ from typing import Any, cast
 import pytest
 
 pytest.importorskip("torch", reason="Uses execution dependencies; run in the execution environment.")
+pytest.importorskip("safetensors", reason="Memory estimation imports execution dependencies.")
 
 from modular_diffusion_nodes_library.memory_estimation.family_registry import (  # noqa: E402
+    _adapt_flux3,
     _adapt_flux_family,
     _adapt_hunyuan_video15,
     _adapt_ltx_family,
@@ -46,6 +48,19 @@ def test_adapt_flux_family_reads_flux_field_names() -> None:
 
     assert fields.hidden_dim == 24 * 128
     assert fields.num_layers == 19 + 38
+    assert fields.patch_size_spatial == 2
+    assert fields.patch_size_temporal == 1
+
+
+def test_adapt_flux3_reads_flux3_field_names_and_patchifies_latents() -> None:
+    pipe = _pipe_with_transformer_config(
+        num_attention_heads=24, attention_head_dim=128, num_layers=5, num_single_layers=28
+    )
+
+    fields = _adapt_flux3(pipe)
+
+    assert fields.hidden_dim == 24 * 128
+    assert fields.num_layers == 5 + 28
     assert fields.patch_size_spatial == 2
     assert fields.patch_size_temporal == 1
 

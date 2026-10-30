@@ -38,7 +38,6 @@ from modular_diffusion_nodes_library.parameters.media_gen_conditioning.condition
 )
 from modular_diffusion_nodes_library.utils.conditioning_utils import ConditioningMode
 
-
 # 49 frames at 1280x720 through a WAN VAE: 13 latent frames, 45x80 latent grid.
 _LATENT_FRAMES = 13
 _LATENT_HEIGHT = 45
