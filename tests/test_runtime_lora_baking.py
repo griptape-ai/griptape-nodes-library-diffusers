@@ -435,7 +435,6 @@ def test_runtime_lora_is_allowed_with_gguf_denoiser(tmp_path: Path) -> None:
     gguf = tmp_path / "transformer.gguf"
     gguf.write_bytes(b"GGUF")
     override = ModelComponentArtifact(
-        load_id="gguf",
         source_type=ComponentSourceType.SINGLE_FILE,
         component="transformer",
         file_path=str(gguf),

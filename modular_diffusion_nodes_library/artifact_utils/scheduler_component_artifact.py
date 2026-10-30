@@ -17,6 +17,7 @@ from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
     require_string,
     resolve_recipe_value,
 )
+from modular_diffusion_nodes_library.component_loading.component_slots import SCHEDULER_CONFIG_FILENAME
 
 
 @dataclass(frozen=True)
@@ -39,9 +40,28 @@ class SchedulerComponentArtifact(ComponentArtifact):
         return {
             **self._base_recipe_dict(),
             "scheduler_class": self.scheduler_class,
-            "config_source": recipe_safe(self.config_source),
+            "config_source": recipe_safe(self._config_source_for_recipe()),
             "repo_ref": self.repo_ref.to_recipe_dict() if self.repo_ref else None,
             "text_config": recipe_safe(self.text_config),
+        }
+
+    def _config_source_for_recipe(self) -> str | None:
+        if self.config_source is None:
+            return None
+        config_path = Path(self.config_source)
+        if not config_path.is_dir():
+            return self.config_source
+        config_file = config_path / SCHEDULER_CONFIG_FILENAME
+        return str(config_file) if config_file.is_file() else self.config_source
+
+    @override
+    def _identity_payload(self) -> dict[str, Any]:
+        return {
+            **super()._identity_payload(),
+            "scheduler_class": self.scheduler_class,
+            "config_source": self._config_source_for_recipe(),
+            "repo_ref": self.repo_ref.to_recipe_dict() if self.repo_ref else None,
+            "text_config": self.text_config,
         }
 
     @classmethod
@@ -113,13 +133,13 @@ class SchedulerComponentArtifact(ComponentArtifact):
         if path.is_file():
             config_file = path
         elif path.is_dir():
-            config_file = path / "scheduler_config.json"
+            config_file = path / SCHEDULER_CONFIG_FILENAME
         else:
             msg = f"Scheduler config source '{self.config_source}' is not an existing file or directory."
             raise FileNotFoundError(msg)
 
         if not config_file.is_file():
-            msg = f"No 'scheduler_config.json' found at scheduler config source '{self.config_source}'."
+            msg = f"No '{SCHEDULER_CONFIG_FILENAME}' found at scheduler config source '{self.config_source}'."
             raise FileNotFoundError(msg)
 
         with config_file.open(encoding="utf-8") as f:

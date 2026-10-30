@@ -410,7 +410,6 @@ def test_edited_recipe_build_inputs_change_cache_identity(path: tuple[str, ...],
 
 def test_edited_component_override_changes_cache_identity() -> None:
     override = ModelComponentArtifact(
-        load_id="override-id",
         source_type=ComponentSourceType.HF_REPO,
         component="unet",
         repo_ref=HFRepoRef(repo_id="org/original", revision="revision-a", subfolder="unet"),
@@ -433,7 +432,6 @@ def test_edited_component_override_changes_cache_identity() -> None:
 def test_component_override_mapping_order_does_not_change_cache_identity() -> None:
     def cache_identity(text_config: dict[str, int]) -> str | None:
         override = SchedulerComponentArtifact(
-            load_id="scheduler-override",
             source_type=ComponentSourceType.RAW_CONFIG,
             component="scheduler",
             scheduler_class="TestScheduler",
@@ -557,20 +555,23 @@ def test_pipeline_artifact_with_optimization_overrides_updates_cache_identity() 
 
 def test_component_artifact_recipe_dict_round_trips_directly() -> None:
     override = ModelComponentArtifact(
-        load_id="override-id",
         source_type=ComponentSourceType.HF_REPO,
         component="unet",
         repo_ref=HFRepoRef(repo_id="org/model", revision="commit-hash", subfolder="unet"),
     )
 
-    assert ComponentArtifact.from_recipe_dict(override.to_recipe_dict()) == override
+    recipe = override.to_recipe_dict()
+    loaded = ComponentArtifact.from_recipe_dict(recipe)
+
+    assert "load_id" not in recipe
+    assert loaded == override
+    assert loaded.load_id == override.load_id
 
 
 def test_component_artifact_recipe_normalizes_local_config_directory(tmp_path) -> None:
     config_file = tmp_path / "config.json"
     config_file.write_text("{}\n", encoding="utf-8")
     override = ModelComponentArtifact(
-        load_id="override-id",
         source_type=ComponentSourceType.SINGLE_FILE,
         component="unet",
         file_path="/models/unet.gguf",
@@ -578,8 +579,92 @@ def test_component_artifact_recipe_normalizes_local_config_directory(tmp_path) -
     )
 
     recipe = override.to_recipe_dict()
+    file_override = ModelComponentArtifact(
+        source_type=ComponentSourceType.SINGLE_FILE,
+        component="unet",
+        file_path="/models/unet.gguf",
+        config_source=str(config_file),
+    )
 
     assert recipe["config_source"] == str(config_file)
+    assert override.load_id == file_override.load_id
+
+
+def test_component_artifact_identity_includes_materialization_fields() -> None:
+    base = ModelComponentArtifact(
+        source_type=ComponentSourceType.HF_REPO,
+        component="unet",
+        torch_dtype="bfloat16",
+        repo_ref=HFRepoRef(repo_id="org/model", revision="revision-a", subfolder="unet"),
+    )
+    variants = [
+        ModelComponentArtifact(
+            source_type=ComponentSourceType.HF_REPO,
+            component="transformer",
+            torch_dtype="bfloat16",
+            repo_ref=base.repo_ref,
+        ),
+        ModelComponentArtifact(
+            source_type=ComponentSourceType.HF_REPO,
+            component="unet",
+            torch_dtype="float16",
+            repo_ref=base.repo_ref,
+        ),
+        TextEncoderComponentArtifact(
+            source_type=ComponentSourceType.HF_REPO,
+            component="unet",
+            torch_dtype="bfloat16",
+            repo_ref=base.repo_ref,
+        ),
+        ModelComponentArtifact(
+            source_type=ComponentSourceType.HF_REPO,
+            component="unet",
+            torch_dtype="bfloat16",
+            repo_ref=HFRepoRef(repo_id="org/model", revision="revision-b", subfolder="unet"),
+        ),
+    ]
+
+    assert len({base.load_id, *(variant.load_id for variant in variants)}) == len(variants) + 1
+
+
+def test_scheduler_component_identity_is_canonical(tmp_path) -> None:
+    config_file = tmp_path / "scheduler_config.json"
+    config_file.write_text("{}\n", encoding="utf-8")
+    original = SchedulerComponentArtifact(
+        source_type=ComponentSourceType.RAW_CONFIG,
+        component="scheduler",
+        scheduler_class="TestScheduler",
+        text_config={"alpha": 1, "nested": {"beta": 2, "gamma": 3}},
+    )
+    reordered = SchedulerComponentArtifact(
+        source_type=ComponentSourceType.RAW_CONFIG,
+        component="scheduler",
+        scheduler_class="TestScheduler",
+        text_config={"nested": {"gamma": 3, "beta": 2}, "alpha": 1},
+    )
+    edited = SchedulerComponentArtifact(
+        source_type=ComponentSourceType.RAW_CONFIG,
+        component="scheduler",
+        scheduler_class="TestScheduler",
+        text_config={"alpha": 1, "nested": {"beta": 2, "gamma": 4}},
+    )
+    directory = SchedulerComponentArtifact(
+        source_type=ComponentSourceType.LOCAL_DIR,
+        component="scheduler",
+        scheduler_class="TestScheduler",
+        config_source=str(tmp_path),
+    )
+    file = SchedulerComponentArtifact(
+        source_type=ComponentSourceType.LOCAL_DIR,
+        component="scheduler",
+        scheduler_class="TestScheduler",
+        config_source=str(config_file),
+    )
+
+    assert original.load_id == reordered.load_id
+    assert original.load_id != edited.load_id
+    assert directory.load_id == file.load_id
+    assert directory.to_recipe_dict()["config_source"] == str(config_file)
 
 
 def test_component_artifact_recipe_preserves_config_repo_id(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -594,7 +679,6 @@ def test_component_artifact_recipe_preserves_config_repo_id(monkeypatch: pytest.
         record_mapped_path,
     )
     override = ModelComponentArtifact(
-        load_id="override-id",
         source_type=ComponentSourceType.SINGLE_FILE,
         component="unet",
         file_path="/models/unet.gguf",
@@ -607,7 +691,6 @@ def test_component_artifact_recipe_preserves_config_repo_id(monkeypatch: pytest.
 
 def test_deserialize_pipeline_artifact_round_trips_component_overrides() -> None:
     override = ModelComponentArtifact(
-        load_id="override-id",
         source_type=ComponentSourceType.HF_REPO,
         component="unet",
         repo_ref=HFRepoRef(repo_id="org/model", revision="commit-hash", subfolder="unet"),
@@ -632,7 +715,6 @@ def test_deserialize_pipeline_artifact_round_trips_component_overrides() -> None
         pytest.param(
             "transformer",
             ModelComponentArtifact(
-                load_id="model-override",
                 source_type=ComponentSourceType.HF_REPO,
                 component="transformer",
                 repo_ref=HFRepoRef(repo_id="org/model", revision="model-revision", subfolder="transformer"),
@@ -642,7 +724,6 @@ def test_deserialize_pipeline_artifact_round_trips_component_overrides() -> None
         pytest.param(
             "text_encoder",
             TextEncoderComponentArtifact(
-                load_id="text-encoder-override",
                 source_type=ComponentSourceType.SINGLE_FILE,
                 component="text_encoder",
                 file_path="/models/text-encoder.gguf",
@@ -653,7 +734,6 @@ def test_deserialize_pipeline_artifact_round_trips_component_overrides() -> None
         pytest.param(
             "tokenizer",
             TokenizerComponentArtifact(
-                load_id="tokenizer-override",
                 source_type=ComponentSourceType.LOCAL_DIR,
                 component="tokenizer",
                 file_path="/models/tokenizer",
@@ -663,7 +743,6 @@ def test_deserialize_pipeline_artifact_round_trips_component_overrides() -> None
         pytest.param(
             "scheduler",
             SchedulerComponentArtifact(
-                load_id="scheduler-override",
                 source_type=ComponentSourceType.RAW_CONFIG,
                 component="scheduler",
                 scheduler_class="FlowMatchEulerDiscreteScheduler",
@@ -773,7 +852,6 @@ def test_validate_pipeline_recipe_dependencies_checks_base_repo_revision(monkeyp
 )
 def test_loaded_summary_describes_scheduler_override(scheduler_kwargs, expected_lines) -> None:
     scheduler = SchedulerComponentArtifact(
-        load_id="scheduler-load-id",
         component="scheduler",
         scheduler_class="FlowMatchEulerDiscreteScheduler",
         **scheduler_kwargs,
@@ -817,7 +895,6 @@ def test_overrides_only_pipeline_saves_and_rebuilds_with_builder_class() -> None
     pytest.importorskip("diffusers", reason="requires Diffusers to materialize the scheduler")
 
     scheduler = SchedulerComponentArtifact(
-        load_id="scheduler-load-id",
         source_type=ComponentSourceType.RAW_CONFIG,
         component="scheduler",
         scheduler_class="FlowMatchEulerDiscreteScheduler",

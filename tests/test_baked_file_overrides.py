@@ -148,7 +148,6 @@ class _IndexLastPipe:
 
 def _gguf_override(path: Path, slot: str = "transformer") -> ModelComponentArtifact:
     return ModelComponentArtifact(
-        load_id="gguf",
         source_type=ComponentSourceType.SINGLE_FILE,
         component=slot,
         torch_dtype="bfloat16",
@@ -197,7 +196,6 @@ def test_bake_noops_gguf_save_copies_file_and_records_override(tmp_path: Path) -
 def test_bake_round_trips_gguf_text_encoder_override(tmp_path: Path) -> None:
     src = _write_dummy_gguf(tmp_path / "src", "text-encoder.gguf")
     override = TextEncoderComponentArtifact(
-        load_id="text-encoder-gguf",
         source_type=ComponentSourceType.SINGLE_FILE,
         component="text_encoder",
         torch_dtype="bfloat16",
@@ -233,7 +231,6 @@ def test_bake_preserves_explicit_text_encoder_config_filename(tmp_path: Path) ->
     custom_config = src.parent / "text_encoder.json"
     custom_config.write_text('{"marker": "explicit"}\n', encoding="utf-8")
     override = TextEncoderComponentArtifact(
-        load_id="text-encoder-gguf",
         source_type=ComponentSourceType.SINGLE_FILE,
         component="text_encoder",
         torch_dtype="bfloat16",
@@ -290,7 +287,6 @@ def test_text_encoder_single_file_loads_explicit_config_before_transformers(
         lambda pipeline_cls, slot: _TextEncoder,
     )
     override = TextEncoderComponentArtifact(
-        load_id="text-encoder-gguf",
         source_type=ComponentSourceType.SINGLE_FILE,
         component="text_encoder",
         torch_dtype="bfloat16",
@@ -307,9 +303,7 @@ def test_text_encoder_single_file_loads_explicit_config_before_transformers(
     assert captured["kwargs"]["config"].hidden_size == 32
 
 
-def test_text_encoder_fallback_loads_explicit_config_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_text_encoder_fallback_loads_explicit_config_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     src = _write_dummy_gguf(tmp_path / "src", "text-encoder.gguf")
     custom_config = src.parent / "text_encoder.json"
     CLIPTextConfig(
@@ -368,7 +362,6 @@ def test_text_encoder_fallback_loads_explicit_config_file(
         _align_state,
     )
     override = TextEncoderComponentArtifact(
-        load_id="text-encoder-gguf",
         source_type=ComponentSourceType.SINGLE_FILE,
         component="text_encoder",
         torch_dtype="bfloat16",
@@ -393,7 +386,6 @@ def test_text_encoder_fallback_loads_explicit_config_file(
 def test_bake_rejects_missing_explicit_config_instead_of_using_sibling(tmp_path: Path) -> None:
     src = _write_dummy_gguf(tmp_path / "src")
     override = ModelComponentArtifact(
-        load_id="gguf",
         source_type=ComponentSourceType.SINGLE_FILE,
         component="transformer",
         torch_dtype="bfloat16",
@@ -420,7 +412,6 @@ def test_bake_rejects_explicit_config_directory_without_component_config(tmp_pat
     config_dir = tmp_path / "configs"
     config_dir.mkdir()
     override = ModelComponentArtifact(
-        load_id="gguf",
         source_type=ComponentSourceType.SINGLE_FILE,
         component="transformer",
         torch_dtype="bfloat16",
@@ -445,7 +436,6 @@ def test_bake_rejects_explicit_config_directory_without_component_config(tmp_pat
 def test_bake_preserves_hf_repo_config_source_without_copying_sibling(tmp_path: Path) -> None:
     src = _write_dummy_gguf(tmp_path / "src")
     override = ModelComponentArtifact(
-        load_id="gguf",
         source_type=ComponentSourceType.SINGLE_FILE,
         component="transformer",
         torch_dtype="bfloat16",
@@ -479,7 +469,6 @@ def _bake_with_explicit_config_file(tmp_path: Path) -> Path:
     custom_config = weights_dir / "transformer.json"
     custom_config.write_text('{"marker": 1}\n', encoding="utf-8")
     override = ModelComponentArtifact(
-        load_id="gguf",
         source_type=ComponentSourceType.SINGLE_FILE,
         component="transformer",
         torch_dtype="bfloat16",
@@ -504,9 +493,7 @@ def test_bake_preserves_explicit_config_filename(tmp_path: Path) -> None:
     baked_config = dest / "transformer" / "transformer.json"
     assert json.loads(baked_config.read_text(encoding="utf-8")) == {"marker": 1}
     assert not (dest / "transformer" / "config.json").exists()
-    recorded = yaml.safe_load((dest / "baked-config.yaml").read_text(encoding="utf-8"))["file_overrides"][
-        "transformer"
-    ]
+    recorded = yaml.safe_load((dest / "baked-config.yaml").read_text(encoding="utf-8"))["file_overrides"]["transformer"]
     assert recorded["config_source"] == "transformer/transformer.json"
 
 
