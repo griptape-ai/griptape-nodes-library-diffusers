@@ -129,7 +129,7 @@ def _trace_input_shapes(
                 source_shape[-1],
                 vae_scale_factor=vae.spatial_compression_ratio,
             )
-    elif isinstance(vae, AutoencoderKLFlux2):
+    elif isinstance(vae, AutoencoderKLFlux2) and vae_latents.shape[1] == vae.config["latent_channels"] * 4:
         vae_latents = Flux2DecodeStep._unpatchify_latents(vae_latents)
 
     return tuple(source.shape), tuple(vae_latents.shape)

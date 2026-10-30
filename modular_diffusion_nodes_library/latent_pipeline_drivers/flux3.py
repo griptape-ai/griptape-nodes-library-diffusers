@@ -14,6 +14,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
     read_driver_meta,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
     MediaGenConditioningPayload,
     normalize_to_payloads,
@@ -171,6 +172,7 @@ def _make_callback_denoise_step(
 
 
 class Flux3LatentPipelineDriver(LatentPipelineDriver):
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
     _DEFAULT_NUM_INFERENCE_STEPS: ClassVar[int] = 50
     _is_distilled: ClassVar[bool] = False
 
