@@ -105,9 +105,10 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         return self._validated_optimization_overrides(self.get_parameter_value(_OPTIMIZATION_OVERRIDES_PARAMETER))
 
     def _store_optimization_overrides(self, overrides: dict[str, Any]) -> None:
+        validated_overrides = self._validated_optimization_overrides(overrides)
         super().set_parameter_value(
             _OPTIMIZATION_OVERRIDES_PARAMETER,
-            dict(overrides),
+            validated_overrides,
             emit_change=False,
         )
         self._update_optimization_reset_button_visibility()
