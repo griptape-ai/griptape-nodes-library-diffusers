@@ -1,6 +1,8 @@
 from pathlib import Path
 from unittest.mock import Mock
 
+import pytest
+
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import (
     deserialize_pipeline_artifact,
@@ -116,6 +118,37 @@ def test_load_pipeline_parameter_change_publishes_effective_pipeline() -> None:
     }
     assert effective_pipeline.config_hash != source_pipeline.config_hash
     assert source_pipeline.optimization_kwargs["vae_slicing"] is False
+
+
+def test_invalid_optimization_edit_does_not_poison_override_state() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    node._source_pipeline = _pipeline_with_optimization()
+    node._publish_pipeline = Mock()
+
+    node.set_parameter_value("vae_slicing", True)
+
+    assert node.get_parameter_value("_optimization_overrides") == {
+        "vae_slicing": True,
+    }
+
+    node._publish_pipeline.reset_mock()
+
+    with pytest.raises(ValueError, match="cpu_offload_strategy.*invalid"):
+        node.set_parameter_value("cpu_offload_strategy", "invalid")
+
+    assert node.get_parameter_value("_optimization_overrides") == {
+        "vae_slicing": True,
+    }
+    assert node.get_parameter_value("cpu_offload_strategy") == "None"
+    node._publish_pipeline.assert_not_called()
+
+    node.set_parameter_value("attention_slicing", True)
+
+    assert node.get_parameter_value("_optimization_overrides") == {
+        "vae_slicing": True,
+        "attention_slicing": True,
+    }
+    node._publish_pipeline.assert_called_once()
 
 
 def test_load_pipeline_clears_output_when_path_preparation_fails() -> None:
