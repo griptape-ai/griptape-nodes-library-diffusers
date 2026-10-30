@@ -138,14 +138,32 @@ engine's registered-libraries config is not consulted.
 
 1. **Submit a pull request** against the `main` branch of this repository. Describe your changes clearly in the PR description.
 
+## Changelog
+
+[`CHANGELOG.md`](CHANGELOG.md) follows [Keep a Changelog 2.0.0](https://keepachangelog.com/en/2.0.0/), with one section per `library_version`.
+
+A PR with a user-facing change does not edit `CHANGELOG.md`. It adds one file to [`changelog.d/`](changelog.d/README.md), named `<type>-<slug>.md` for one of `added`, `changed`, `deprecated`, `removed`, `fixed`, or `security`. The whole file is the bullet, with no heading above it. One entry per file keeps PRs from conflicting. `make changelog` prints the `[Unreleased]` section with every entry file folded in.
+
+Write for the person updating the library: which node changed, what they will notice, and why. Link the GitHub issue on the entry's last line when there is one. Start breaking changes, anything that makes a saved workflow stop working or give a different result, with `**Breaking:**`. Refactors, tests, CI, and docs-only changes get no entry. The full style guide is in [CLAUDE.md](CLAUDE.md#changelog).
+
+`make check/changelog`, part of `make check` and CI, validates the structure of `CHANGELOG.md` and of every entry file. It never requires a PR to add an entry. That call stays with people.
+
 ## Making a Release (Maintainers)
 
 1. Bump the version in `pyproject.toml` and in the `metadata.library_version` field of `griptape-nodes-library.json`.
 
+1. Fold the `changelog.d/` entries into a `CHANGELOG.md` section for the new version:
+
+    ```shell
+    uv run --no-project python scripts/changelog.py roll X.Y.Z --allow-empty
+    ```
+
+    `make version/patch`, `make version/minor`, `make version/major`, `make version/set v=X.Y.Z`, and the Version Bump workflows do this for you, set `library_version`, and commit both, but leave `pyproject.toml` as it was.
+
 1. Commit and push:
 
     ```shell
-    git add pyproject.toml griptape-nodes-library.json
+    git add pyproject.toml griptape-nodes-library.json CHANGELOG.md changelog.d
     git commit -m "chore: bump griptape-nodes-library-modular-diffusion to vX.Y.Z"
     git push origin main
     ```
