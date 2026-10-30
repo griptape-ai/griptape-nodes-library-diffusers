@@ -109,7 +109,8 @@ class _Flux3ModularPipelineParameters(ModularDiffusionPipelineTypePipelineParame
             build_data["prompt_upsampler_revision"] = upsampler_revision
         return build_data
 
-    def requires_device_map(self) -> bool:
+    @classmethod
+    def requires_device_map(cls) -> bool:
         # Used here as an opt-out from post-hoc pipeline optimization, not literally to request an
         # accelerate device_map. Flux3 is a ModularPipeline, on which
         # `optimize_diffusion_pipeline` would call `.to(device)` (a guaranteed OOM at ~124 GB) while
