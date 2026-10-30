@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, override
 
+from diffusers.models.controlnets.controlnet_z_image import ZImageControlNetModel  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     SequentialPipelineBlocks,
@@ -28,6 +29,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.utils.pipeline_utils import detect_offload_method
 
 if TYPE_CHECKING:
@@ -63,6 +65,9 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
     """
     Driver for ZImagePipeline.
     """
+
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
+    controlnet_model_class: ClassVar[type | None] = ZImageControlNetModel
 
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = ZImageInpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = ZImageControlNetInpaintPipeline
@@ -100,9 +105,6 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
     def control_pipe_from_standard(
         cls, pipe: ModularPipeline | DiffusionPipeline, control_net_model_lists: list[str] | str | None
     ):
-        from diffusers.models.controlnets.controlnet_z_image import (
-            ZImageControlNetModel,  # type: ignore[reportMissingImports]
-        )
         from diffusers.pipelines.z_image.pipeline_z_image_controlnet import (  # type: ignore[reportMissingImports]
             ZImageControlNetPipeline,
         )

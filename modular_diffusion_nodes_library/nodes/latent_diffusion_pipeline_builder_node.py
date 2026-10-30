@@ -126,7 +126,7 @@ class LatentDiffusionPipelineBuilderNode(
     def _config_hash(self) -> str:
         """Generate a hash for the current configuration to use as cache key."""
         identity = BasePipelineIdentity(
-            pipeline_name=self.params.pipeline_type_parameters.pipeline_type_pipeline_params.pipeline_name,
+            pipeline_name=self.params.pipeline_type_parameters.pipeline_type_pipeline_params.pipeline_name(),
             config_kwargs=self.params.get_config_kwargs(),
             loras=self.loras_params.get_loras(),
             optimization_kwargs=self.huggingface_pipeline_params.get_hf_pipeline_parameters(),
@@ -169,7 +169,7 @@ class LatentDiffusionPipelineBuilderNode(
                 build_data = {}
                 build_data_error = (
                     f"{self.name}: Failed to collect pipeline build data for "
-                    f"pipeline '{pipeline_params.pipeline_name}': {e}"
+                    f"pipeline '{pipeline_params.pipeline_name()}': {e}"
                 )
 
             if component_overrides:
@@ -183,7 +183,7 @@ class LatentDiffusionPipelineBuilderNode(
             supports_layerwise_casting = pipeline_params.supports_layerwise_casting() and not override_is_quantized
 
         return DiffusionPipelineArtifact(
-            pipeline_name=pipeline_params.pipeline_name,
+            pipeline_name=pipeline_params.pipeline_name(),
             config_hash=self._config_hash,
             builder_module=pipeline_params.__class__.__module__,
             builder_class_name=pipeline_params.__class__.__name__,

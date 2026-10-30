@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         OutputParam,  # type: ignore[reportMissingImports]
     )
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -147,6 +148,7 @@ class _HunyuanVideo15AddNoiseStep(ModularPipelineBlocks):
 
 
 class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.VIDEO_DIT_JOINT_SDPA
     produces_video: ClassVar[bool] = True
     # EXAMPLE_DOC_STRING in pipeline_hunyuan_video1_5.py specifies fps=15
     video_fps: ClassVar[int] = 15

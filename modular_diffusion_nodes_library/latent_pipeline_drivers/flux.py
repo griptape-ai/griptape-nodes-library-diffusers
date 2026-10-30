@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, override
 
+from diffusers.models.controlnets.controlnet_flux import FluxControlNetModel
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     ModularPipelineBlocks,
@@ -22,6 +23,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.utils.torch_utils import no_grad
 
 if TYPE_CHECKING:
@@ -69,6 +71,8 @@ class _RegisterTransformerStep(ModularPipelineBlocks):
 
 
 class FluxLatentPipelineDriver(LatentPipelineDriver):
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
+    controlnet_model_class: ClassVar[type | None] = FluxControlNetModel
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = FluxInpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = FluxControlNetInpaintPipeline
 
@@ -98,9 +102,6 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         cls, pipe: ModularPipeline | DiffusionPipeline, control_net_model_lists: list[str] | str | None
     ):
         """Given a standard pipeline, return a version of the pipeline that can be used for control net generation."""
-        from diffusers.models.controlnets.controlnet_flux import (
-            FluxControlNetModel,  # type: ignore[reportMissingImports]
-        )
         from diffusers.pipelines.flux.pipeline_flux_controlnet import (
             FluxControlNetPipeline,  # type: ignore[reportMissingImports]
         )

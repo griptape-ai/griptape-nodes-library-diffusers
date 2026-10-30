@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, override
 
+from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     SequentialPipelineBlocks,
@@ -29,6 +30,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 
 if TYPE_CHECKING:
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
@@ -68,6 +70,8 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
     ``DiffusionPipeline.__call__`` (via the base class ``denoise_latent``).
     """
 
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
+    controlnet_model_class: ClassVar[type | None] = SD3ControlNetModel
     _inpaint_pipeline_class = StableDiffusion3InpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = (
         StableDiffusion3ControlNetInpaintingPipeline
@@ -97,7 +101,6 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         pipe: ModularPipeline | DiffusionPipeline,
         control_net_model_lists: list[str] | str | None,
     ) -> ModularPipeline | DiffusionPipeline:
-        from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
         from diffusers.pipelines.controlnet_sd3.pipeline_stable_diffusion_3_controlnet import (  # type: ignore[reportMissingImports]
             StableDiffusion3ControlNetPipeline,
         )

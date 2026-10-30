@@ -248,7 +248,7 @@ def _builder_state(node: Any) -> dict[str, Any]:
     return {
         "provider_helper": type(pipeline_type_parameters),
         "pipeline_type_helper": type(pipeline_type_parameters.pipeline_type_pipeline_params),
-        "pipeline_name": pipeline_type_parameters.pipeline_type_pipeline_params.pipeline_name,
+        "pipeline_name": pipeline_type_parameters.pipeline_type_pipeline_params.pipeline_name(),
         "slots": node.params.component_override_params.current_slots,
     }
 
@@ -421,8 +421,8 @@ def test_pipeline_builder_keeps_override_connection_across_slot_sets_lacking_it(
     # Flux2KleinPipeline. Without a transformer slot there, the load drops the port and later re-adds it.
     original_slots = Flux2PipelineParameters.get_component_slots
 
-    def slots_without_transformer(self: Flux2PipelineParameters) -> list[str]:
-        return [slot for slot in original_slots(self) if slot != "transformer"]
+    def slots_without_transformer(_self: Flux2PipelineParameters) -> list[str]:
+        return [slot for slot in original_slots() if slot != "transformer"]
 
     monkeypatch.setattr(Flux2PipelineParameters, "get_component_slots", slots_without_transformer)
     _assert_builder_keeps_saved_transformer_override_connection(recorder)
