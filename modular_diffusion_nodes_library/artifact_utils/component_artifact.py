@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields
@@ -114,7 +116,6 @@ class ComponentArtifact(ABC):
     text encoder, ...).
     """
 
-    load_id: str
     source_type: ComponentSourceType
     component: str  # slot name, e.g. "transformer", "vae", "tokenizer"
     torch_dtype: str = "bfloat16"
@@ -142,6 +143,20 @@ class ComponentArtifact(ABC):
         """True if the underlying weights use an embedded quantization format."""
         return False
 
+    @property
+    def load_id(self) -> str:
+        """Stable identity for pipeline cache invalidation."""
+        payload = json.dumps(self._identity_payload(), sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+    def _identity_payload(self) -> dict[str, Any]:
+        return {
+            "artifact_type": type(self).__name__,
+            "source_type": self.source_type.value,
+            "component": self.component,
+            "torch_dtype": self.torch_dtype,
+        }
+
     @abstractmethod
     def materialize(self, *, pipeline_cls: type, slot: str | None = None) -> Any:
         raise NotImplementedError
@@ -164,7 +179,6 @@ class ComponentArtifact(ABC):
         return {
             "type": "component_override",
             "artifact_type": type(self).__name__,
-            "load_id": self.load_id,
             "source_type": self.source_type.value,
             "component": self.component,
             "torch_dtype": self.torch_dtype,
@@ -173,7 +187,6 @@ class ComponentArtifact(ABC):
     @classmethod
     def _common_kwargs(cls, data: dict[str, Any]) -> dict[str, Any]:
         return {
-            "load_id": require_string(data.get("load_id"), "Component override load ID"),
             "source_type": ComponentSourceType(
                 require_string(data.get("source_type"), "Component override source type")
             ),
@@ -199,6 +212,15 @@ class ModelComponentArtifact(ComponentArtifact):
             "repo_ref": self.repo_ref.to_recipe_dict() if self.repo_ref else None,
             "file_path": recipe_safe(self.file_path),
             "config_source": recipe_safe(self._config_source_for_recipe()),
+        }
+
+    @override
+    def _identity_payload(self) -> dict[str, Any]:
+        return {
+            **super()._identity_payload(),
+            "repo_ref": self.repo_ref.to_recipe_dict() if self.repo_ref else None,
+            "file_path": self.file_path,
+            "config_source": self._config_source_for_recipe(),
         }
 
     def _config_source_for_recipe(self) -> str | None:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import inspect
 import json
 import logging
@@ -409,16 +408,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             return None
 
         config_source = str(self._config_path_param.get_file_path())
-        load_id = _compute_load_id(
-            source_type=_SOURCE_LOCAL_PATH,
-            scheduler_class=scheduler_class,
-            config_source=config_source,
-            repo_id="",
-            revision="",
-            subfolder="",
-        )
         return SchedulerComponentArtifact(
-            load_id=load_id,
             source_type=ComponentSourceType.LOCAL_DIR,
             component=_SCHEDULER_SLOT,
             scheduler_class=scheduler_class,
@@ -433,16 +423,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         repo_id = raw_repo_id.strip()
         revision = (self.get_parameter_value("revision") or "main").strip()
         subfolder = (self.get_parameter_value("subfolder") or "scheduler").strip()
-        load_id = _compute_load_id(
-            source_type=_SOURCE_HF_REPO,
-            scheduler_class=scheduler_class,
-            config_source="",
-            repo_id=repo_id,
-            revision=revision,
-            subfolder=subfolder,
-        )
         return SchedulerComponentArtifact(
-            load_id=load_id,
             source_type=ComponentSourceType.HF_REPO,
             component=_SCHEDULER_SLOT,
             scheduler_class=scheduler_class,
@@ -452,19 +433,9 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
     def _build_text_scheduler_artifact(self, scheduler_class: str) -> SchedulerComponentArtifact:
         raw_text_config = self.get_parameter_value("text_config")
         config_dict = parse_json_to_dict(raw_text_config)
-        load_id = _compute_load_id(
-            source_type=_SOURCE_TEXT_CONFIG,
-            scheduler_class=scheduler_class,
-            config_source="",
-            repo_id="",
-            revision="",
-            subfolder="",
-            text_config=json.dumps(config_dict, sort_keys=True),
-        )
         if not config_dict:
             config_dict = None
         return SchedulerComponentArtifact(
-            load_id=load_id,
             source_type=ComponentSourceType.RAW_CONFIG,
             component=_SCHEDULER_SLOT,
             scheduler_class=scheduler_class,
@@ -550,20 +521,3 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
     def _hide_message(self) -> None:
         self._compat_message.value = ""
         self._compat_message.hide = True
-
-
-def _compute_load_id(
-    *,
-    source_type: str,
-    scheduler_class: str,
-    config_source: str,
-    repo_id: str,
-    revision: str,
-    subfolder: str,
-    text_config: str = "",
-) -> str:
-    """Stable hash for cache-invalidation on the pipeline builder side."""
-    payload = "|".join(
-        [source_type, _SCHEDULER_SLOT, scheduler_class, config_source, repo_id, revision, subfolder, text_config]
-    )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
