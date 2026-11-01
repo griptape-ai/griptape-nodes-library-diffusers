@@ -54,7 +54,7 @@ export default function LatentPlacementEditor(container, props) {
   // Where the node actually pastes: it divides the offset by the latent step and drops the remainder.
   function landedX()  { return Math.floor(offX / LATENT_STEP) * LATENT_STEP; }
   function landedY()  { return Math.floor(offY / LATENT_STEP) * LATENT_STEP; }
-  function canMove()  { return !isDisabled && hasSizes() && !resizeSource && !(xLocked() && yLocked()); }
+  function canMove()  { return !isDisabled && hasSizes() && !(xLocked() && yLocked()); }
 
   // ── DOM ────────────────────────────────────────────────────────────────────
   const wrapper = document.createElement("div");
@@ -241,10 +241,13 @@ export default function LatentPlacementEditor(container, props) {
         && py >= landedY() * scale && py <= (landedY() + placedH()) * scale;
   }
 
-  function clampAxis(v, dest, src) {
-    const max = Math.floor(Math.max(0, dest - src) / LATENT_STEP) * LATENT_STEP;
-    const snapped = Math.round(v / LATENT_STEP) * LATENT_STEP;
-    return Math.max(0, Math.min(snapped, max));
+  function snapAxis(v) { return Math.round(v / LATENT_STEP) * LATENT_STEP; }
+
+  // Keeps a dragged source inside the destination. A source that started past the far edge
+  // can stay where it is, but dragging never pushes it further out.
+  function clampAxis(v, dest, src, start) {
+    const max = Math.max(Math.floor(Math.max(0, dest - src) / LATENT_STEP) * LATENT_STEP, start);
+    return Math.max(0, Math.min(snapAxis(v), max));
   }
 
   canvas.addEventListener("pointerdown", (e) => {
@@ -254,7 +257,7 @@ export default function LatentPlacementEditor(container, props) {
     if (!hitSource(px, py)) return;
     canvas.setPointerCapture(e.pointerId);
     canvas.style.cursor = "grabbing";
-    dragStart = { px, py, x: landedX(), y: landedY(), rawX: offX, rawY: offY };
+    dragStart = { px, py, x: landedX(), y: landedY(), rawX: offX, rawY: offY, movedX: false, movedY: false };
   });
 
   canvas.addEventListener("pointermove", (e) => {
@@ -264,15 +267,21 @@ export default function LatentPlacementEditor(container, props) {
       canvas.style.cursor = canMove() && hitSource(px, py) ? "move" : "default";
       return;
     }
-    if (!xLocked()) offX = clampAxis(dragStart.x + (px - dragStart.px) / scale, destW, srcW);
-    if (!yLocked()) offY = clampAxis(dragStart.y + (py - dragStart.py) / scale, destH, srcH);
+    // An axis is left alone until the pointer has moved along it by a latent step.
+    const wantX = dragStart.x + (px - dragStart.px) / scale;
+    const wantY = dragStart.y + (py - dragStart.py) / scale;
+    if (Math.abs(wantX - dragStart.x) >= LATENT_STEP) dragStart.movedX = true;
+    if (Math.abs(wantY - dragStart.y) >= LATENT_STEP) dragStart.movedY = true;
+    if (!xLocked() && dragStart.movedX) offX = clampAxis(wantX, destW, placedW(), dragStart.x);
+    if (!yLocked() && dragStart.movedY) offY = clampAxis(wantY, destH, placedH(), dragStart.y);
     render();
   });
 
   canvas.addEventListener("pointerup", (e) => {
     if (!dragStart) return;
     e.stopPropagation();
-    const moved = (!xLocked() && offX !== dragStart.x) || (!yLocked() && offY !== dragStart.y);
+    const moved = (!xLocked() && dragStart.movedX && offX !== dragStart.rawX)
+               || (!yLocked() && dragStart.movedY && offY !== dragStart.rawY);
     if (!moved) { offX = dragStart.rawX; offY = dragStart.rawY; }
     dragStart = null;
     canvas.style.cursor = "move";

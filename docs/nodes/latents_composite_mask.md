@@ -60,7 +60,7 @@ Paint Mask (mask) ────────┘
 
 - **Only the overlapping region is composited.** If `x_offset` + source width extends beyond the destination canvas, the out-of-bounds portion is ignored; if source and destination don't intersect at all, the destination is returned unchanged.
 - **The placement editor needs one run.** Latent sizes are only known where the node runs, so the editor is blank until the first run and refreshes on every run after. Sizes are saved with the workflow once you place the source in the editor; otherwise a reopened workflow shows a blank editor until the next run.
-- **`resize_source` still uses the offsets.** The resized source is as large as the destination, so a non-zero offset shifts it and clips its far edge. The editor shows this; set the offsets to 0 for a full replacement.
+- **`resize_source` still uses the offsets.** The resized source is as large as the destination, so a non-zero offset shifts it and clips its far edge. The editor shows this; a position preset in the editor resets it to 0, 0 for a full replacement.
 - **Pixel offsets, not latent offsets.** A 1024-px destination = 128 latent units. Offsets are in the bigger pixel space — the node divides by the VAE scale factor (8) internally.
 - **Works for both 4D image latents and 5D video latents.** The mask is broadcast across the temporal dimension.
 - **Output inherits the destination's `shape`. Metadata is merged; on key conflicts the destination wins.**
