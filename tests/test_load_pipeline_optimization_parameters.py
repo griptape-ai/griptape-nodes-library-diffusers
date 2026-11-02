@@ -140,6 +140,14 @@ def test_invalid_optimization_edit_does_not_poison_override_state() -> None:
         "vae_slicing": True,
     }
     assert node.get_parameter_value("cpu_offload_strategy") == "None"
+    vae_slicing_parameter = node.get_parameter_by_name("vae_slicing")
+    assert vae_slicing_parameter is not None
+    vae_slicing_badge = vae_slicing_parameter.get_badge()
+    assert vae_slicing_badge is not None
+    assert vae_slicing_badge.title == "Overrides recipe"
+    cpu_offload_parameter = node.get_parameter_by_name("cpu_offload_strategy")
+    assert cpu_offload_parameter is not None
+    assert cpu_offload_parameter.get_badge() is None
     node._publish_pipeline.assert_not_called()
 
     node.set_parameter_value("attention_slicing", True)
@@ -148,6 +156,11 @@ def test_invalid_optimization_edit_does_not_poison_override_state() -> None:
         "vae_slicing": True,
         "attention_slicing": True,
     }
+    attention_slicing_parameter = node.get_parameter_by_name("attention_slicing")
+    assert attention_slicing_parameter is not None
+    attention_slicing_badge = attention_slicing_parameter.get_badge()
+    assert attention_slicing_badge is not None
+    assert attention_slicing_badge.title == "Overrides recipe"
     node._publish_pipeline.assert_called_once()
 
 
@@ -221,6 +234,26 @@ def test_load_pipeline_user_edit_persists_override_provenance() -> None:
     assert effective_pipeline.optimization_kwargs["cpu_offload_strategy"] == "None"
 
 
+def test_load_pipeline_user_override_marks_only_edited_parameter() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    source_pipeline = _pipeline_with_optimization(cpu_offload_strategy="Sequential")
+    node._load_pipeline_from_path = Mock(return_value=source_pipeline)
+    node._publish_pipeline = Mock()
+    node._publish_from_committed_path()
+
+    node.set_parameter_value("cpu_offload_strategy", "None")
+
+    cpu_offload_parameter = node.get_parameter_by_name("cpu_offload_strategy")
+    assert cpu_offload_parameter is not None
+    cpu_offload_badge = cpu_offload_parameter.get_badge()
+    assert cpu_offload_badge is not None
+    assert cpu_offload_badge.title == "Overrides recipe"
+    assert cpu_offload_badge.icon == "circle-small"
+    vae_slicing_parameter = node.get_parameter_by_name("vae_slicing")
+    assert vae_slicing_parameter is not None
+    assert vae_slicing_parameter.get_badge() is None
+
+
 def test_load_pipeline_user_edit_matching_recipe_clears_override() -> None:
     node = LoadPipelineNode(name="Load Pipeline")
     source_pipeline = _pipeline_with_optimization(cpu_offload_strategy="Sequential")
@@ -235,6 +268,9 @@ def test_load_pipeline_user_edit_matching_recipe_clears_override() -> None:
     reset_button = node.get_parameter_by_name("_optimization_overrides")
     assert reset_button is not None
     assert reset_button.ui_options["hide"] is True
+    cpu_offload_parameter = node.get_parameter_by_name("cpu_offload_strategy")
+    assert cpu_offload_parameter is not None
+    assert cpu_offload_parameter.get_badge() is None
     effective_pipeline = node._publish_pipeline.call_args.args[0]
     assert effective_pipeline.optimization_kwargs["cpu_offload_strategy"] == "Sequential"
 
@@ -280,24 +316,115 @@ def test_load_pipeline_reset_button_clears_overrides_and_follows_recipe() -> Non
     assert effective_pipeline.optimization_kwargs["cpu_offload_strategy"] == "Sequential"
 
 
-def test_load_pipeline_reset_button_requires_loaded_recipe() -> None:
+def test_load_pipeline_reset_restores_original_optimization_badge() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    source_pipeline = _pipeline_with_optimization()
+    node._source_pipeline = source_pipeline
+    node._publish_pipeline = Mock()
+
+    node.set_parameter_value("memory_optimization_strategy", "Automatic")
+
+    memory_strategy_parameter = node.get_parameter_by_name("memory_optimization_strategy")
+    assert memory_strategy_parameter is not None
+    override_badge = memory_strategy_parameter.get_badge()
+    assert override_badge is not None
+    assert override_badge.title == "Overrides recipe"
+    assert "Manual Memory Settings" in override_badge.message
+
+    node._on_use_recipe_optimization_settings(Mock(), Mock())
+
+    restored_badge = memory_strategy_parameter.get_badge()
+    assert restored_badge is not None
+    assert restored_badge.title == "Memory optimization help"
+    assert restored_badge.variant == "help"
+
+
+def test_load_pipeline_reset_button_lazily_loads_recipe() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    source_pipeline = _pipeline_with_optimization(cpu_offload_strategy="None")
+    node.set_parameter_value(
+        "_optimization_overrides",
+        {"cpu_offload_strategy": "Sequential"},
+        initial_setup=True,
+    )
+    node._load_pipeline_from_path = Mock(return_value=source_pipeline)
+    node._publish_pipeline = Mock()
+    node._set_status_results = Mock()
+
+    reset_button = node.get_parameter_by_name("_optimization_overrides")
+    assert reset_button is not None
+    assert reset_button.ui_options["hide"] is False
+
+    result = node._on_use_recipe_optimization_settings(Mock(), Mock())
+
+    assert result.success
+    assert result.altered_workflow_state
+    assert node._source_pipeline is source_pipeline
+    assert node.get_parameter_value("_optimization_overrides") == {}
+    assert node.get_parameter_value("cpu_offload_strategy") == "None"
+    assert reset_button.ui_options["hide"] is True
+    node._load_pipeline_from_path.assert_called_once_with()
+    node._set_status_results.assert_called_once()
+    assert node._set_status_results.call_args.kwargs["was_successful"] is True
+    assert "Loaded successfully" in node._set_status_results.call_args.kwargs["result_details"]
+
+
+def test_load_pipeline_reset_button_preserves_overrides_when_lazy_load_fails() -> None:
     node = LoadPipelineNode(name="Load Pipeline")
     node.set_parameter_value(
         "_optimization_overrides",
         {"cpu_offload_strategy": "Sequential"},
         initial_setup=True,
     )
+    node._load_pipeline_from_path = Mock(side_effect=FileNotFoundError("missing recipe"))
+    node._set_status_results = Mock()
 
     result = node._on_use_recipe_optimization_settings(Mock(), Mock())
 
     assert not result.success
     assert not result.altered_workflow_state
+    assert "missing recipe" in result.details
     assert node.get_parameter_value("_optimization_overrides") == {
         "cpu_offload_strategy": "Sequential",
     }
     reset_button = node.get_parameter_by_name("_optimization_overrides")
     assert reset_button is not None
-    assert reset_button.ui_options["hide"] is True
+    assert reset_button.ui_options["hide"] is False
+    assert node._source_pipeline is None
+    node._set_status_results.assert_called_once()
+    assert node._set_status_results.call_args.kwargs["was_successful"] is False
+
+
+def test_load_pipeline_reset_button_rejects_invalid_lazily_loaded_recipe() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    node.set_parameter_value(
+        "_optimization_overrides",
+        {"cpu_offload_strategy": "Sequential"},
+        initial_setup=True,
+    )
+    node._load_pipeline_from_path = Mock(
+        return_value=_pipeline_with_optimization(cpu_offload_strategy="invalid"),
+    )
+    node._set_status_results = Mock()
+
+    result = node._on_use_recipe_optimization_settings(Mock(), Mock())
+
+    assert not result.success
+    assert not result.altered_workflow_state
+    assert node._source_pipeline is None
+    assert node.get_parameter_value("_optimization_overrides") == {
+        "cpu_offload_strategy": "Sequential",
+    }
+    cpu_offload_parameter = node.get_parameter_by_name("cpu_offload_strategy")
+    assert cpu_offload_parameter is not None
+    override_badge = cpu_offload_parameter.get_badge()
+    assert override_badge is not None
+    assert override_badge.title == "Overrides recipe"
+    reset_button = node.get_parameter_by_name("_optimization_overrides")
+    assert reset_button is not None
+    assert reset_button.ui_options["hide"] is False
+    node._set_status_results.assert_called_once()
+    assert node._set_status_results.call_args.kwargs["was_successful"] is False
 
 
 def test_load_pipeline_reset_button_recipe_validation_failure_does_not_change_workflow() -> None:

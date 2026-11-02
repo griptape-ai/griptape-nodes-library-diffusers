@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -77,6 +77,7 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
         self.huggingface_pipeline_params = HuggingFacePipelineParameter(self, include_quantization=False)
         self.huggingface_pipeline_params.add_input_parameters()
+        self._capture_original_optimization_badges()
         self.add_parameter(
             ParameterButton(
                 name=_OPTIMIZATION_OVERRIDES_PARAMETER,
@@ -101,6 +102,13 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             parameters[name] = parameter
         return parameters
 
+    def _capture_original_optimization_badges(self) -> None:
+        badges: dict[str, dict[str, Any] | None] = {}
+        for name, parameter in self._optimization_parameters().items():
+            badge = parameter.get_badge()
+            badges[name] = badge.to_dict() if badge is not None else None
+        self._original_optimization_badges = badges
+
     def _validated_optimization_overrides(self, value: Any) -> dict[str, Any]:
         return validated_optimization_overrides(value, self._optimization_parameters())
 
@@ -114,17 +122,42 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             validated_overrides,
             emit_change=False,
         )
+        self._update_optimization_override_badges()
         self._update_optimization_reset_button_visibility()
 
+    @staticmethod
+    def _set_parameter_badge(parameter: Parameter, badge_data: dict[str, Any] | None) -> None:
+        current_badge = parameter.get_badge()
+        if (current_badge.to_dict() if current_badge is not None else None) == badge_data:
+            return
+        # Clear first so fields omitted by the replacement do not leak from the existing badge.
+        parameter.clear_badge()
+        if badge_data is not None:
+            parameter.set_badge(**badge_data)
+
+    def _update_optimization_override_badges(self) -> None:
+        overrides = self._current_optimization_overrides()
+        for name, parameter in self._optimization_parameters().items():
+            badge_data = self._original_optimization_badges[name]
+            if name in overrides:
+                message = "This setting is overridden by Load Pipeline and takes precedence over loaded recipes."
+                if badge_data is not None and badge_data["message"]:
+                    message = f"{message}\n\n{badge_data['message']}"
+                badge_data = {
+                    "variant": "note",
+                    "title": "Overrides recipe",
+                    "message": message,
+                    "icon": "circle-small",
+                    "hide": False,
+                    "hide_clear_button": True,
+                }
+            self._set_parameter_badge(parameter, badge_data)
+
     def _update_optimization_reset_button_visibility(self) -> None:
-        if self._source_pipeline is not None and self._current_optimization_overrides():
+        if self._current_optimization_overrides():
             self.show_parameter_by_name(_OPTIMIZATION_OVERRIDES_PARAMETER)
             return
         self.hide_parameter_by_name(_OPTIMIZATION_OVERRIDES_PARAMETER)
-
-    def _set_source_pipeline(self, pipeline: DiffusionPipelineArtifact | None) -> None:
-        self._source_pipeline = pipeline
-        self._update_optimization_reset_button_visibility()
 
     @contextmanager
     def _synchronizing_optimization_parameters(self) -> Iterator[None]:
@@ -146,22 +179,52 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         logger.error("%s: %s", self.name, details)
         self._set_status_results(was_successful=False, result_details=details)
 
+    def _prepare_source_optimization_settings(
+        self,
+        overrides: Mapping[str, Any],
+    ) -> tuple[DiffusionPipelineArtifact, ReconciledOptimizationSettings, bool]:
+        source_pipeline = self._source_pipeline
+        source_pipeline_loaded_lazily = False
+        if source_pipeline is None:
+            source_pipeline = self._load_pipeline_from_path()
+            source_pipeline_loaded_lazily = True
+        settings = reconcile_optimization_settings(
+            parameters=self._optimization_parameters(),
+            recipe_values=source_pipeline.optimization_kwargs,
+            overrides=overrides,
+        )
+        return source_pipeline, settings, source_pipeline_loaded_lazily
+
+    def _try_reload_recipe_for_optimization_edit(
+        self,
+        overrides: Mapping[str, Any],
+    ) -> DiffusionPipelineArtifact | None:
+        if self._source_pipeline is not None:
+            return self._source_pipeline
+
+        file_path = self.get_parameter_value("file_path")
+        if not isinstance(file_path, str) or not file_path.strip():
+            return None
+
+        try:
+            source_pipeline, settings, _ = self._prepare_source_optimization_settings(overrides)
+        except Exception as error:
+            logger.exception("%s: Failed to load recipe optimization settings before applying edit", self.name)
+            details = f"Could not compare Load Pipeline optimization setting with the selected recipe: {error}"
+            self._set_status_results(was_successful=False, result_details=details)
+            return None
+
+        self._source_pipeline = source_pipeline
+        self._apply_reconciled_optimization_settings(settings)
+        return source_pipeline
+
     def _on_use_recipe_optimization_settings(
         self,
         _button: Button,
         _details: ButtonDetailsMessagePayload,
     ) -> NodeMessageResult:
-        if self._source_pipeline is None:
-            return NodeMessageResult(
-                success=False,
-                details="Cannot use recipe optimization settings because no pipeline recipe is loaded.",
-                altered_workflow_state=False,
-            )
-
         try:
-            settings = reconcile_optimization_settings(
-                parameters=self._optimization_parameters(),
-                recipe_values=self._source_pipeline.optimization_kwargs,
+            source_pipeline, settings, source_pipeline_loaded_lazily = self._prepare_source_optimization_settings(
                 overrides={},
             )
         except Exception as error:
@@ -171,8 +234,13 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             return NodeMessageResult(success=False, details=details, altered_workflow_state=False)
 
         try:
+            if source_pipeline_loaded_lazily:
+                self._source_pipeline = source_pipeline
             self._apply_reconciled_optimization_settings(settings)
-            self._publish_pipeline(self._effective_pipeline())
+            pipeline = self._effective_pipeline()
+            self._publish_pipeline(pipeline)
+            if source_pipeline_loaded_lazily:
+                self._set_status_results(was_successful=True, result_details=self._success_status_details(pipeline))
         except Exception as error:
             logger.exception("%s: Failed to apply recipe optimization settings", self.name)
             details = f"Could not use recipe optimization settings: {error}"
@@ -190,9 +258,11 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         parameter = self.get_parameter_by_name(param_name)
         if parameter is None:
             raise RuntimeError(f"Load Pipeline optimization parameter is missing: {param_name}")
-        if self._source_pipeline is None:
+
+        source_pipeline = self._try_reload_recipe_for_optimization_edit(overrides)
+        if source_pipeline is None:
             overrides[param_name] = value
-        elif value == self._source_pipeline.optimization_kwargs.get(param_name, parameter.default_value):
+        elif value == source_pipeline.optimization_kwargs.get(param_name, parameter.default_value):
             overrides.pop(param_name, None)
         else:
             overrides[param_name] = value
@@ -228,6 +298,7 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             self.state = NodeResolutionState.UNRESOLVED
 
         if param_name == _OPTIMIZATION_OVERRIDES_PARAMETER:
+            self._update_optimization_override_badges()
             self._update_optimization_reset_button_visibility()
             if self._source_pipeline is not None:
                 try:
@@ -256,6 +327,12 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     ) -> None:
         # Restored output-only values bypass this setter, so file_path is the reliable signal to reload the manifest.
         discard_restored_pipeline = initial_setup and param_name == "pipeline"
+        source_pipeline_was_missing_for_edit = (
+            self._source_pipeline is None
+            and param_name in self.huggingface_pipeline_params.parameter_names
+            and not initial_setup
+            and not self._is_synchronizing_optimization_parameters
+        )
         value, should_assign = self._prepare_parameter_assignment(
             param_name,
             value,
@@ -272,6 +349,9 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             skip_before_value_set=skip_before_value_set,
         )
         self._handle_parameter_assignment(param_name, initial_setup=initial_setup)
+        if source_pipeline_was_missing_for_edit and self._source_pipeline is not None:
+            pipeline = self._effective_pipeline()
+            self._set_status_results(was_successful=True, result_details=self._success_status_details(pipeline))
 
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
         if parameter.name == _OPTIMIZATION_OVERRIDES_PARAMETER:
@@ -377,7 +457,7 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         return self._source_pipeline.with_optimization_overrides(self._current_optimization_overrides())
 
     def _clear_pipeline_output(self) -> None:
-        self._set_source_pipeline(None)
+        self._source_pipeline = None
         self._publish_pipeline(None)
 
     def _clear_pipeline_output_safely(self) -> None:
@@ -398,7 +478,7 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def _publish_from_committed_path(self) -> None:
         """Load and publish when the editor commits a path. Never reject the path change."""
         self._loaded_from_baked_dir = False
-        self._set_source_pipeline(None)
+        self._source_pipeline = None
         try:
             pipeline = self._load_pipeline_from_path()
         except Exception as error:
@@ -409,7 +489,7 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         try:
             self._reconcile_optimization_parameters(pipeline)
-            self._set_source_pipeline(pipeline)
+            self._source_pipeline = pipeline
             pipeline = self._effective_pipeline()
             self._publish_pipeline(pipeline)
         except Exception as error:
@@ -425,10 +505,10 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self._loaded_from_baked_dir = False
 
         def load() -> DiffusionPipelineArtifact:
-            self._set_source_pipeline(None)
+            self._source_pipeline = None
             source_pipeline = self._load_pipeline_from_path()
             self._reconcile_optimization_parameters(source_pipeline)
-            self._set_source_pipeline(source_pipeline)
+            self._source_pipeline = source_pipeline
             pipeline = self._effective_pipeline()
             self._publish_pipeline(pipeline)
             return pipeline
