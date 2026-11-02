@@ -37,13 +37,18 @@ class SchedulerComponentArtifact(ComponentArtifact):
     text_config: dict[str, Any] | None = None  # RAW_CONFIG: inline dict supplied directly
 
     def to_recipe_dict(self) -> dict[str, Any]:
-        return {
+        recipe = {
             **self._base_recipe_dict(),
             "scheduler_class": self.scheduler_class,
-            "config_source": recipe_safe(self._config_source_for_recipe()),
-            "repo_ref": self.repo_ref.to_recipe_dict() if self.repo_ref else None,
-            "text_config": recipe_safe(self.text_config),
         }
+        config_source = self._config_source_for_recipe()
+        if config_source is not None:
+            recipe["config_source"] = recipe_safe(config_source)
+        if self.repo_ref is not None:
+            recipe["repo_ref"] = self.repo_ref.to_recipe_dict()
+        if self.text_config is not None:
+            recipe["text_config"] = recipe_safe(self.text_config)
+        return recipe
 
     def _config_source_for_recipe(self) -> str | None:
         if self.config_source is None:

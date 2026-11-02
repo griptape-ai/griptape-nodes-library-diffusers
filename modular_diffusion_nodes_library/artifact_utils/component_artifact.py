@@ -83,8 +83,13 @@ class HFRepoRef:
     revision: str | None = None
     subfolder: str | None = None
 
-    def to_recipe_dict(self) -> dict[str, str | None]:
-        return {"repo_id": self.repo_id, "revision": self.revision, "subfolder": self.subfolder}
+    def to_recipe_dict(self) -> dict[str, str]:
+        recipe = {"repo_id": self.repo_id}
+        if self.revision is not None:
+            recipe["revision"] = self.revision
+        if self.subfolder is not None:
+            recipe["subfolder"] = self.subfolder
+        return recipe
 
     @classmethod
     def from_recipe_dict(cls, value: Any) -> HFRepoRef | None:
@@ -207,12 +212,15 @@ class ModelComponentArtifact(ComponentArtifact):
     config_source: str | None = None  # local path OR HF repo_id
 
     def to_recipe_dict(self) -> dict[str, Any]:
-        return {
-            **self._base_recipe_dict(),
-            "repo_ref": self.repo_ref.to_recipe_dict() if self.repo_ref else None,
-            "file_path": recipe_safe(self.file_path),
-            "config_source": recipe_safe(self._config_source_for_recipe()),
-        }
+        recipe = self._base_recipe_dict()
+        if self.repo_ref is not None:
+            recipe["repo_ref"] = self.repo_ref.to_recipe_dict()
+        if self.file_path is not None:
+            recipe["file_path"] = recipe_safe(self.file_path)
+        config_source = self._config_source_for_recipe()
+        if config_source is not None:
+            recipe["config_source"] = recipe_safe(config_source)
+        return recipe
 
     @override
     def _identity_payload(self) -> dict[str, Any]:

@@ -568,6 +568,66 @@ def test_component_artifact_recipe_dict_round_trips_directly() -> None:
     assert loaded.load_id == override.load_id
 
 
+def test_component_artifact_recipe_omits_absent_provenance_fields() -> None:
+    override = ModelComponentArtifact(
+        source_type=ComponentSourceType.HF_REPO,
+        component="vae",
+        repo_ref=HFRepoRef(repo_id="org/model"),
+    )
+
+    recipe = override.to_recipe_dict()
+
+    assert recipe["repo_ref"] == {"repo_id": "org/model"}
+    assert "file_path" not in recipe
+    assert "config_source" not in recipe
+
+
+@pytest.mark.parametrize(
+    ("override", "present_key", "absent_keys"),
+    [
+        (
+            SchedulerComponentArtifact(
+                source_type=ComponentSourceType.HF_REPO,
+                component="scheduler",
+                scheduler_class="TestScheduler",
+                repo_ref=HFRepoRef(repo_id="org/model"),
+            ),
+            "repo_ref",
+            {"config_source", "text_config"},
+        ),
+        (
+            SchedulerComponentArtifact(
+                source_type=ComponentSourceType.LOCAL_DIR,
+                component="scheduler",
+                scheduler_class="TestScheduler",
+                config_source="/models/scheduler_config.json",
+            ),
+            "config_source",
+            {"repo_ref", "text_config"},
+        ),
+        (
+            SchedulerComponentArtifact(
+                source_type=ComponentSourceType.RAW_CONFIG,
+                component="scheduler",
+                scheduler_class="TestScheduler",
+                text_config={},
+            ),
+            "text_config",
+            {"config_source", "repo_ref"},
+        ),
+    ],
+)
+def test_scheduler_recipe_emits_only_active_source(
+    override: SchedulerComponentArtifact,
+    present_key: str,
+    absent_keys: set[str],
+) -> None:
+    recipe = override.to_recipe_dict()
+
+    assert present_key in recipe
+    assert absent_keys.isdisjoint(recipe)
+
+
 def test_component_artifact_recipe_normalizes_local_config_directory(tmp_path) -> None:
     config_file = tmp_path / "config.json"
     config_file.write_text("{}\n", encoding="utf-8")
