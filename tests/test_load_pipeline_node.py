@@ -47,6 +47,43 @@ def test_file_picker_accepts_only_yaml_files() -> None:
     assert picker.file_types == [".yaml"]
 
 
+@pytest.mark.parametrize(
+    ("file_path", "expected_error"),
+    [
+        ("", "Parameter 'file_path' on node 'Load Pipeline' must be a non-empty string."),
+        (
+            "/tmp/baked",
+            "Parameter 'file_path' on node 'Load Pipeline' must point to a .yaml file. "
+            "For a baked pipeline, select the baked-config.yaml manifest inside the baked pipeline directory.",
+        ),
+    ],
+)
+def test_validation_error_is_reported_in_load_pipeline_status(file_path: str, expected_error: str) -> None:
+    node = MagicMock()
+    node.name = "Load Pipeline"
+    node.get_parameter_value.return_value = file_path
+
+    errors = LoadPipelineNode.validate_before_node_run(node)
+
+    assert errors is not None
+    assert [str(error) for error in errors] == [expected_error]
+    node._set_status_results.assert_called_once_with(
+        was_successful=False,
+        result_details=expected_error,
+    )
+
+
+def test_valid_yaml_path_does_not_report_validation_failure() -> None:
+    node = MagicMock()
+    node.name = "Load Pipeline"
+    node.get_parameter_value.return_value = "/tmp/pipeline.yaml"
+
+    errors = LoadPipelineNode.validate_before_node_run(node)
+
+    assert errors is None
+    node._set_status_results.assert_not_called()
+
+
 @pytest.mark.parametrize("restored_pipeline", [None, DiffusionPipelineArtifact(pipeline_name="TestPipeline")])
 def test_restored_pipeline_is_discarded_and_node_is_unresolved(
     restored_pipeline: DiffusionPipelineArtifact | None,
@@ -157,5 +194,8 @@ def test_rejects_non_yaml_file_extensions(tmp_path: Path, filename: str) -> None
 
 
 def test_rejects_folder_path(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match=r"must point to a \.yaml file"):
+    with pytest.raises(
+        ValueError,
+        match=r"Select the manifest at .+/baked-config\.yaml\.",
+    ):
         _load_from_path(tmp_path)
