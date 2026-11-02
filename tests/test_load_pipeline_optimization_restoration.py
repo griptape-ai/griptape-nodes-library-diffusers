@@ -46,7 +46,7 @@ def test_missing_recipe_preserves_restored_overrides() -> None:
     }
     reset_button = node.get_parameter_by_name("_optimization_overrides")
     assert reset_button is not None
-    assert reset_button.ui_options["hide"] is True
+    assert reset_button.ui_options["hide"] is False
     assert node._source_pipeline is None
     node._publish_pipeline.assert_called_once_with(None)
 
@@ -72,6 +72,11 @@ def test_recovered_recipe_shows_reset_button_when_override_remains() -> None:
     reset_button = node.get_parameter_by_name("_optimization_overrides")
     assert reset_button is not None
     assert reset_button.ui_options["hide"] is False
+    cpu_offload_parameter = node.get_parameter_by_name("cpu_offload_strategy")
+    assert cpu_offload_parameter is not None
+    override_badge = cpu_offload_parameter.get_badge()
+    assert override_badge is not None
+    assert override_badge.title == "Overrides recipe"
 
 
 def test_recovered_recipe_preserves_matching_override() -> None:
@@ -249,6 +254,101 @@ def test_preload_edit_equal_to_default_remains_override() -> None:
     assert effective_pipeline.optimization_kwargs["cpu_offload_strategy"] == "None"
 
 
+def test_restored_override_edit_lazily_recovers_recipe_comparison() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    source_pipeline = _pipeline_with_optimization(
+        attention_slicing=True,
+        cpu_offload_strategy="Sequential",
+    )
+    node._load_pipeline_from_path = Mock(return_value=source_pipeline)
+    node._publish_pipeline = Mock()
+    node.set_parameter_value("file_path", "recipe.yaml", initial_setup=True)
+    node.set_parameter_value(
+        "_optimization_overrides",
+        {"cpu_offload_strategy": "None"},
+        initial_setup=True,
+    )
+
+    node.set_parameter_value("cpu_offload_strategy", "Model")
+
+    assert node._source_pipeline is source_pipeline
+    assert node.get_parameter_value("_optimization_overrides") == {
+        "cpu_offload_strategy": "Model",
+    }
+    assert node.get_parameter_value("attention_slicing") is True
+    cpu_offload_parameter = node.get_parameter_by_name("cpu_offload_strategy")
+    assert cpu_offload_parameter is not None
+    override_badge = cpu_offload_parameter.get_badge()
+    assert override_badge is not None
+    assert override_badge.title == "Overrides recipe"
+
+    node.set_parameter_value("cpu_offload_strategy", "Sequential")
+
+    assert node.get_parameter_value("_optimization_overrides") == {}
+    assert cpu_offload_parameter.get_badge() is None
+    node._load_pipeline_from_path.assert_called_once_with()
+    effective_pipeline = node._publish_pipeline.call_args.args[0]
+    assert effective_pipeline.optimization_kwargs["attention_slicing"] is True
+    assert effective_pipeline.optimization_kwargs["cpu_offload_strategy"] == "Sequential"
+
+
+def test_restored_override_edit_preserves_override_when_recipe_load_fails() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    node._load_pipeline_from_path = Mock(side_effect=FileNotFoundError("missing recipe"))
+    node._set_status_results = Mock()
+    node.set_parameter_value("file_path", "recipe.yaml", initial_setup=True)
+    node.set_parameter_value(
+        "_optimization_overrides",
+        {"cpu_offload_strategy": "None"},
+        initial_setup=True,
+    )
+
+    node.set_parameter_value("cpu_offload_strategy", "Model")
+
+    assert node._source_pipeline is None
+    assert node.get_parameter_value("_optimization_overrides") == {
+        "cpu_offload_strategy": "Model",
+    }
+    cpu_offload_parameter = node.get_parameter_by_name("cpu_offload_strategy")
+    assert cpu_offload_parameter is not None
+    override_badge = cpu_offload_parameter.get_badge()
+    assert override_badge is not None
+    assert override_badge.title == "Overrides recipe"
+    node._set_status_results.assert_called_once()
+    assert node._set_status_results.call_args.kwargs["was_successful"] is False
+
+
+def test_restored_override_edit_replaces_failure_status_after_recipe_recovers() -> None:
+    node = LoadPipelineNode(name="Load Pipeline")
+    source_pipeline = _pipeline_with_optimization(cpu_offload_strategy="Sequential")
+    node._load_pipeline_from_path = Mock(
+        side_effect=[FileNotFoundError("missing recipe"), source_pipeline],
+    )
+    node._publish_pipeline = Mock()
+    node._set_status_results = Mock()
+    node.set_parameter_value("file_path", "recipe.yaml", initial_setup=True)
+    node.set_parameter_value(
+        "_optimization_overrides",
+        {"cpu_offload_strategy": "None"},
+        initial_setup=True,
+    )
+
+    node.set_parameter_value("cpu_offload_strategy", "Model")
+    node.set_parameter_value("cpu_offload_strategy", "Sequential")
+
+    assert node._source_pipeline is source_pipeline
+    assert node.get_parameter_value("_optimization_overrides") == {}
+    cpu_offload_parameter = node.get_parameter_by_name("cpu_offload_strategy")
+    assert cpu_offload_parameter is not None
+    assert cpu_offload_parameter.get_badge() is None
+    assert node._set_status_results.call_count == 2
+    failure_status, success_status = node._set_status_results.call_args_list
+    assert failure_status.kwargs["was_successful"] is False
+    assert "missing recipe" in failure_status.kwargs["result_details"]
+    assert success_status.kwargs["was_successful"] is True
+    assert "Loaded successfully" in success_status.kwargs["result_details"]
+
+
 def test_new_recipe_replaces_recipe_controlled_parameters() -> None:
     node = LoadPipelineNode(name="Load Pipeline")
     first_pipeline = _pipeline_with_optimization(
@@ -368,7 +468,7 @@ def test_recipe_publish_failure_keeps_reconciled_settings() -> None:
     assert node.get_parameter_value("cpu_offload_strategy") == "None"
     reset_button = node.get_parameter_by_name("_optimization_overrides")
     assert reset_button is not None
-    assert reset_button.ui_options["hide"] is True
+    assert reset_button.ui_options["hide"] is False
     assert node._source_pipeline is None
     assert node._publish_pipeline.call_args_list[-1].args == (None,)
 
