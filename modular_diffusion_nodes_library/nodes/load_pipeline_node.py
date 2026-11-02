@@ -40,6 +40,9 @@ from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 _OPTIMIZATION_OVERRIDES_PARAMETER = "_optimization_overrides"
+_BAKED_MANIFEST_SELECTION_HINT = (
+    f"For a baked pipeline, select the {BAKED_CONFIG_FILENAME} manifest inside the baked pipeline directory."
+)
 
 
 class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
@@ -288,11 +291,24 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self._publish_from_committed_path()
 
     def validate_before_node_run(self) -> list[Exception] | None:
+        exceptions: list[Exception] = []
         file_path = self.get_parameter_value("file_path")
         if not isinstance(file_path, str) or not file_path.strip():
-            return [ValueError(f"Parameter 'file_path' on node '{self.name}' must be a non-empty string.")]
-        if Path(file_path).suffix.lower() != ".yaml":
-            return [ValueError(f"Parameter 'file_path' on node '{self.name}' must point to a .yaml file.")]
+            exceptions.append(ValueError(f"Parameter 'file_path' on node '{self.name}' must be a non-empty string."))
+        elif Path(file_path).suffix.lower() != ".yaml":
+            exceptions.append(
+                ValueError(
+                    f"Parameter 'file_path' on node '{self.name}' must point to a .yaml file. "
+                    f"{_BAKED_MANIFEST_SELECTION_HINT}"
+                )
+            )
+
+        if exceptions:
+            self._set_status_results(
+                was_successful=False,
+                result_details="\n".join(str(exception) for exception in exceptions),
+            )
+            return exceptions
         return None
 
     def _publish_pipeline(self, pipeline: DiffusionPipelineArtifact | None) -> None:
@@ -321,11 +337,16 @@ class LoadPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         workspace_path = get_workspace_path()
         resolved_path = resolve_workspace_path(Path(expanded_path), workspace_path)
 
-        if resolved_path.suffix.lower() != ".yaml":
-            raise ValueError(f"Pipeline source must point to a .yaml file: {resolved_path}")
-
         if resolved_path.is_dir():
-            raise ValueError(f"Pipeline source must point to a .yaml file, not a directory: {resolved_path}")
+            raise ValueError(
+                f"Pipeline source must point to a .yaml file, not a directory. "
+                f"Select the manifest at {resolved_path / BAKED_CONFIG_FILENAME}."
+            )
+
+        if resolved_path.suffix.lower() != ".yaml":
+            raise ValueError(
+                f"Pipeline source must point to a .yaml file: {resolved_path}. {_BAKED_MANIFEST_SELECTION_HINT}"
+            )
 
         if not resolved_path.is_file():
             raise FileNotFoundError(f"Pipeline manifest does not exist: {resolved_path}")
