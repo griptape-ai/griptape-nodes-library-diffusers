@@ -1,3 +1,7 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any
+
 import pytest
 import yaml
 
@@ -494,7 +498,9 @@ def test_serialize_non_lora_runtime_adapter_is_refused() -> None:
         def _from_metadata(cls, data: dict) -> "_OtherStep":
             return cls()
 
-        def activate(self, pipe, *, node_name=None): ...
+        @contextmanager
+        def activate(self, pipe: Any, *, node_name: str | None = None) -> Iterator[Any]:
+            yield pipe
 
     artifact = DiffusionPipelineArtifact(pipeline_name="TestPipeline").with_additional_runtime_adapter_steps(
         [_OtherStep()]

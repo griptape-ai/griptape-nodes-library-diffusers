@@ -822,7 +822,6 @@ def _model_component_from_values(values: dict[str, Any]) -> ModelComponentArtifa
             return None
         folder_path = _expand_component_path(folder_path)
         return artifact_class(
-            load_id=_component_load_id("local_folder", slot, folder_path, "", "", ""),
             source_type=ComponentSourceType.LOCAL_DIR,
             component=slot,
             file_path=_expand_component_path(folder_path),
@@ -837,7 +836,6 @@ def _model_component_from_values(values: dict[str, Any]) -> ModelComponentArtifa
         if not isinstance(revision, str) or not isinstance(subfolder, str):
             return None
         return artifact_class(
-            load_id=_component_load_id("hf_repo", slot, "", "", repo_id, revision, subfolder),
             source_type=ComponentSourceType.HF_REPO,
             component=slot,
             repo_ref=HFRepoRef(repo_id=repo_id, revision=revision, subfolder=subfolder),
@@ -854,7 +852,6 @@ def _model_component_from_values(values: dict[str, Any]) -> ModelComponentArtifa
         if config_source is not None:
             config_source = _expand_component_path(config_source)
         return artifact_class(
-            load_id=_component_load_id("single_file", slot, file_path, config_source or "", "", ""),
             source_type=ComponentSourceType.SINGLE_FILE,
             component=slot,
             file_path=file_path,
@@ -881,9 +878,7 @@ def _scheduler_component_from_values(values: dict[str, Any]) -> SchedulerCompone
                 raise WorkflowExtractionError("Scheduler text_config must be a JSON object.")
         if not config:
             config = None
-        text_config = json.dumps(config, sort_keys=True) if config is not None else ""
         return SchedulerComponentArtifact(
-            load_id=_component_load_id("text_config", "scheduler", "", "", "", "", text_config),
             source_type=ComponentSourceType.RAW_CONFIG,
             component="scheduler",
             scheduler_class=scheduler_class,
@@ -899,7 +894,6 @@ def _scheduler_component_from_values(values: dict[str, Any]) -> SchedulerCompone
         if not isinstance(revision, str) or not isinstance(subfolder, str):
             return None
         return SchedulerComponentArtifact(
-            load_id=_component_load_id("hf_repo", "scheduler", "", "", repo_id, revision, subfolder),
             source_type=ComponentSourceType.HF_REPO,
             component="scheduler",
             scheduler_class=scheduler_class,
@@ -912,27 +906,12 @@ def _scheduler_component_from_values(values: dict[str, Any]) -> SchedulerCompone
             return None
         config_path = _expand_component_path(config_path)
         return SchedulerComponentArtifact(
-            load_id=_component_load_id("local_path", "scheduler", config_path, "", "", ""),
             source_type=ComponentSourceType.LOCAL_DIR,
             component="scheduler",
             scheduler_class=scheduler_class,
             config_source=config_path,
         )
     return None
-
-
-def _component_load_id(
-    source_type: str,
-    component: str,
-    path: str,
-    config_source: str,
-    repo_id: str,
-    revision: str,
-    subfolder: str = "",
-    text_config: str = "",
-) -> str:
-    payload = "|".join([source_type, component, path, config_source, repo_id, revision, subfolder, text_config])
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
 def _expand_component_path(value: str) -> str:

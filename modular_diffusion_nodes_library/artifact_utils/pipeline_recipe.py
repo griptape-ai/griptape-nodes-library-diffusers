@@ -199,12 +199,13 @@ def format_pipeline_artifact_summary(artifact: DiffusionPipelineArtifact) -> str
             )
             if isinstance(override, SchedulerComponentArtifact):
                 lines.append(f"    Class: {override.scheduler_class or 'Unknown'}")
-            if override.repo_ref is not None:
-                lines.append(f"    Model: {override.repo_ref.repo_id}")
-                if override.repo_ref.revision:
-                    lines.append(f"    Revision: {override.repo_ref.revision}")
-                if override.repo_ref.subfolder:
-                    lines.append(f"    Subfolder: {override.repo_ref.subfolder}")
+            repo_ref = getattr(override, "repo_ref", None)
+            if repo_ref is not None:
+                lines.append(f"    Model: {repo_ref.repo_id}")
+                if repo_ref.revision:
+                    lines.append(f"    Revision: {repo_ref.revision}")
+                if repo_ref.subfolder:
+                    lines.append(f"    Subfolder: {repo_ref.subfolder}")
             elif override.source_type == ComponentSourceType.RAW_CONFIG:
                 lines.append("    Config: Inline")
             else:

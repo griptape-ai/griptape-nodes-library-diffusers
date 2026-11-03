@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import pytest
 import yaml
+
+if TYPE_CHECKING:
+    from torch import Tensor as TorchTensor
+    from torch import dtype as TorchDType
 
 torch = pytest.importorskip("torch", reason="Requires execution dependencies; run `make test/exec`.")
 diffusers = pytest.importorskip("diffusers", reason="Requires execution dependencies; run `make test/exec`.")
@@ -65,7 +69,7 @@ class _RefusingSlot:
         self.save_calls += 1
         raise ValueError("The model is quantized with GGUFQuantizer and is not serializable")
 
-    def state_dict(self) -> dict[str, torch.Tensor]:
+    def state_dict(self) -> dict[str, TorchTensor]:
         return {}
 
 
@@ -86,7 +90,7 @@ class _PropertyRefusingSlot:
         self.save_calls += 1
         raise ValueError("The model is quantized with GGUFQuantizer and is not serializable")
 
-    def state_dict(self) -> dict[str, torch.Tensor]:
+    def state_dict(self) -> dict[str, TorchTensor]:
         return {}
 
 
@@ -105,7 +109,7 @@ class _GgufQuantizerSlot:
         self.save_calls += 1
         raise ValueError("The model is quantized with GGUFQuantizer and is not serializable")
 
-    def state_dict(self) -> dict[str, torch.Tensor]:
+    def state_dict(self) -> dict[str, TorchTensor]:
         return {}
 
 
@@ -123,7 +127,7 @@ class _TorchAoQuantizerSlot:
         self.save_calls += 1
         raise ValueError("Unsupported tensor type: AffineQuantizedTensor")
 
-    def state_dict(self) -> dict[str, torch.Tensor]:
+    def state_dict(self) -> dict[str, TorchTensor]:
         return {}
 
 
@@ -134,7 +138,7 @@ class _IndexLastPipe:
             setattr(self, name, component)
 
     @property
-    def dtype(self) -> torch.dtype:
+    def dtype(self) -> TorchDType:
         return torch.float32
 
     def save_pretrained(self, save_directory: str | Path) -> None:
@@ -233,6 +237,8 @@ def test_bake_round_trips_gguf_text_encoder_override(tmp_path: Path) -> None:
     assert recorded["file_path"] == "text_encoder/text-encoder.gguf"
     assert recorded["config_source"] == "text_encoder/config.json"
     assert isinstance(loaded_override, TextEncoderComponentArtifact)
+    assert loaded_override.file_path is not None
+    assert loaded_override.config_source is not None
     assert Path(loaded_override.file_path).resolve() == (dest / recorded["file_path"]).resolve()
     assert Path(loaded_override.config_source).resolve() == (dest / recorded["config_source"]).resolve()
 
@@ -269,6 +275,7 @@ def test_bake_preserves_explicit_text_encoder_config_filename(tmp_path: Path) ->
     assert not (slot_dir / "config.json").exists()
     assert recorded["config_source"] == "text_encoder/text_encoder.json"
     assert isinstance(loaded_override, TextEncoderComponentArtifact)
+    assert loaded_override.config_source is not None
     assert Path(loaded_override.config_source).resolve() == (slot_dir / "text_encoder.json").resolve()
 
 
