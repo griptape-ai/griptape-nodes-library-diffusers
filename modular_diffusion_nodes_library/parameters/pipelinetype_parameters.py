@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.traits.options import Options
 
-from modular_diffusion_nodes_library.parameters.component_override_parameters import ComponentOverrideParameters
-from modular_diffusion_nodes_library.parameters.huggingface_pipeline_parameter import HuggingFacePipelineParameter
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
 )
@@ -91,9 +89,6 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class LatentPipelineTypeParameters(ABC):
-    START_PARAMS: ClassVar = ["pipeline", "provider", "pipeline_type"]
-    END_PARAMS: ClassVar = ["loras", "Status", "logs"]
-
     def __init__(self, node: LatentDiffusionPipelineBuilderNode):
         self._node = node
         self.did_pipeline_type_change = False
@@ -195,26 +190,7 @@ class LatentPipelineTypeParameters(ABC):
 
         self._node._restore_connections(saved_incoming, saved_outgoing)
 
-        # Get all current element names
-        all_element_names = [element.name for element in self._node.root_ui_element.children]
-
-        # Build parameter groupings
-        hf_param_names = HuggingFacePipelineParameter.get_hf_pipeline_parameter_names()
-
-        overrides_group = (
-            [ComponentOverrideParameters.GROUP_NAME]
-            if ComponentOverrideParameters.GROUP_NAME in all_element_names
-            else []
-        )
-        start_params = LatentPipelineTypeParameters.START_PARAMS
-        end_params = [*hf_param_names, *overrides_group, *LatentPipelineTypeParameters.END_PARAMS]
-        excluded_params = {*start_params, *end_params}
-
-        # Assemble final order: start -> middle -> end
-        middle_params = [name for name in all_element_names if name not in excluded_params]
-        sorted_parameters = [*start_params, *middle_params, *end_params]
-
-        self._node.reorder_elements(sorted_parameters)
+        self._node.reorder_parameters_by_groups()
 
         self._node.clear_parameter_cache()
 

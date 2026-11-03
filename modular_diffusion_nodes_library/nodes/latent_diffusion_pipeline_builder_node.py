@@ -43,7 +43,13 @@ class LatentDiffusionPipelineBuilderNode(
 ):
     STATIC_PARAMS: ClassVar = ["provider", "pipeline"]
     START_PARAMS: ClassVar = ["pipeline", "provider", "pipeline_type"]
-    END_PARAMS: ClassVar = ["component_overrides", "loras", "Status", "logs"]
+    END_PARAMS: ClassVar = [
+        *HuggingFacePipelineParameter.get_hf_pipeline_parameter_names(),
+        "component_overrides",
+        "loras",
+        "Status",
+        "logs",
+    ]
 
     # Severity policy: component-compatibility findings in these categories block
     # the build (returned as validation errors); all others are surfaced as a
