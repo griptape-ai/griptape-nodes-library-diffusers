@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+import os
+import secrets
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import SuccessFailureNode
@@ -33,6 +35,32 @@ class SaveMode(StrEnum):
 
 _RECIPE_DEFAULT_PATH = "{project_dir}/config.yaml"
 _BAKED_DEFAULT_PATH = "{project_dir}/baked-pipeline"
+
+
+def _reserve_temporary_recipe(destination: Path) -> tuple[Path, TextIO]:
+    for _ in range(100):
+        temporary_path = destination.with_name(f".{destination.name}.{secrets.token_hex(8)}.tmp")
+        try:
+            return temporary_path, temporary_path.open(mode="x", encoding="utf-8")
+        except FileExistsError:
+            continue
+    raise FileExistsError(f"Could not reserve a temporary file for pipeline recipe: {destination}")
+
+
+def _write_text_atomically(destination: Path, contents: str) -> None:
+    temporary_path: Path | None = None
+    try:
+        temporary_path, temporary_file = _reserve_temporary_recipe(destination)
+        with temporary_file:
+            temporary_file.write(contents)
+        os.replace(temporary_path, destination)
+    except BaseException:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                logger.exception("Failed to clean up temporary pipeline recipe: %s", temporary_path)
+        raise
 
 
 class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
@@ -184,9 +212,7 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             if resolved_path.suffix.lower() != ".yaml":
                 raise ValueError(f"Config Only destination must point to a .yaml file: {resolved_path}")
             resolved_path.parent.mkdir(parents=True, exist_ok=True)
-            temp_path = resolved_path.with_suffix(f"{resolved_path.suffix}.tmp")
-            temp_path.write_text(serialize_pipeline_artifact(pipeline), encoding="utf-8")
-            temp_path.replace(resolved_path)
+            _write_text_atomically(resolved_path, serialize_pipeline_artifact(pipeline))
             return resolved_path
 
         if self.get_parameter_value("save_mode") == SaveMode.FULL_PIPELINE:

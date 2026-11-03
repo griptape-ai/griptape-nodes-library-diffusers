@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from diffusers import UNet2DConditionModel  # type: ignore[reportMissingImports]
-from peft import LoraConfig  # type: ignore[reportMissingImports]
+import pytest
 
 from modular_diffusion_nodes_library.utils.lora_apply_utils import release_lora_adapters
 
@@ -44,7 +43,10 @@ def test_release_lora_adapters_keeps_peft_layers_while_other_adapters_remain() -
 
 
 def test_release_lora_adapters_restores_original_peft_state_dict_keys(tmp_path: Path) -> None:
-    unet = UNet2DConditionModel(
+    diffusers = pytest.importorskip("diffusers", reason="Uses a real UNet; run `make test/exec`.")
+    peft = pytest.importorskip("peft", reason="Uses a real PEFT adapter; run `make test/exec`.")
+
+    unet = diffusers.UNet2DConditionModel(
         block_out_channels=(4, 8),
         layers_per_block=1,
         sample_size=8,
@@ -56,7 +58,7 @@ def test_release_lora_adapters_restores_original_peft_state_dict_keys(tmp_path: 
         norm_num_groups=2,
     )
     unet.add_adapter(
-        LoraConfig(r=2, lora_alpha=2, target_modules=["to_q", "to_k", "to_v", "to_out.0"]),
+        peft.LoraConfig(r=2, lora_alpha=2, target_modules=["to_q", "to_k", "to_v", "to_out.0"]),
         adapter_name="runtime",
     )
 
@@ -77,6 +79,6 @@ def test_release_lora_adapters_restores_original_peft_state_dict_keys(tmp_path: 
     assert not any(".base_layer." in key for key in unet.state_dict())
 
     unet.save_pretrained(tmp_path)
-    reloaded = UNet2DConditionModel.from_pretrained(tmp_path)
+    reloaded = diffusers.UNet2DConditionModel.from_pretrained(tmp_path)
 
     assert not any(parameter.device.type == "meta" for parameter in reloaded.parameters())

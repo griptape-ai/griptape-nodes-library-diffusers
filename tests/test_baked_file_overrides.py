@@ -8,31 +8,42 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-import torch
 import yaml
-from diffusers import Flux2Transformer2DModel  # type: ignore[reportMissingImports]
-from torch import nn
-from transformers import AutoConfig, CLIPTextConfig  # type: ignore[reportMissingImports]
 
-from modular_diffusion_nodes_library.artifact_utils.baked_file_overrides import (
+torch = pytest.importorskip("torch", reason="Requires execution dependencies; run `make test/exec`.")
+diffusers = pytest.importorskip("diffusers", reason="Requires execution dependencies; run `make test/exec`.")
+transformers = pytest.importorskip("transformers", reason="Requires execution dependencies; run `make test/exec`.")
+nn = torch.nn
+Flux2Transformer2DModel = diffusers.Flux2Transformer2DModel
+AutoConfig = transformers.AutoConfig
+CLIPTextConfig = transformers.CLIPTextConfig
+
+from modular_diffusion_nodes_library.artifact_utils.baked_file_overrides import (  # noqa: E402
     component_refuses_official_save,
     is_gguf_quantizer_component,
     is_torchao_quantizer_component,
     skip_official_save_slots,
 )
-from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
+from modular_diffusion_nodes_library.artifact_utils.component_artifact import (  # noqa: E402
     ComponentSourceType,
     ModelComponentArtifact,
 )
-from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
-from modular_diffusion_nodes_library.artifact_utils.pipeline_baking import make_baked_artifact, save_baked_pipeline
-from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import (
+from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (  # noqa: E402
+    DiffusionPipelineArtifact,
+)
+from modular_diffusion_nodes_library.artifact_utils.pipeline_baking import (  # noqa: E402
+    make_baked_artifact,
+    save_baked_pipeline,
+)
+from modular_diffusion_nodes_library.artifact_utils.pipeline_recipe import (  # noqa: E402
     QuantizationStatus,
     collect_quantization_status,
 )
-from modular_diffusion_nodes_library.artifact_utils.text_encoder_component_artifact import TextEncoderComponentArtifact
-from modular_diffusion_nodes_library.component_loading.config_resolver import resolve_config_path
-from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
+from modular_diffusion_nodes_library.artifact_utils.text_encoder_component_artifact import (  # noqa: E402
+    TextEncoderComponentArtifact,
+)
+from modular_diffusion_nodes_library.component_loading.config_resolver import resolve_config_path  # noqa: E402
+from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (  # noqa: E402
     ModularDiffusionPipelineTypePipelineParameters,
 )
 
