@@ -513,3 +513,26 @@ def test_latent_upsampler_edit_after_load_removes_by_request(
         request.parameter_name for request in recorder.nested if isinstance(request, RemoveParameterFromNodeRequest)
     ]
     assert "upsampler_model" in removed
+
+
+@pytest.mark.parametrize(
+    ("provider", "pipeline_type"),
+    [
+        # Same override slots as the default provider, so the slot refresh on load does not reorder.
+        ("Flux", "FluxPipeline"),
+        ("Flux2", "Flux2KleinPipeline"),
+        ("Flux3", "Flux3DistilledPipeline"),
+    ],
+)
+def test_pipeline_builder_reopens_with_edited_parameter_order(
+    flow: None,  # noqa: ARG001
+    provider: str,
+    pipeline_type: str,
+) -> None:
+    node = _create("LatentDiffusionPipelineBuilderNode", "builder")
+    _edit(node, {"provider": provider, "pipeline_type": pipeline_type})
+    edited_order = [element.name for element in node.root_ui_element.children]
+
+    loaded = _load(_serialize_and_delete(node))
+
+    assert [element.name for element in loaded.root_ui_element.children] == edited_order

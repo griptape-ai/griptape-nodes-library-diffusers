@@ -121,6 +121,10 @@ class LatentDiffusionPipelineBuilderParameters:
             # Component override ports are never re-serialized explicitly in a saved script,
             # so this must still run during initial_setup to add e.g. Flux's optional ports.
             self.refresh_component_override_ports(initial_setup=initial_setup)
+            if initial_setup:
+                # A saved script adds the pipeline-type parameters after the ones __init__ created, and the
+                # refresh only reorders when the slots change.
+                self._node.reorder_parameters_by_groups()
 
     def regenerate_pipeline_type_parameters_for_provider(self, provider: str, *, initial_setup: bool = False) -> None:
         # Save parameter properties and connections before removing parameters
