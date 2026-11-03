@@ -3,9 +3,12 @@ from __future__ import annotations
 import socket
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
+
+if TYPE_CHECKING:
+    from torch import dtype as TorchDType
 
 torch = pytest.importorskip("torch", reason="Requires execution dependencies; run `make test/exec`.")
 diffusers = pytest.importorskip("diffusers", reason="Requires execution dependencies; run `make test/exec`.")
@@ -145,7 +148,7 @@ def test_minimax_baked_loader_keeps_components_manager_placement(
         source: str,
         *,
         revision: str | None = None,
-        dtype: torch.dtype = torch.bfloat16,
+        dtype: TorchDType = torch.bfloat16,
     ) -> Any:
         captured.update(source=source, revision=revision, dtype=dtype)
         return pipe
