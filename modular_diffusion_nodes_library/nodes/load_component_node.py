@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import logging
 from pathlib import Path
 from typing import Any
@@ -537,19 +536,8 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         else:
             config_source = None
 
-        load_id = _compute_load_id(
-            source_type=_SOURCE_SINGLE_FILE,
-            component=component_slot,
-            path=str(file_path),
-            config_source=config_source or "",
-            repo_id="",
-            revision="",
-            subfolder="",
-        )
-
         artifact_cls = self._get_artifact_class(component_slot)
         return artifact_cls(
-            load_id=load_id,
             source_type=ComponentSourceType.SINGLE_FILE,
             file_path=str(file_path),
             component=component_slot,
@@ -563,19 +551,8 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         folder_path = str(Path(expand_path_macros(raw_folder_path)).absolute())
 
-        load_id = _compute_load_id(
-            source_type=_SOURCE_LOCAL_FOLDER,
-            component=component_slot,
-            path=folder_path,
-            config_source="",
-            repo_id="",
-            revision="",
-            subfolder="",
-        )
-
         artifact_cls = self._get_artifact_class(component_slot)
         return artifact_cls(
-            load_id=load_id,
             source_type=ComponentSourceType.LOCAL_DIR,
             file_path=folder_path,
             component=component_slot,
@@ -590,35 +567,9 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         revision = (self.get_parameter_value("revision") or "main").strip()
         subfolder = (self.get_parameter_value("subfolder") or "").strip()
 
-        load_id = _compute_load_id(
-            source_type=_SOURCE_HF_REPO,
-            component=component_slot,
-            path="",
-            config_source="",
-            repo_id=repo_id,
-            revision=revision,
-            subfolder=subfolder,
-        )
-
         artifact_cls = self._get_artifact_class(component_slot)
         return artifact_cls(
-            load_id=load_id,
             source_type=ComponentSourceType.HF_REPO,
             component=component_slot,
             repo_ref=HFRepoRef(repo_id=repo_id, revision=revision, subfolder=subfolder),
         )
-
-
-def _compute_load_id(
-    *,
-    source_type: str,
-    component: str,
-    path: str,
-    config_source: str,
-    repo_id: str,
-    revision: str,
-    subfolder: str,
-) -> str:
-    """Stable hash for cache-invalidation on the pipeline builder side."""
-    payload = "|".join([source_type, component, path, config_source, repo_id, revision, subfolder])
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]

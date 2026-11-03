@@ -10,6 +10,14 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ComponentSourceType,
     HFRepoRef,
 )
+from modular_diffusion_nodes_library.artifact_utils.recipe_codec import (
+    optional_dict,
+    optional_string,
+    recipe_safe,
+    require_string,
+    resolve_recipe_value,
+)
+from modular_diffusion_nodes_library.component_loading.component_slots import SCHEDULER_CONFIG_FILENAME
 
 
 @dataclass(frozen=True)
@@ -27,6 +35,49 @@ class SchedulerComponentArtifact(ComponentArtifact):
     config_source: str | None = None  # LOCAL_DIR: path to scheduler_config.json or its folder
     repo_ref: HFRepoRef | None = None  # HF_REPO
     text_config: dict[str, Any] | None = None  # RAW_CONFIG: inline dict supplied directly
+
+    def to_recipe_dict(self) -> dict[str, Any]:
+        recipe = {
+            **self._base_recipe_dict(),
+            "scheduler_class": self.scheduler_class,
+        }
+        config_source = self._config_source_for_recipe()
+        if config_source is not None:
+            recipe["config_source"] = recipe_safe(config_source)
+        if self.repo_ref is not None:
+            recipe["repo_ref"] = self.repo_ref.to_recipe_dict()
+        if self.text_config is not None:
+            recipe["text_config"] = recipe_safe(self.text_config)
+        return recipe
+
+    def _config_source_for_recipe(self) -> str | None:
+        if self.config_source is None:
+            return None
+        config_path = Path(self.config_source)
+        if not config_path.is_dir():
+            return self.config_source
+        config_file = config_path / SCHEDULER_CONFIG_FILENAME
+        return str(config_file) if config_file.is_file() else self.config_source
+
+    @override
+    def _identity_payload(self) -> dict[str, Any]:
+        return {
+            **super()._identity_payload(),
+            "scheduler_class": self.scheduler_class,
+            "config_source": self._config_source_for_recipe(),
+            "repo_ref": self.repo_ref.to_recipe_dict() if self.repo_ref else None,
+            "text_config": self.text_config,
+        }
+
+    @classmethod
+    def _from_recipe_dict(cls, data: dict[str, Any]) -> SchedulerComponentArtifact:
+        return cls(
+            **cls._common_kwargs(data),
+            scheduler_class=require_string(data.get("scheduler_class"), "Scheduler component class"),
+            config_source=optional_string(resolve_recipe_value(data.get("config_source")), "Scheduler config source"),
+            repo_ref=HFRepoRef.from_recipe_dict(data.get("repo_ref")),
+            text_config=optional_dict(resolve_recipe_value(data.get("text_config")), "Scheduler text config"),
+        )
 
     @override
     def materialize(self, *, pipeline_cls: type, slot: str | None = None) -> Any:  # noqa: ARG002
@@ -87,13 +138,13 @@ class SchedulerComponentArtifact(ComponentArtifact):
         if path.is_file():
             config_file = path
         elif path.is_dir():
-            config_file = path / "scheduler_config.json"
+            config_file = path / SCHEDULER_CONFIG_FILENAME
         else:
             msg = f"Scheduler config source '{self.config_source}' is not an existing file or directory."
             raise FileNotFoundError(msg)
 
         if not config_file.is_file():
-            msg = f"No 'scheduler_config.json' found at scheduler config source '{self.config_source}'."
+            msg = f"No '{SCHEDULER_CONFIG_FILENAME}' found at scheduler config source '{self.config_source}'."
             raise FileNotFoundError(msg)
 
         with config_file.open(encoding="utf-8") as f:

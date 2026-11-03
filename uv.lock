@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.12.*"
 resolution-markers = [
     "sys_platform == 'win32'",
@@ -630,6 +630,7 @@ source = { editable = "." }
 dependencies = [
     { name = "griptape", extra = ["loaders-image"] },
     { name = "huggingface-hub" },
+    { name = "pyyaml" },
 ]
 
 [package.optional-dependencies]
@@ -647,6 +648,7 @@ exec = [
     { name = "optimum-quanto" },
     { name = "peft" },
     { name = "pillow" },
+    { name = "prodigyopt", marker = "sys_platform == 'win32'" },
     { name = "protobuf" },
     { name = "safetensors" },
     { name = "scipy" },
@@ -688,7 +690,9 @@ requires-dist = [
     { name = "optimum-quanto", marker = "extra == 'exec'", specifier = ">=0.2.7" },
     { name = "peft", marker = "extra == 'exec'", specifier = ">=0.17.0" },
     { name = "pillow", marker = "extra == 'exec'", specifier = ">=11.2.1" },
+    { name = "prodigyopt", marker = "sys_platform == 'win32' and extra == 'exec'", specifier = ">=1.1.2" },
     { name = "protobuf", marker = "extra == 'exec'", specifier = ">=6.31.0" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "safetensors", marker = "extra == 'exec'", specifier = ">=0.8.0rc0" },
     { name = "scipy", marker = "extra == 'exec'", specifier = ">=1.10.0" },
     { name = "sentencepiece", marker = "extra == 'exec'", specifier = ">=0.2.0" },
@@ -1593,6 +1597,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/81/cd/d2a23fc80c26f539ac77e7d61bd5e4af5d0b3a09a78ac4c716eead345129/portalocker-4.4.0.tar.gz", hash = "sha256:90c0df939d4ffba121f8e925bbf98ecea8b9381718666ab871a226938d2b63b2", size = 304906, upload-time = "2026-09-19T16:11:09.114Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/52/6c/07fa2775e87b6e241c2aca5cef79f65e450bc115de55f03cda6251f81690/portalocker-4.4.0-py3-none-any.whl", hash = "sha256:a8e99ea29bfb61766ee0b4008cbaf0651e8e050f7a2485ebf54316480e99226e", size = 129647, upload-time = "2026-09-19T16:11:07.377Z" },
+]
+
+[[package]]
+name = "prodigyopt"
+version = "1.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6b/8e/5ee7ea4f8ca1e1d8d5d868c6c97e53e8dc769caa383b5a16afc6fd7b28c7/prodigyopt-1.1.2.tar.gz", hash = "sha256:f6ef74944895c9b9a0045e55fdd04d07bdb03b9f09a2c77e2ec772c9d1ece15f", size = 9431, upload-time = "2025-01-16T14:58:31.352Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/57/26/a798a2e274d77944e784c1c577b85fcbdb7189e59ff821d9a2d6b462f853/prodigyopt-1.1.2-py3-none-any.whl", hash = "sha256:4f8f79f71d37e4a501527fc30ecc847731369dc7cbe12e6a178157924e30ce03", size = 10546, upload-time = "2025-01-16T14:58:28.858Z" },
 ]
 
 [[package]]

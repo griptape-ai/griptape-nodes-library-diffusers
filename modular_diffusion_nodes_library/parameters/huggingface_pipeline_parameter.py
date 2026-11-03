@@ -9,31 +9,40 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class HuggingFacePipelineParameter:
-    def __init__(self, node: BaseNode):
+    def __init__(self, node: BaseNode, *, include_quantization: bool = True):
         self._node = node
+        self._include_quantization = include_quantization
 
     @classmethod
-    def get_hf_pipeline_parameter_names(cls) -> list[str]:
-        return [
+    def get_hf_pipeline_parameter_names(cls, *, include_quantization: bool = True) -> list[str]:
+        names = [
             "memory_optimization_strategy",
             "attention_slicing",
             "vae_slicing",
             "vae_tiling",
             "transformer_layerwise_casting",
             "cpu_offload_strategy",
-            "quantization_mode",
         ]
+        if include_quantization:
+            names.append("quantization_mode")
+        return names
+
+    @property
+    def parameter_names(self) -> list[str]:
+        return self.get_hf_pipeline_parameter_names(include_quantization=self._include_quantization)
 
     def get_hf_pipeline_parameters(self) -> dict[str, Any]:
-        return {
+        parameters = {
             "memory_optimization_strategy": self._node.get_parameter_value("memory_optimization_strategy"),
             "attention_slicing": self._node.get_parameter_value("attention_slicing"),
             "vae_slicing": self._node.get_parameter_value("vae_slicing"),
             "vae_tiling": self._node.get_parameter_value("vae_tiling"),
             "transformer_layerwise_casting": self._node.get_parameter_value("transformer_layerwise_casting"),
             "cpu_offload_strategy": self._node.get_parameter_value("cpu_offload_strategy"),
-            "quantization_mode": self._node.get_parameter_value("quantization_mode"),
         }
+        if self._include_quantization:
+            parameters["quantization_mode"] = self._node.get_parameter_value("quantization_mode")
+        return parameters
 
     def add_input_parameters(self) -> None:
         memory_optimization_strategy_choices = ["Manual", "Automatic"]
@@ -54,7 +63,8 @@ class HuggingFacePipelineParameter:
             title="Memory optimization help",
             message=(
                 "***Manual*** exposes per-knob toggles (attention slicing, VAE slicing, layerwise casting, "
-                "CPU offload, quantization). ***Automatic*** lets Griptape pick reasonable defaults for you.\n\n"
+                f"CPU offload{', quantization' if self._include_quantization else ''}). "
+                "***Automatic*** lets Griptape pick reasonable defaults for you.\n\n"
                 "Not sure which knob does what? See "
                 "[Manual Memory Settings](https://docs.griptapenodes.com/en/latest/nodes/advanced_media_library/diffusion_pipelines/#manual-memory-settings) "
                 "for guidance on when to enable each option."
@@ -116,31 +126,26 @@ class HuggingFacePipelineParameter:
                 allowed_modes={ParameterMode.PROPERTY},
             )
         )
-        quantization_mode_choices = ["None", "fp8", "int8", "int4"]
-        self._node.add_parameter(
-            Parameter(
-                name="quantization_mode",
-                type="str",
-                default_value=quantization_mode_choices[0],
-                allowed_modes={ParameterMode.PROPERTY},
-                tooltip="Quantize model weights to reduce VRAM. fp8/int8/int4 trade increasing memory savings for some quality/speed loss.",
-                traits={Options(choices=quantization_mode_choices)},
+        if self._include_quantization:
+            quantization_mode_choices = ["None", "fp8", "int8", "int4"]
+            self._node.add_parameter(
+                Parameter(
+                    name="quantization_mode",
+                    type="str",
+                    default_value=quantization_mode_choices[0],
+                    allowed_modes={ParameterMode.PROPERTY},
+                    tooltip="Quantize model weights to reduce VRAM. fp8/int8/int4 trade increasing memory savings for some quality/speed loss.",
+                    traits={Options(choices=quantization_mode_choices)},
+                )
             )
-        )
 
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
-        if parameter.name == "memory_optimization_strategy":
-            if value == "Automatic":
-                self._node.hide_parameter_by_name("attention_slicing")
-                self._node.hide_parameter_by_name("vae_slicing")
-                self._node.hide_parameter_by_name("vae_tiling")
-                self._node.hide_parameter_by_name("transformer_layerwise_casting")
-                self._node.hide_parameter_by_name("cpu_offload_strategy")
-                self._node.hide_parameter_by_name("quantization_mode")
-            else:
-                self._node.show_parameter_by_name("attention_slicing")
-                self._node.show_parameter_by_name("vae_slicing")
-                self._node.show_parameter_by_name("vae_tiling")
-                self._node.show_parameter_by_name("transformer_layerwise_casting")
-                self._node.show_parameter_by_name("cpu_offload_strategy")
-                self._node.show_parameter_by_name("quantization_mode")
+        if parameter.name != "memory_optimization_strategy":
+            return
+
+        parameter_names = self.parameter_names[1:]
+        update_visibility = (
+            self._node.hide_parameter_by_name if value == "Automatic" else self._node.show_parameter_by_name
+        )
+        for parameter_name in parameter_names:
+            update_visibility(parameter_name)

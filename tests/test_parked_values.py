@@ -103,7 +103,6 @@ class TestAComponentDescriptionTravels:
 
         node = LoadComponent(name="Load Component", metadata={"library": "Modular Diffusion"})
         artifact = ModelComponentArtifact(
-            load_id="transformer@black-forest-labs/FLUX.1-dev",
             source_type=ComponentSourceType.HF_REPO,
             component="transformer",
             repo_ref=HFRepoRef(repo_id="black-forest-labs/FLUX.1-dev"),
@@ -136,7 +135,6 @@ class TestAComponentDescriptionTravels:
         )
 
         artifact = ModelComponentArtifact(
-            load_id="transformer@black-forest-labs/FLUX.1-dev",
             source_type=ComponentSourceType.HF_REPO,
             component="transformer",
             repo_ref=HFRepoRef(repo_id="black-forest-labs/FLUX.1-dev"),

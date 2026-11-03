@@ -11,6 +11,8 @@ what ``DiffusionPipeline._get_signature_keys`` returns for a given pipeline.
 
 import re
 
+SCHEDULER_CONFIG_FILENAME = "scheduler_config.json"
+
 ALLOWED_COMPONENT_SLOTS: list[str] = [
     "transformer",
     "unet",
@@ -76,7 +78,7 @@ def component_config_filename(component: str) -> str:
     if kind == "tokenizer":
         return "tokenizer_config.json"
     if kind == "scheduler":
-        return "scheduler_config.json"
+        return SCHEDULER_CONFIG_FILENAME
     return "config.json"
 
 

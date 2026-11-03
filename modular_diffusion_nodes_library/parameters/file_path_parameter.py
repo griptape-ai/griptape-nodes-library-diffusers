@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from griptape_nodes.exe_types.core_types import Parameter
+from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
 
@@ -15,9 +15,15 @@ class FilePathParameter:
         node: BaseNode,
         parameter_name: str = "file_path",
         file_types: list[str] | None = None,
+        # Where the file picker opens.
         initial_path: str | None = None,
         tooltip: str = "Path to a local file",
         display_name: str | None = None,
+        *,
+        allow_create: bool = False,
+        allowed_modes: set[ParameterMode] | None = None,
+        # Stored path default for the string parameter; independent of the picker's initial_path.
+        default_value: str | None = None,
     ):
         self._node = node
         self._parameter_name = parameter_name
@@ -25,12 +31,20 @@ class FilePathParameter:
         self._initial_path = initial_path or str(get_workspace_path())
         self._tooltip = tooltip
         self._display_name = display_name
+        self._allow_create = allow_create
+        self._allowed_modes = allowed_modes
+        self._default_value = default_value
 
     def add_input_parameters(self) -> None:
         if self._display_name:
             ui_options = {"display_name": self._display_name}
         else:
             ui_options = {}
+        extra_kwargs: dict[str, Any] = {}
+        if self._allowed_modes is not None:
+            extra_kwargs["allowed_modes"] = self._allowed_modes
+        if self._default_value is not None:
+            extra_kwargs["default_value"] = self._default_value
         self._node.add_parameter(
             Parameter(
                 name=self._parameter_name,
@@ -45,8 +59,10 @@ class FilePathParameter:
                         multiple=False,
                         file_types=self._file_types,
                         initial_path=self._initial_path,
+                        allow_create=self._allow_create,
                     )
                 },
+                **extra_kwargs,
             )
         )
 
@@ -65,6 +81,29 @@ class FilePathParameter:
         if picker is None:
             return
         picker.file_types = file_types
+        # _ui_options overrides traits in the ui_options property, so both stores must stay in sync.
+        existing = {k: v for k, v in param.ui_options.items() if k != "fileSystemPicker"}
+        existing["fileSystemPicker"] = picker.ui_options_for_trait()["fileSystemPicker"]
+        param.ui_options = existing
+
+    def set_picker_mode(
+        self,
+        *,
+        allow_files: bool,
+        allow_directories: bool,
+        file_types: list[str] | None = None,
+    ) -> None:
+        """Flip the picker between file and directory selection at runtime."""
+        self._file_types = file_types
+        param = self._node.get_parameter_by_name(self._parameter_name)
+        if param is None:
+            return
+        picker = next(iter(param.find_elements_by_type(FileSystemPicker)), None)
+        if picker is None:
+            return
+        picker.allow_files = allow_files
+        picker.allow_directories = allow_directories
+        picker.file_types = file_types or []
         # _ui_options overrides traits in the ui_options property, so both stores must stay in sync.
         existing = {k: v for k, v in param.ui_options.items() if k != "fileSystemPicker"}
         existing["fileSystemPicker"] = picker.ui_options_for_trait()["fileSystemPicker"]
