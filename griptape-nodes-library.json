@@ -1117,6 +1117,7 @@
         "workflows/templates/WanReplace.py",
         "workflows/templates/Multi-ViewPromptBatcher.py",
         "workflows/templates/CustomPipelineText2Image.py",
-        "workflows/templates/Flux3LayoutControlText2Image.py"
+        "workflows/templates/Flux3LayoutControlText2Image.py",
+        "workflows/templates/Flux3LayoutControlImageBasedEditing.py"
     ]
 }
