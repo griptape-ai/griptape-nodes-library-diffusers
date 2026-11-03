@@ -1,1123 +1,1123 @@
 {
-    "name": "Griptape Modular Diffusion Nodes Library",
-    "library_schema_version": "0.10.0",
-    "settings": [
-        {
-            "description": "Configuration settings for the Modular Diffusion Library temporary file storage",
-            "category": "modular_diffusion_library",
-            "contents": {
-                "temp_folder_name": "intermediates"
-            }
-        },
-        {
-            "description": "Configuration settings for cleaning up the Modular Diffusion Library temporary file storage",
-            "category": "modular_diffusion_library",
-            "contents": {
-                "max_directory_size_gb": 5,
-                "enable_directory_cleanup": false
-            }
-        },
-        {
-            "description": "Configuration settings for image preview intermediates in diffusion pipeline runtime. Enables real-time image previews during generation but will slow down inference time.",
-            "category": "modular_diffusion_library",
-            "contents": {
-                "enable_image_preview_intermediates": false
-            }
-        },
-        {
-            "description": "Configuration settings for auto resize. Enabling this will automatically resize images and videos to the appropriate resolution and number of frames (video pipelines) as supported by the selected diffusion pipeline.",
-            "category": "modular_diffusion_library",
-            "contents": {
-                "enable_auto_resize": false
-            }
-        }
-    ],
-    "metadata": {
-        "author": "Griptape, Inc.",
-        "description": "Modular Diffusion nodes for Griptape Nodes.",
-        "library_version": "0.7.1",
-        "engine_version": "0.105.0",
-        "tags": [
-            "Griptape",
-            "AI"
-        ],
-        "dependencies": {
-            "pip_dependencies": [
-                "griptape[loaders-image]>=1.9.4",
-                "huggingface-hub>=1.5.0,<2.0"
-            ],
-            "pip_install_flags": [
-                "--preview",
-                "--torch-backend=auto"
-            ],
-            "pip_dependencies_exec": [
-                "griptape[loaders-image]>=1.9.4",
-                "huggingface-hub>=1.5.0,<2.0",
-                "accelerate>=1.6.0",
-                "av>=14.0.0",
-                "diffusers==0.42.0",
-                "imageio[ffmpeg]>=2.37.2",
-                "numpy>=2.2.4",
-                "opencv-python>=4.11.0.86",
-                "peft>=0.17.0",
-                "pillow>=11.2.1",
-                "sentencepiece>=0.2.0",
-                "torch==2.7.0",
-                "torchvision==0.22.0",
-                "safetensors>=0.8.0rc0",
-                "scipy>=1.10.0",
-                "transformers==5.13.0",
-                "tokenizers>=0.22.0,<0.23",
-                "optimum-quanto>=0.2.7",
-                "protobuf>=6.31.0",
-                "bitsandbytes>=0.50.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-                "ftfy>=6.3.1",
-                "gguf>=0.10.0",
-                "openexr>=3.3.0"
-            ]
-        },
-        "resources": {
-            "required": {
-                "compute": [
-                    [
-                        "cuda",
-                        "mps"
-                    ],
-                    "has_any"
-                ]
-            }
-        },
-        "declarations": [
-            {
-                "type": "lifecycle_stage",
-                "stage": "LABS"
-            },
-            {
-                "type": "model_catalog",
-                "providers": {
-                    "black_forest_labs": {
-                        "display_name": "BlackForest Labs",
-                        "terms_url": "https://huggingface.co/black-forest-labs",
-                        "models": {
-                            "md_flux_1_schnell": {
-                                "display_name": "FLUX.1 [schnell]",
-                                "provider_model_id": "black-forest-labs/FLUX.1-schnell",
-                                "family": "FLUX",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Apache-2.0 weights, but the repo is gated on HuggingFace (anonymous download returns 401), so fetching it requires an HF token with the terms accepted."
-                            },
-                            "md_flux_1_dev": {
-                                "display_name": "FLUX.1 [dev]",
-                                "provider_model_id": "black-forest-labs/FLUX.1-dev",
-                                "family": "FLUX",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the FLUX.1 [dev] Non-Commercial License; requires accepting the license and an HF token."
-                            },
-                            "md_flux_1_krea_dev": {
-                                "display_name": "FLUX.1 Krea [dev]",
-                                "provider_model_id": "black-forest-labs/FLUX.1-Krea-dev",
-                                "family": "FLUX",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the FLUX.1 [dev] Non-Commercial License."
-                            },
-                            "md_flux_1_fill_dev": {
-                                "display_name": "FLUX.1 Fill [dev]",
-                                "provider_model_id": "black-forest-labs/FLUX.1-Fill-dev",
-                                "family": "FLUX",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the FLUX.1 [dev] Non-Commercial License."
-                            },
-                            "md_flux_1_kontext_dev": {
-                                "display_name": "FLUX.1 Kontext [dev]",
-                                "provider_model_id": "black-forest-labs/FLUX.1-Kontext-dev",
-                                "family": "FLUX",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the FLUX.1 [dev] Non-Commercial License."
-                            },
-                            "md_flux_2_dev": {
-                                "display_name": "FLUX.2 [dev]",
-                                "provider_model_id": "black-forest-labs/FLUX.2-dev",
-                                "family": "FLUX.2",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the FLUX.2 [dev] Non-Commercial License."
-                            },
-                            "md_flux_2_dev_bnb_4bit": {
-                                "display_name": "FLUX.2 [dev] bnb 4-bit",
-                                "provider_model_id": "diffusers/FLUX.2-dev-bnb-4bit",
-                                "family": "FLUX.2",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Hosted under the diffusers org but a bitsandbytes 4-bit quantization of FLUX.2 [dev]; inherits its Non-Commercial License, so it is keyed to black_forest_labs."
-                            },
-                            "md_flux_2_klein_4b": {
-                                "display_name": "FLUX.2 [klein] 4B",
-                                "provider_model_id": "black-forest-labs/FLUX.2-klein-4B",
-                                "family": "FLUX.2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0 and ungated. Only the 4B klein tier is permissive; the 9B tier is non-commercial and gated."
-                            },
-                            "md_flux_2_klein_4b_fp8": {
-                                "display_name": "FLUX.2 [klein] 4B FP8",
-                                "provider_model_id": "black-forest-labs/FLUX.2-klein-4B-fp8",
-                                "family": "FLUX.2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0 and ungated. Only the 4B klein tier is permissive; the 9B tier is non-commercial and gated."
-                            },
-                            "md_flux_2_klein_4b_nvfp4": {
-                                "display_name": "FLUX.2 [klein] 4B NVFP4",
-                                "provider_model_id": "black-forest-labs/FLUX.2-klein-4B-nvfp4",
-                                "family": "FLUX.2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0 and ungated. Only the 4B klein tier is permissive; the 9B tier is non-commercial and gated."
-                            },
-                            "md_flux_2_klein_9b": {
-                                "display_name": "FLUX.2 [klein] 9B",
-                                "provider_model_id": "black-forest-labs/FLUX.2-klein-9B",
-                                "family": "FLUX.2",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the FLUX.2 Non-Commercial License (HuggingFace reports license_name=flux-non-commercial-license and gated). The klein line splits by size tier: the 4B releases are Apache-2.0 and ungated, the 9B releases are neither."
-                            },
-                            "md_flux_2_klein_9b_fp8": {
-                                "display_name": "FLUX.2 [klein] 9B FP8",
-                                "provider_model_id": "black-forest-labs/FLUX.2-klein-9B-fp8",
-                                "family": "FLUX.2",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the FLUX.2 Non-Commercial License (HuggingFace reports license_name=flux-non-commercial-license and gated). The klein line splits by size tier: the 4B releases are Apache-2.0 and ungated, the 9B releases are neither."
-                            },
-                            "md_flux_2_klein_9b_nvfp4": {
-                                "display_name": "FLUX.2 [klein] 9B NVFP4",
-                                "provider_model_id": "black-forest-labs/FLUX.2-klein-9B-nvfp4",
-                                "family": "FLUX.2",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the FLUX.2 Non-Commercial License (HuggingFace reports license_name=flux-non-commercial-license and gated). The klein line splits by size tier: the 4B releases are Apache-2.0 and ungated, the 9B releases are neither."
-                            },
-                            "md_flux_2_klein_base_4b": {
-                                "display_name": "FLUX.2 [klein] base 4B",
-                                "provider_model_id": "black-forest-labs/FLUX.2-klein-base-4B",
-                                "family": "FLUX.2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0 and ungated. Only the 4B klein tier is permissive; the 9B tier is non-commercial and gated."
-                            },
-                            "md_flux_2_klein_base_9b": {
-                                "display_name": "FLUX.2 [klein] base 9B",
-                                "provider_model_id": "black-forest-labs/FLUX.2-klein-base-9B",
-                                "family": "FLUX.2",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the FLUX.2 Non-Commercial License (HuggingFace reports license_name=flux-non-commercial-license and gated). The klein line splits by size tier: the 4B releases are Apache-2.0 and ungated, the 9B releases are neither."
-                            },
-                            "md_flux_3_image_klein_base": {
-                                "display_name": "FLUX.3 Image Klein Base",
-                                "provider_model_id": "black-forest-labs/flux-3-image-klein-base",
-                                "family": "FLUX.3",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the FLUX Kommunity License. Accept the license and authenticate with Hugging Face before downloading."
-                            },
-                            "md_flux_3_image_klein_distilled": {
-                                "display_name": "FLUX.3 Image Klein Distilled",
-                                "provider_model_id": "black-forest-labs/flux-3-image-klein",
-                                "family": "FLUX.3",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the FLUX Kommunity License. Accept the license and authenticate with Hugging Face before downloading."
-                            },
-                            "md_flux_3_image_klein_pup": {
-                                "display_name": "FLUX.3 Image Klein Prompt Upsampler",
-                                "provider_model_id": "black-forest-labs/flux-3-image-klein-pup",
-                                "family": "FLUX.3",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0 prompt upsampler loaded as a separate optional component by both FLUX.3 Image Klein pipeline types."
-                            },
-                            "md_flux_1_dev_controlnet_union_instantx": {
-                                "display_name": "FLUX.1 [dev] ControlNet Union (InstantX)",
-                                "provider_model_id": "InstantX/FLUX.1-dev-Controlnet-Union",
-                                "family": "FLUX",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Hosted by InstantX but released under the FLUX.1 [dev] Non-Commercial License it derives from, so it is keyed to black_forest_labs and a BFL-scoped rule covers it."
-                            },
-                            "md_flux_1_dev_controlnet_union_pro": {
-                                "display_name": "FLUX.1 [dev] ControlNet Union Pro (Shakker Labs)",
-                                "provider_model_id": "Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro",
-                                "family": "FLUX",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Hosted by Shakker Labs but released under the FLUX.1 [dev] Non-Commercial License it derives from."
-                            },
-                            "md_flux_1_dev_controlnet_union_pro_2": {
-                                "display_name": "FLUX.1 [dev] ControlNet Union Pro 2.0 (Shakker Labs)",
-                                "provider_model_id": "Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0",
-                                "family": "FLUX",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Hosted by Shakker Labs but released under the FLUX.1 [dev] Non-Commercial License it derives from."
-                            }
-                        }
-                    },
-                    "stability": {
-                        "display_name": "Stability AI",
-                        "terms_url": "https://huggingface.co/stabilityai",
-                        "models": {
-                            "md_sdxl_base_1_0": {
-                                "display_name": "Stable Diffusion XL Base 1.0",
-                                "provider_model_id": "stabilityai/stable-diffusion-xl-base-1.0",
-                                "family": "Stable Diffusion XL",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "CreativeML Open RAIL++-M."
-                            },
-                            "md_sdxl_refiner_1_0": {
-                                "display_name": "Stable Diffusion XL Refiner 1.0",
-                                "provider_model_id": "stabilityai/stable-diffusion-xl-refiner-1.0",
-                                "family": "Stable Diffusion XL",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "CreativeML Open RAIL++-M."
-                            },
-                            "md_sdxl_inpainting_0_1": {
-                                "display_name": "Stable Diffusion XL Inpainting 0.1",
-                                "provider_model_id": "diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
-                                "family": "Stable Diffusion XL",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Hosted under the diffusers org but an SDXL 1.0 derivative under CreativeML Open RAIL++-M, so it is keyed to stability."
-                            },
-                            "md_sd3_medium": {
-                                "display_name": "Stable Diffusion 3 Medium",
-                                "provider_model_id": "stabilityai/stable-diffusion-3-medium-diffusers",
-                                "family": "Stable Diffusion 3",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the Stability Community License; requires accepting the license and an HF token."
-                            },
-                            "md_sd3_5_medium": {
-                                "display_name": "Stable Diffusion 3.5 Medium",
-                                "provider_model_id": "stabilityai/stable-diffusion-3.5-medium",
-                                "family": "Stable Diffusion 3",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the Stability Community License."
-                            },
-                            "md_sd3_5_large": {
-                                "display_name": "Stable Diffusion 3.5 Large",
-                                "provider_model_id": "stabilityai/stable-diffusion-3.5-large",
-                                "family": "Stable Diffusion 3",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the Stability Community License."
-                            },
-                            "md_sd3_5_large_turbo": {
-                                "display_name": "Stable Diffusion 3.5 Large Turbo",
-                                "provider_model_id": "stabilityai/stable-diffusion-3.5-large-turbo",
-                                "family": "Stable Diffusion 3",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the Stability Community License."
-                            },
-                            "md_sd3_5m_controlnet_depth": {
-                                "display_name": "SD3.5M ControlNet Depth",
-                                "provider_model_id": "tensorart/SD3.5M-Controlnet-Depth",
-                                "family": "SD3 ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Published by Tensor.Art but released under the Stability AI Community License as a stable-diffusion-3.5-medium derivative, so it is keyed to stability and a Stability-scoped rule covers it."
-                            },
-                            "md_sd3_5m_controlnet_canny": {
-                                "display_name": "SD3.5M ControlNet Canny",
-                                "provider_model_id": "tensorart/SD3.5M-Controlnet-Canny",
-                                "family": "SD3 ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Published by Tensor.Art but released under the Stability AI Community License as a stable-diffusion-3.5-medium derivative, so it is keyed to stability and a Stability-scoped rule covers it."
-                            }
-                        }
-                    },
-                    "dashscope": {
-                        "display_name": "Alibaba Cloud Model Studio",
-                        "terms_url": "https://huggingface.co/Qwen",
-                        "notes": "Keyed to match the standard library's provider id for Alibaba so one admin rule covers both the hosted API and these local weights. Covers the Qwen, Wan, and Z-Image lines.",
-                        "models": {
-                            "md_qwen_image": {
-                                "display_name": "Qwen-Image",
-                                "provider_model_id": "Qwen/Qwen-Image",
-                                "family": "Qwen",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_qwen_image_edit": {
-                                "display_name": "Qwen-Image-Edit",
-                                "provider_model_id": "Qwen/Qwen-Image-Edit",
-                                "family": "Qwen",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_qwen_image_edit_2509": {
-                                "display_name": "Qwen-Image-Edit 2509",
-                                "provider_model_id": "Qwen/Qwen-Image-Edit-2509",
-                                "family": "Qwen",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_qwen_image_edit_2511": {
-                                "display_name": "Qwen-Image-Edit 2511",
-                                "provider_model_id": "Qwen/Qwen-Image-Edit-2511",
-                                "family": "Qwen",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_qwen_image_controlnet_union": {
-                                "display_name": "Qwen-Image ControlNet Union (InstantX)",
-                                "provider_model_id": "InstantX/Qwen-Image-ControlNet-Union",
-                                "family": "Qwen",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Hosted by InstantX; Apache-2.0 like the Qwen-Image base it derives from, and keyed to the same authority so a Qwen-scoped rule covers it."
-                            },
-                            "md_qwen_image_controlnet_inpainting": {
-                                "display_name": "Qwen-Image ControlNet Inpainting (InstantX)",
-                                "provider_model_id": "InstantX/Qwen-Image-ControlNet-Inpainting",
-                                "family": "Qwen",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Hosted by InstantX; Apache-2.0 like the Qwen-Image base it derives from."
-                            },
-                            "md_wan_2_1_t2v_1_3b": {
-                                "display_name": "Wan 2.1 T2V 1.3B",
-                                "provider_model_id": "Wan-AI/Wan2.1-T2V-1.3B-Diffusers",
-                                "family": "Wan",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_wan_2_1_t2v_14b": {
-                                "display_name": "Wan 2.1 T2V 14B",
-                                "provider_model_id": "Wan-AI/Wan2.1-T2V-14B-Diffusers",
-                                "family": "Wan",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_wan_2_2_t2v_a14b": {
-                                "display_name": "Wan 2.2 T2V A14B",
-                                "provider_model_id": "Wan-AI/Wan2.2-T2V-A14B-Diffusers",
-                                "family": "Wan",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_wan_2_1_i2v_14b_480p": {
-                                "display_name": "Wan 2.1 I2V 14B 480P",
-                                "provider_model_id": "Wan-AI/Wan2.1-I2V-14B-480P-Diffusers",
-                                "family": "Wan",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_wan_2_1_i2v_14b_720p": {
-                                "display_name": "Wan 2.1 I2V 14B 720P",
-                                "provider_model_id": "Wan-AI/Wan2.1-I2V-14B-720P-Diffusers",
-                                "family": "Wan",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_wan_2_2_i2v_a14b": {
-                                "display_name": "Wan 2.2 I2V A14B",
-                                "provider_model_id": "Wan-AI/Wan2.2-I2V-A14B-Diffusers",
-                                "family": "Wan",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_wan_2_1_vace_1_3b": {
-                                "display_name": "Wan 2.1 VACE 1.3B",
-                                "provider_model_id": "Wan-AI/Wan2.1-VACE-1.3B-diffusers",
-                                "family": "Wan",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_wan_2_1_vace_14b": {
-                                "display_name": "Wan 2.1 VACE 14B",
-                                "provider_model_id": "Wan-AI/Wan2.1-VACE-14B-diffusers",
-                                "family": "Wan",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_wan_2_2_animate_14b": {
-                                "display_name": "Wan 2.2 Animate 14B",
-                                "provider_model_id": "Wan-AI/Wan2.2-Animate-14B-Diffusers",
-                                "family": "Wan",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_z_image_turbo": {
-                                "display_name": "Z-Image Turbo",
-                                "provider_model_id": "Tongyi-MAI/Z-Image-Turbo",
-                                "family": "Z-Image",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0. Published by Alibaba's Tongyi-MAI org."
-                            },
-                            "md_z_image_turbo_fun_controlnet_union": {
-                                "display_name": "Z-Image Turbo Fun ControlNet Union",
-                                "provider_model_id": "alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union",
-                                "family": "Z-Image",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Published by Alibaba's PAI org; same authority as the Z-Image base it derives from."
-                            },
-                            "md_z_image_turbo_fun_controlnet_union_2_1": {
-                                "display_name": "Z-Image Turbo Fun ControlNet Union 2.1",
-                                "provider_model_id": "alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1",
-                                "family": "Z-Image",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Published by Alibaba's PAI org; same authority as the Z-Image base it derives from."
-                            }
-                        }
-                    },
-                    "tencent": {
-                        "display_name": "Tencent Hunyuan",
-                        "terms_url": "https://huggingface.co/tencent",
-                        "notes": "HunyuanVideo weights are released under the Tencent Hunyuan Community License, which restricts some territories and use cases.",
-                        "models": {
-                            "md_hunyuan_video_1_5_480p_t2v": {
-                                "display_name": "HunyuanVideo 1.5 480p T2V",
-                                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_t2v",
-                                "family": "HunyuanVideo",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion; keyed to tencent because it inherits the Hunyuan Community License."
-                            },
-                            "md_hunyuan_video_1_5_480p_t2v_distilled": {
-                                "display_name": "HunyuanVideo 1.5 480p T2V distilled",
-                                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_t2v_distilled",
-                                "family": "HunyuanVideo",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
-                            },
-                            "md_hunyuan_video_1_5_720p_t2v": {
-                                "display_name": "HunyuanVideo 1.5 720p T2V",
-                                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-720p_t2v",
-                                "family": "HunyuanVideo",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
-                            },
-                            "md_hunyuan_video_1_5_480p_i2v": {
-                                "display_name": "HunyuanVideo 1.5 480p I2V",
-                                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_i2v",
-                                "family": "HunyuanVideo",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
-                            },
-                            "md_hunyuan_video_1_5_480p_i2v_distilled": {
-                                "display_name": "HunyuanVideo 1.5 480p I2V distilled",
-                                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_i2v_distilled",
-                                "family": "HunyuanVideo",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
-                            },
-                            "md_hunyuan_video_1_5_480p_i2v_step_distilled": {
-                                "display_name": "HunyuanVideo 1.5 480p I2V step-distilled",
-                                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_i2v_step_distilled",
-                                "family": "HunyuanVideo",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
-                            },
-                            "md_hunyuan_video_1_5_720p_i2v": {
-                                "display_name": "HunyuanVideo 1.5 720p I2V",
-                                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-720p_i2v",
-                                "family": "HunyuanVideo",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
-                            },
-                            "md_hunyuan_video_1_5_720p_i2v_distilled": {
-                                "display_name": "HunyuanVideo 1.5 720p I2V distilled",
-                                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-720p_i2v_distilled",
-                                "family": "HunyuanVideo",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
-                            }
-                        }
-                    },
-                    "xinsir": {
-                        "display_name": "xinsir",
-                        "terms_url": "https://huggingface.co/xinsir",
-                        "notes": "Independently licensed (Apache-2.0) SDXL ControlNets. Keyed to their own authority rather than stability because their license does not derive from SDXL's.",
-                        "models": {
-                            "md_controlnet_union_sdxl_1_0": {
-                                "display_name": "ControlNet Union SDXL 1.0",
-                                "provider_model_id": "xinsir/controlnet-union-sdxl-1.0",
-                                "family": "SDXL ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_controlnet_openpose_sdxl_1_0": {
-                                "display_name": "ControlNet OpenPose SDXL 1.0",
-                                "provider_model_id": "xinsir/controlnet-openpose-sdxl-1.0",
-                                "family": "SDXL ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_controlnet_scribble_sdxl_1_0": {
-                                "display_name": "ControlNet Scribble SDXL 1.0",
-                                "provider_model_id": "xinsir/controlnet-scribble-sdxl-1.0",
-                                "family": "SDXL ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_controlnet_depth_sdxl_1_0": {
-                                "display_name": "ControlNet Depth SDXL 1.0",
-                                "provider_model_id": "xinsir/controlnet-depth-sdxl-1.0",
-                                "family": "SDXL ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_controlnet_canny_sdxl_1_0": {
-                                "display_name": "ControlNet Canny SDXL 1.0",
-                                "provider_model_id": "xinsir/controlnet-canny-sdxl-1.0",
-                                "family": "SDXL ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            },
-                            "md_controlnet_tile_sdxl_1_0": {
-                                "display_name": "ControlNet Tile SDXL 1.0",
-                                "provider_model_id": "xinsir/controlnet-tile-sdxl-1.0",
-                                "family": "SDXL ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            }
-                        }
-                    },
-                    "instantx": {
-                        "display_name": "InstantX",
-                        "terms_url": "https://huggingface.co/InstantX",
-                        "notes": "SD3 ControlNets published by InstantX. Only SD3-Controlnet-Depth declares Apache-2.0; the others declare no license and their terms are unverified. The InstantX FLUX and Qwen ControlNets are keyed to their base authority instead, because those inherit the base terms.",
-                        "models": {
-                            "md_sd3_controlnet_canny": {
-                                "display_name": "SD3 ControlNet Canny",
-                                "provider_model_id": "InstantX/SD3-Controlnet-Canny",
-                                "family": "SD3 ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "This repo declares no license on HuggingFace, so its terms are unverified. Kept under its publisher rather than assumed permissive; if it is later confirmed to follow Stable Diffusion 3's terms it should be re-keyed to stability."
-                            },
-                            "md_sd3_controlnet_pose": {
-                                "display_name": "SD3 ControlNet Pose",
-                                "provider_model_id": "InstantX/SD3-Controlnet-Pose",
-                                "family": "SD3 ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "This repo declares no license on HuggingFace, so its terms are unverified. Kept under its publisher rather than assumed permissive; if it is later confirmed to follow Stable Diffusion 3's terms it should be re-keyed to stability."
-                            },
-                            "md_sd3_controlnet_tile": {
-                                "display_name": "SD3 ControlNet Tile",
-                                "provider_model_id": "InstantX/SD3-Controlnet-Tile",
-                                "family": "SD3 ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "This repo declares no license on HuggingFace, so its terms are unverified. Kept under its publisher rather than assumed permissive; if it is later confirmed to follow Stable Diffusion 3's terms it should be re-keyed to stability."
-                            },
-                            "md_sd3_controlnet_depth": {
-                                "display_name": "SD3 ControlNet Depth",
-                                "provider_model_id": "InstantX/SD3-Controlnet-Depth",
-                                "family": "SD3 ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Apache-2.0."
-                            }
-                        }
-                    },
-                    "alimama_creative": {
-                        "display_name": "Alimama Creative",
-                        "terms_url": "https://huggingface.co/alimama-creative",
-                        "models": {
-                            "md_sd3_controlnet_inpainting": {
-                                "display_name": "SD3 ControlNet Inpainting",
-                                "provider_model_id": "alimama-creative/SD3-Controlnet-Inpainting",
-                                "family": "SD3 ControlNet",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "This repo declares no license on HuggingFace, so its terms are unverified. Kept under its publisher rather than assumed permissive; if it is later confirmed to follow Stable Diffusion 3's terms it should be re-keyed to stability."
-                            }
-                        },
-                        "notes": "Declares license 'other' with no named license; terms unverified."
-                    },
-                    "ltx": {
-                        "display_name": "LTX Studio",
-                        "terms_url": "https://huggingface.co/Lightricks",
-                        "notes": "Keyed to match the standard library's provider id for Lightricks so one admin rule covers both the hosted LTX API and these local weights. LTX-Video weights are released under the LTX-Video Open Weights License, which carries use restrictions beyond a permissive OSS license.",
-                        "models": {
-                            "md_ltx_video": {
-                                "display_name": "LTX-Video",
-                                "provider_model_id": "Lightricks/LTX-Video",
-                                "family": "LTX",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "LTX-Video Open Weights License."
-                            },
-                            "md_ltx_video_0_9_7_dev": {
-                                "display_name": "LTX-Video 0.9.7 dev",
-                                "provider_model_id": "Lightricks/LTX-Video-0.9.7-dev",
-                                "family": "LTX",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "LTX-Video Open Weights License."
-                            },
-                            "md_ltx_video_0_9_7_distilled": {
-                                "display_name": "LTX-Video 0.9.7 distilled",
-                                "provider_model_id": "Lightricks/LTX-Video-0.9.7-distilled",
-                                "family": "LTX",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "LTX-Video Open Weights License."
-                            },
-                            "md_ltx_video_0_9_8_13b_distilled": {
-                                "display_name": "LTX-Video 0.9.8 13B distilled",
-                                "provider_model_id": "Lightricks/LTX-Video-0.9.8-13B-distilled",
-                                "family": "LTX",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "LTX-Video Open Weights License."
-                            },
-                            "md_ltxv_spatial_upscaler_0_9_7": {
-                                "display_name": "LTX-Video Spatial Upscaler 0.9.7",
-                                "provider_model_id": "Lightricks/ltxv-spatial-upscaler-0.9.7",
-                                "family": "LTX",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "LTX-Video Open Weights License."
-                            },
-                            "md_ltx_2": {
-                                "display_name": "LTX-2",
-                                "provider_model_id": "Lightricks/LTX-2",
-                                "family": "LTX-2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "LTX-Video Open Weights License."
-                            },
-                            "md_ltx_2_3_diffusers": {
-                                "display_name": "LTX 2.3 (Diffusers)",
-                                "provider_model_id": "dg845/LTX-2.3-Diffusers",
-                                "family": "LTX-2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 weights; keyed to ltx because it inherits the LTX-Video Open Weights License."
-                            },
-                            "md_ltx_2_3_distilled_diffusers": {
-                                "display_name": "LTX 2.3 Distilled (Diffusers)",
-                                "provider_model_id": "dg845/LTX-2.3-Distilled-Diffusers",
-                                "family": "LTX-2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 distilled weights; inherits the LTX-Video Open Weights License."
-                            },
-                            "md_ltx_2_3_spatial_upsampler_diffusers": {
-                                "display_name": "LTX 2.3 Spatial Upsampler (Diffusers)",
-                                "provider_model_id": "dg845/LTX-2.3-Spatial-Upsampler-Diffusers",
-                                "family": "LTX-2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 spatial upsampler; inherits the LTX-Video Open Weights License."
-                            },
-                            "md_ltx_2_5_diffusers": {
-                                "display_name": "LTX-2.5 (Diffusers)",
-                                "provider_model_id": "Lightricks/LTX-2.5-Diffusers",
-                                "family": "LTX-2",
-                                "key_support": "NO_KEY_REQUIRED",
-                                "notes": "Gated repo on Hugging Face; requires accepting Lightricks' license and an authenticated HF token to download. Inherits the LTX-Video Open Weights License."
-                            }
-                        }
-                    },
-                    "minimax": {
-                        "display_name": "MiniMax AI",
-                        "terms_url": "https://huggingface.co/MiniMaxAI",
-                        "models": {
-                            "md_minimax_h3": {
-                                "display_name": "MiniMax-H3",
-                                "provider_model_id": "MiniMaxAI/MiniMax-H3",
-                                "family": "MiniMax H3",
-                                "key_support": "REQUIRES_CUSTOMER_KEY",
-                                "notes": "Gated repo under the MiniMax H3 Community License Agreement; requires accepting the license and an HF token."
-                            }
-                        }
-                    }
-                }
-            }
-        ]
+  "name": "Griptape Modular Diffusion Nodes Library",
+  "library_schema_version": "0.10.0",
+  "settings": [
+    {
+      "description": "Configuration settings for the Modular Diffusion Library temporary file storage",
+      "category": "modular_diffusion_library",
+      "contents": {
+        "temp_folder_name": "intermediates"
+      }
     },
-    "categories": [],
-    "nodes": [
-        {
-            "class_name": "LatentDiffusionPipelineBuilderNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/latent_diffusion_pipeline_builder_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Pipeline",
-                "description": "Build and cache latent-compatible \ud83e\udde8 Diffusers Pipelines. Any LoRAs wired into this node are fused permanently into the cached weights \u2014 changing them rebuilds the pipeline. For dynamic adapters that swap per generation, use the LoRA Pipeline node instead.",
-                "display_name": "Modular Diffusion Pipeline Builder",
-                "group": "diffusion",
-                "declarations": [
-                    {
-                        "type": "model_usage",
-                        "model_ids": [
-                            "md_flux_1_dev",
-                            "md_flux_1_fill_dev",
-                            "md_flux_1_kontext_dev",
-                            "md_flux_1_krea_dev",
-                            "md_flux_1_schnell",
-                            "md_flux_2_dev",
-                            "md_flux_2_dev_bnb_4bit",
-                            "md_flux_2_klein_4b",
-                            "md_flux_2_klein_4b_fp8",
-                            "md_flux_2_klein_4b_nvfp4",
-                            "md_flux_2_klein_9b",
-                            "md_flux_2_klein_9b_fp8",
-                            "md_flux_2_klein_9b_nvfp4",
-                            "md_flux_2_klein_base_4b",
-                            "md_flux_2_klein_base_9b",
-                            "md_flux_3_image_klein_base",
-                            "md_flux_3_image_klein_distilled",
-                            "md_flux_3_image_klein_pup",
-                            "md_hunyuan_video_1_5_480p_i2v",
-                            "md_hunyuan_video_1_5_480p_i2v_distilled",
-                            "md_hunyuan_video_1_5_480p_i2v_step_distilled",
-                            "md_hunyuan_video_1_5_480p_t2v",
-                            "md_hunyuan_video_1_5_480p_t2v_distilled",
-                            "md_hunyuan_video_1_5_720p_i2v",
-                            "md_hunyuan_video_1_5_720p_i2v_distilled",
-                            "md_hunyuan_video_1_5_720p_t2v",
-                            "md_ltx_2",
-                            "md_ltx_2_3_diffusers",
-                            "md_ltx_2_3_distilled_diffusers",
-                            "md_ltx_2_5_diffusers",
-                            "md_ltx_video",
-                            "md_ltx_video_0_9_7_dev",
-                            "md_ltx_video_0_9_7_distilled",
-                            "md_ltx_video_0_9_8_13b_distilled",
-                            "md_minimax_h3",
-                            "md_qwen_image",
-                            "md_qwen_image_edit",
-                            "md_qwen_image_edit_2509",
-                            "md_qwen_image_edit_2511",
-                            "md_sd3_5_large",
-                            "md_sd3_5_large_turbo",
-                            "md_sd3_5_medium",
-                            "md_sd3_medium",
-                            "md_sdxl_base_1_0",
-                            "md_sdxl_inpainting_0_1",
-                            "md_sdxl_refiner_1_0",
-                            "md_wan_2_1_i2v_14b_480p",
-                            "md_wan_2_1_i2v_14b_720p",
-                            "md_wan_2_1_t2v_14b",
-                            "md_wan_2_1_t2v_1_3b",
-                            "md_wan_2_1_vace_14b",
-                            "md_wan_2_1_vace_1_3b",
-                            "md_wan_2_2_animate_14b",
-                            "md_wan_2_2_i2v_a14b",
-                            "md_wan_2_2_t2v_a14b",
-                            "md_z_image_turbo"
-                        ]
-                    }
-                ]
-            }
-        },
-        {
-            "class_name": "DiffusionPipelineGenerateLatentNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/diffusion_pipeline_generate_latent_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Processing",
-                "description": "Generate latents via \ud83e\udde8 Diffusers Pipelines.",
-                "display_name": "Generate Media Latents (Modular Diffusion Pipeline)",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "NoiseLatentNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/noise_latent_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Create",
-                "description": "Create an initial noise latent tensor for a selected \ud83e\udde8 Diffusers pipeline.",
-                "display_name": "Create Noise Latents",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "EmptyLatentNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/empty_latent_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Create",
-                "description": "Create a zero-filled (empty) latent tensor for a selected \ud83e\udde8 Diffusers pipeline.",
-                "display_name": "Create Empty Latents",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "AddLatentsNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/add_latents.py",
-            "metadata": {
-                "category": "ModularDiffusion/Transform",
-                "description": "Add two latent artifacts elementwise.",
-                "display_name": "Add Latents",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "SubtractLatentsNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/subtract_latents.py",
-            "metadata": {
-                "category": "ModularDiffusion/Transform",
-                "description": "Subtract the right latent from the left latent elementwise.",
-                "display_name": "Subtract Latents",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "MultiplyLatentsNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/multiply_latents.py",
-            "metadata": {
-                "category": "ModularDiffusion/Transform",
-                "description": "Multiply two latent artifacts elementwise.",
-                "display_name": "Multiply Latents",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "SaveLatentTensorNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/save_latent_tensor.py",
-            "metadata": {
-                "category": "ModularDiffusion/IO",
-                "description": "Save a latent artifact to a torch .pt file.",
-                "display_name": "Save Latent Tensor",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "VaeEncodeNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/vae_encoder.py",
-            "metadata": {
-                "category": "ModularDiffusion/Encode\\Decode",
-                "description": "Encode images or video into VAE latent space via \ud83e\udde8 Diffusers Pipelines.",
-                "display_name": "Encode Media",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "VaeMaskEncodeNode",
-            "file_path": "modular_diffusion_nodes_library/nodes/vae_mask_encoder.py",
-            "metadata": {
-                "category": "ModularDiffusion/Encode\\Decode",
-                "description": "Encode a source image and mask into an inpaint artifact (mask + masked-image latent) for use with inpainting pipelines.",
-                "display_name": "Encode Masked Media",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "VaeDecodeNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/vae_decoder.py",
-            "metadata": {
-                "category": "ModularDiffusion/Encode\\Decode",
-                "description": "Decode VAE latent images or video via \ud83e\udde8 Diffusers Pipelines.",
-                "display_name": "Decode Media",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "DecodeHdrNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/decode_hdr_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Encode\\Decode",
-                "description": "Decode HDR VAE latent, apply tone mapping, and optionally save a raw EXR sequence.",
-                "display_name": "Decode HDR Latents",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "LatentCompositeMaskNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/latent_composite_mask_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Transform",
-                "description": "Composite two latent tensors together by pasting masked latent into destination latent.",
-                "display_name": "Latents Composite Mask",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "ControlNetNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/controlnet_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Conditioning",
-                "description": "ControlNet node for configuring different ControlNet models.",
-                "display_name": "Configure ControlNet",
-                "group": "diffusion",
-                "declarations": [
-                    {
-                        "type": "model_usage",
-                        "model_ids": [
-                            "md_controlnet_canny_sdxl_1_0",
-                            "md_controlnet_depth_sdxl_1_0",
-                            "md_controlnet_openpose_sdxl_1_0",
-                            "md_controlnet_scribble_sdxl_1_0",
-                            "md_controlnet_tile_sdxl_1_0",
-                            "md_controlnet_union_sdxl_1_0",
-                            "md_flux_1_dev_controlnet_union_instantx",
-                            "md_flux_1_dev_controlnet_union_pro",
-                            "md_flux_1_dev_controlnet_union_pro_2",
-                            "md_qwen_image_controlnet_inpainting",
-                            "md_qwen_image_controlnet_union",
-                            "md_sd3_5m_controlnet_canny",
-                            "md_sd3_5m_controlnet_depth",
-                            "md_sd3_controlnet_canny",
-                            "md_sd3_controlnet_depth",
-                            "md_sd3_controlnet_inpainting",
-                            "md_sd3_controlnet_pose",
-                            "md_sd3_controlnet_tile",
-                            "md_z_image_turbo_fun_controlnet_union",
-                            "md_z_image_turbo_fun_controlnet_union_2_1"
-                        ]
-                    }
-                ]
-            }
-        },
-        {
-            "class_name": "ControlNetDiffusionPipelineBuilderNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/controlnet_pipeline_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Pipeline",
-                "description": "Add ControlNet model to the pipeline.",
-                "display_name": "ControlNet Pipeline",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "LoraActivationPipelineNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/lora_pipeline_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Pipeline",
-                "description": "Layers non-fused LoRA adapters on top of an existing pipeline. The base pipeline stays untouched, so the same model can power multiple branches (one with adapters, one without). Adapters are loaded and activated per generation, then released \u2014 ideal for in-context (IC) LoRAs, distillation/acceleration LoRAs, slider LoRAs, or any workflow that swaps adapters between runs.",
-                "display_name": "LoRA Pipeline",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "MediaGenConditioningNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/media_gen_conditioning_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Conditioning",
-                "description": "Conditioning node for media generation pipelines. Supports image or video conditioning inputs with configurable strength. Connect `conditioning` to the matching input on Generate Media Latents, which appears once the same pipeline is connected there (e.g. `conditioning_images` for WAN Image-to-Video, `media_conditions` for LTX / LTX2, `source_media` for WAN VACE).",
-                "display_name": "Media Generation Conditioning",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "LatentUpsamplerNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/latent_upsampler_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Processing",
-                "description": "Spatially upsample a latent tensor using a latent upsampler model.",
-                "display_name": "Latent Upsampler",
-                "group": "diffusion",
-                "declarations": [
-                    {
-                        "type": "model_usage",
-                        "model_ids": [
-                            "md_ltx_2_3_spatial_upsampler_diffusers",
-                            "md_ltx_2_5_diffusers",
-                            "md_ltxv_spatial_upscaler_0_9_7"
-                        ]
-                    }
-                ]
-            }
-        },
-        {
-            "class_name": "ClearPipelineCacheNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/clear_pipeline_cache_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Pipeline",
-                "description": "Forcefully evicts all cached diffusion pipelines from GPU/CPU memory. Use this node when diagnosing out-of-memory errors or when you need a clean slate before loading a different model.",
-                "display_name": "Clear Pipeline Cache",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "PipelineMemoryEstimateNode",
-            "file_path": "./modular_diffusion_nodes_library/nodes/pipeline_memory_estimate_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Pipeline",
-                "description": "Estimates per-component GPU memory usage (weights + activations) for an already-loaded diffusion pipeline, given a latent shape.",
-                "display_name": "Estimate Pipeline Memory",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "LoadLora",
-            "file_path": "./modular_diffusion_nodes_library/nodes/load_lora_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Pipeline",
-                "description": "Load a LoRA file from a local path and expose it as a `loras` output. Wire to the Modular Diffusion Pipeline Builder to fuse the LoRA into the cached weights, or to a LoRA Pipeline node to activate it dynamically per generation.",
-                "display_name": "Load LoRA",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "LoadComponent",
-            "file_path": "./modular_diffusion_nodes_library/nodes/load_component_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Pipeline",
-                "description": "Load a single pipeline component (transformer / unet / vae / tokenizer / text_encoder) from a single-file checkpoint, a local diffusers-format folder, or a local HuggingFace repo cache. Wire into a Pipeline Builder override port to inject the component at build time into the pipeline.",
-                "display_name": "Load Pipeline Component",
-                "group": "diffusion"
-            }
-        },
-        {
-            "class_name": "LoadSchedulerComponent",
-            "file_path": "./modular_diffusion_nodes_library/nodes/load_scheduler_component_node.py",
-            "metadata": {
-                "category": "ModularDiffusion/Pipeline",
-                "description": "Configure a scheduler by choosing a scheduler class and a scheduler_config.json source (local file/folder or a local HuggingFace repo cache). Wire into a Pipeline Builder scheduler override port to replace the pipeline's scheduler at build time.",
-                "display_name": "Load Scheduler",
-                "group": "diffusion"
-            }
-        }
+    {
+      "description": "Configuration settings for cleaning up the Modular Diffusion Library temporary file storage",
+      "category": "modular_diffusion_library",
+      "contents": {
+        "max_directory_size_gb": 5,
+        "enable_directory_cleanup": false
+      }
+    },
+    {
+      "description": "Configuration settings for image preview intermediates in diffusion pipeline runtime. Enables real-time image previews during generation but will slow down inference time.",
+      "category": "modular_diffusion_library",
+      "contents": {
+        "enable_image_preview_intermediates": false
+      }
+    },
+    {
+      "description": "Configuration settings for auto resize. Enabling this will automatically resize images and videos to the appropriate resolution and number of frames (video pipelines) as supported by the selected diffusion pipeline.",
+      "category": "modular_diffusion_library",
+      "contents": {
+        "enable_auto_resize": false
+      }
+    }
+  ],
+  "metadata": {
+    "author": "Griptape, Inc.",
+    "description": "Modular Diffusion nodes for Griptape Nodes.",
+    "library_version": "0.8.0",
+    "engine_version": "0.105.0",
+    "tags": [
+      "Griptape",
+      "AI"
     ],
-    "workflow_nodes": [
-        {
-            "node_type": "Text2ImageNode",
-            "workflow_path": "preconfigured_workflows/Text2Image.py",
-            "metadata": {
-                "category": "ModularDiffusion/Preconfigured",
-                "description": "Generate an image from a text prompt using a preconfigured Modular Diffusion pipeline.",
-                "display_name": "Text to Image",
-                "group": "diffusion"
+    "dependencies": {
+      "pip_dependencies": [
+        "griptape[loaders-image]>=1.9.4",
+        "huggingface-hub>=1.5.0,<2.0"
+      ],
+      "pip_install_flags": [
+        "--preview",
+        "--torch-backend=auto"
+      ],
+      "pip_dependencies_exec": [
+        "griptape[loaders-image]>=1.9.4",
+        "huggingface-hub>=1.5.0,<2.0",
+        "accelerate>=1.6.0",
+        "av>=14.0.0",
+        "diffusers==0.42.0",
+        "imageio[ffmpeg]>=2.37.2",
+        "numpy>=2.2.4",
+        "opencv-python>=4.11.0.86",
+        "peft>=0.17.0",
+        "pillow>=11.2.1",
+        "sentencepiece>=0.2.0",
+        "torch==2.7.0",
+        "torchvision==0.22.0",
+        "safetensors>=0.8.0rc0",
+        "scipy>=1.10.0",
+        "transformers==5.13.0",
+        "tokenizers>=0.22.0,<0.23",
+        "optimum-quanto>=0.2.7",
+        "protobuf>=6.31.0",
+        "bitsandbytes>=0.50.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+        "ftfy>=6.3.1",
+        "gguf>=0.10.0",
+        "openexr>=3.3.0"
+      ]
+    },
+    "resources": {
+      "required": {
+        "compute": [
+          [
+            "cuda",
+            "mps"
+          ],
+          "has_any"
+        ]
+      }
+    },
+    "declarations": [
+      {
+        "type": "lifecycle_stage",
+        "stage": "LABS"
+      },
+      {
+        "type": "model_catalog",
+        "providers": {
+          "black_forest_labs": {
+            "display_name": "BlackForest Labs",
+            "terms_url": "https://huggingface.co/black-forest-labs",
+            "models": {
+              "md_flux_1_schnell": {
+                "display_name": "FLUX.1 [schnell]",
+                "provider_model_id": "black-forest-labs/FLUX.1-schnell",
+                "family": "FLUX",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Apache-2.0 weights, but the repo is gated on HuggingFace (anonymous download returns 401), so fetching it requires an HF token with the terms accepted."
+              },
+              "md_flux_1_dev": {
+                "display_name": "FLUX.1 [dev]",
+                "provider_model_id": "black-forest-labs/FLUX.1-dev",
+                "family": "FLUX",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the FLUX.1 [dev] Non-Commercial License; requires accepting the license and an HF token."
+              },
+              "md_flux_1_krea_dev": {
+                "display_name": "FLUX.1 Krea [dev]",
+                "provider_model_id": "black-forest-labs/FLUX.1-Krea-dev",
+                "family": "FLUX",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the FLUX.1 [dev] Non-Commercial License."
+              },
+              "md_flux_1_fill_dev": {
+                "display_name": "FLUX.1 Fill [dev]",
+                "provider_model_id": "black-forest-labs/FLUX.1-Fill-dev",
+                "family": "FLUX",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the FLUX.1 [dev] Non-Commercial License."
+              },
+              "md_flux_1_kontext_dev": {
+                "display_name": "FLUX.1 Kontext [dev]",
+                "provider_model_id": "black-forest-labs/FLUX.1-Kontext-dev",
+                "family": "FLUX",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the FLUX.1 [dev] Non-Commercial License."
+              },
+              "md_flux_2_dev": {
+                "display_name": "FLUX.2 [dev]",
+                "provider_model_id": "black-forest-labs/FLUX.2-dev",
+                "family": "FLUX.2",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the FLUX.2 [dev] Non-Commercial License."
+              },
+              "md_flux_2_dev_bnb_4bit": {
+                "display_name": "FLUX.2 [dev] bnb 4-bit",
+                "provider_model_id": "diffusers/FLUX.2-dev-bnb-4bit",
+                "family": "FLUX.2",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Hosted under the diffusers org but a bitsandbytes 4-bit quantization of FLUX.2 [dev]; inherits its Non-Commercial License, so it is keyed to black_forest_labs."
+              },
+              "md_flux_2_klein_4b": {
+                "display_name": "FLUX.2 [klein] 4B",
+                "provider_model_id": "black-forest-labs/FLUX.2-klein-4B",
+                "family": "FLUX.2",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0 and ungated. Only the 4B klein tier is permissive; the 9B tier is non-commercial and gated."
+              },
+              "md_flux_2_klein_4b_fp8": {
+                "display_name": "FLUX.2 [klein] 4B FP8",
+                "provider_model_id": "black-forest-labs/FLUX.2-klein-4B-fp8",
+                "family": "FLUX.2",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0 and ungated. Only the 4B klein tier is permissive; the 9B tier is non-commercial and gated."
+              },
+              "md_flux_2_klein_4b_nvfp4": {
+                "display_name": "FLUX.2 [klein] 4B NVFP4",
+                "provider_model_id": "black-forest-labs/FLUX.2-klein-4B-nvfp4",
+                "family": "FLUX.2",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0 and ungated. Only the 4B klein tier is permissive; the 9B tier is non-commercial and gated."
+              },
+              "md_flux_2_klein_9b": {
+                "display_name": "FLUX.2 [klein] 9B",
+                "provider_model_id": "black-forest-labs/FLUX.2-klein-9B",
+                "family": "FLUX.2",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the FLUX.2 Non-Commercial License (HuggingFace reports license_name=flux-non-commercial-license and gated). The klein line splits by size tier: the 4B releases are Apache-2.0 and ungated, the 9B releases are neither."
+              },
+              "md_flux_2_klein_9b_fp8": {
+                "display_name": "FLUX.2 [klein] 9B FP8",
+                "provider_model_id": "black-forest-labs/FLUX.2-klein-9B-fp8",
+                "family": "FLUX.2",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the FLUX.2 Non-Commercial License (HuggingFace reports license_name=flux-non-commercial-license and gated). The klein line splits by size tier: the 4B releases are Apache-2.0 and ungated, the 9B releases are neither."
+              },
+              "md_flux_2_klein_9b_nvfp4": {
+                "display_name": "FLUX.2 [klein] 9B NVFP4",
+                "provider_model_id": "black-forest-labs/FLUX.2-klein-9B-nvfp4",
+                "family": "FLUX.2",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the FLUX.2 Non-Commercial License (HuggingFace reports license_name=flux-non-commercial-license and gated). The klein line splits by size tier: the 4B releases are Apache-2.0 and ungated, the 9B releases are neither."
+              },
+              "md_flux_2_klein_base_4b": {
+                "display_name": "FLUX.2 [klein] base 4B",
+                "provider_model_id": "black-forest-labs/FLUX.2-klein-base-4B",
+                "family": "FLUX.2",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0 and ungated. Only the 4B klein tier is permissive; the 9B tier is non-commercial and gated."
+              },
+              "md_flux_2_klein_base_9b": {
+                "display_name": "FLUX.2 [klein] base 9B",
+                "provider_model_id": "black-forest-labs/FLUX.2-klein-base-9B",
+                "family": "FLUX.2",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the FLUX.2 Non-Commercial License (HuggingFace reports license_name=flux-non-commercial-license and gated). The klein line splits by size tier: the 4B releases are Apache-2.0 and ungated, the 9B releases are neither."
+              },
+              "md_flux_3_image_klein_base": {
+                "display_name": "FLUX.3 Image Klein Base",
+                "provider_model_id": "black-forest-labs/flux-3-image-klein-base",
+                "family": "FLUX.3",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the FLUX Kommunity License. Accept the license and authenticate with Hugging Face before downloading."
+              },
+              "md_flux_3_image_klein_distilled": {
+                "display_name": "FLUX.3 Image Klein Distilled",
+                "provider_model_id": "black-forest-labs/flux-3-image-klein",
+                "family": "FLUX.3",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the FLUX Kommunity License. Accept the license and authenticate with Hugging Face before downloading."
+              },
+              "md_flux_3_image_klein_pup": {
+                "display_name": "FLUX.3 Image Klein Prompt Upsampler",
+                "provider_model_id": "black-forest-labs/flux-3-image-klein-pup",
+                "family": "FLUX.3",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0 prompt upsampler loaded as a separate optional component by both FLUX.3 Image Klein pipeline types."
+              },
+              "md_flux_1_dev_controlnet_union_instantx": {
+                "display_name": "FLUX.1 [dev] ControlNet Union (InstantX)",
+                "provider_model_id": "InstantX/FLUX.1-dev-Controlnet-Union",
+                "family": "FLUX",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Hosted by InstantX but released under the FLUX.1 [dev] Non-Commercial License it derives from, so it is keyed to black_forest_labs and a BFL-scoped rule covers it."
+              },
+              "md_flux_1_dev_controlnet_union_pro": {
+                "display_name": "FLUX.1 [dev] ControlNet Union Pro (Shakker Labs)",
+                "provider_model_id": "Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro",
+                "family": "FLUX",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Hosted by Shakker Labs but released under the FLUX.1 [dev] Non-Commercial License it derives from."
+              },
+              "md_flux_1_dev_controlnet_union_pro_2": {
+                "display_name": "FLUX.1 [dev] ControlNet Union Pro 2.0 (Shakker Labs)",
+                "provider_model_id": "Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0",
+                "family": "FLUX",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Hosted by Shakker Labs but released under the FLUX.1 [dev] Non-Commercial License it derives from."
+              }
             }
-        },
-        {
-            "node_type": "InpaintingNode",
-            "workflow_path": "preconfigured_workflows/Inpainting.py",
-            "metadata": {
-                "category": "ModularDiffusion/Preconfigured",
-                "description": "Inpaint a masked region of an image using a preconfigured Modular Diffusion pipeline.",
-                "display_name": "Inpainting",
-                "group": "diffusion"
+          },
+          "stability": {
+            "display_name": "Stability AI",
+            "terms_url": "https://huggingface.co/stabilityai",
+            "models": {
+              "md_sdxl_base_1_0": {
+                "display_name": "Stable Diffusion XL Base 1.0",
+                "provider_model_id": "stabilityai/stable-diffusion-xl-base-1.0",
+                "family": "Stable Diffusion XL",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "CreativeML Open RAIL++-M."
+              },
+              "md_sdxl_refiner_1_0": {
+                "display_name": "Stable Diffusion XL Refiner 1.0",
+                "provider_model_id": "stabilityai/stable-diffusion-xl-refiner-1.0",
+                "family": "Stable Diffusion XL",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "CreativeML Open RAIL++-M."
+              },
+              "md_sdxl_inpainting_0_1": {
+                "display_name": "Stable Diffusion XL Inpainting 0.1",
+                "provider_model_id": "diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
+                "family": "Stable Diffusion XL",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Hosted under the diffusers org but an SDXL 1.0 derivative under CreativeML Open RAIL++-M, so it is keyed to stability."
+              },
+              "md_sd3_medium": {
+                "display_name": "Stable Diffusion 3 Medium",
+                "provider_model_id": "stabilityai/stable-diffusion-3-medium-diffusers",
+                "family": "Stable Diffusion 3",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the Stability Community License; requires accepting the license and an HF token."
+              },
+              "md_sd3_5_medium": {
+                "display_name": "Stable Diffusion 3.5 Medium",
+                "provider_model_id": "stabilityai/stable-diffusion-3.5-medium",
+                "family": "Stable Diffusion 3",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the Stability Community License."
+              },
+              "md_sd3_5_large": {
+                "display_name": "Stable Diffusion 3.5 Large",
+                "provider_model_id": "stabilityai/stable-diffusion-3.5-large",
+                "family": "Stable Diffusion 3",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the Stability Community License."
+              },
+              "md_sd3_5_large_turbo": {
+                "display_name": "Stable Diffusion 3.5 Large Turbo",
+                "provider_model_id": "stabilityai/stable-diffusion-3.5-large-turbo",
+                "family": "Stable Diffusion 3",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the Stability Community License."
+              },
+              "md_sd3_5m_controlnet_depth": {
+                "display_name": "SD3.5M ControlNet Depth",
+                "provider_model_id": "tensorart/SD3.5M-Controlnet-Depth",
+                "family": "SD3 ControlNet",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Published by Tensor.Art but released under the Stability AI Community License as a stable-diffusion-3.5-medium derivative, so it is keyed to stability and a Stability-scoped rule covers it."
+              },
+              "md_sd3_5m_controlnet_canny": {
+                "display_name": "SD3.5M ControlNet Canny",
+                "provider_model_id": "tensorart/SD3.5M-Controlnet-Canny",
+                "family": "SD3 ControlNet",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Published by Tensor.Art but released under the Stability AI Community License as a stable-diffusion-3.5-medium derivative, so it is keyed to stability and a Stability-scoped rule covers it."
+              }
             }
-        },
-        {
-            "node_type": "Image2ImageNode",
-            "workflow_path": "preconfigured_workflows/Image2Image.py",
-            "metadata": {
-                "category": "ModularDiffusion/Preconfigured",
-                "description": "Generate an image from an input image and a text prompt using a preconfigured Modular Diffusion pipeline.",
-                "display_name": "Image to Image",
-                "group": "diffusion"
+          },
+          "dashscope": {
+            "display_name": "Alibaba Cloud Model Studio",
+            "terms_url": "https://huggingface.co/Qwen",
+            "notes": "Keyed to match the standard library's provider id for Alibaba so one admin rule covers both the hosted API and these local weights. Covers the Qwen, Wan, and Z-Image lines.",
+            "models": {
+              "md_qwen_image": {
+                "display_name": "Qwen-Image",
+                "provider_model_id": "Qwen/Qwen-Image",
+                "family": "Qwen",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_qwen_image_edit": {
+                "display_name": "Qwen-Image-Edit",
+                "provider_model_id": "Qwen/Qwen-Image-Edit",
+                "family": "Qwen",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_qwen_image_edit_2509": {
+                "display_name": "Qwen-Image-Edit 2509",
+                "provider_model_id": "Qwen/Qwen-Image-Edit-2509",
+                "family": "Qwen",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_qwen_image_edit_2511": {
+                "display_name": "Qwen-Image-Edit 2511",
+                "provider_model_id": "Qwen/Qwen-Image-Edit-2511",
+                "family": "Qwen",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_qwen_image_controlnet_union": {
+                "display_name": "Qwen-Image ControlNet Union (InstantX)",
+                "provider_model_id": "InstantX/Qwen-Image-ControlNet-Union",
+                "family": "Qwen",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Hosted by InstantX; Apache-2.0 like the Qwen-Image base it derives from, and keyed to the same authority so a Qwen-scoped rule covers it."
+              },
+              "md_qwen_image_controlnet_inpainting": {
+                "display_name": "Qwen-Image ControlNet Inpainting (InstantX)",
+                "provider_model_id": "InstantX/Qwen-Image-ControlNet-Inpainting",
+                "family": "Qwen",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Hosted by InstantX; Apache-2.0 like the Qwen-Image base it derives from."
+              },
+              "md_wan_2_1_t2v_1_3b": {
+                "display_name": "Wan 2.1 T2V 1.3B",
+                "provider_model_id": "Wan-AI/Wan2.1-T2V-1.3B-Diffusers",
+                "family": "Wan",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_wan_2_1_t2v_14b": {
+                "display_name": "Wan 2.1 T2V 14B",
+                "provider_model_id": "Wan-AI/Wan2.1-T2V-14B-Diffusers",
+                "family": "Wan",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_wan_2_2_t2v_a14b": {
+                "display_name": "Wan 2.2 T2V A14B",
+                "provider_model_id": "Wan-AI/Wan2.2-T2V-A14B-Diffusers",
+                "family": "Wan",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_wan_2_1_i2v_14b_480p": {
+                "display_name": "Wan 2.1 I2V 14B 480P",
+                "provider_model_id": "Wan-AI/Wan2.1-I2V-14B-480P-Diffusers",
+                "family": "Wan",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_wan_2_1_i2v_14b_720p": {
+                "display_name": "Wan 2.1 I2V 14B 720P",
+                "provider_model_id": "Wan-AI/Wan2.1-I2V-14B-720P-Diffusers",
+                "family": "Wan",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_wan_2_2_i2v_a14b": {
+                "display_name": "Wan 2.2 I2V A14B",
+                "provider_model_id": "Wan-AI/Wan2.2-I2V-A14B-Diffusers",
+                "family": "Wan",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_wan_2_1_vace_1_3b": {
+                "display_name": "Wan 2.1 VACE 1.3B",
+                "provider_model_id": "Wan-AI/Wan2.1-VACE-1.3B-diffusers",
+                "family": "Wan",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_wan_2_1_vace_14b": {
+                "display_name": "Wan 2.1 VACE 14B",
+                "provider_model_id": "Wan-AI/Wan2.1-VACE-14B-diffusers",
+                "family": "Wan",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_wan_2_2_animate_14b": {
+                "display_name": "Wan 2.2 Animate 14B",
+                "provider_model_id": "Wan-AI/Wan2.2-Animate-14B-Diffusers",
+                "family": "Wan",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_z_image_turbo": {
+                "display_name": "Z-Image Turbo",
+                "provider_model_id": "Tongyi-MAI/Z-Image-Turbo",
+                "family": "Z-Image",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0. Published by Alibaba's Tongyi-MAI org."
+              },
+              "md_z_image_turbo_fun_controlnet_union": {
+                "display_name": "Z-Image Turbo Fun ControlNet Union",
+                "provider_model_id": "alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union",
+                "family": "Z-Image",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Published by Alibaba's PAI org; same authority as the Z-Image base it derives from."
+              },
+              "md_z_image_turbo_fun_controlnet_union_2_1": {
+                "display_name": "Z-Image Turbo Fun ControlNet Union 2.1",
+                "provider_model_id": "alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1",
+                "family": "Z-Image",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Published by Alibaba's PAI org; same authority as the Z-Image base it derives from."
+              }
             }
-        },
-        {
-            "node_type": "Text2VideoNode",
-            "workflow_path": "preconfigured_workflows/text2video.py",
-            "metadata": {
-                "category": "ModularDiffusion/Preconfigured",
-                "description": "Generate a video from a text prompt using a preconfigured Modular Diffusion pipeline.",
-                "display_name": "Text to Video",
-                "group": "diffusion"
+          },
+          "tencent": {
+            "display_name": "Tencent Hunyuan",
+            "terms_url": "https://huggingface.co/tencent",
+            "notes": "HunyuanVideo weights are released under the Tencent Hunyuan Community License, which restricts some territories and use cases.",
+            "models": {
+              "md_hunyuan_video_1_5_480p_t2v": {
+                "display_name": "HunyuanVideo 1.5 480p T2V",
+                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_t2v",
+                "family": "HunyuanVideo",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Community Diffusers conversion; keyed to tencent because it inherits the Hunyuan Community License."
+              },
+              "md_hunyuan_video_1_5_480p_t2v_distilled": {
+                "display_name": "HunyuanVideo 1.5 480p T2V distilled",
+                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_t2v_distilled",
+                "family": "HunyuanVideo",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
+              },
+              "md_hunyuan_video_1_5_720p_t2v": {
+                "display_name": "HunyuanVideo 1.5 720p T2V",
+                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-720p_t2v",
+                "family": "HunyuanVideo",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
+              },
+              "md_hunyuan_video_1_5_480p_i2v": {
+                "display_name": "HunyuanVideo 1.5 480p I2V",
+                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_i2v",
+                "family": "HunyuanVideo",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
+              },
+              "md_hunyuan_video_1_5_480p_i2v_distilled": {
+                "display_name": "HunyuanVideo 1.5 480p I2V distilled",
+                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_i2v_distilled",
+                "family": "HunyuanVideo",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
+              },
+              "md_hunyuan_video_1_5_480p_i2v_step_distilled": {
+                "display_name": "HunyuanVideo 1.5 480p I2V step-distilled",
+                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_i2v_step_distilled",
+                "family": "HunyuanVideo",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
+              },
+              "md_hunyuan_video_1_5_720p_i2v": {
+                "display_name": "HunyuanVideo 1.5 720p I2V",
+                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-720p_i2v",
+                "family": "HunyuanVideo",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
+              },
+              "md_hunyuan_video_1_5_720p_i2v_distilled": {
+                "display_name": "HunyuanVideo 1.5 720p I2V distilled",
+                "provider_model_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-720p_i2v_distilled",
+                "family": "HunyuanVideo",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Community Diffusers conversion; inherits the Hunyuan Community License."
+              }
             }
-        },
-        {
-            "node_type": "FirstLastFrameText2VideoNode",
-            "workflow_path": "preconfigured_workflows/firstlastframetext2video.py",
-            "metadata": {
-                "category": "ModularDiffusion/Preconfigured",
-                "description": "Generate a video from first/last frame images and a text prompt using a preconfigured Modular Diffusion pipeline.",
-                "display_name": "First/Last Frame to Video",
-                "group": "diffusion"
+          },
+          "xinsir": {
+            "display_name": "xinsir",
+            "terms_url": "https://huggingface.co/xinsir",
+            "notes": "Independently licensed (Apache-2.0) SDXL ControlNets. Keyed to their own authority rather than stability because their license does not derive from SDXL's.",
+            "models": {
+              "md_controlnet_union_sdxl_1_0": {
+                "display_name": "ControlNet Union SDXL 1.0",
+                "provider_model_id": "xinsir/controlnet-union-sdxl-1.0",
+                "family": "SDXL ControlNet",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_controlnet_openpose_sdxl_1_0": {
+                "display_name": "ControlNet OpenPose SDXL 1.0",
+                "provider_model_id": "xinsir/controlnet-openpose-sdxl-1.0",
+                "family": "SDXL ControlNet",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_controlnet_scribble_sdxl_1_0": {
+                "display_name": "ControlNet Scribble SDXL 1.0",
+                "provider_model_id": "xinsir/controlnet-scribble-sdxl-1.0",
+                "family": "SDXL ControlNet",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_controlnet_depth_sdxl_1_0": {
+                "display_name": "ControlNet Depth SDXL 1.0",
+                "provider_model_id": "xinsir/controlnet-depth-sdxl-1.0",
+                "family": "SDXL ControlNet",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_controlnet_canny_sdxl_1_0": {
+                "display_name": "ControlNet Canny SDXL 1.0",
+                "provider_model_id": "xinsir/controlnet-canny-sdxl-1.0",
+                "family": "SDXL ControlNet",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_controlnet_tile_sdxl_1_0": {
+                "display_name": "ControlNet Tile SDXL 1.0",
+                "provider_model_id": "xinsir/controlnet-tile-sdxl-1.0",
+                "family": "SDXL ControlNet",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              }
             }
+          },
+          "instantx": {
+            "display_name": "InstantX",
+            "terms_url": "https://huggingface.co/InstantX",
+            "notes": "SD3 ControlNets published by InstantX. Only SD3-Controlnet-Depth declares Apache-2.0; the others declare no license and their terms are unverified. The InstantX FLUX and Qwen ControlNets are keyed to their base authority instead, because those inherit the base terms.",
+            "models": {
+              "md_sd3_controlnet_canny": {
+                "display_name": "SD3 ControlNet Canny",
+                "provider_model_id": "InstantX/SD3-Controlnet-Canny",
+                "family": "SD3 ControlNet",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "This repo declares no license on HuggingFace, so its terms are unverified. Kept under its publisher rather than assumed permissive; if it is later confirmed to follow Stable Diffusion 3's terms it should be re-keyed to stability."
+              },
+              "md_sd3_controlnet_pose": {
+                "display_name": "SD3 ControlNet Pose",
+                "provider_model_id": "InstantX/SD3-Controlnet-Pose",
+                "family": "SD3 ControlNet",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "This repo declares no license on HuggingFace, so its terms are unverified. Kept under its publisher rather than assumed permissive; if it is later confirmed to follow Stable Diffusion 3's terms it should be re-keyed to stability."
+              },
+              "md_sd3_controlnet_tile": {
+                "display_name": "SD3 ControlNet Tile",
+                "provider_model_id": "InstantX/SD3-Controlnet-Tile",
+                "family": "SD3 ControlNet",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "This repo declares no license on HuggingFace, so its terms are unverified. Kept under its publisher rather than assumed permissive; if it is later confirmed to follow Stable Diffusion 3's terms it should be re-keyed to stability."
+              },
+              "md_sd3_controlnet_depth": {
+                "display_name": "SD3 ControlNet Depth",
+                "provider_model_id": "InstantX/SD3-Controlnet-Depth",
+                "family": "SD3 ControlNet",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              }
+            }
+          },
+          "alimama_creative": {
+            "display_name": "Alimama Creative",
+            "terms_url": "https://huggingface.co/alimama-creative",
+            "models": {
+              "md_sd3_controlnet_inpainting": {
+                "display_name": "SD3 ControlNet Inpainting",
+                "provider_model_id": "alimama-creative/SD3-Controlnet-Inpainting",
+                "family": "SD3 ControlNet",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "This repo declares no license on HuggingFace, so its terms are unverified. Kept under its publisher rather than assumed permissive; if it is later confirmed to follow Stable Diffusion 3's terms it should be re-keyed to stability."
+              }
+            },
+            "notes": "Declares license 'other' with no named license; terms unverified."
+          },
+          "ltx": {
+            "display_name": "LTX Studio",
+            "terms_url": "https://huggingface.co/Lightricks",
+            "notes": "Keyed to match the standard library's provider id for Lightricks so one admin rule covers both the hosted LTX API and these local weights. LTX-Video weights are released under the LTX-Video Open Weights License, which carries use restrictions beyond a permissive OSS license.",
+            "models": {
+              "md_ltx_video": {
+                "display_name": "LTX-Video",
+                "provider_model_id": "Lightricks/LTX-Video",
+                "family": "LTX",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "LTX-Video Open Weights License."
+              },
+              "md_ltx_video_0_9_7_dev": {
+                "display_name": "LTX-Video 0.9.7 dev",
+                "provider_model_id": "Lightricks/LTX-Video-0.9.7-dev",
+                "family": "LTX",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "LTX-Video Open Weights License."
+              },
+              "md_ltx_video_0_9_7_distilled": {
+                "display_name": "LTX-Video 0.9.7 distilled",
+                "provider_model_id": "Lightricks/LTX-Video-0.9.7-distilled",
+                "family": "LTX",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "LTX-Video Open Weights License."
+              },
+              "md_ltx_video_0_9_8_13b_distilled": {
+                "display_name": "LTX-Video 0.9.8 13B distilled",
+                "provider_model_id": "Lightricks/LTX-Video-0.9.8-13B-distilled",
+                "family": "LTX",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "LTX-Video Open Weights License."
+              },
+              "md_ltxv_spatial_upscaler_0_9_7": {
+                "display_name": "LTX-Video Spatial Upscaler 0.9.7",
+                "provider_model_id": "Lightricks/ltxv-spatial-upscaler-0.9.7",
+                "family": "LTX",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "LTX-Video Open Weights License."
+              },
+              "md_ltx_2": {
+                "display_name": "LTX-2",
+                "provider_model_id": "Lightricks/LTX-2",
+                "family": "LTX-2",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "LTX-Video Open Weights License."
+              },
+              "md_ltx_2_3_diffusers": {
+                "display_name": "LTX 2.3 (Diffusers)",
+                "provider_model_id": "dg845/LTX-2.3-Diffusers",
+                "family": "LTX-2",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 weights; keyed to ltx because it inherits the LTX-Video Open Weights License."
+              },
+              "md_ltx_2_3_distilled_diffusers": {
+                "display_name": "LTX 2.3 Distilled (Diffusers)",
+                "provider_model_id": "dg845/LTX-2.3-Distilled-Diffusers",
+                "family": "LTX-2",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 distilled weights; inherits the LTX-Video Open Weights License."
+              },
+              "md_ltx_2_3_spatial_upsampler_diffusers": {
+                "display_name": "LTX 2.3 Spatial Upsampler (Diffusers)",
+                "provider_model_id": "dg845/LTX-2.3-Spatial-Upsampler-Diffusers",
+                "family": "LTX-2",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Community Diffusers conversion of Lightricks' LTX 2.3 spatial upsampler; inherits the LTX-Video Open Weights License."
+              },
+              "md_ltx_2_5_diffusers": {
+                "display_name": "LTX-2.5 (Diffusers)",
+                "provider_model_id": "Lightricks/LTX-2.5-Diffusers",
+                "family": "LTX-2",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Gated repo on Hugging Face; requires accepting Lightricks' license and an authenticated HF token to download. Inherits the LTX-Video Open Weights License."
+              }
+            }
+          },
+          "minimax": {
+            "display_name": "MiniMax AI",
+            "terms_url": "https://huggingface.co/MiniMaxAI",
+            "models": {
+              "md_minimax_h3": {
+                "display_name": "MiniMax-H3",
+                "provider_model_id": "MiniMaxAI/MiniMax-H3",
+                "family": "MiniMax H3",
+                "key_support": "REQUIRES_CUSTOMER_KEY",
+                "notes": "Gated repo under the MiniMax H3 Community License Agreement; requires accepting the license and an HF token."
+              }
+            }
+          }
         }
-    ],
-    "widgets": [
-        {
-            "name": "MemoryBreakdown",
-            "path": "widgets/MemoryBreakdown.js",
-            "description": "Read-only segmented visualization of diffusion pipeline memory estimates."
-        }
-    ],
-    "workflows": [
-        "workflows/templates/Image2Image.py",
-        "workflows/templates/MultistageText2Image.py",
-        "workflows/templates/Text2Image.py",
-        "workflows/templates/ControlnetText2Image.py",
-        "workflows/templates/LoRAText2Image.py",
-        "workflows/templates/FirstAndLastFrameImage2Video.py",
-        "workflows/templates/LTX23-HDR-Text2Video-Upsample-Two-Stage.py",
-        "workflows/templates/LTX23-IC-LoRA.py",
-        "workflows/templates/Inpainting.py",
-        "workflows/templates/Flux2KleinGuidedInpainting.py",
-        "workflows/templates/ControlnetInpainting.py",
-        "workflows/templates/SuccessFailure.py",
-        "workflows/templates/VideoInpaintingAndOutpaintingWANVace.py",
-        "workflows/templates/FluxKontextImageEdit.py",
-        "workflows/templates/FluxKontextInpainting.py",
-        "workflows/templates/WanAnimate.py",
-        "workflows/templates/WanReplace.py",
-        "workflows/templates/Multi-ViewPromptBatcher.py",
-        "workflows/templates/CustomPipelineText2Image.py",
-        "workflows/templates/Flux3LayoutControlText2Image.py",
-        "workflows/templates/Flux3LayoutControlImageBasedEditing.py"
+      }
     ]
+  },
+  "categories": [],
+  "nodes": [
+    {
+      "class_name": "LatentDiffusionPipelineBuilderNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/latent_diffusion_pipeline_builder_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Pipeline",
+        "description": "Build and cache latent-compatible 🧨 Diffusers Pipelines. Any LoRAs wired into this node are fused permanently into the cached weights — changing them rebuilds the pipeline. For dynamic adapters that swap per generation, use the LoRA Pipeline node instead.",
+        "display_name": "Modular Diffusion Pipeline Builder",
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "model_usage",
+            "model_ids": [
+              "md_flux_1_dev",
+              "md_flux_1_fill_dev",
+              "md_flux_1_kontext_dev",
+              "md_flux_1_krea_dev",
+              "md_flux_1_schnell",
+              "md_flux_2_dev",
+              "md_flux_2_dev_bnb_4bit",
+              "md_flux_2_klein_4b",
+              "md_flux_2_klein_4b_fp8",
+              "md_flux_2_klein_4b_nvfp4",
+              "md_flux_2_klein_9b",
+              "md_flux_2_klein_9b_fp8",
+              "md_flux_2_klein_9b_nvfp4",
+              "md_flux_2_klein_base_4b",
+              "md_flux_2_klein_base_9b",
+              "md_flux_3_image_klein_base",
+              "md_flux_3_image_klein_distilled",
+              "md_flux_3_image_klein_pup",
+              "md_hunyuan_video_1_5_480p_i2v",
+              "md_hunyuan_video_1_5_480p_i2v_distilled",
+              "md_hunyuan_video_1_5_480p_i2v_step_distilled",
+              "md_hunyuan_video_1_5_480p_t2v",
+              "md_hunyuan_video_1_5_480p_t2v_distilled",
+              "md_hunyuan_video_1_5_720p_i2v",
+              "md_hunyuan_video_1_5_720p_i2v_distilled",
+              "md_hunyuan_video_1_5_720p_t2v",
+              "md_ltx_2",
+              "md_ltx_2_3_diffusers",
+              "md_ltx_2_3_distilled_diffusers",
+              "md_ltx_2_5_diffusers",
+              "md_ltx_video",
+              "md_ltx_video_0_9_7_dev",
+              "md_ltx_video_0_9_7_distilled",
+              "md_ltx_video_0_9_8_13b_distilled",
+              "md_minimax_h3",
+              "md_qwen_image",
+              "md_qwen_image_edit",
+              "md_qwen_image_edit_2509",
+              "md_qwen_image_edit_2511",
+              "md_sd3_5_large",
+              "md_sd3_5_large_turbo",
+              "md_sd3_5_medium",
+              "md_sd3_medium",
+              "md_sdxl_base_1_0",
+              "md_sdxl_inpainting_0_1",
+              "md_sdxl_refiner_1_0",
+              "md_wan_2_1_i2v_14b_480p",
+              "md_wan_2_1_i2v_14b_720p",
+              "md_wan_2_1_t2v_14b",
+              "md_wan_2_1_t2v_1_3b",
+              "md_wan_2_1_vace_14b",
+              "md_wan_2_1_vace_1_3b",
+              "md_wan_2_2_animate_14b",
+              "md_wan_2_2_i2v_a14b",
+              "md_wan_2_2_t2v_a14b",
+              "md_z_image_turbo"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "class_name": "DiffusionPipelineGenerateLatentNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/diffusion_pipeline_generate_latent_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Processing",
+        "description": "Generate latents via 🧨 Diffusers Pipelines.",
+        "display_name": "Generate Media Latents (Modular Diffusion Pipeline)",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "NoiseLatentNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/noise_latent_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Create",
+        "description": "Create an initial noise latent tensor for a selected 🧨 Diffusers pipeline.",
+        "display_name": "Create Noise Latents",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "EmptyLatentNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/empty_latent_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Create",
+        "description": "Create a zero-filled (empty) latent tensor for a selected 🧨 Diffusers pipeline.",
+        "display_name": "Create Empty Latents",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "AddLatentsNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/add_latents.py",
+      "metadata": {
+        "category": "ModularDiffusion/Transform",
+        "description": "Add two latent artifacts elementwise.",
+        "display_name": "Add Latents",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "SubtractLatentsNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/subtract_latents.py",
+      "metadata": {
+        "category": "ModularDiffusion/Transform",
+        "description": "Subtract the right latent from the left latent elementwise.",
+        "display_name": "Subtract Latents",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "MultiplyLatentsNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/multiply_latents.py",
+      "metadata": {
+        "category": "ModularDiffusion/Transform",
+        "description": "Multiply two latent artifacts elementwise.",
+        "display_name": "Multiply Latents",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "SaveLatentTensorNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/save_latent_tensor.py",
+      "metadata": {
+        "category": "ModularDiffusion/IO",
+        "description": "Save a latent artifact to a torch .pt file.",
+        "display_name": "Save Latent Tensor",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "VaeEncodeNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/vae_encoder.py",
+      "metadata": {
+        "category": "ModularDiffusion/Encode\\Decode",
+        "description": "Encode images or video into VAE latent space via 🧨 Diffusers Pipelines.",
+        "display_name": "Encode Media",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "VaeMaskEncodeNode",
+      "file_path": "modular_diffusion_nodes_library/nodes/vae_mask_encoder.py",
+      "metadata": {
+        "category": "ModularDiffusion/Encode\\Decode",
+        "description": "Encode a source image and mask into an inpaint artifact (mask + masked-image latent) for use with inpainting pipelines.",
+        "display_name": "Encode Masked Media",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "VaeDecodeNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/vae_decoder.py",
+      "metadata": {
+        "category": "ModularDiffusion/Encode\\Decode",
+        "description": "Decode VAE latent images or video via 🧨 Diffusers Pipelines.",
+        "display_name": "Decode Media",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "DecodeHdrNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/decode_hdr_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Encode\\Decode",
+        "description": "Decode HDR VAE latent, apply tone mapping, and optionally save a raw EXR sequence.",
+        "display_name": "Decode HDR Latents",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "LatentCompositeMaskNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/latent_composite_mask_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Transform",
+        "description": "Composite two latent tensors together by pasting masked latent into destination latent.",
+        "display_name": "Latents Composite Mask",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "ControlNetNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/controlnet_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Conditioning",
+        "description": "ControlNet node for configuring different ControlNet models.",
+        "display_name": "Configure ControlNet",
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "model_usage",
+            "model_ids": [
+              "md_controlnet_canny_sdxl_1_0",
+              "md_controlnet_depth_sdxl_1_0",
+              "md_controlnet_openpose_sdxl_1_0",
+              "md_controlnet_scribble_sdxl_1_0",
+              "md_controlnet_tile_sdxl_1_0",
+              "md_controlnet_union_sdxl_1_0",
+              "md_flux_1_dev_controlnet_union_instantx",
+              "md_flux_1_dev_controlnet_union_pro",
+              "md_flux_1_dev_controlnet_union_pro_2",
+              "md_qwen_image_controlnet_inpainting",
+              "md_qwen_image_controlnet_union",
+              "md_sd3_5m_controlnet_canny",
+              "md_sd3_5m_controlnet_depth",
+              "md_sd3_controlnet_canny",
+              "md_sd3_controlnet_depth",
+              "md_sd3_controlnet_inpainting",
+              "md_sd3_controlnet_pose",
+              "md_sd3_controlnet_tile",
+              "md_z_image_turbo_fun_controlnet_union",
+              "md_z_image_turbo_fun_controlnet_union_2_1"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "class_name": "ControlNetDiffusionPipelineBuilderNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/controlnet_pipeline_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Pipeline",
+        "description": "Add ControlNet model to the pipeline.",
+        "display_name": "ControlNet Pipeline",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "LoraActivationPipelineNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/lora_pipeline_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Pipeline",
+        "description": "Layers non-fused LoRA adapters on top of an existing pipeline. The base pipeline stays untouched, so the same model can power multiple branches (one with adapters, one without). Adapters are loaded and activated per generation, then released — ideal for in-context (IC) LoRAs, distillation/acceleration LoRAs, slider LoRAs, or any workflow that swaps adapters between runs.",
+        "display_name": "LoRA Pipeline",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "MediaGenConditioningNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/media_gen_conditioning_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Conditioning",
+        "description": "Conditioning node for media generation pipelines. Supports image or video conditioning inputs with configurable strength. Connect `conditioning` to the matching input on Generate Media Latents, which appears once the same pipeline is connected there (e.g. `conditioning_images` for WAN Image-to-Video, `media_conditions` for LTX / LTX2, `source_media` for WAN VACE).",
+        "display_name": "Media Generation Conditioning",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "LatentUpsamplerNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/latent_upsampler_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Processing",
+        "description": "Spatially upsample a latent tensor using a latent upsampler model.",
+        "display_name": "Latent Upsampler",
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "model_usage",
+            "model_ids": [
+              "md_ltx_2_3_spatial_upsampler_diffusers",
+              "md_ltx_2_5_diffusers",
+              "md_ltxv_spatial_upscaler_0_9_7"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "class_name": "ClearPipelineCacheNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/clear_pipeline_cache_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Pipeline",
+        "description": "Forcefully evicts all cached diffusion pipelines from GPU/CPU memory. Use this node when diagnosing out-of-memory errors or when you need a clean slate before loading a different model.",
+        "display_name": "Clear Pipeline Cache",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "PipelineMemoryEstimateNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/pipeline_memory_estimate_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Pipeline",
+        "description": "Estimates per-component GPU memory usage (weights + activations) for an already-loaded diffusion pipeline, given a latent shape.",
+        "display_name": "Estimate Pipeline Memory",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "LoadLora",
+      "file_path": "./modular_diffusion_nodes_library/nodes/load_lora_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Pipeline",
+        "description": "Load a LoRA file from a local path and expose it as a `loras` output. Wire to the Modular Diffusion Pipeline Builder to fuse the LoRA into the cached weights, or to a LoRA Pipeline node to activate it dynamically per generation.",
+        "display_name": "Load LoRA",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "LoadComponent",
+      "file_path": "./modular_diffusion_nodes_library/nodes/load_component_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Pipeline",
+        "description": "Load a single pipeline component (transformer / unet / vae / tokenizer / text_encoder) from a single-file checkpoint, a local diffusers-format folder, or a local HuggingFace repo cache. Wire into a Pipeline Builder override port to inject the component at build time into the pipeline.",
+        "display_name": "Load Pipeline Component",
+        "group": "diffusion"
+      }
+    },
+    {
+      "class_name": "LoadSchedulerComponent",
+      "file_path": "./modular_diffusion_nodes_library/nodes/load_scheduler_component_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Pipeline",
+        "description": "Configure a scheduler by choosing a scheduler class and a scheduler_config.json source (local file/folder or a local HuggingFace repo cache). Wire into a Pipeline Builder scheduler override port to replace the pipeline's scheduler at build time.",
+        "display_name": "Load Scheduler",
+        "group": "diffusion"
+      }
+    }
+  ],
+  "workflow_nodes": [
+    {
+      "node_type": "Text2ImageNode",
+      "workflow_path": "preconfigured_workflows/Text2Image.py",
+      "metadata": {
+        "category": "ModularDiffusion/Preconfigured",
+        "description": "Generate an image from a text prompt using a preconfigured Modular Diffusion pipeline.",
+        "display_name": "Text to Image",
+        "group": "diffusion"
+      }
+    },
+    {
+      "node_type": "InpaintingNode",
+      "workflow_path": "preconfigured_workflows/Inpainting.py",
+      "metadata": {
+        "category": "ModularDiffusion/Preconfigured",
+        "description": "Inpaint a masked region of an image using a preconfigured Modular Diffusion pipeline.",
+        "display_name": "Inpainting",
+        "group": "diffusion"
+      }
+    },
+    {
+      "node_type": "Image2ImageNode",
+      "workflow_path": "preconfigured_workflows/Image2Image.py",
+      "metadata": {
+        "category": "ModularDiffusion/Preconfigured",
+        "description": "Generate an image from an input image and a text prompt using a preconfigured Modular Diffusion pipeline.",
+        "display_name": "Image to Image",
+        "group": "diffusion"
+      }
+    },
+    {
+      "node_type": "Text2VideoNode",
+      "workflow_path": "preconfigured_workflows/text2video.py",
+      "metadata": {
+        "category": "ModularDiffusion/Preconfigured",
+        "description": "Generate a video from a text prompt using a preconfigured Modular Diffusion pipeline.",
+        "display_name": "Text to Video",
+        "group": "diffusion"
+      }
+    },
+    {
+      "node_type": "FirstLastFrameText2VideoNode",
+      "workflow_path": "preconfigured_workflows/firstlastframetext2video.py",
+      "metadata": {
+        "category": "ModularDiffusion/Preconfigured",
+        "description": "Generate a video from first/last frame images and a text prompt using a preconfigured Modular Diffusion pipeline.",
+        "display_name": "First/Last Frame to Video",
+        "group": "diffusion"
+      }
+    }
+  ],
+  "widgets": [
+    {
+      "name": "MemoryBreakdown",
+      "path": "widgets/MemoryBreakdown.js",
+      "description": "Read-only segmented visualization of diffusion pipeline memory estimates."
+    }
+  ],
+  "workflows": [
+    "workflows/templates/Image2Image.py",
+    "workflows/templates/MultistageText2Image.py",
+    "workflows/templates/Text2Image.py",
+    "workflows/templates/ControlnetText2Image.py",
+    "workflows/templates/LoRAText2Image.py",
+    "workflows/templates/FirstAndLastFrameImage2Video.py",
+    "workflows/templates/LTX23-HDR-Text2Video-Upsample-Two-Stage.py",
+    "workflows/templates/LTX23-IC-LoRA.py",
+    "workflows/templates/Inpainting.py",
+    "workflows/templates/Flux2KleinGuidedInpainting.py",
+    "workflows/templates/ControlnetInpainting.py",
+    "workflows/templates/SuccessFailure.py",
+    "workflows/templates/VideoInpaintingAndOutpaintingWANVace.py",
+    "workflows/templates/FluxKontextImageEdit.py",
+    "workflows/templates/FluxKontextInpainting.py",
+    "workflows/templates/WanAnimate.py",
+    "workflows/templates/WanReplace.py",
+    "workflows/templates/Multi-ViewPromptBatcher.py",
+    "workflows/templates/CustomPipelineText2Image.py",
+    "workflows/templates/Flux3LayoutControlText2Image.py",
+    "workflows/templates/Flux3LayoutControlImageBasedEditing.py"
+  ]
 }
