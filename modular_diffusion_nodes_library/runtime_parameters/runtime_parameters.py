@@ -52,6 +52,14 @@ class DiffusionPipelineRuntimeParameters(ABC):
         raise NotImplementedError
 
     def remove_input_parameters(self) -> None:
+        # An untouched default must not outlive its pipeline: the next one may declare a different default,
+        # and the engine prefers a stored value over a parameter's default.
+        steps_parameter = self._node.get_parameter_by_name("num_inference_steps")
+        if (
+            steps_parameter is not None
+            and self._node.get_parameter_value("num_inference_steps") == steps_parameter.default_value
+        ):
+            self._node.parameter_values.pop("num_inference_steps", None)
         self._node.remove_parameter_element_by_name("num_inference_steps")
         self._seed_parameter.remove_input_parameters()
         self._remove_input_parameters()
