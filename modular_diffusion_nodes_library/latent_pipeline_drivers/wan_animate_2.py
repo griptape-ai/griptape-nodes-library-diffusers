@@ -69,6 +69,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
     read_driver_meta,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.utils.conditioning_utils import MediaGenConditioningKey
 from modular_diffusion_nodes_library.utils.torch_utils import no_grad
 
@@ -601,6 +602,11 @@ class _WanAnimate2CallbackSegmentLoop(WanAnimate2SegmentLoopWrapper):
 class WanAnimate2LatentPipelineDriver(LatentPipelineDriver):
     produces_video: ClassVar[bool] = True
     video_fps: ClassVar[int] = WAN_ANIMATE_2_FPS
+    # TODO(wan-animate-2 memory estimation): placeholder family, borrowed from plain Wan. Its formula counts
+    # tokens over the whole clip instead of one segment, and it omits the reference KV cache that
+    # WanAnimate2KVCache keeps for every transformer layer during a segment. The estimate is therefore far
+    # too low at real resolutions. Replace with a dedicated family and formula.
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.VIDEO_DIT_JOINT_SDPA
 
     @property
     @override
