@@ -43,7 +43,7 @@ def _parked_parameters() -> list[tuple[str, int, str, str]]:
     """Every `serializable=False` parameter, as (file, line, name, declared type)."""
     found: list[tuple[str, int, str, str]] = []
     for path in sorted(PACKAGE.rglob("*.py")):
-        source = path.read_text()
+        source = path.read_text(encoding="utf-8")
         if "serializable=False" not in source:
             continue
         for node in ast.walk(ast.parse(source)):

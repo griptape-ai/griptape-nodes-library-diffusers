@@ -11,42 +11,42 @@ version/get: ## Get version.
 version/set: changelog/assert-committed ## Set version. Usage: make version/set v=1.2.3
 	@jq --arg v "$(v)" '.metadata.library_version = $$v' $(LIBRARY_JSON) > $(LIBRARY_JSON).tmp
 	@mv $(LIBRARY_JSON).tmp $(LIBRARY_JSON)
-	@$(MAKE) --no-print-directory version/commit
+	@"$(MAKE)" --no-print-directory version/commit
 
 .PHONY: version/patch
 version/patch: changelog/assert-committed ## Bump patch version.
-	@CURRENT=$$($(MAKE) --no-print-directory version/get); \
+	@CURRENT=$$("$(MAKE)" --no-print-directory version/get); \
 	IFS='.' read -r major minor patch <<< "$$CURRENT"; \
 	NEW_VERSION="$${major}.$${minor}.$$((patch + 1))"; \
 	jq --arg v "$$NEW_VERSION" '.metadata.library_version = $$v' $(LIBRARY_JSON) > $(LIBRARY_JSON).tmp; \
 	mv $(LIBRARY_JSON).tmp $(LIBRARY_JSON); \
 	echo "Bumped to $$NEW_VERSION"
-	@$(MAKE) --no-print-directory version/commit
+	@"$(MAKE)" --no-print-directory version/commit
 
 .PHONY: version/minor
 version/minor: changelog/assert-committed ## Bump minor version.
-	@CURRENT=$$($(MAKE) --no-print-directory version/get); \
+	@CURRENT=$$("$(MAKE)" --no-print-directory version/get); \
 	IFS='.' read -r major minor patch <<< "$$CURRENT"; \
 	NEW_VERSION="$${major}.$$((minor + 1)).0"; \
 	jq --arg v "$$NEW_VERSION" '.metadata.library_version = $$v' $(LIBRARY_JSON) > $(LIBRARY_JSON).tmp; \
 	mv $(LIBRARY_JSON).tmp $(LIBRARY_JSON); \
 	echo "Bumped to $$NEW_VERSION"
-	@$(MAKE) --no-print-directory version/commit
+	@"$(MAKE)" --no-print-directory version/commit
 
 .PHONY: version/major
 version/major: changelog/assert-committed ## Bump major version.
-	@CURRENT=$$($(MAKE) --no-print-directory version/get); \
+	@CURRENT=$$("$(MAKE)" --no-print-directory version/get); \
 	IFS='.' read -r major minor patch <<< "$$CURRENT"; \
 	NEW_VERSION="$$((major + 1)).0.0"; \
 	jq --arg v "$$NEW_VERSION" '.metadata.library_version = $$v' $(LIBRARY_JSON) > $(LIBRARY_JSON).tmp; \
 	mv $(LIBRARY_JSON).tmp $(LIBRARY_JSON); \
 	echo "Bumped to $$NEW_VERSION"
-	@$(MAKE) --no-print-directory version/commit
+	@"$(MAKE)" --no-print-directory version/commit
 
 .PHONY: version/commit
 version/commit: ## Roll the changelog into the version, then commit both.
-	@uv run --no-project python scripts/changelog.py roll $$($(MAKE) --no-print-directory version/get) --allow-empty
-	@git commit -m "chore: bump v$$($(MAKE) --no-print-directory version/get)" -- $(LIBRARY_JSON) CHANGELOG.md changelog.d
+	@uv run --no-project python scripts/changelog.py roll $$("$(MAKE)" --no-print-directory version/get) --allow-empty
+	@git commit -m "chore: bump v$$("$(MAKE)" --no-print-directory version/get)" -- $(LIBRARY_JSON) CHANGELOG.md changelog.d
 
 # The roll overwrites CHANGELOG.md and deletes the entry files, and the bump commits whatever it left,
 # so an entry still being written would ship half-finished or be lost. The library JSON is covered too:
@@ -62,7 +62,7 @@ changelog/assert-committed:
 .PHONY: version/publish
 version/publish: ## Create and push git tags.
 	@git fetch --tags --force
-	@VERSION=$$($(MAKE) --no-print-directory version/get); \
+	@VERSION=$$("$(MAKE)" --no-print-directory version/get); \
 	git tag "v$$VERSION"; \
 	git tag stable -f; \
 	git push origin "v$$VERSION"; \
