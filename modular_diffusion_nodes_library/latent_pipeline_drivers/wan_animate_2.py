@@ -919,7 +919,8 @@ class WanAnimate2LatentPipelineDriver(LatentPipelineDriver):
             )
 
         num_segments = segment_count(num_frames, segment_frame_length, prev_segment_conditioning_frames)
-        is_partial_window = start_step > 0 or end_step != -1
+        # An end_step at or past the schedule length runs the full schedule, same as -1.
+        is_partial_window = start_step > 0 or (end_step != -1 and end_step < num_inference_steps)
         if is_partial_window and num_segments > 1:
             # TODO(wan-animate-2 Q5): temporary. Segment k+1 conditions on segment k's *fully denoised*
             # pixels, so a window cannot stop partway through a multi-segment run. See the plan's Q5 for
