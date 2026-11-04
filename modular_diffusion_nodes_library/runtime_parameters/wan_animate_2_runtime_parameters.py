@@ -197,6 +197,8 @@ class WanAnimate2PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         self._node.remove_parameter_element_by_name("driving_video_fps")
         self._node.remove_parameter_element_by_name("driving_video")
         self._node.remove_parameter_element_by_name("image")
+        # Its default depends on the checkpoint (3.0 standard, 1.0 distilled).
+        self._clear_untouched_default("guidance_scale")
         self._node.remove_parameter_element_by_name("guidance_scale")
         self._node.remove_parameter_element_by_name("prompt_ref")
         self._node.remove_parameter_element_by_name("negative_prompt")
