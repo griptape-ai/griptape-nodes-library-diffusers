@@ -169,6 +169,9 @@ def _estimate_denoiser_activation_bytes(
             )
             return activation_bytes, None
 
+        # TODO(wan-animate-2 memory estimation): every remaining family falls through to the video formula,
+        # including WanAnimate2Pipeline's placeholder. Its dedicated family needs an explicit branch here that
+        # sizes one segment (default segment_frame_length=81) and adds the per-layer reference KV cache.
         num_frames_latent = latent_shape[-3] if len(latent_shape) >= 5 else 1  # noqa: PLR2004
         activation_bytes = estimate_video_dit_joint_sdpa_activation_bytes(
             num_frames_latent,
@@ -179,7 +182,15 @@ def _estimate_denoiser_activation_bytes(
             fields.patch_size_temporal,
             element_size,
         )
-        return activation_bytes, None
+        if pipeline_name == "WanAnimate2Pipeline":
+            warning = (
+                "The Wan Animate 2 transformer memory estimate is a temporary placeholder and is inaccurate. "
+                "It sizes the whole clip instead of one segment and leaves out the reference KV cache kept "
+                "for every transformer layer, so real usage is likely much higher than shown."
+            )
+        else:
+            warning = None
+        return activation_bytes, warning
     except (AttributeError, KeyError, TypeError, IndexError) as e:
         return 0, f"Failed to read denoiser config for pipeline '{pipeline_name}': {e}. Showing weights only."
 
