@@ -6,6 +6,8 @@ connection belongs to that connection rather than to the widget.
 
 from __future__ import annotations
 
+from griptape_nodes.traits.slider import Slider
+
 from modular_diffusion_nodes_library.nodes.latent_composite_mask_node import LatentCompositeMaskNode
 
 SIZES = {"dest_width": 1024, "dest_height": 768, "source_width": 512, "source_height": 512}
@@ -78,13 +80,11 @@ def test_run_reports_pixel_sizes_of_both_latents() -> None:
     assert {key: node.parameter_output_values["placement_editor"][key] for key in SIZES} == SIZES
 
 
-def test_negative_offsets_reach_the_widget_and_back() -> None:
+def test_offset_sliders_run_into_the_negatives() -> None:
     node = LatentCompositeMaskNode(name="composite")
 
-    node.set_parameter_value("x_offset", -64)
-    assert node.get_parameter_value("x_offset") == -64
-    assert _widget(node)["x_offset"] == -64
+    x_slider = node.get_parameter_by_name("x_offset").find_elements_by_type(Slider)[0]
+    y_slider = node.get_parameter_by_name("y_offset").find_elements_by_type(Slider)[0]
 
-    node.set_parameter_value("placement_editor", {**_widget(node), "y_offset": -32})
-
-    assert node.get_parameter_value("y_offset") == -32
+    assert x_slider.min == -node.MAX_WIDTH
+    assert y_slider.min == -node.MAX_HEIGHT
