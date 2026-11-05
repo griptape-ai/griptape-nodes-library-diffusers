@@ -10,7 +10,8 @@ from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 from griptape_nodes.exe_types.param_components.progress_bar_component import ProgressBarComponent
 from griptape_nodes.exe_types.param_components.project_file_parameter import ProjectFileParameter
-from griptape_nodes.files.file_sequence import build_versioned_sequence_destination
+from griptape_nodes.files.directory import DirectoryDestination
+from griptape_nodes.files.file_sequence import FileSequenceDestination
 from griptape_nodes.retained_mode.events.project_events import MacroPath
 
 from modular_diffusion_nodes_library.artifact_utils.float_media_artifact import FloatMediaArtifact
@@ -41,10 +42,17 @@ def exr_output_folder(output_file: str) -> str:
     return f"{{outputs}}/{path.parent.as_posix()}"
 
 
-def exr_sequence_macro_path(output_file: str, folder: str) -> MacroPath:
-    """Return the sequence macro with the version in the folder and `####` frame numbers."""
+def exr_version_folder_macro_path(output_file: str, folder: str) -> MacroPath:
+    """Return the versioned folder macro for an EXR sequence."""
     stem = Path(output_file).stem
-    template = f"{{folder}}/{stem}_v{{_index:03}}/{stem}.####.exr"
+    template = f"{{folder}}/{stem}_v{{_index:03}}"
+    return MacroPath(ParsedMacro(template), {"folder": folder})
+
+
+def exr_sequence_macro_path(output_file: str, folder: str) -> MacroPath:
+    """Return the frame sequence macro inside a reserved version folder."""
+    stem = Path(output_file).stem
+    template = f"{{folder}}/{stem}.####.exr"
     return MacroPath(ParsedMacro(template), {"folder": folder})
 
 
@@ -161,7 +169,10 @@ class SaveExrNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             save_as_half_float = bool(self.get_parameter_value("save_as_half_float"))
             total_frames = len(frames)
             sequence_folder = expand_path_macros(exr_output_folder(output_file))
-            sequence = build_versioned_sequence_destination(exr_sequence_macro_path(output_file, sequence_folder))
+            reserved_folder = (
+                DirectoryDestination(exr_version_folder_macro_path(output_file, sequence_folder)).create().resolve()
+            )
+            sequence = FileSequenceDestination(exr_sequence_macro_path(output_file, str(reserved_folder)))
             self.progress_bar_component.initialize(total_frames)
             self.log_params.append_to_logs(
                 f"Saving OpenEXR sequence ({total_frames} frame(s)) under '{sequence_folder}'...\n"

@@ -167,6 +167,7 @@ class LTX25DiffusionDecoderParameters(BaseLatentToMediaParameters):
             subfolder=DIFFUSION_DECODER_SUBFOLDER,
             revision=revision,
             torch_dtype=torch.bfloat16,
+            local_files_only=True,
         )
         if self._node.get_parameter_value("decoder_use_flex_attention"):
             decoder.set_attn_processor(LTX2VideoVaeNeighborhoodAttnProcessor())  # pyright: ignore[reportArgumentType]

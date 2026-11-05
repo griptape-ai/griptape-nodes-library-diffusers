@@ -119,6 +119,7 @@ def test_ltx25_decode_uses_decode_pipeline_and_preserves_configured_steps(monkey
         subfolder="diffusion_decoder",
         revision="revision",
         torch_dtype=torch.bfloat16,
+        local_files_only=True,
     )
     params._model_repo_parameter.get_repo_revision.assert_called_with()
 
