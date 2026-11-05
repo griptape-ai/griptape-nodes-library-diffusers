@@ -1121,6 +1121,11 @@
       "name": "MemoryBreakdown",
       "path": "widgets/MemoryBreakdown.js",
       "description": "Read-only segmented visualization of diffusion pipeline memory estimates."
+    },
+    {
+      "name": "LatentPlacementEditor",
+      "path": "widgets/LatentPlacementEditor/LatentPlacementEditor.js",
+      "description": "Drag a source latent over a destination latent to set the composite offset."
     }
   ],
   "workflows": [
