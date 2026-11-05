@@ -27,6 +27,7 @@ AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN = "12GB"
 class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     _pipeline_cls_path = "diffusers.modular_pipelines.minimax_h3.modular_pipeline:MiniMaxH3ModularPipeline"
     _component_slots: ClassVar[list[str]] = []
+    _workflow: ClassVar[str] = "fl2va"
 
     @classmethod
     def supports_build_from_overrides_only(cls) -> bool:
@@ -84,7 +85,7 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
     @classmethod
     def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> ModularPipeline:  # type: ignore[reportAttributeAccessIssue]
         # `from_pretrained` resolves the component specs but loads no weights; `load_components`
-        # fetches them. Only the `t2va` / `fl2va` half is touched, never `transformer_ref/`.
+        # fetches the components for the selected workflow.
         import torch  # type: ignore[reportMissingImports]
         from diffusers import ComponentsManager, ModularPipeline  # type: ignore[reportMissingImports]
 
@@ -95,7 +96,7 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
             components_manager=manager,
             local_files_only=True,
         )
-        pipe.load_components(workflow="fl2va", dtype=torch.bfloat16)
+        pipe.load_components(workflow=cls._workflow, dtype=torch.bfloat16)
         manager.enable_auto_cpu_offload(
             device=get_best_device(),
             memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
@@ -105,7 +106,7 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> ModularPipeline:
         # `from_pretrained` resolves the component specs but loads no weights; `load_components`
-        # fetches them. Only the `t2va` / `fl2va` half is touched, never `transformer_ref/`.
+        # fetches the components for the selected workflow.
         import torch  # type: ignore[reportMissingImports]
         from diffusers import ComponentsManager, ModularPipeline  # type: ignore[reportMissingImports]
 
@@ -116,7 +117,7 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
             components_manager=manager,
             local_files_only=True,
         )
-        pipe.load_components(workflow="fl2va", dtype=torch.bfloat16)
+        pipe.load_components(workflow=cls._workflow, dtype=torch.bfloat16)
         manager.enable_auto_cpu_offload(
             device=get_best_device(),
             memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
