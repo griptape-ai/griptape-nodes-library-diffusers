@@ -13,6 +13,7 @@ from modular_diffusion_nodes_library.nodes.save_exr_node import (  # noqa: E402
     SaveExrNode,
     exr_output_folder,
     exr_sequence_macro_path,
+    exr_version_folder_macro_path,
     prepare_exr_frames,
 )
 
@@ -67,8 +68,15 @@ def test_exr_output_folder_keeps_absolute_output_file(tmp_path: Path) -> None:
     assert exr_output_folder(str(tmp_path / "shot.exr")) == tmp_path.as_posix()
 
 
-def test_exr_sequence_macro_path_puts_version_in_folder() -> None:
-    macro = exr_sequence_macro_path("renders/shot.exr", "/abs/outputs/renders")
+def test_exr_version_folder_macro_path_puts_version_in_folder() -> None:
+    macro = exr_version_folder_macro_path("renders/shot.exr", "/abs/outputs/renders")
 
-    assert macro.parsed_macro.template == "{folder}/shot_v{_index:03}/shot.####.exr"
+    assert macro.parsed_macro.template == "{folder}/shot_v{_index:03}"
     assert macro.variables == {"folder": "/abs/outputs/renders"}
+
+
+def test_exr_sequence_macro_path_uses_reserved_folder() -> None:
+    macro = exr_sequence_macro_path("renders/shot.exr", "/abs/outputs/renders/shot_v001")
+
+    assert macro.parsed_macro.template == "{folder}/shot.####.exr"
+    assert macro.variables == {"folder": "/abs/outputs/renders/shot_v001"}

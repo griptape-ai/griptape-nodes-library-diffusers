@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ast
+import pickletools
 import re
+import struct
 from pathlib import Path
 
 import pytest
@@ -59,3 +62,30 @@ def test_workflow_templates_only_reference_repo_assets(template_path: Path) -> N
     macro_paths = sorted({match.group(0) for match in MACRO_PATH_PATTERN.finditer(source)})
     bad_paths = [path for path in macro_paths if not _is_repo_asset_path(path)]
     assert not bad_paths, f"{template_path.name}: paths must be under one of {ASSETS_PREFIXES}: {bad_paths}"
+
+
+@pytest.mark.parametrize(
+    "template_path", sorted(Path(path) for path in get_workflow_paths()), ids=lambda path: path.name
+)
+def test_workflow_templates_contain_valid_pickle_payloads(template_path: Path) -> None:
+    source = template_path.read_text(encoding="utf-8", errors="ignore")
+    module = ast.parse(source)
+    invalid_payloads = []
+
+    for node in ast.walk(module):
+        if not isinstance(node, ast.Call):
+            continue
+        if not isinstance(node.func, ast.Attribute) or node.func.attr != "loads":
+            continue
+        if not isinstance(node.func.value, ast.Name) or node.func.value.id != "pickle":
+            continue
+        if not node.args:
+            continue
+
+        try:
+            payload = ast.literal_eval(node.args[0])
+            list(pickletools.genops(payload))
+        except (SyntaxError, ValueError, TypeError, struct.error) as error:
+            invalid_payloads.append(f"line {node.lineno}: {error}")
+
+    assert not invalid_payloads, f"{template_path.name}: contains malformed pickle payloads: {invalid_payloads}"
