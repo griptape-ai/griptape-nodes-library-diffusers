@@ -38,7 +38,8 @@ Pipeline Builder → [Create Noise Latents] → Generate Media Latents → Decod
 | `width` | int (pixels) | `1024` | Pixel-space width. Internally divided by the VAE scale factor. |
 | `height` | int (pixels) | `1024` | Pixel-space height. |
 | `num_frames` | int | `41` | Number of video frames. **Hidden for image pipelines.** |
-| `seed` | int | random | Reproducibility. |
+| `randomize_seed` | bool | `false` | Picks a new `seed` on each run. The `seed` field is read-only while this is on. |
+| `seed` | int | `42` | Reproducibility. |
 | `num_inference_steps` | int | `20` | **Only shown for SDXL** — used by SDXL to scale the initial noise. Other pipelines ignore this. |
 
 ## Provider / model behavior
