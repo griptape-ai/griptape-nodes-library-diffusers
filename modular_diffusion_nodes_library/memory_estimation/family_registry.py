@@ -134,7 +134,11 @@ def _adapt_hunyuan_video15(pipe: DiffusionPipeline) -> DenoiserConfigFields:
 
 
 def _adapt_minimax_h3(pipe: DiffusionPipeline) -> DenoiserConfigFields:
-    cfg = pipe.transformer.config
+    transformer_ref = getattr(pipe, "transformer_ref", None)
+    if transformer_ref is not None:
+        cfg = transformer_ref.config
+    else:
+        cfg = pipe.transformer.config
     patch_t, patch_h, _patch_w = cfg.patch_size
     return DenoiserConfigFields(
         hidden_dim=cfg.hidden_size,
@@ -169,6 +173,7 @@ _DENOISER_FIELD_ADAPTERS: dict[str, Callable[[DiffusionPipeline], DenoiserConfig
     "HunyuanVideo15Pipeline": _adapt_hunyuan_video15,
     "HunyuanVideo15ImageToVideoPipeline": _adapt_hunyuan_video15,
     "MiniMaxH3ModularPipeline": _adapt_minimax_h3,
+    "MiniMaxH3Ref2VAModularPipeline": _adapt_minimax_h3,
 }
 
 

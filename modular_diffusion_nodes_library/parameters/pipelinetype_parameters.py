@@ -47,6 +47,9 @@ from modular_diffusion_nodes_library.standard_parameters.ltx_parameters import (
 from modular_diffusion_nodes_library.standard_parameters.minimax_h3_parameters import (
     MiniMaxH3PipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.minimax_h3_ref2va_parameters import (
+    MiniMaxH3Ref2VAPipelineParameters,
+)
 from modular_diffusion_nodes_library.standard_parameters.qwen_edit_parameters import (
     QwenEditPipelineParameters,
 )
@@ -303,13 +306,16 @@ class LatentMiniMaxH3PipelineTypeParameters(LatentPipelineTypeParameters):
             "(124, 141, 158, … 345). Height and width must be multiples of 32 and default to "
             "MiniMax-H3's own canvas. Guidance is baked into the weights, so there is no "
             "`guidance_scale` and no `negative_prompt`. Image-to-video, video-to-video, ControlNet "
-            "and inpainting are not supported."
+            "and inpainting are not supported.\n"
+            "- `MiniMaxH3Ref2VAModularPipeline` — Reference-to-video generation with a jointly generated soundtrack. "
+            "Reference conditioning is added in the next implementation stage."
         )
 
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
             "MiniMaxH3ModularPipeline": MiniMaxH3PipelineParameters,
+            "MiniMaxH3Ref2VAModularPipeline": MiniMaxH3Ref2VAPipelineParameters,
         }
 
 

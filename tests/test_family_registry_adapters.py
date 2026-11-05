@@ -153,6 +153,22 @@ def test_adapt_minimax_h3_reads_minimax_field_names_and_unpacks_the_patch_size_t
     assert fields.patch_size_temporal == 1
 
 
+def test_adapt_minimax_h3_reads_transformer_ref_when_loaded() -> None:
+    pipe = SimpleNamespace(
+        transformer=None,
+        transformer_ref=SimpleNamespace(
+            config=SimpleNamespace(hidden_size=4096, num_layers=52, num_refiner_layers=3, patch_size=(1, 2, 2))
+        ),
+    )
+
+    fields = _adapt_minimax_h3(pipe)
+
+    assert fields.hidden_dim == 4096
+    assert fields.num_layers == 52 + 3
+    assert fields.patch_size_spatial == 2
+    assert fields.patch_size_temporal == 1
+
+
 def test_get_sdxl_unet_levels_reads_per_level_shapes_with_a_flat_int_transformer_layer_count() -> None:
     pipe = SimpleNamespace(
         unet=SimpleNamespace(

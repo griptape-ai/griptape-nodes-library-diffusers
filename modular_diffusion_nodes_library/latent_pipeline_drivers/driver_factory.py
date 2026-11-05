@@ -109,6 +109,12 @@ _DRIVER_REGISTRY: dict[str, DriverSpec] = {
         video_fps=24,
         supports_inpainting=False,
     ),
+    "MiniMaxH3Ref2VAModularPipeline": DriverSpec(
+        "minimax_h3_ref2va:MiniMaxH3Ref2VALatentPipelineDriver",
+        produces_video=True,
+        video_fps=24,
+        supports_inpainting=False,
+    ),
     "QwenImagePipeline": DriverSpec(
         "qwen:QwenLatentPipelineDriver",
         produces_video=False,
