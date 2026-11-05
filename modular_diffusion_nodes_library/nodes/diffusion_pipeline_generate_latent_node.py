@@ -2,7 +2,7 @@ import logging
 from typing import Any, ClassVar, override
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterGroup, ParameterList
-from griptape_nodes.exe_types.node_types import AsyncResult, BaseNode, SuccessFailureNode
+from griptape_nodes.exe_types.node_types import AsyncResult, BaseNode, NodeResolutionState, SuccessFailureNode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 from griptape_nodes.exe_types.param_components.progress_bar_component import ProgressBarComponent
 from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
@@ -236,6 +236,20 @@ class DiffusionPipelineGenerateLatentNode(
             ]
 
         return self.pipe_params.runtime_parameters.validate_before_node_run()
+
+    def validate_before_workflow_run(self) -> list[Exception] | None:
+        """Run again on every workflow run, while `randomize_seed` is on.
+
+        A RESOLVED node off the run's control path is skipped, so its `preprocess` never picks a new seed
+        and every run reuses the same result. Only this node is unresolved: a run that doesn't re-run its
+        consumer leaves the consumer's cached result alone. A locked node keeps its seed.
+        """
+        result = super().validate_before_workflow_run()
+        if not self.lock and self.get_parameter_value("randomize_seed"):
+            self.make_node_unresolved(
+                current_states_to_trigger_change_event={NodeResolutionState.RESOLVED, NodeResolutionState.RESOLVING}
+            )
+        return result
 
     def validate_in_execution_environment(self) -> list[Exception] | None:
         """Checks that need the real latent and the real driver.

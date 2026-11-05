@@ -1,4 +1,4 @@
-"""Create Noise Latents honours `randomize_seed` the way the engine's `SeedParameter` defines it."""
+"""Create Noise Latents and Generate Media Latents honour `randomize_seed` the way the engine's `SeedParameter` defines it."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 from griptape_nodes.exe_types.core_types import ParameterMode
 from griptape_nodes.exe_types.node_types import NodeResolutionState
+from griptape_nodes.exe_types.param_components.seed_parameter import SeedParameter
 from griptape_nodes.retained_mode.events.connection_events import CreateConnectionRequest
 from griptape_nodes.retained_mode.events.flow_events import CreateFlowRequest
 from griptape_nodes.retained_mode.events.library_events import RegisterLibraryFromFileRequest
@@ -133,6 +134,53 @@ def test_workflow_run_keeps_a_locked_node_resolved(flow: None) -> None:  # noqa:
     noise.validate_before_workflow_run()
 
     assert noise.state == NodeResolutionState.RESOLVED
+
+
+def _generate_feeding_decode() -> tuple[BaseNode, BaseNode]:
+    """A Generate Media Latents node with a seed, wired only by data into Decode, both left RESOLVED by a run."""
+    generate = _create("DiffusionPipelineGenerateLatentNode", "generate")
+    # The seed parameter arrives with a pipeline's runtime parameters; this adds the same pair without one.
+    SeedParameter(generate).add_input_parameters()
+    decode = _create("VaeDecodeNode", "decode")
+    _request(
+        CreateConnectionRequest(
+            source_node_name="generate",
+            source_parameter_name="output_latent",
+            target_node_name="decode",
+            target_parameter_name="latent_tensor",
+        )
+    )
+    generate.state = NodeResolutionState.RESOLVED
+    decode.state = NodeResolutionState.RESOLVED
+    return generate, decode
+
+
+def test_workflow_run_reruns_generate_when_randomize_seed_is_on(flow: None) -> None:  # noqa: ARG001
+    generate, decode = _generate_feeding_decode()
+    generate.set_parameter_value("randomize_seed", True)
+
+    generate.validate_before_workflow_run()
+
+    assert generate.state == NodeResolutionState.UNRESOLVED
+    assert decode.state == NodeResolutionState.RESOLVED
+
+
+def test_workflow_run_keeps_generate_resolved_when_randomize_seed_is_off(flow: None) -> None:  # noqa: ARG001
+    generate, _ = _generate_feeding_decode()
+
+    generate.validate_before_workflow_run()
+
+    assert generate.state == NodeResolutionState.RESOLVED
+
+
+def test_workflow_run_keeps_a_locked_generate_resolved(flow: None) -> None:  # noqa: ARG001
+    generate, _ = _generate_feeding_decode()
+    generate.set_parameter_value("randomize_seed", True)
+    generate.lock = True
+
+    generate.validate_before_workflow_run()
+
+    assert generate.state == NodeResolutionState.RESOLVED
 
 
 def test_empty_latent_preprocess_has_no_seed_to_randomize() -> None:
