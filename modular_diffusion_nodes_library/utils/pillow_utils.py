@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from griptape.artifacts import ImageArtifact, ImageUrlArtifact
@@ -26,13 +27,18 @@ def pil_to_image_artifact(pil_image: Image, directory_path: str = "") -> ImageUr
     image_bytes = image_io.getvalue()
 
     from griptape_nodes.files.project_file import ProjectFileDestination
+    from griptape_nodes.retained_mode.events.os_events import ExistingFilePolicy
 
     if directory_path:
-        cleanup_directory_if_enabled(directory_path)
+        # Intermediates are UI-only, so they go under the static files root rather than outputs. That
+        # situation has no sub-directory slot, so resolve its root and build the path under it.
+        static_root = Path(
+            ProjectFileDestination.from_situation(filename="image.png", situation="save_static_file").resolve()
+        ).parent
+        target = static_root / directory_path / "image.png"
+        cleanup_directory_if_enabled(target.parent)
 
-        dest = ProjectFileDestination.from_situation(
-            filename=f"{directory_path}/image.png", situation="save_node_output"
-        )
+        dest = ProjectFileDestination(str(target), existing_file_policy=ExistingFilePolicy.CREATE_NEW)
     else:
         # No directory prefix - direct storage
         dest = ProjectFileDestination.from_situation(filename="image.png", situation="save_node_output")
