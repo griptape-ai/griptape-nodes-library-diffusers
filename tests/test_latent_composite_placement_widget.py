@@ -83,8 +83,12 @@ def test_run_reports_pixel_sizes_of_both_latents() -> None:
 def test_offset_sliders_run_into_the_negatives() -> None:
     node = LatentCompositeMaskNode(name="composite")
 
-    x_slider = node.get_parameter_by_name("x_offset").find_elements_by_type(Slider)[0]
-    y_slider = node.get_parameter_by_name("y_offset").find_elements_by_type(Slider)[0]
+    x_offset = node.get_parameter_by_name("x_offset")
+    y_offset = node.get_parameter_by_name("y_offset")
+    assert x_offset is not None
+    assert y_offset is not None
+    x_slider = x_offset.find_elements_by_type(Slider)[0]
+    y_slider = y_offset.find_elements_by_type(Slider)[0]
 
     assert x_slider.min == -node.MAX_WIDTH
     assert y_slider.min == -node.MAX_HEIGHT
