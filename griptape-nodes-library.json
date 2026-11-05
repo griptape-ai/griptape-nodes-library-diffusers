@@ -36,7 +36,7 @@
     "author": "Griptape, Inc.",
     "description": "Modular Diffusion nodes for Griptape Nodes.",
     "library_version": "0.8.0",
-    "engine_version": "0.105.0",
+    "engine_version": "0.107.0",
     "tags": [
       "Griptape",
       "AI"
