@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage
-from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode, NodeResolutionState
+from griptape_nodes.exe_types.node_types import AsyncResult, ControlNode
 from griptape_nodes.exe_types.param_components.seed_parameter import SeedParameter
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
@@ -167,20 +167,6 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
                 ]
 
         return None
-
-    def validate_before_workflow_run(self) -> list[Exception] | None:
-        """Run again whenever a node it feeds runs, while `randomize_seed` is on.
-
-        A RESOLVED upstream node is skipped, so its `preprocess` never picks a new seed and every run
-        reuses the same noise. Only this node is unresolved: a run that doesn't re-run its consumer
-        leaves the consumer's cached result alone. A locked node keeps its seed.
-        """
-        result = super().validate_before_workflow_run()
-        if self._seed_parameter is not None and not self.lock and self.get_parameter_value("randomize_seed"):
-            self.make_node_unresolved(
-                current_states_to_trigger_change_event={NodeResolutionState.RESOLVED, NodeResolutionState.RESOLVING}
-            )
-        return result
 
     def validate_in_execution_environment(self) -> list[Exception] | None:
         """Check the requested dimensions against the real pipeline.

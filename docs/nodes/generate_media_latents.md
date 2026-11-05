@@ -49,7 +49,6 @@ The exact list depends on the connected pipeline. Common parameters:
 | `negative_prompt` | str | Negative prompt — appears for pipelines that support classifier-free guidance. |
 | `guidance_scale` / `true_cfg_scale` | float | Classifier-free / true-CFG guidance strength. Naming varies per pipeline. |
 | `num_inference_steps` | int (default `20`) | Length of the denoising schedule. |
-| `randomize_seed` | bool | Picks a new `seed` on each run. The `seed` field is read-only while this is on. |
 | `seed` | int | Reproducibility. |
 
 ### Multi-stage / partial denoise
