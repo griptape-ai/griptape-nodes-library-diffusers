@@ -116,7 +116,7 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 name="x_offset",
                 default_value=0,
                 tooltip="Horizontal offset in pixel space (divided by 8 internally for latent space).",
-                traits={Slider(min_val=0, max_val=self.MAX_WIDTH, soft_limits=True)},
+                traits={Slider(min_val=-self.MAX_WIDTH, max_val=self.MAX_WIDTH, soft_limits=True)},
             )
         )
 
@@ -125,7 +125,7 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 name="y_offset",
                 default_value=0,
                 tooltip="Vertical offset in pixel space (divided by 8 internally for latent space).",
-                traits={Slider(min_val=0, max_val=self.MAX_HEIGHT, soft_limits=True)},
+                traits={Slider(min_val=-self.MAX_HEIGHT, max_val=self.MAX_HEIGHT, soft_limits=True)},
             )
         )
 

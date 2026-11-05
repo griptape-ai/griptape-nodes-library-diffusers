@@ -76,3 +76,15 @@ def test_run_reports_pixel_sizes_of_both_latents() -> None:
     node._publish_latent_sizes((1, 16, 5, 96, 128), (1, 16, 5, 64, 64))
 
     assert {key: node.parameter_output_values["placement_editor"][key] for key in SIZES} == SIZES
+
+
+def test_negative_offsets_reach_the_widget_and_back() -> None:
+    node = LatentCompositeMaskNode(name="composite")
+
+    node.set_parameter_value("x_offset", -64)
+    assert node.get_parameter_value("x_offset") == -64
+    assert _widget(node)["x_offset"] == -64
+
+    node.set_parameter_value("placement_editor", {**_widget(node), "y_offset": -32})
+
+    assert node.get_parameter_value("y_offset") == -32
