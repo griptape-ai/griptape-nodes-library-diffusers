@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
 
+from modular_diffusion_nodes_library.component_loading.modular_revisions import pinned_revisions
 from modular_diffusion_nodes_library.parameters.connectable_huggingface_repo_parameter import (
     ConnectableHuggingFaceRepoParameter,
 )
@@ -95,7 +96,13 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
             components_manager=manager,
             local_files_only=True,
         )
-        pipe.load_components(workflow="fl2va", dtype=torch.bfloat16)
+        # Pin every component to the selected revision: from_pretrained only pins the index, whose entries say
+        # revision None (= refs/main).
+        load_kwargs: dict[str, Any] = {"dtype": torch.bfloat16}
+        pinned = pinned_revisions(pipe, {build_data["repo_id"]: build_data["revision"]})
+        if pinned:
+            load_kwargs["revision"] = pinned
+        pipe.load_components(workflow="fl2va", **load_kwargs)
         manager.enable_auto_cpu_offload(
             device=get_best_device(),
             memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
@@ -116,7 +123,13 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
             components_manager=manager,
             local_files_only=True,
         )
-        pipe.load_components(workflow="fl2va", dtype=torch.bfloat16)
+        # Pin every component to the selected revision: from_pretrained only pins the index, whose entries say
+        # revision None (= refs/main).
+        load_kwargs: dict[str, Any] = {"dtype": torch.bfloat16}
+        pinned = pinned_revisions(pipe, {build_data["repo_id"]: build_data["revision"]})
+        if pinned:
+            load_kwargs["revision"] = pinned
+        pipe.load_components(workflow="fl2va", **load_kwargs)
         manager.enable_auto_cpu_offload(
             device=get_best_device(),
             memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,

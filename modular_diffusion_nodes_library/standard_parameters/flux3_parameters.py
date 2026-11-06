@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from griptape_nodes.exe_types.node_types import BaseNode
 
+from modular_diffusion_nodes_library.component_loading.modular_revisions import pinned_revisions
 from modular_diffusion_nodes_library.misc.bfl_fp8 import require_fp8r_support
 from modular_diffusion_nodes_library.parameters.connectable_huggingface_repo_parameter import (
     ConnectableHuggingFaceRepoParameter,
@@ -154,14 +155,18 @@ class _Flux3ModularPipelineParameters(ModularDiffusionPipelineTypePipelineParame
         }
 
         variant = build_data["variant"]
+        # The upsampler revision is the user's explicit pick, so it wins over the index entry.
+        forced_revisions: dict[str, str | None] = {}
         upsampler_repo_id = build_data["prompt_upsampler_repo_id"]
         if upsampler_repo_id is None:
             pipe.blocks.sub_blocks.pop("prompt_upsampler", None)
         else:
-            upsampler_revision = build_data["prompt_upsampler_revision"]
+            forced_revisions[upsampler_repo_id] = build_data["prompt_upsampler_revision"]
             load_kwargs["pretrained_model_name_or_path"] = dict.fromkeys(PROMPT_UPSAMPLER_COMPONENTS, upsampler_repo_id)
             load_kwargs["subfolder"] = dict.fromkeys(PROMPT_UPSAMPLER_COMPONENTS, "")
-            load_kwargs["revision"] = dict.fromkeys(PROMPT_UPSAMPLER_COMPONENTS, upsampler_revision)
+        pinned = pinned_revisions(pipe, {build_data["repo_id"]: build_data["revision"]}, forced_revisions)
+        if pinned:
+            load_kwargs["revision"] = pinned
 
         pipe.load_components(names=component_names, **load_kwargs)
         if variant:

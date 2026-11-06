@@ -29,10 +29,16 @@ class FakePipeline:
         )
         for name in self.components:
             setattr(self, name, None)
+        # As in the published index: base components point at the base repo, the upsampler's at its own repo.
         self._specs = {
             name: SimpleNamespace(
                 default_creation_method="from_pretrained",
-                pretrained_model_name_or_path="black-forest-labs/flux-3-image-klein-base",
+                pretrained_model_name_or_path=(
+                    "black-forest-labs/flux-3-image-klein-pup"
+                    if name in prompt_upsampler_components
+                    else "black-forest-labs/flux-3-image-klein-base"
+                ),
+                revision=None,
             )
             for name in self.components
         }
@@ -43,6 +49,10 @@ class FakePipeline:
     @property
     def blocks(self) -> Any:
         return deepcopy(self._blocks)
+
+    @property
+    def pretrained_component_names(self) -> list[str]:
+        return list(self._specs)
 
     def get_component_spec(self, name: str) -> SimpleNamespace:
         return self._specs[name]
@@ -135,11 +145,55 @@ def test_loader_loads_or_omits_prompt_upsampler_and_quantized_transformer(
             PROMPT_UPSAMPLER_COMPONENTS, PROMPT_UPSAMPLER_REPO_ID
         )
         assert pipeline.load_kwargs["subfolder"] == dict.fromkeys(PROMPT_UPSAMPLER_COMPONENTS, "")
-        assert pipeline.load_kwargs["revision"] == dict.fromkeys(PROMPT_UPSAMPLER_COMPONENTS, "pup-revision")
+        for name in PROMPT_UPSAMPLER_COMPONENTS:
+            assert pipeline.load_kwargs["revision"][name] == "pup-revision"
     else:
         assert all(name not in pipeline.loaded_names for name in PROMPT_UPSAMPLER_COMPONENTS)
         assert "pretrained_model_name_or_path" not in pipeline.load_kwargs
+    # Base-repo components load from the selected snapshot, not from whatever refs/main points at.
+    for name in ("transformer", "vae", "text_encoder", "tokenizer"):
+        assert pipeline.load_kwargs["revision"][name] == "base-revision"
     assert "prompt_upsampler" in pipeline.blocks.sub_blocks
+
+
+def test_index_hashes_are_kept_for_base_components_but_the_upsampler_pick_wins(
+    monkeypatch: pytest.MonkeyPatch, diffusers_module: Any
+) -> None:
+    from modular_diffusion_nodes_library.standard_parameters.flux3_parameters import (
+        PROMPT_UPSAMPLER_COMPONENTS,
+        PROMPT_UPSAMPLER_REPO_ID,
+        Flux3PipelineParameters,
+    )
+
+    index_hash = "1234567890123456789012345678901234567890"
+    pipeline = FakePipeline(PROMPT_UPSAMPLER_COMPONENTS)
+    pipeline._specs["vae"].revision = index_hash  # the repo author pinned the VAE
+    for name in PROMPT_UPSAMPLER_COMPONENTS:
+        pipeline._specs[name].revision = index_hash  # and the upsampler
+    monkeypatch.setattr(
+        diffusers_module.ModularPipeline, "from_pretrained", classmethod(lambda cls, *args, **kwargs: pipeline)
+    )
+    monkeypatch.setattr(diffusers_module, "ComponentsManager", FakeComponentsManager)
+    monkeypatch.setattr(
+        "modular_diffusion_nodes_library.standard_parameters.flux3_parameters.get_best_device", lambda: "cpu"
+    )
+    build_data = {
+        "repo_id": "black-forest-labs/flux-3-image-klein-base",
+        "variant": "",
+        "variant_weights_path": None,
+        "revision": "base-revision",
+        "prompt_upsampler_repo_id": PROMPT_UPSAMPLER_REPO_ID,
+        "prompt_upsampler_revision": "pup-revision",
+    }
+
+    Flux3PipelineParameters._build_pipeline_from_repo(build_data, {})
+
+    assert pipeline.load_kwargs is not None
+    revisions = pipeline.load_kwargs["revision"]
+    assert "vae" not in revisions  # keeps the index's hash
+    assert revisions["transformer"] == "base-revision"
+    for name in PROMPT_UPSAMPLER_COMPONENTS:
+        assert revisions[name] == "pup-revision"  # the user's pick beats the index's hash
 
 
 def test_prompt_upsampler_picker_offers_none_and_downloadable_repo(
