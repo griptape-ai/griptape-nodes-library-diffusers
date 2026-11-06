@@ -1333,6 +1333,7 @@
     "workflows/templates/Flux3LayoutControlImageBasedEditing.py",
     "workflows/templates/WanAnimate2.py",
     "workflows/templates/LatentCompositionWithMaskedDenoising.py",
-    "workflows/templates/CleanPlateInpainting.py"
+    "workflows/templates/CleanPlateInpainting.py",
+    "workflows/templates/Minimax-H3-Ref2va.py"
   ]
 }
