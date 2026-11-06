@@ -61,6 +61,7 @@ class LatentToMediaNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.add_parameter(
             Parameter(
                 name="latent_tensor",
+                display_name="input_latent",
                 input_types=["LatentArtifact"],
                 type="LatentArtifact",
                 tooltip="Video or image latent tensor to convert to media with the selected model.",
@@ -255,7 +256,7 @@ class LatentToMediaNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         errors: list[Exception] = []
 
         if self.decoder_params is None:
-            errors.append(RuntimeError("Latent to Media parameters are not initialized."))
+            errors.append(RuntimeError("Convert Latent to Media parameters are not initialized."))
         else:
             parameter_errors = self.decoder_params.validate_before_node_run()
             if parameter_errors:
@@ -302,7 +303,7 @@ class LatentToMediaNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         yield lambda: self._run_with_status(
             self._decode,
             success_msg="Decoded successfully.",
-            failure_log="Latent to Media failed",
+            failure_log="Convert Latent to Media failed",
             logger=logger,
         )
 
@@ -312,7 +313,7 @@ class LatentToMediaNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         decoder_params = self.decoder_params
         if decoder_params is None:
-            raise RuntimeError(f"{self.name}: Latent to Media parameters are not initialized.")
+            raise RuntimeError(f"{self.name}: Convert Latent to Media parameters are not initialized.")
 
         latent: LatentArtifact = self.get_parameter_value("latent_tensor")
         if not isinstance(latent, LatentArtifact):
@@ -357,7 +358,7 @@ class LatentToMediaNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
     def _get_video_fps(self) -> int:
         if self.decoder_params is None:
-            raise RuntimeError(f"{self.name}: Latent to Media parameters are not initialized.")
+            raise RuntimeError(f"{self.name}: Convert Latent to Media parameters are not initialized.")
 
         fps = self.get_parameter_value("fps") or self.decoder_params.spec.fps
         if fps is None:
@@ -367,7 +368,7 @@ class LatentToMediaNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def _publish_raw(self, decoded: np.ndarray) -> None:
         decoder_params = self.decoder_params
         if decoder_params is None:
-            raise RuntimeError(f"{self.name}: Latent to Media parameters are not initialized.")
+            raise RuntimeError(f"{self.name}: Convert Latent to Media parameters are not initialized.")
         if decoded.shape[-1] != 3:
             raise ValueError(f"Decoder returned invalid raw RGB media with shape {decoded.shape}.")
         meta = {}

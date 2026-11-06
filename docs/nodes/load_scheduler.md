@@ -13,7 +13,7 @@ Category: `ModularDiffusion/Pipeline`
 ## Typical workflow position
 
 ```text
-[Load Scheduler] → scheduler → [Pipeline Builder] → [Generate Media Latents]
+[Load Scheduler] → scheduler → [Pipeline Builder] → [Generate Latent]
 ```
 
 ## Node preview
@@ -71,4 +71,4 @@ Category: `ModularDiffusion/Pipeline`
 
 ## See also
 
-[Modular Diffusion Pipeline Builder](pipeline_builder.md) · [Load Pipeline Component](load_component.md)
+[Build Pipeline](pipeline_builder.md) · [Load Component](load_component.md)

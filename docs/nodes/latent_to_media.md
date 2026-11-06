@@ -1,8 +1,8 @@
-# Latent to Media (Standalone Decoder)
+# Convert Latent to Media
 
 **Runs a selected model on its own to turn a compatible latent tensor into an image or video, with no pipeline connection required.**
 
-Category: `ModularDiffusion/Encode\Decode`
+Category: `ModularDiffusion/Encode & Decode`
 
 ## TL;DR
 - Standalone alternative to [Decode Media Latent](decode_media_latent.md) for the models both nodes support (for example LTX-2): it loads its own model instead of reusing a connected `pipeline`, and runs inference itself.
@@ -13,13 +13,13 @@ Category: `ModularDiffusion/Encode\Decode`
 
 ## Typical workflow position
 ```text
-Generate Media Latents → [Latent to Media] → Save Video
+Generate Latent → [Convert Latent to Media] → Save Video
 ```
 
 ## Node preview
 
 <!-- TODO: add docs/assets/nodes/latent-to-media.png screenshot -->
-<img src="../assets/nodes/latent-to-media.png" alt="Latent to Media" width="480">
+<img src="../assets/nodes/latent-to-media.png" alt="Convert Latent to Media" width="480">
 
 ## Inputs
 
@@ -82,5 +82,5 @@ The node's decoder specification selects the output media type. FPS is shown onl
 
 ## See also
 
-- [Generate Media Latents](generate_media_latents.md) — produces compatible video latents.
+- [Generate Latent](generate_media_latents.md) — produces compatible video latents.
 - [Decode Media Latent](decode_media_latent.md) — passive VAE decode that requires a connected pipeline.

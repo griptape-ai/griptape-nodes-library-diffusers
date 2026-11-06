@@ -39,6 +39,6 @@ Pipeline Builder(s) → [Clear Pipeline Cache] → Pipeline Builder
 
 ## See also
 
-- [Modular Diffusion Pipeline Builder](pipeline_builder.md)
-- [Generate Media Latents](generate_media_latents.md)
-- [LoRA Pipeline](lora_pipeline.md)
+- [Build Pipeline](pipeline_builder.md)
+- [Generate Latent](generate_media_latents.md)
+- [Apply Runtime LoRA](lora_pipeline.md)

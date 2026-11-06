@@ -5,13 +5,13 @@
 Category: `ModularDiffusion/IO`
 
 ## TL;DR
-- Connect `media` (e.g. from Decode HDR Latents) to save one or more RGB frames as OpenEXR files.
+- Connect `media` (e.g. from Decode HDR Media) to save one or more RGB frames as OpenEXR files.
 - Writes the input float values unchanged.
 - Each run writes the next free version folder, such as `<stem>_v001/<stem>.0001.exr`, `<stem>_v001/<stem>.0002.exr`, and so on, where `<stem>` comes from `output_file`. Frames are written through the project file system.
 
 ## Typical workflow position
 ```text
-Generate Media Latents → Decode HDR Latents → [Save EXR Sequence]
+Generate Latent → Decode HDR Media → [Save EXR Sequence]
 ```
 
 ## Node preview
@@ -22,7 +22,7 @@ Generate Media Latents → Decode HDR Latents → [Save EXR Sequence]
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `media` | `FloatMediaArtifact` | Yes | Float RGB image or video frames from Decode HDR Latents. |
+| `media` | `FloatMediaArtifact` | Yes | Float RGB image or video frames from Decode HDR Media. |
 
 ## Outputs
 
@@ -50,4 +50,4 @@ Generate Media Latents → Decode HDR Latents → [Save EXR Sequence]
 
 ## See also
 
-- [Decode HDR Latents](decode_hdr_latents.md) · [DiffHDR Conditioning](diffhdr_conditioning.md)
+- [Decode HDR Media](decode_hdr_latents.md) · [DiffHDR Conditioning](diffhdr_conditioning.md)

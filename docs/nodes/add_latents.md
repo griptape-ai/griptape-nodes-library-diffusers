@@ -11,9 +11,9 @@ Category: `ModularDiffusion/Transform`
 
 ## Typical workflow position
 ```text
-Generate Media Latents (A) ─┐
-                            ├─→ [Add Latents] → Generate / Decode
-Generate Media Latents (B) ─┘
+Generate Latent (A) ─┐
+                     ├─→ [Add Latents] → Generate Latent / Decode Media
+Generate Latent (B) ─┘
 ```
 
 ## Node preview
@@ -40,4 +40,4 @@ Generate Media Latents (B) ─┘
 
 ## See also
 
-- [Subtract Latents](subtract_latents.md) · [Multiply Latents](multiply_latents.md) · [Latents Composite Mask](latents_composite_mask.md)
+- [Subtract Latents](subtract_latents.md) · [Multiply Latents](multiply_latents.md) · [Composite Latents with Mask](latents_composite_mask.md)

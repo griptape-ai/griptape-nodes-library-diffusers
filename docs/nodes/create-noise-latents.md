@@ -1,23 +1,23 @@
-# Create Noise Latents
+# Create Noise Latent
 
 **Generates a random-noise latent tensor matching the connected pipeline's expected shape — the typical starting point for text-to-image / text-to-video flows.**
 
 Category: `ModularDiffusion/Create`
 
 ## TL;DR
-- Drop this between the **Pipeline Builder** and **Generate Media Latents** for any pure text-to-image / text-to-video flow.
+- Drop this between the **Pipeline Builder** and **Generate Latent** for any pure text-to-image / text-to-video flow.
 - `width` / `height` are pixel-space; the node handles VAE down-scaling internally.
 - `num_frames` appears only when the connected pipeline produces video (LTX, LTX2, WAN). It's hidden otherwise.
 - `seed` controls reproducibility — same seed + same pipeline + same dimensions → identical latent.
 
 ## Typical workflow position
 ```text
-Pipeline Builder → [Create Noise Latents] → Generate Media Latents → Decode Media Latent
+Pipeline Builder → [Create Noise Latent] → Generate Latent → Decode Media Latent
 ```
 
 ## Node preview
 
-<img src="../assets/nodes/create-noise-latents.png" alt="Create Noise Latents" width="480">
+<img src="../assets/nodes/create-noise-latents.png" alt="Create Noise Latent" width="480">
 
 ## Inputs
 
@@ -29,7 +29,7 @@ Pipeline Builder → [Create Noise Latents] → Generate Media Latents → Decod
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `output_latent` | `LatentArtifact` | Unpacked, normalized (~N(0,1)) noise tensor. Feed to Generate Media Latents. |
+| `output_latent` | `LatentArtifact` | Unpacked, normalized (~N(0,1)) noise tensor. Feed to Generate Latent. |
 
 ## Parameters
 
@@ -46,17 +46,17 @@ Pipeline Builder → [Create Noise Latents] → Generate Media Latents → Decod
 
 | Provider | Behavior |
 | --- | --- |
-| MiniMax-H3 | This node sets the generated geometry — Generate Media Latents exposes no dimensions of its own. **The defaults do not work:** set `width`/`height` to a MiniMax-H3 canvas (a 768-pixel short edge, e.g. **1344x768** for 16:9, or **960x544** for roughly 2.3x faster steps) and `num_frames` to **124–345**. Both axes must be positive multiples of **32**, the area must not exceed 1032192 pixels, the aspect ratio must sit between 1:4 and 4:1, and `num_frames` is snapped up to the next `17 * n + 5` (124, 141, … 345), which must land between 5 and 15 seconds at the fixed 24 fps. Anything outside that is rejected with an error naming the value and the constraint. The noise latent also carries the audio noise for the jointly generated soundtrack. |
-| Flux3 | `width` and `height` must be multiples of **16**. The resulting public latent is unpatchified and can be passed directly to Generate Media Latents. |
+| MiniMax-H3 | This node sets the generated geometry — Generate Latent exposes no dimensions of its own. **The defaults do not work:** set `width`/`height` to a MiniMax-H3 canvas (a 768-pixel short edge, e.g. **1344x768** for 16:9, or **960x544** for roughly 2.3x faster steps) and `num_frames` to **124–345**. Both axes must be positive multiples of **32**, the area must not exceed 1032192 pixels, the aspect ratio must sit between 1:4 and 4:1, and `num_frames` is snapped up to the next `17 * n + 5` (124, 141, … 345), which must land between 5 and 15 seconds at the fixed 24 fps. Anything outside that is rejected with an error naming the value and the constraint. The noise latent also carries the audio noise for the jointly generated soundtrack. |
+| Flux3 | `width` and `height` must be multiples of **16**. The resulting public latent is unpatchified and can be passed directly to Generate Latent. |
 
 ## Tips & pitfalls
 
 - **`width` / `height` / `num_frames` must satisfy the pipeline's alignment constraints.** All pipelines (image and video) enforce spatial alignment — most require width and height to be multiples of 8 or 16. Video pipelines additionally require `(num_frames - 1)` to be divisible by the VAE temporal compression ratio. Some pipelines (HunyuanVideo I2V) use aspect-ratio bucketing — valid dimensions are not simply multiples of a constant. By default the node validates dimensions before running and surfaces an error with suggested values. Set `modular_diffusion_library.enable_auto_resize = true` in `griptape-nodes-library.json` (under `config`) to silently snap misaligned values to the nearest valid ones for both image and video pipelines, with a warning logged.
 - **Same seed across pipelines ≠ same image.** Latent shape and VAE space differ per model; the seed is only meaningful within one pipeline type.
-- **For Image-to-Image or rediffusion, use [Encode Media Latent](encode_media_latent.md) instead.** Encoding an existing image gives you a conditioned starting point; optionally feed it through Generate Media Latents with `add_noise=True`.
+- **For Image-to-Image or rediffusion, use [Encode Media Latent](encode_media_latent.md) instead.** Encoding an existing image gives you a conditioned starting point; optionally feed it through Generate Latent with `add_noise=True`.
 
 ## See also
 
-- [Create Empty Latents](empty_latents.md) — zero-filled variant for masked compositing or specific multi-stage tricks.
+- [Create Empty Latent](empty_latents.md) — zero-filled variant for masked compositing or specific multi-stage tricks.
 - [Encode Media Latent](encode_media_latent.md) — for image / video → latent.
-- [Generate Media Latents](generate_media_latents.md) — typical consumer.
+- [Generate Latent](generate_media_latents.md) — typical consumer.

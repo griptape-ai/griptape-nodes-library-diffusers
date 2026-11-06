@@ -127,6 +127,10 @@ git clone https://github.com/griptape-ai/griptape-nodes-library-standard.git ../
 If either manifest is missing, the workflow tests fail at setup with the missing path. The
 engine's registered-libraries config is not consulted.
 
+## Naming nodes
+
+Node names start with a verb (`Load LoRA`, `Upsample Latent`), say "Latent" in the singular unless the node takes two or more (`Add Latents`), and stay short. Detail goes in the node's description and tags, not in brackets in the name. Rename a node by its display name only, never its class name, so saved workflows keep loading. The full rules are in [`.claude/rules/node-naming.md`](.claude/rules/node-naming.md).
+
 ## Code quality
 
 1. **Check code quality:**

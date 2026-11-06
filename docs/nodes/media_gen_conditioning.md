@@ -1,4 +1,4 @@
-# Media Generation Conditioning
+# Reference Media
 
 **Packages one or more conditioning images (or a video) with per-frame placement and strength, ready to connect into any pipeline that supports media-driven conditioning.**
 
@@ -7,19 +7,19 @@ Category: `ModularDiffusion/Conditioning`
 ## TL;DR
 - Connect a pipeline to get preset layouts tailored to that model (e.g. first/last frame slots for WAN Image-to-Video).
 - Without a pipeline, a flexible image-or-video layout is shown with a "Preset" dropdown; a number of images slider is shown in "Custom" preset mode.
-- Connect the `conditioning` output to the matching conditioning input on Generate Media Latents — the input's name and count depend on the connected pipeline, e.g. `conditioning_images` for WAN Image-to-Video, `media_conditions` for LTX / LTX2 or `reference_images` for Flux2 Klein. The input appears only once the pipeline is connected to Generate Media Latents too.
+- Connect the `conditioning` output to the matching conditioning input on Generate Latent — the input's name and count depend on the connected pipeline, e.g. `conditioning_images` for WAN Image-to-Video, `media_conditions` for LTX / LTX2 or `reference_images` for Flux2 Klein. The input appears only once the pipeline is connected to Generate Latent too.
 
 ## Typical workflow position
 ```text
-Pipeline Builder ──────────────────────────────────────────┐
-                                                           ├─→ Generate Media Latents → Decode
-Load Image (first) ──┐                                     │
-Load Image (last) ───┴─→ [Media Generation Conditioning] ──┘
+Pipeline Builder ─────────────────────────────┐
+                                              ├─→ Generate Latent → Decode
+Load Image (first) ───┐                       │
+Load Image (last)  ───┴→ [Reference Media] ───┘
 ```
 
 ## Node preview
 
-<img src="../assets/nodes/media-gen-conditioning.png" alt="Media Generation Conditioning" width="480">
+<img src="../assets/nodes/media-gen-conditioning.png" alt="Reference Media" width="480">
 
 ## Inputs
 
@@ -33,7 +33,7 @@ Load Image (last) ───┴─→ [Media Generation Conditioning] ──┘
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `conditioning` | `media_gen_conditioning` | Typed payload of images/video + per-entry frame position + strength. Connect to the matching input on Generate Media Latents. |
+| `conditioning` | `media_gen_conditioning` | Typed payload of images/video + per-entry frame position + strength. Connect to the matching input on Generate Latent. |
 
 ## Parameters
 
@@ -64,10 +64,10 @@ Load Image (last) ───┴─→ [Media Generation Conditioning] ──┘
 | Pipeline | Behavior |
 | --- | --- |
 | No pipeline connected (default) | Both image and video modes are available. `Preset` choices: **Custom** (default), First + Middle + Last, First + Last, First frame. In Custom mode, `num_images` (0–8), `frame_index`, and `strength` are all adjustable. In video mode, a single `video` input with `frame_index` and `video_strength` is shown. |
-| Flux2 Klein | Image mode only. Flexible image slots (1–8). The `reference_images` input on Generate Media Latents is active only when an inpaint mask is also connected. |
+| Flux2 Klein | Image mode only. Flexible image slots (1–8). The `reference_images` input on Generate Latent is active only when an inpaint mask is also connected. |
 | LTX / LTX2 | Same as "No pipeline connected" but in image mode, **First + Middle + Last** is default. |
 | WAN Image-to-Video | Image mode only. `Preset` choices: **First + Last** (default), First frame. |
-| WAN VACE | Image mode only. `Preset` choices: **First + Middle + Last** (default), First + Last, First frame — feeds the `source_media` input on Generate Media Latents. The same node can also feed `mask` and `reference_images`; `reference_images` accepts up to 8 images. |
+| WAN VACE | Image mode only. `Preset` choices: **First + Middle + Last** (default), First + Last, First frame — feeds the `source_media` input on Generate Latent. The same node can also feed `mask` and `reference_images`; `reference_images` accepts up to 8 images. |
 
 ## Tips & pitfalls
 
@@ -77,4 +77,4 @@ Load Image (last) ───┴─→ [Media Generation Conditioning] ──┘
 
 ## See also
 
-- [Generate Media Latents](generate_media_latents.md) · [Modular Diffusion Pipeline Builder](pipeline_builder.md)
+- [Generate Latent](generate_media_latents.md) · [Build Pipeline](pipeline_builder.md)

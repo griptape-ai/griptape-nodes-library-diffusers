@@ -26,9 +26,9 @@ Load Image → [Image to Image] → Display Image
 | `pipeline_type` | Supported Pipeline Types | Yes | Selects which pipeline family the internal Pipeline Builder resolves and builds. |
 | `input` | `ImageArtifact` / `ImageUrlArtifact` | Yes | Source image, forwarded to the internal Encode Media Latent node. |
 | `start_step` | int | No | Default `5`. Which denoising step to start from — higher values preserve more of the source image. |
-| `num_inference_steps` | int | No | Forwarded to the internal Generate Media Latents node. |
-| `seed` | int | No | Default `42`. Forwarded to the internal Generate Media Latents node. |
-| `prompt` | str | Yes | Positive text prompt, forwarded to the internal Generate Media Latents node. |
+| `num_inference_steps` | int | No | Forwarded to the internal Generate Latent node. |
+| `seed` | int | No | Default `42`. Forwarded to the internal Generate Latent node. |
+| `prompt` | str | Yes | Positive text prompt, forwarded to the internal Generate Latent node. |
 
 ## Outputs
 
@@ -44,13 +44,13 @@ This workflow ships with a default model pre-set for every supported `pipeline_t
 
 ## Tips & pitfalls
 
-- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to see and tweak the internal Encode Media Latent / Pipeline Builder / Generate Media Latents / Decode Media Latent chain, including hidden parameters like `model` repo and optimization toggles.
+- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to see and tweak the internal Encode Media Latent / Pipeline Builder / Generate Latent / Decode Media Latent chain, including hidden parameters like `model` repo and optimization toggles.
 - **Fixed model selection.** You cannot change the model selection or other internal parameters directly from the top-level node; you must open the sub-flow to make changes.
 - **No download status visibility.** There is no visual indication within the node itself whether the required model has been downloaded or if it needs to be installed via the Model Manager.
-- **`start_step` controls fidelity to the source image.** Lower values allow more deviation from `input`; higher values stay closer to it. Open the sub-flow to see how it maps onto the internal Generate Media Latents node's partial-denoise range.
+- **`start_step` controls fidelity to the source image.** Lower values allow more deviation from `input`; higher values stay closer to it. Open the sub-flow to see how it maps onto the internal Generate Latent node's partial-denoise range.
 - **Want more granular control?** Open the sub-flow and edit the internal nodes directly — anything not exposed as a top-level input here can be changed there.
 
 ## See also
 
-- [Text to Image](text_to_image.md) · [Inpainting](inpainting.md) · [Text to Video](text_to_video.md) · [First/Last Frame to Video](first_last_frame_to_video.md)
-- [Modular Diffusion Pipeline Builder](pipeline_builder.md) · [Encode Media Latent](encode_media_latent.md) · [Generate Media Latents](generate_media_latents.md) — the nodes this workflow wraps internally.
+- [Text to Image](text_to_image.md) · [Inpaint Image](inpainting.md) · [Text to Video](text_to_video.md) · [First/Last Frame to Video](first_last_frame_to_video.md)
+- [Build Pipeline](pipeline_builder.md) · [Encode Media Latent](encode_media_latent.md) · [Generate Latent](generate_media_latents.md) — the nodes this workflow wraps internally.

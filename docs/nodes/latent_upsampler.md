@@ -1,22 +1,22 @@
-# Latent Upsampler
+# Upsample Latent
 
-**Spatially upscales a latent tensor without leaving latent space — typically used between two Generate stages for a fast, high-resolution refinement pass.**
+**Upsamples a latent tensor (spatially, today) without leaving latent space — typically used between two Generate stages for a fast, high-resolution refinement pass.**
 
 Category: `ModularDiffusion/Processing`
 
 ## TL;DR
 - Upsamples in **latent space**, so you avoid a costly decode → upscale → re-encode round trip.
 - `provider` picks the upsampler family.
-- Use between two Generate Media Latents nodes: low-res pass → upsample → high-res refinement pass.
+- Use between two Generate Latent nodes: low-res pass → upsample → high-res refinement pass.
 
 ## Typical workflow position
 ```text
-Generate Media Latents (low-res) → [Latent Upsampler] → Generate Media Latents (refine) → Decode
+Generate Latent (low-res) → [Upsample Latent] → Generate Latent (refine) → Decode
 ```
 
 ## Node preview
 
-<img src="../assets/nodes/latent-upsampler.png" alt="Latent Upsampler" width="480">
+<img src="../assets/nodes/latent-upsampler.png" alt="Upsample Latent" width="480">
 
 ## Inputs
 
@@ -28,7 +28,7 @@ Generate Media Latents (low-res) → [Latent Upsampler] → Generate Media Laten
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `output_latent` | `LatentArtifact` | Spatially-upscaled latent. |
+| `output_latent` | `LatentArtifact` | Upsampled latent. |
 
 ## Parameters
 
@@ -46,5 +46,5 @@ Generate Media Latents (low-res) → [Latent Upsampler] → Generate Media Laten
 
 ## See also
 
-- [Generate Media Latents](generate_media_latents.md) — pair upstream and downstream.
+- [Generate Latent](generate_media_latents.md) — pair upstream and downstream.
 - [Decode Media Latent](decode_media_latent.md) — final step.

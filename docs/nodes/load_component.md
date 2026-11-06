@@ -1,4 +1,4 @@
-# Load Pipeline Component
+# Load Component
 
 **Load a single pipeline component (transformer / unet / vae / tokenizer / text encoder) from disk or the local HuggingFace cache.**
 
@@ -12,12 +12,12 @@ Category: `ModularDiffusion/Pipeline`
 
 ## Typical workflow position
 ```text
-[Load Pipeline Component] → Pipeline Builder (component override) → Generate Media Latents
+[Load Component] → Pipeline Builder (component override) → Generate Latent
 ```
 
 ## Node preview
 
-![Load Pipeline Component node](../assets/nodes/load-component.png)
+![Load Component node](../assets/nodes/load-component.png)
 
 ## Inputs
 

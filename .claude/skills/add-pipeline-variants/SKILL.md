@@ -20,7 +20,7 @@ Follow the Working Principles in [CLAUDE.md](../../../CLAUDE.md). Specific to th
 
 ### Rule −1 — Update affected node docs in the same change
 
-Variants don't add nodes, but they change runtime branches on existing ones. Update the `Provider / model behavior` section of every node whose dynamic parameters or runtime path changed — usually Generate Media Latents, the affected encode/decode node, and the conditioning node that triggers the variant. Document the trigger plainly (e.g. "supplying `control_net_model_lists` swaps in `<X>ControlNetPipeline`"). Follow [docs/node-doc-format.md](../../../docs/node-doc-format.md); for anything beyond a one-line tweak, use the `document-node` skill. Report doc changes alongside code in your final summary.
+Variants don't add nodes, but they change runtime branches on existing ones. Update the `Provider / model behavior` section of every node whose dynamic parameters or runtime path changed — usually Generate Latent, the affected encode/decode node, and the conditioning node that triggers the variant. Document the trigger plainly (e.g. "supplying `control_net_model_lists` swaps in `<X>ControlNetPipeline`"). Follow [docs/node-doc-format.md](../../../docs/node-doc-format.md); for anything beyond a one-line tweak, use the `document-node` skill. Report doc changes alongside code in your final summary.
 
 ### Rule 0 — Variant vs new pipeline type (FIRST CHECK)
 

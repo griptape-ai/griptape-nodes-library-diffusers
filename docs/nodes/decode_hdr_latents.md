@@ -1,8 +1,8 @@
-# Decode HDR Latents
+# Decode HDR Media
 
 **Decodes a latent to float RGB media, exposes the unmodified frames, and publishes a tone-mapped SDR preview.**
 
-Category: `ModularDiffusion/Encode\Decode`
+Category: `ModularDiffusion/Encode & Decode`
 
 ## TL;DR
 - Extends [Decode Media Latent](decode_media_latent.md): same inputs and dynamic image/video preview, plus a `raw_media` float output for downstream processing or EXR export.
@@ -12,13 +12,13 @@ Category: `ModularDiffusion/Encode\Decode`
 
 ## Typical workflow position
 ```text
-Generate Media Latents → [Decode HDR Latents] ──→ SDR Preview
-                              └────────────────→ [Save EXR Sequence]
+Generate Latent → [Decode HDR Media] ─┬→ SDR Preview
+                                      └→ Save EXR Sequence
 ```
 
 ## Node preview
 
-<img src="../assets/nodes/decode-hdr-latents.png" alt="Decode HDR Latents" width="480">
+<img src="../assets/nodes/decode-hdr-latents.png" alt="Decode HDR Media" width="480">
 
 ## Inputs
 
@@ -53,5 +53,5 @@ Generate Media Latents → [Decode HDR Latents] ──→ SDR Preview
 ## See also
 
 - [Decode Media Latent](decode_media_latent.md) — base node; use for non-HDR pipelines.
-- [Generate Media Latents](generate_media_latents.md) — typical upstream node.
+- [Generate Latent](generate_media_latents.md) — typical upstream node.
 - [Save EXR Sequence](save_exr_sequence.md) — writes decoded float frames as OpenEXR.
