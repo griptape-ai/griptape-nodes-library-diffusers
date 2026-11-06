@@ -524,6 +524,11 @@ def _dtype_element_size(dtype: torch.dtype) -> int:
 
 def resolve_pipeline_cls(artifact: DiffusionPipelineArtifact) -> type:
     """Resolve a registered Diffusers pipeline class without importing artifact data."""
+    return _resolve_builder_class(artifact).pipeline_cls()
+
+
+def _resolve_builder_class(artifact: DiffusionPipelineArtifact) -> type[ModularDiffusionPipelineTypePipelineParameters]:
+    """Resolve the trusted pipeline-type parameters class that built `artifact`."""
     builder_module = artifact.builder_module
     builder_class_name = artifact.builder_class_name
     if not isinstance(builder_module, str) or not builder_module:
@@ -559,7 +564,7 @@ def resolve_pipeline_cls(artifact: DiffusionPipelineArtifact) -> type:
             f"'{canonical_name}'."
         )
         raise ValueError(msg)
-    return builder_class.pipeline_cls()
+    return builder_class
 
 
 def _module_component_slots(pipeline_cls: type) -> list[str]:
@@ -608,8 +613,11 @@ def _weight_bearing_slots(
     *,
     all_overrides: bool,
     model_index: dict[str, Any] | None,
+    unloaded_slots: frozenset[str] = frozenset(),
 ) -> list[str]:
-    module_slots = _module_component_slots(pipeline_cls)
+    # A pipeline class shared by several workflows declares every workflow's slots; drop the
+    # ones this pipeline type never loads (see `_unloaded_component_slots`).
+    module_slots = [slot for slot in _module_component_slots(pipeline_cls) if slot not in unloaded_slots]
     if all_overrides:
         return sorted(set(module_slots) & set(component_overrides))
 
@@ -783,7 +791,8 @@ def estimate_pipeline_memory_from_build_data(
     build_data = artifact.build_data
     optimization_kwargs = artifact.optimization_kwargs
     pipeline_name = artifact.pipeline_name
-    pipeline_cls = resolve_pipeline_cls(artifact)
+    builder_class = _resolve_builder_class(artifact)
+    pipeline_cls = builder_class.pipeline_cls()
 
     component_overrides: dict[str, ComponentArtifact] = build_data.get("_component_overrides", {})
     is_all_overrides = bool(build_data.get("_all_overrides"))
@@ -805,6 +814,7 @@ def estimate_pipeline_memory_from_build_data(
         component_overrides,
         all_overrides=is_all_overrides,
         model_index=model_index,
+        unloaded_slots=builder_class.get_unloaded_component_slots(),
     )
     quantization_mode = optimization_kwargs.get("quantization_mode", "None")
     transformer_layerwise_casting = bool(optimization_kwargs.get("transformer_layerwise_casting", False))

@@ -47,6 +47,10 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     # execution environment installed. No default, so a new pipeline type that forgets to declare
     # fails loudly instead of quietly offering no override ports.
     _component_slots: ClassVar[list[str]]
+    # Component slots the pipeline class declares but this pipeline type never loads, so the
+    # pre-build memory estimate must not count their weights. Needed when one pipeline class
+    # serves several workflows that load different weights (MiniMax-H3 fl2va vs ref2va).
+    _unloaded_component_slots: ClassVar[frozenset[str]] = frozenset()
     # Denoiser config key to compare text-conditioning width against (None = skip).
     text_conditioning_target_dim_key: str | None = None
     # Channel multiplier from packing latents into spatial patches (1 = no packing).
@@ -151,6 +155,11 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         That test needs diffusers, so it runs under `make test/exec` and not in `make check`.
         """
         return list(cls._component_slots)
+
+    @classmethod
+    def get_unloaded_component_slots(cls) -> frozenset[str]:
+        """Component slots this pipeline type never loads; excluded from pre-build memory estimates."""
+        return cls._unloaded_component_slots
 
     @classmethod
     def _materialize_overrides(cls, build_data: dict[str, Any], *, pipeline_cls: type) -> dict[str, Any]:

@@ -69,6 +69,11 @@ def test_classify_role_recognizes_wans_second_denoiser_slot() -> None:
     assert _classify_role("transformer_2") == "denoiser"
 
 
+def test_classify_role_recognizes_minimax_ref2va_denoiser_slot() -> None:
+    """A loaded MiniMax-H3 ref2va pipe holds its denoiser in `transformer_ref`."""
+    assert _classify_role("transformer_ref") == "denoiser"
+
+
 def test_classify_role_recognizes_the_standard_slots() -> None:
     assert _classify_role("text_encoder") == "text_encoder"
     assert _classify_role("text_encoder_2") == "text_encoder"

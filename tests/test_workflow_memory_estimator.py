@@ -160,6 +160,79 @@ def test_resolve_pipeline_cls_rejects_loaded_class_name_as_identity() -> None:
         pipeline_memory_estimator.resolve_pipeline_cls(artifact)
 
 
+class _SlotPipeline:
+    _optional_components: list[str] = []
+
+
+def test_weight_bearing_slots_drops_unloaded_component_slots(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        pipeline_memory_estimator,
+        "_module_component_slots",
+        lambda _pipeline_cls: ["text_encoder", "transformer", "transformer_ref", "vae"],
+    )
+
+    slots = pipeline_memory_estimator._weight_bearing_slots(  # noqa: SLF001
+        _SlotPipeline,
+        {},
+        all_overrides=False,
+        model_index=None,
+        unloaded_slots=frozenset({"transformer"}),
+    )
+
+    assert slots == ["text_encoder", "transformer_ref", "vae"]
+
+
+def test_weight_bearing_slots_drops_unloaded_slots_from_all_override_builds(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        pipeline_memory_estimator,
+        "_module_component_slots",
+        lambda _pipeline_cls: ["transformer", "transformer_ref", "vae"],
+    )
+    overrides = {"transformer": object(), "transformer_ref": object(), "vae": object()}
+
+    slots = pipeline_memory_estimator._weight_bearing_slots(  # noqa: SLF001
+        _SlotPipeline,
+        overrides,  # type: ignore[arg-type]
+        all_overrides=True,
+        model_index=None,
+        unloaded_slots=frozenset({"transformer_ref"}),
+    )
+
+    assert slots == ["transformer", "vae"]
+
+
+@pytest.mark.parametrize(
+    ("canonical_name", "unloaded_slots"),
+    [
+        ("MiniMaxH3ModularPipeline", frozenset({"transformer_ref"})),
+        ("MiniMaxH3Ref2VAModularPipeline", frozenset({"transformer"})),
+        ("FluxPipeline", frozenset()),
+    ],
+)
+def test_builder_declares_the_component_slots_its_workflow_never_loads(
+    canonical_name: str, unloaded_slots: frozenset[str]
+) -> None:
+    builder_class = _builder_class_for(canonical_name)
+
+    assert builder_class.get_unloaded_component_slots() == unloaded_slots
+
+
+def test_minimax_unloaded_slots_match_the_upstream_workflow_components() -> None:
+    """fl2va and ref2va share one upstream class whose specs list both transformers; each
+    workflow loads only one, so the other must be declared unloaded."""
+    from diffusers.modular_pipelines.minimax_h3.modular_blocks_minimax_h3 import MiniMaxH3Blocks
+
+    blocks = MiniMaxH3Blocks()
+    all_components = {spec.name for spec in blocks.expected_components}
+    for canonical_name in ("MiniMaxH3ModularPipeline", "MiniMaxH3Ref2VAModularPipeline"):
+        builder_class = _builder_class_for(canonical_name)
+        workflow = builder_class._workflow  # noqa: SLF001
+        loaded = {spec.name for spec in blocks.get_workflow(workflow).expected_components}
+        unloaded_denoisers = {slot for slot in all_components - loaded if slot.startswith("transformer")}
+
+        assert builder_class.get_unloaded_component_slots() == unloaded_denoisers
+
+
 def test_serialized_untrusted_builder_identity_is_rejected_before_import(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

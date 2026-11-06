@@ -154,10 +154,13 @@ def test_adapt_minimax_h3_reads_minimax_field_names_and_unpacks_the_patch_size_t
 
 
 def test_adapt_minimax_h3_reads_transformer_ref_when_loaded() -> None:
-    pipe = SimpleNamespace(
-        transformer=None,
-        transformer_ref=SimpleNamespace(
-            config=SimpleNamespace(hidden_size=4096, num_layers=52, num_refiner_layers=3, patch_size=(1, 2, 2))
+    pipe = cast(
+        Any,
+        SimpleNamespace(
+            transformer=None,
+            transformer_ref=SimpleNamespace(
+                config=SimpleNamespace(hidden_size=4096, num_layers=52, num_refiner_layers=3, patch_size=(1, 2, 2))
+            ),
         ),
     )
 
