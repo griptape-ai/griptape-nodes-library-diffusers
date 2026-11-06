@@ -6,6 +6,8 @@ connection belongs to that connection rather than to the widget.
 
 from __future__ import annotations
 
+from griptape_nodes.traits.slider import Slider
+
 from modular_diffusion_nodes_library.nodes.latent_composite_mask_node import LatentCompositeMaskNode
 
 SIZES = {"dest_width": 1024, "dest_height": 768, "source_width": 512, "source_height": 512}
@@ -76,3 +78,17 @@ def test_run_reports_pixel_sizes_of_both_latents() -> None:
     node._publish_latent_sizes((1, 16, 5, 96, 128), (1, 16, 5, 64, 64))
 
     assert {key: node.parameter_output_values["placement_editor"][key] for key in SIZES} == SIZES
+
+
+def test_offset_sliders_run_into_the_negatives() -> None:
+    node = LatentCompositeMaskNode(name="composite")
+
+    x_offset = node.get_parameter_by_name("x_offset")
+    y_offset = node.get_parameter_by_name("y_offset")
+    assert x_offset is not None
+    assert y_offset is not None
+    x_slider = x_offset.find_elements_by_type(Slider)[0]
+    y_slider = y_offset.find_elements_by_type(Slider)[0]
+
+    assert x_slider.min == -node.MAX_WIDTH
+    assert y_slider.min == -node.MAX_HEIGHT
