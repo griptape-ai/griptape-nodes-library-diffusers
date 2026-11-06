@@ -508,13 +508,25 @@ def test_runtime_optimization_paths_use_shared_vae_options(monkeypatch: pytest.M
     assert manual_vae.use_framewise_encoding
 
 
+class _StubBuilder:
+    """Stands in for a trusted pipeline-type parameters class in pre-build estimates."""
+
+    @staticmethod
+    def pipeline_cls() -> type:
+        return object
+
+    @staticmethod
+    def get_unloaded_component_slots() -> frozenset[str]:
+        return frozenset()
+
+
 def test_prebuild_vae_options_follow_saved_strategy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     vae_class, config, source_shape, latent_shape = _case("AutoencoderKL")
     vae = _meta_vae(vae_class, config)
     observed_state: list[tuple[bool, bool, bool, bool]] = []
-    monkeypatch.setattr(pme, "resolve_pipeline_cls", lambda _artifact: object)
+    monkeypatch.setattr(pme, "_resolve_builder_class", lambda _artifact: _StubBuilder)
     monkeypatch.setattr(pme, "_load_base_model_index", lambda _repo_id, _revision: {})
     monkeypatch.setattr(pme, "_weight_bearing_slots", lambda *_args, **_kwargs: ["vae"])
     monkeypatch.setattr(pme, "_stored_bytes_for_base_component", lambda *_args: (0, BF16, vae))
@@ -549,7 +561,7 @@ def test_prebuild_vae_options_follow_saved_strategy(
 def test_unsupported_trace_becomes_weights_only_warning(monkeypatch: pytest.MonkeyPatch) -> None:
     vae_class, config, source_shape, latent_shape = _case("AutoencoderKL")
     vae = _meta_vae(vae_class, config)
-    monkeypatch.setattr(pme, "resolve_pipeline_cls", lambda _artifact: object)
+    monkeypatch.setattr(pme, "_resolve_builder_class", lambda _artifact: _StubBuilder)
     monkeypatch.setattr(pme, "_load_base_model_index", lambda _repo_id, _revision: {})
     monkeypatch.setattr(pme, "_weight_bearing_slots", lambda *_args, **_kwargs: ["vae"])
     monkeypatch.setattr(pme, "_stored_bytes_for_base_component", lambda *_args: (1024, BF16, vae))

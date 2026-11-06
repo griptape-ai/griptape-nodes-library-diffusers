@@ -56,14 +56,15 @@ if _missing_display_names or _orphan_display_names:
 
 
 def slot_component_kind(slot: str) -> str:
-    """Strip trailing numeric suffix from slot name to get the component kind.
+    """Strip a trailing numeric or ``_ref`` suffix from slot name to get the component kind.
 
     Examples:
         "transformer" → "transformer"
         "transformer_2" → "transformer"
+        "transformer_ref" → "transformer"  (MiniMax-H3 ref2va's denoiser)
         "vae" → "vae"
     """
-    return re.sub(r"_\d+$", "", slot)
+    return re.sub(r"_(\d+|ref)$", "", slot)
 
 
 def component_config_filename(component: str) -> str:

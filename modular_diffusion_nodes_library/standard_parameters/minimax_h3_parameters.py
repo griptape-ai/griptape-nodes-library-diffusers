@@ -28,6 +28,8 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
     _pipeline_cls_path = "diffusers.modular_pipelines.minimax_h3.modular_pipeline:MiniMaxH3ModularPipeline"
     _component_slots: ClassVar[list[str]] = []
     _workflow: ClassVar[str] = "fl2va"
+    # fl2va loads `transformer`; `transformer_ref` is ref2va's partition.
+    _unloaded_component_slots: ClassVar[frozenset[str]] = frozenset({"transformer_ref"})
 
     @classmethod
     def supports_build_from_overrides_only(cls) -> bool:
