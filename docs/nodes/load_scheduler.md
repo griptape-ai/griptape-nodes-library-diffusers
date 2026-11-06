@@ -7,13 +7,13 @@ Category: `ModularDiffusion/Pipeline`
 ## TL;DR
 - Schedulers are config-only (no weights): pick a **Scheduler Class** and a **Source Type**, and the node emits a `SchedulerComponentArtifact`.
 - Three source modes: a local `scheduler_config.json` file, a HuggingFace repo id already in your local cache, or raw JSON-formatted text typed or pasted directly into the node (**Text Config** mode).
-- Wire the output into a Pipeline Builder's `scheduler` override port to replace the pipeline's default scheduler at build time.
+- Connect the output to the `scheduler` override port on the Build Pipeline node to replace the pipeline's default scheduler at build time.
 - A compatibility warning badge appears when the chosen scheduler family does not match the config (All modes), or when the config contains keys the chosen class will ignore (Text Config mode).
 
 ## Typical workflow position
 
 ```text
-[Load Scheduler] → scheduler → [Pipeline Builder] → [Generate Media Latents]
+[Load Scheduler] → Build Pipeline → Generate Latent
 ```
 
 ## Node preview
@@ -30,7 +30,7 @@ Category: `ModularDiffusion/Pipeline`
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `component_output` | `SchedulerComponentArtifact` | Scheduler descriptor. Wire into the `scheduler` override slot on a Pipeline Builder. |
+| `component_output` | `SchedulerComponentArtifact` | Scheduler descriptor. Connect to the `scheduler` override slot on the Build Pipeline node. |
 
 ## Parameters
 
@@ -71,4 +71,4 @@ Category: `ModularDiffusion/Pipeline`
 
 ## See also
 
-[Modular Diffusion Pipeline Builder](pipeline_builder.md) · [Load Pipeline Component](load_component.md)
+[Build Pipeline](pipeline_builder.md) · [Load Component](load_component.md)

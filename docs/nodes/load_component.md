@@ -1,4 +1,4 @@
-# Load Pipeline Component
+# Load Component
 
 **Load a single pipeline component (transformer / unet / vae / tokenizer / text encoder) from disk or the local HuggingFace cache.**
 
@@ -8,16 +8,16 @@ Category: `ModularDiffusion/Pipeline`
 - Emits a `ComponentArtifact` describing where the weights live; the weights themselves are loaded lazily by the pipeline builder at build time.
 - Three source modes: a single-file checkpoint (`.gguf` / `.safetensors` / …), a diffusers-format component folder, or a HuggingFace repo id already in your local cache.
 - All modes run with local files in the cache only, nothing is downloaded. Use the model manager UI to download models & repo you might need.
-- Wire the output into a Pipeline Builder override port matching the selected component (Transformer / UNet / VAE / Tokenizer / Text Encoder).
+- Connect this output to the component override port on the Build Pipeline node that matches your selection (Transformer / UNet / VAE / Tokenizer / Text Encoder).
 
 ## Typical workflow position
 ```text
-[Load Pipeline Component] → Pipeline Builder (component override) → Generate Media Latents
+[Load Component] → Build Pipeline (component override) → Generate Latent
 ```
 
 ## Node preview
 
-![Load Pipeline Component node](../assets/nodes/load-component.png)
+![Load Component node](../assets/nodes/load-component.png)
 
 ## Inputs
 
@@ -27,7 +27,7 @@ _None. All fields are node properties._
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `component_output` | `<Component>ComponentArtifact` | Descriptor for the selected component. Artifact type follows the `Component` selection (e.g. `TransformerComponentArtifact` for Transformer). Wire into the matching override slot on the Pipeline Builder. |
+| `component_output` | `<Component>ComponentArtifact` | Descriptor for the selected component. Artifact type follows the `Component` selection (e.g. `TransformerComponentArtifact` for Transformer). Connect it to the matching component override slot on the Build Pipeline node. |
 
 ## Parameters
 
@@ -65,7 +65,7 @@ _None. All fields are node properties._
 - **HuggingFace Repo mode is cache-only.** If the repo id you enter is not in your local HF cache, use the **Open Model Manager to Download** button that appears below the field, or click the refresh (↺) button after downloading to re-check.
 - **Use pre-downloaded models for fastest setup.** The HuggingFace Repo mode reads from your local cache without any downloads, so you can work offline once the model is cached.
 - **Rebuild cleanly by changing any field.** This node computes a hash that includes every visible parameter (including `revision` and `subfolder`), so updating any value automatically triggers a fresh pipeline build.
-- **Output type follows your component selection.** When you switch `component`, the output artifact type updates to match, and you can wire it to the corresponding override slot on the Pipeline Builder.
+- **Output type follows your component selection.** When you switch `component`, the output artifact type updates to match, and you can wire it to the corresponding component override slot on the Build Pipeline node.
 - **Smart subfolder defaults.** The `subfolder` field auto-fills with the component name (`transformer` / `unet` / `vae` / `tokenizer` / `text_encoder`), which works for standard repo layouts. Override it manually for non-standard structures (e.g. `tokenizer_2`, `text_encoder_2`).
 - **Tokenizer doesn't support Single File.** Tokenizer components are vocabulary/config files, not weight checkpoints. Single File mode will be rejected at validation — use Local Folder or HuggingFace Repo for tokenizers.
 

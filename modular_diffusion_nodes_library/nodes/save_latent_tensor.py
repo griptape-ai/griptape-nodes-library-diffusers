@@ -24,6 +24,7 @@ class SaveLatentTensorNode(DataNode):
         self.add_parameter(
             Parameter(
                 name="latent_tensor",
+                display_name="input_latent",
                 type="LatentArtifact",
                 input_types=["LatentArtifact"],
                 tooltip="Latent artifact to serialise to disk as a torch .pt file.",

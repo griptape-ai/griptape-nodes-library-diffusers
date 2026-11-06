@@ -56,6 +56,7 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
         self.add_parameter(
             Parameter(
                 name="latent_tensor",
+                display_name="output_latent",
                 output_type="LatentArtifact",
                 tooltip="Encoded latent tensor from the pipeline VAE.",
                 allowed_modes={ParameterMode.OUTPUT},

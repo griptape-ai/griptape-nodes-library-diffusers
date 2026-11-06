@@ -29,8 +29,8 @@ class LorasParameter:
                 "LoRAs to fuse permanently into the pipeline weights. Fused LoRAs become part of "
                 "the model's cached identity \u2014 changing them rebuilds the pipeline. Use this for "
                 "production-stable style/character LoRAs. For dynamic adapters (IC-LoRA, "
-                "distillation, slider, swap-per-generation), use the LoRA Pipeline node instead, "
-                "which activates adapters without modifying the cache."
+                "distillation, slider, swap-per-generation), use the Apply Runtime LoRA node "
+                "instead, which activates adapters without modifying the cache."
             ),
         )
         loras_param.set_badge(
@@ -41,8 +41,8 @@ class LorasParameter:
                 "part of its cache identity. This means:\n\n"
                 "- Changing or removing a LoRA evicts the pipeline from cache and triggers a full rebuild.\n"
                 "- Best for a fixed, production-stable style or character LoRA that never changes between runs.\n\n"
-                "***Activation (LoRA Pipeline node)*** — adapters are applied dynamically around each generation "
-                "call and released afterward. The base pipeline is never modified, so:\n\n"
+                "***Activation (Apply Runtime LoRA node)*** — adapters are applied dynamically around "
+                "each generation call and released afterward. The base pipeline is never modified, so:\n\n"
                 "- Swapping LoRAs between runs does ***not*** cause a rebuild.\n"
                 "- Multiple branches can share the same cached pipeline (e.g. one with LoRAs, one without).\n\n"
                 "Prefer activation for IC-LoRAs, distillation/acceleration LoRAs, slider LoRAs, "

@@ -1,23 +1,23 @@
-# Modular Diffusion Pipeline Builder
+# Build Pipeline
 
 **Loads and caches a 🧨 Diffusers pipeline once, so every other node in the flow can reuse it.**
 
 Category: `ModularDiffusion/Pipeline`
 
 ## TL;DR
-- **Build once, generate many.** Place this node first; connect its `pipeline` output to every other Modular Diffusion node that needs weights (Generate Media Latent, VAE Encode/Decode, Create Noise, etc.).
+- **Build once, generate many.** Place this node first, then connect its `pipeline` output to each node that needs the model weights, such as Generate Latent, Encode Media, Decode Media, and Create Noise Latent.
 - **Pick `provider` first.** All other parameters (model repo, runtime knobs) regenerate based on this choice.
 - **The pipeline is cached** by a hash of its config. Changing a load-time parameter (model repo, quantization, LoRAs) rebuilds and re-caches; runtime parameters (prompt, steps) do **not** trigger a rebuild.
 - Output type: `Pipeline Config`.
 
 ## Typical workflow position
 ```text
-[Pipeline Builder] → Create Noise Latents → Generate Media Latents → Decode Media Latent
+[Build Pipeline] → Create Noise Latent → Generate Latent → Decode Media
 ```
 
 ## Node preview
 
-<img src="../assets/nodes/pipeline-builder.png" alt="Modular Diffusion Pipeline Builder" width="480">
+<img src="../assets/nodes/pipeline-builder.png" alt="Build Pipeline" width="480">
 
 ## Inputs
 
@@ -75,6 +75,6 @@ Enable only what you need — each option trades speed for memory.
 
 ## See also
 
-- [Configure ControlNet](configure_controlnet.md) · [ControlNet Pipeline](controlnet_pipeline.md) — add ControlNet to a built pipeline.
+- [Load ControlNet](configure_controlnet.md) · [Apply ControlNet](controlnet_pipeline.md) — add ControlNet to a built pipeline.
 - [Load LoRA](load_lora.md) — attach LoRAs to this builder.
-- [Generate Media Latents](generate_media_latents.md) — the most common consumer of the `pipeline` output.
+- [Generate Latent](generate_media_latents.md) — the most common consumer of the `pipeline` output.

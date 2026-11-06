@@ -60,7 +60,7 @@ class MediaGenConditioningRuntimeParameter:
             self._MODE_TO_URL_TYPE[mode] for mode in self._accepted_modes if mode in self._MODE_TO_URL_TYPE
         )
         self._multiple = multiple
-        self._tooltip = tooltip or "Media generation conditioning from a Media Gen Conditioning node."
+        self._tooltip = tooltip or "Media generation conditioning from a Reference Media node."
         self._badge_title = badge_title or self._DEFAULT_BADGE_TITLE
         self._badge_message = badge_message
         self._fixed_size_list: FixedSizeParameterList | None = None
