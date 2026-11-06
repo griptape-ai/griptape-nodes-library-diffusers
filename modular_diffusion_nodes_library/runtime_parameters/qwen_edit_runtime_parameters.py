@@ -35,12 +35,12 @@ class QwenEditPipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             node,
             param_name="image_references",
             accepted_modes=(ConditioningMode.IMAGE,),
-            tooltip="Image(s) to edit. Connect a Media Gen Conditioning node for multi-image support, or connect an image directly.",
+            tooltip="Image(s) to edit. Connect a Reference Media node for multi-image support, or connect an image directly.",
             badge_title="Reference images",
             badge_message=(
-                "Connect a **Media Gen Conditioning** node here to supply one or more reference images for editing. "
+                "Connect a **Reference Media** node here to supply one or more reference images for editing. "
                 "Only **image**-mode payloads are accepted; **video** payloads are not allowed.\n\n"
-                "**Tip:** You can also connect an image directly — without a Media Gen Conditioning node — "
+                "**Tip:** You can also connect an image directly — without a Reference Media node — "
                 "for single-image conditioning."
             ),
         )

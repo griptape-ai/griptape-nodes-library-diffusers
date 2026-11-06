@@ -67,7 +67,7 @@ class DiffusionPipelineGenerateLatentParameters:
                 "What you connect here determines the generation mode:\n\n"
                 "***Empty Latent*** (from Empty Latents node) — "
                 "ENABLE 'add_noise' for text-to-image / text-to-video. Denoising starts from pure noise.\n\n"
-                "***Noise Latent*** (from Create Noise Latents) — "
+                "***Noise Latent*** (from Create Noise Latent) — "
                 "text-to-image / text-to-video. Denoising starts from pure noise.\n\n"
                 "***Already-diffused or encoded LatentArtifact*** (output of a previous Generate node, "
                 "or from a VAE Encode node) — image-to-image or refinement. "
@@ -220,7 +220,7 @@ class DiffusionPipelineGenerateLatentParameters:
             title="Pipeline-specific inputs",
             message=(
                 "Use this only when a selected pipeline requires extra structured inputs. "
-                "For example, connect a Media Gen Conditioning output for LTX/WAN video workflows. "
+                "For example, connect a Reference Media output for LTX/WAN video workflows. "
                 "Or add any key/value pair and it will be forwarded to the selected pipeline as a kwarg. "
                 "If the same key appears multiple times, values are merged into a list."
             ),

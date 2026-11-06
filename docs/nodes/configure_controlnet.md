@@ -1,22 +1,22 @@
-# Configure ControlNet
+# Load ControlNet
 
-**Configures one ControlNet entry — model, control image, and conditioning strength — for use with the ControlNet Pipeline node.**
+**Configures one ControlNet entry — model, control image, and conditioning strength — for use with the Apply ControlNet node.**
 
-Category: `ModularDiffusion/Conditioning`
+Category: `ModularDiffusion/Pipeline`
 
 ## TL;DR
 - Pick `provider` first; the rest of the parameters are **dynamic** and regenerate per provider.
-- One node = one ControlNet. To stack multiple, drop multiple nodes and connect each `control_net` output to the [ControlNet Pipeline](controlnet_pipeline.md) node's `control_nets` list input.
+- One node = one ControlNet. To stack multiple, drop multiple nodes and connect each `control_net` output to the [Apply ControlNet](controlnet_pipeline.md) node's `control_nets` list input.
 - Supported providers: **Flux, Qwen, Stable Diffusion, Z-Image** etc.
 
 ## Typical workflow position
 ```text
-Load Image → [Configure ControlNet] → ControlNet Pipeline → Generate Media Latents
+Load Image → [Load ControlNet] → Apply ControlNet → Generate Latent
 ```
 
 ## Node preview
 
-<img src="../assets/nodes/configure-controlnet.png" alt="Configure ControlNet" width="480">
+<img src="../assets/nodes/configure-controlnet.png" alt="Load ControlNet" width="480">
 
 ## Inputs
 
@@ -30,7 +30,7 @@ Load Image → [Configure ControlNet] → ControlNet Pipeline → Generate Media
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `control_net` | `control_net` (dict) | Entry to feed into the ControlNet Pipeline node. |
+| `control_net` | `control_net` (dict) | Entry to feed into the Apply ControlNet node. |
 
 ## Provider / model behavior
 
@@ -41,12 +41,12 @@ The model dropdown and extra parameters change per provider. Notable extras:
 
 ## Tips & pitfalls
 
-- **Provider must match the base pipeline.** A Flux ControlNet plugged into an SDXL pipeline will be rejected by the ControlNet Pipeline node's validator.
+- **Provider must match the base pipeline.** A Flux ControlNet plugged into an SDXL pipeline will be rejected by the Apply ControlNet node's validator.
 - **Preprocess control images upstream.** Run your detector (Canny, depth estimator, pose) in an earlier node and feed the result directly — this node expects a ready-to-use control image.
 - **`controlnet_conditioning_scale` is per-ControlNet.** When stacking, each node has its own weight.
 - **A model marked "Not permitted by your license" cannot be used.** It stays visible in the picker with a shield icon, but selecting it badges the parameter and the run fails — pick a permitted ControlNet, or take it up with whoever administers your license.
 
 ## See also
 
-- [ControlNet Pipeline](controlnet_pipeline.md) — required downstream consumer.
+- [Apply ControlNet](controlnet_pipeline.md) — required downstream consumer.
 - Workflow template: `workflows/templates/ControlnetText2Image.py`.
