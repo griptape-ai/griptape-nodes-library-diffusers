@@ -13,6 +13,7 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutputType,
     DecodeResult,
     GeneratorState,
     ImageMedia,
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
         OutputParam,  # type: ignore[reportMissingImports]
     )
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -147,6 +149,7 @@ class _HunyuanVideo15AddNoiseStep(ModularPipelineBlocks):
 
 
 class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.VIDEO_DIT_JOINT_SDPA
     produces_video: ClassVar[bool] = True
     # EXAMPLE_DOC_STRING in pipeline_hunyuan_video1_5.py specifies fps=15
     video_fps: ClassVar[int] = 15
@@ -203,7 +206,7 @@ class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         """Decode a 5-D HunyuanVideo latent and return the video frames."""
         from diffusers.modular_pipelines.hunyuan_video1_5.decoders import (  # type: ignore[reportMissingImports]
             HunyuanVideo15VaeDecoderStep,
@@ -212,9 +215,8 @@ class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
         vae_decoder_step = HunyuanVideo15VaeDecoderStep()
-        output_state = self._call_block(vae_decoder_step, latents=latents, output_type="pil")
-        video_frames = self._get_required(output_state, "videos", list)[0]
-        return video_frames
+        output_state = self._call_block(vae_decoder_step, latents=latents, output_type=output_type)
+        return self._get_decoded_media(output_state, "videos", output_type, is_video=True)
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:

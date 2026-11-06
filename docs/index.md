@@ -21,6 +21,7 @@ Node groups mirror the categories in [`griptape-nodes-library.json`](../griptape
 - [Load Scheduler](nodes/load_scheduler.md)
 - [LoRA Pipeline](nodes/lora_pipeline.md)
 - [Clear Pipeline Cache](nodes/clear_pipeline_cache.md)
+- [Estimate Pipeline Memory](nodes/estimate_pipeline_memory.md)
 
 ### Create
 - [Create Noise Latents](nodes/create-noise-latents.md)
@@ -45,6 +46,11 @@ Node groups mirror the categories in [`griptape-nodes-library.json`](../griptape
 - [Encode Masked Media Latent](nodes/encode_masked_media_latent.md)
 - [Decode Media Latent](nodes/decode_media_latent.md)
 - [Decode HDR Latents](nodes/decode_hdr_latents.md)
+- [Latent to Media (Standalone Decoder)](nodes/latent_to_media.md)
 
 ### IO
+- [Save EXR Sequence](nodes/save_exr_sequence.md)
 - [Save Latent Tensor](nodes/save_latent_tensor.md)
+
+## Command-line tools
+- [Estimate Workflow Memory (CLI)](tools/estimate_workflow_memory.md)

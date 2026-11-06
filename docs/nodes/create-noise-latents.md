@@ -38,7 +38,8 @@ Pipeline Builder → [Create Noise Latents] → Generate Media Latents → Decod
 | `width` | int (pixels) | `1024` | Pixel-space width. Internally divided by the VAE scale factor. |
 | `height` | int (pixels) | `1024` | Pixel-space height. |
 | `num_frames` | int | `41` | Number of video frames. **Hidden for image pipelines.** |
-| `seed` | int | random | Reproducibility. |
+| `randomize_seed` | bool | `false` | Picks a new `seed` on each run. The `seed` field is read-only while this is on. |
+| `seed` | int | `42` | Reproducibility. |
 | `num_inference_steps` | int | `20` | **Only shown for SDXL** — used by SDXL to scale the initial noise. Other pipelines ignore this. |
 
 ## Provider / model behavior
@@ -46,6 +47,7 @@ Pipeline Builder → [Create Noise Latents] → Generate Media Latents → Decod
 | Provider | Behavior |
 | --- | --- |
 | MiniMax-H3 | This node sets the generated geometry — Generate Media Latents exposes no dimensions of its own. **The defaults do not work:** set `width`/`height` to a MiniMax-H3 canvas (a 768-pixel short edge, e.g. **1344x768** for 16:9, or **960x544** for roughly 2.3x faster steps) and `num_frames` to **124–345**. Both axes must be positive multiples of **32**, the area must not exceed 1032192 pixels, the aspect ratio must sit between 1:4 and 4:1, and `num_frames` is snapped up to the next `17 * n + 5` (124, 141, … 345), which must land between 5 and 15 seconds at the fixed 24 fps. Anything outside that is rejected with an error naming the value and the constraint. The noise latent also carries the audio noise for the jointly generated soundtrack. |
+| Flux3 | `width` and `height` must be multiples of **16**. The resulting public latent is unpatchified and can be passed directly to Generate Media Latents. |
 
 ## Tips & pitfalls
 

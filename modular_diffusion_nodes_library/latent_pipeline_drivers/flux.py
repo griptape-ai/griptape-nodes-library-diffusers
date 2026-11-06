@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, override
 
+from diffusers.models.controlnets.controlnet_flux import FluxControlNetModel
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     ModularPipelineBlocks,
@@ -18,10 +19,13 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutputType,
+    DecodeResult,
     GeneratorState,
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.utils.torch_utils import no_grad
 
 if TYPE_CHECKING:
@@ -31,7 +35,6 @@ if TYPE_CHECKING:
     )
     from diffusers.modular_pipelines.modular_pipeline_utils import ComponentSpec  # type: ignore[reportMissingImports]
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-    from PIL.Image import Image
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -69,6 +72,8 @@ class _RegisterTransformerStep(ModularPipelineBlocks):
 
 
 class FluxLatentPipelineDriver(LatentPipelineDriver):
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
+    controlnet_model_class: ClassVar[type | None] = FluxControlNetModel
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = FluxInpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = FluxControlNetInpaintPipeline
 
@@ -98,9 +103,6 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         cls, pipe: ModularPipeline | DiffusionPipeline, control_net_model_lists: list[str] | str | None
     ):
         """Given a standard pipeline, return a version of the pipeline that can be used for control net generation."""
-        from diffusers.models.controlnets.controlnet_flux import (
-            FluxControlNetModel,  # type: ignore[reportMissingImports]
-        )
         from diffusers.pipelines.flux.pipeline_flux_controlnet import (
             FluxControlNetPipeline,  # type: ignore[reportMissingImports]
         )
@@ -256,18 +258,13 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> Image:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         device, dtype = self._get_device_and_type()
-        source_shape = latent.source_shape
-        height, width = source_shape[-2], source_shape[-1]
         latents = latent.to_torch(device=device, dtype=dtype)
 
-        packed = self.pack_latents(latents, latents.shape[-2], latents.shape[-1])
-
         decode_pipeline = self.modular_pipe.blocks.sub_blocks["decode"]
-        output_state = self._call_block(decode_pipeline, latents=packed, output_type="pil", width=width, height=height)
-        images = self._get_required(output_state, "images", list)
-        return images[0]
+        output_state = self._call_block(decode_pipeline, latents=latents, output_type=output_type)
+        return self._get_decoded_media(output_state, "images", output_type, is_video=False)
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:

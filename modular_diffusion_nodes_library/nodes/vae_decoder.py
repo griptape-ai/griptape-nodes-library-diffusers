@@ -9,21 +9,21 @@ from griptape.artifacts.video_url_artifact import VideoUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.files.project_file import ProjectFileDestination
-from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import normalize_diffusion_pipeline_value
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import create_driver, get_driver_spec
-from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import DecodeOutput
+from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import DecodeOutputType
+from modular_diffusion_nodes_library.mixins.parameter_removal_mixin import ParameterRemovalMixin
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.pillow_utils import pil_to_image_artifact
+from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
-class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
+class VaeDecodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, SuccessFailureNode):
     def __init__(self, **kwargs) -> None:
         self._initializing = True
         self._current_output_type = "image"
@@ -63,6 +63,10 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         parameters through the normal ``add_parameter`` path.
         """
 
+    def _get_decode_output_type(self) -> DecodeOutputType:
+        """Decode Media Latent always requests PIL media."""
+        return "pil"
+
     def add_parameter(self, param: Parameter) -> None:
         """Add a parameter to the node.
 
@@ -78,13 +82,6 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         if not self.does_name_exist(param.name):
             super().add_parameter(param)
-
-    def remove_parameter_element_by_name(self, element_name: str) -> None:
-        # Use the retained mode request so connections are also removed.
-        if self.get_element_by_name_and_type(element_name):
-            GriptapeNodes.handle_request(
-                RemoveParameterFromNodeRequest(parameter_name=element_name, node_name=self.name)
-            )
 
     def set_parameter_value(
         self,
@@ -118,7 +115,9 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.pipe_params.runtime_parameters.after_value_set(parameter, value)
 
         if param_name == "pipeline":
-            self._update_output_parameter()
+            # Loading only connects parameters the saved node had, and it had none of the ones being swapped out.
+            with self.removing_locally_while_loading(initial_setup=initial_setup):
+                self._update_output_parameter()
 
     def _update_output_parameter(self) -> None:
         # The declared spec rather than the driver class: this runs on the orchestrator, where
@@ -162,8 +161,6 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                     # No `serializable=False`, for the reason given on `output_image` in `__init__`.
                 )
             )
-            # Reorder to ensure fps appears before output_video
-            self._reorder_parameters_for_video()
         else:
             self.remove_parameter_element_by_name("output_video")
             self.remove_parameter_element_by_name("fps")
@@ -179,9 +176,10 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             )
 
         self._current_output_type = new_output_type
+        self._reorder_parameters_for_dynamic_output()
 
-    def _reorder_parameters_for_video(self) -> None:
-        """Reorder parameters to ensure fps appears before output_video in the GUI."""
+    def _reorder_parameters_for_dynamic_output(self) -> None:
+        """Keep video controls ordered and pin the Status group to the bottom."""
         all_params = [element.name for element in self.root_ui_element.children]
         tail = [name for name in self._tail_parameter_names() if name in all_params]
         for name in tail:
@@ -196,7 +194,7 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
     def _tail_parameter_names(self) -> list[str]:
         """Names of parameters that must remain pinned to the bottom on reorder."""
-        return []
+        return ["Status"]
 
     def validate_before_node_run(self) -> list[Exception] | None:
         errors: list[Exception] = []
@@ -244,7 +242,11 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def process(self) -> AsyncResult:
         self._clear_execution_status()
         yield lambda: self._run_with_status(
-            self._decode, success_msg="Decoded successfully.", failure_log="VAE decode failed", logger=logger
+            self._decode,
+            success_msg="Decoded successfully.",
+            failure_log="VAE decode failed",
+            logger=logger,
+            on_error=cleanup_memory_caches,
         )
 
     def _decode(self) -> None:
@@ -252,15 +254,15 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         latent_artifact = self.get_parameter_value("latent_tensor")
 
         latents_pipeline_driver = create_driver(pipe, self.pipe_params.get_pipeline_class())
-        decoded = latents_pipeline_driver.decode_latent(latent_artifact)
-        if isinstance(decoded, DecodeOutput):
-            output = decoded.media
-            audio = decoded.audio
-            audio_sample_rate = decoded.audio_sample_rate
-        else:
-            output = decoded
-            audio = None
-            audio_sample_rate = None
+        decoded = latents_pipeline_driver.decode_latent(
+            latent_artifact,
+            output_type=self._get_decode_output_type(),
+        )
+        output = decoded.media
+        audio = decoded.audio
+        audio_sample_rate = decoded.audio_sample_rate
+
+        cleanup_memory_caches()
 
         if latents_pipeline_driver.produces_video:
             with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_file_obj:
@@ -295,15 +297,14 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         audio: Any = None,
         audio_sample_rate: int | None = None,
     ) -> None:
-        """Encode a video output to ``dest_path``. Override to customize HDR/tone-mapping."""
+        """Encode PIL video frames to ``dest_path``."""
         import diffusers  # type: ignore[reportMissingImports]
-        import numpy as np
-        from diffusers.pipelines.ltx2.export_utils import encode_hdr_tensor_to_mp4  # type: ignore[reportMissingImports]
         from diffusers.utils.export_utils import encode_video  # type: ignore[reportMissingImports]
+        from PIL import Image
 
-        if isinstance(output, np.ndarray):
-            encode_hdr_tensor_to_mp4(output[0], str(dest_path), frame_rate=fps)
-        elif audio is not None and audio_sample_rate is not None:
+        if not isinstance(output, list) or not output or not all(isinstance(frame, Image.Image) for frame in output):
+            raise TypeError(f"{self.name}: video encoder requires a non-empty list of PIL frames.")
+        if audio is not None and audio_sample_rate is not None:
             # The soundtrack arrives batched as (1, 2, num_samples); encode_video wants (2, N).
             encode_video(
                 output,
@@ -316,9 +317,11 @@ class VaeDecodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             diffusers.utils.export_to_video(output, str(dest_path), fps=fps)  # type: ignore[attr-defined]
 
     def _handle_image_output(self, output: Any) -> None:
-        """Publish a decoded image output. Override to customize HDR handling."""
-        if isinstance(output, list):
-            raise ValueError("Decoder returned an unexpected list of outputs.")
+        """Publish a decoded PIL image."""
+        from PIL import Image
+
+        if not isinstance(output, Image.Image):
+            raise TypeError(f"{self.name}: image decoder must return a PIL image, got {type(output).__name__}.")
         image_artifact = pil_to_image_artifact(output)
         self.set_parameter_value("output_image", image_artifact)
         self.parameter_output_values["output_image"] = image_artifact

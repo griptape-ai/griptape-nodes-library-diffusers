@@ -29,10 +29,13 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
 )
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutputType,
+    DecodeResult,
     GeneratorState,
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.parameters.controlnet_node_parameter_types import (
     QwenImageControlNetNodesParameterType,
 )
@@ -40,7 +43,6 @@ from modular_diffusion_nodes_library.parameters.controlnet_node_parameter_types 
 if TYPE_CHECKING:
     import torch  # type: ignore[reportMissingImports]
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
-    from PIL.Image import Image
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -57,6 +59,8 @@ class _QwenImageNoiseWithStrengthSequence(SequentialPipelineBlocks):
 
 
 class QwenLatentPipelineDriver(LatentPipelineDriver):
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
+    controlnet_model_class: ClassVar[type | None] = QwenImageControlNetModel
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = QwenImageInpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = QwenImageControlNetInpaintPipeline
 
@@ -159,16 +163,14 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> Image:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
         latents = latents.unsqueeze(2)
 
         decode_pipeline = self.modular_pipe.blocks.sub_blocks["decode"]
-        output_state = self._call_block(decode_pipeline, latents=latents, output_type="pil")
-
-        output_image = self._get_required(output_state, "images", list)
-        return output_image[0]
+        output_state = self._call_block(decode_pipeline, latents=latents, output_type=output_type)
+        return self._get_decoded_media(output_state, "images", output_type, is_video=False)
 
     @override
     def add_noise_to_latent(

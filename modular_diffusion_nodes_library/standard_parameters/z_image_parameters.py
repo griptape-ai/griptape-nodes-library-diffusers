@@ -47,11 +47,6 @@ class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     def remove_input_parameters(self) -> None:
         self._model_repo_parameter.remove_input_parameters()
 
-    def get_config_kwargs(self) -> dict:
-        return {
-            "model": self._node.get_parameter_value("model"),
-        }
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
@@ -62,11 +57,7 @@ class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     def get_build_data(self) -> dict[str, Any]:
         base_repo_id, base_revision = self._resolve_repo(self._model_repo_parameter)
-
-        return {
-            "base_repo_id": base_repo_id,
-            "base_revision": base_revision,
-        }
+        return self.build_data(base_repo_id, base_revision)
 
     @classmethod
     def _build_pipeline_from_repo(
@@ -84,7 +75,8 @@ class ZImagePipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
             **overrides,
         )
 
-    def supports_layerwise_casting(self) -> bool:
+    @classmethod
+    def supports_layerwise_casting(cls) -> bool:
         """ZImage's TimestepEmbedder checks weight dtype before calling the module.
 
         This is incompatible with layerwise casting hooks that cast weights during

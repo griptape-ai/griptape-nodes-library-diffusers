@@ -17,6 +17,7 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class FluxKontextLatentPipelineDriver(FluxLatentPipelineDriver):
+    controlnet_model_class: ClassVar[type | None] = None
     _inpaint_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = FluxKontextInpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = None
 

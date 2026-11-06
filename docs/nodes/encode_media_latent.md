@@ -40,6 +40,7 @@ Load Image → [Encode Media Latent] → Generate Media Latents → Decode Media
 | Provider | Behavior |
 | --- | --- |
 | MiniMax-H3 | **Not supported.** MiniMax-H3 has no general VAE-encode path — its only encoder is keyframe-specific and produces conditioning rows rather than a reusable latent. This node raises an error. For keyframe conditioning, connect a [Media Gen Conditioning](media_gen_conditioning.md) node to `conditioning_images` on [Generate Media Latents](generate_media_latents.md) instead. |
+| Flux3 | Image-only. The encoder pads a single reference to the 16-pixel grid and may downscale it to fit the 4-megapixel limit. Crop metadata is carried with the latent so Decode Media Latent can restore the reference image bounds. |
 
 ## Tips & pitfalls
 

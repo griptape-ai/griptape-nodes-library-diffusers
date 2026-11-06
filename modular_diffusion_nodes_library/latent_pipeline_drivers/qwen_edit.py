@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any, ClassVar, override
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
@@ -31,6 +31,8 @@ _QWEN_EDIT_TARGET_AREA = 1024 * 1024
 
 
 class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
+    controlnet_model_class: ClassVar[type | None] = None
+
     def __init__(self, pipe: DiffusionPipeline) -> None:
         super().__init__(pipe)
 

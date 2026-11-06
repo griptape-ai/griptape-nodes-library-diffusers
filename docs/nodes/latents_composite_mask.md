@@ -9,6 +9,7 @@ Category: `ModularDiffusion/Transform`
 - Offsets are **pixel-space**; the node converts to latent space internally (÷ 8).
 - Enable `resize_source` to scale the source to the destination's spatial size before compositing.
 - Mask is automatically resampled to match the source latent.
+- Use the **placement editor** to drag the source into place, or set the offsets directly; the two stay in sync.
 
 ## Typical workflow position
 ```text
@@ -41,8 +42,9 @@ Paint Mask (mask) ────────┘
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `x_offset` | int (pixels, 0–2000) | `0` | Horizontal placement (divided by 8 internally). |
-| `y_offset` | int (pixels, 0–2000) | `0` | Vertical placement (divided by 8 internally). |
+| `placement_editor` | widget | — | Drag the source box over the destination, or pick a position preset. Writes `x_offset` / `y_offset` (snapped to multiples of 8) and toggles `resize_source`. Shows latent sizes after the node has run once. A connected offset is left to its connection. |
+| `x_offset` | int (pixels; slider 0–2000, larger values accepted) | `0` | Horizontal placement (divided by 8 internally). |
+| `y_offset` | int (pixels; slider 0–2000, larger values accepted) | `0` | Vertical placement (divided by 8 internally). |
 | `resize_source` | bool | `False` | Bilinearly resize source to match destination spatial size before compositing. |
 
 ### Mask options *(collapsed by default)*
@@ -57,6 +59,8 @@ Paint Mask (mask) ────────┘
 ## Tips & pitfalls
 
 - **Only the overlapping region is composited.** If `x_offset` + source width extends beyond the destination canvas, the out-of-bounds portion is ignored; if source and destination don't intersect at all, the destination is returned unchanged.
+- **The placement editor needs one run.** Latent sizes are only known where the node runs, so the editor is blank until the first run and refreshes on every run after. Sizes are saved with the workflow once you place the source in the editor; otherwise a reopened workflow shows a blank editor until the next run.
+- **`resize_source` still uses the offsets.** The resized source is as large as the destination, so a non-zero offset shifts it and clips its far edge. The editor shows this; a position preset in the editor resets it to 0, 0 for a full replacement.
 - **Pixel offsets, not latent offsets.** A 1024-px destination = 128 latent units. Offsets are in the bigger pixel space — the node divides by the VAE scale factor (8) internally.
 - **Works for both 4D image latents and 5D video latents.** The mask is broadcast across the temporal dimension.
 - **Output inherits the destination's `shape`. Metadata is merged; on key conflicts the destination wins.**

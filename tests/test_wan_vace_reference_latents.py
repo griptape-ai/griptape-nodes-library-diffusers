@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("torch", reason="Reads real torch tensors; run `make test/exec` for the execution environment.")
+pytest.importorskip("diffusers", reason="Reads real Diffusers classes; run `make test/exec`.")
 
 import PIL.Image  # noqa: E402
 import torch  # noqa: E402
@@ -36,12 +37,6 @@ from modular_diffusion_nodes_library.parameters.media_gen_conditioning.condition
     MediaGenConditioningPayload,
 )
 from modular_diffusion_nodes_library.utils.conditioning_utils import ConditioningMode
-
-pytest.importorskip(
-    "torch",
-    reason="Reads real diffusers classes; run `make test/exec` for the execution environment.",
-)
-
 
 # 49 frames at 1280x720 through a WAN VAE: 13 latent frames, 45x80 latent grid.
 _LATENT_FRAMES = 13

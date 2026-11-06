@@ -8,50 +8,61 @@ version/get: ## Get version.
 	@jq -r '.metadata.library_version' $(LIBRARY_JSON)
 
 .PHONY: version/set
-version/set: ## Set version. Usage: make version/set v=1.2.3
+version/set: changelog/assert-committed ## Set version. Usage: make version/set v=1.2.3
 	@jq --arg v "$(v)" '.metadata.library_version = $$v' $(LIBRARY_JSON) > $(LIBRARY_JSON).tmp
 	@mv $(LIBRARY_JSON).tmp $(LIBRARY_JSON)
-	@$(MAKE) --no-print-directory version/commit
+	@"$(MAKE)" --no-print-directory version/commit
 
 .PHONY: version/patch
-version/patch: ## Bump patch version.
-	@CURRENT=$$($(MAKE) --no-print-directory version/get); \
+version/patch: changelog/assert-committed ## Bump patch version.
+	@CURRENT=$$("$(MAKE)" --no-print-directory version/get); \
 	IFS='.' read -r major minor patch <<< "$$CURRENT"; \
 	NEW_VERSION="$${major}.$${minor}.$$((patch + 1))"; \
 	jq --arg v "$$NEW_VERSION" '.metadata.library_version = $$v' $(LIBRARY_JSON) > $(LIBRARY_JSON).tmp; \
 	mv $(LIBRARY_JSON).tmp $(LIBRARY_JSON); \
 	echo "Bumped to $$NEW_VERSION"
-	@$(MAKE) --no-print-directory version/commit
+	@"$(MAKE)" --no-print-directory version/commit
 
 .PHONY: version/minor
-version/minor: ## Bump minor version.
-	@CURRENT=$$($(MAKE) --no-print-directory version/get); \
+version/minor: changelog/assert-committed ## Bump minor version.
+	@CURRENT=$$("$(MAKE)" --no-print-directory version/get); \
 	IFS='.' read -r major minor patch <<< "$$CURRENT"; \
 	NEW_VERSION="$${major}.$$((minor + 1)).0"; \
 	jq --arg v "$$NEW_VERSION" '.metadata.library_version = $$v' $(LIBRARY_JSON) > $(LIBRARY_JSON).tmp; \
 	mv $(LIBRARY_JSON).tmp $(LIBRARY_JSON); \
 	echo "Bumped to $$NEW_VERSION"
-	@$(MAKE) --no-print-directory version/commit
+	@"$(MAKE)" --no-print-directory version/commit
 
 .PHONY: version/major
-version/major: ## Bump major version.
-	@CURRENT=$$($(MAKE) --no-print-directory version/get); \
+version/major: changelog/assert-committed ## Bump major version.
+	@CURRENT=$$("$(MAKE)" --no-print-directory version/get); \
 	IFS='.' read -r major minor patch <<< "$$CURRENT"; \
 	NEW_VERSION="$$((major + 1)).0.0"; \
 	jq --arg v "$$NEW_VERSION" '.metadata.library_version = $$v' $(LIBRARY_JSON) > $(LIBRARY_JSON).tmp; \
 	mv $(LIBRARY_JSON).tmp $(LIBRARY_JSON); \
 	echo "Bumped to $$NEW_VERSION"
-	@$(MAKE) --no-print-directory version/commit
+	@"$(MAKE)" --no-print-directory version/commit
 
 .PHONY: version/commit
-version/commit: ## Commit version.
-	@git add $(LIBRARY_JSON)
-	@git commit -m "chore: bump v$$($(MAKE) --no-print-directory version/get)"
+version/commit: ## Roll the changelog into the version, then commit both.
+	@uv run --no-project python scripts/changelog.py roll $$("$(MAKE)" --no-print-directory version/get) --allow-empty
+	@git commit -m "chore: bump v$$("$(MAKE)" --no-print-directory version/get)" -- $(LIBRARY_JSON) CHANGELOG.md changelog.d
+
+# The roll overwrites CHANGELOG.md and deletes the entry files, and the bump commits whatever it left,
+# so an entry still being written would ship half-finished or be lost. The library JSON is covered too:
+# a bump whose roll failed leaves the new version there, and bumping again from it skips a version.
+.PHONY: changelog/assert-committed
+changelog/assert-committed:
+	@git diff --quiet HEAD -- $(LIBRARY_JSON) CHANGELOG.md changelog.d \
+		&& test -z "$$(git ls-files --others --exclude-standard -- changelog.d)" \
+		|| { echo "$(LIBRARY_JSON), CHANGELOG.md, or changelog.d holds changes that are not committed."; \
+			echo "Commit or stash them first. If a version bump stopped partway, undo it with:"; \
+			echo "  git restore $(LIBRARY_JSON) CHANGELOG.md changelog.d"; exit 1; }
 
 .PHONY: version/publish
 version/publish: ## Create and push git tags.
 	@git fetch --tags --force
-	@VERSION=$$($(MAKE) --no-print-directory version/get); \
+	@VERSION=$$("$(MAKE)" --no-print-directory version/get); \
 	git tag "v$$VERSION"; \
 	git tag stable -f; \
 	git push origin "v$$VERSION"; \
@@ -98,7 +109,7 @@ fix: ## Fix project.
 # diffusers; left out, a signature change upstream surfaces as wrong ports instead of a failing test.
 # It needs no extra install: `check/types` already builds the same venv.
 .PHONY: check
-check: check/format check/lint check/types check/json check/worker-safe check/edit-time-imports test/unit test/exec ## Run all checks.
+check: check/format check/lint check/types check/json check/worker-safe check/edit-time-imports check/changelog test/unit test/exec ## Run all checks.
 
 .PHONY: check/format
 check/format:
@@ -133,6 +144,14 @@ check/edit-time-imports: ## Fail if building the node classes reaches an executi
 	@# real orchestrator, which is the one environment where the packages are absent.
 	@uv run python scripts/check_edit_time_imports.py
 
+.PHONY: check/changelog
+check/changelog: ## Check CHANGELOG.md and the changelog.d entries follow Keep a Changelog.
+	@uv run --no-project python scripts/changelog.py check
+
+.PHONY: changelog
+changelog: ## Print [Unreleased] as the next version will show it, changelog.d entries folded in.
+	@uv run --no-project python scripts/changelog.py render
+
 .PHONY: test
 test: ## Run all tests.
 	@uv run pytest tests
@@ -150,7 +169,10 @@ test/exec: ## Run the tests that need the execution environment (diffusers, torc
 
 .PHONY: test/workflows
 test/workflows: ## Run workflow tests.
-	@uv run pytest -s tests/workflows
+	@# A separate venv on purpose: .venv is the edit-time environment the engine splices onto the
+	@# orchestrator, and fattening it would hide exactly the bugs that separation exists to expose.
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv sync --extra exec --all-groups
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv run pytest -s tests/workflows
 
 .DEFAULT_GOAL := help
 .PHONY: help

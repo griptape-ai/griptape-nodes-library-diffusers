@@ -46,6 +46,7 @@ Generate Media Latents → [Decode Media Latent] → Save Image / Save Video
 | LTX, WAN, HunyuanVideo 1.5 | `output_video` as a silent MP4 at `fps`. |
 | LTX2 (base, video-conditioning, IC-LoRA) | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. The HDR IC-LoRA path (`Decode HDR Latents`) never produces audio. |
 | MiniMax-H3 | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. `fps` defaults to the model's fixed **24** — changing it desynchronises the soundtrack, since the audio is muxed at its own true sample rate. |
+| Flux3 | `output_image` as an `ImageUrlArtifact`. The decoder restores the model's packed VAE patches internally and crops VAE-encoded single-image latents back to their reference bounds. |
 
 ### MiniMax-H3 and LTX2: audio metadata
 
@@ -66,3 +67,4 @@ Both models' audio latent travels in the latent's *metadata*, not in its tensor:
 
 - [Encode Media Latent](encode_media_latent.md) — inverse operation.
 - [Generate Media Latents](generate_media_latents.md) — typical upstream node.
+- [Latent to Media](latent_to_media.md) — standalone alternative that needs no pipeline, for models both nodes support.

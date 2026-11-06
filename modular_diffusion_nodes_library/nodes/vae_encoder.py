@@ -6,8 +6,6 @@ from typing import TYPE_CHECKING, Any
 from griptape.artifacts import ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
-from griptape_nodes.retained_mode.events.parameter_events import RemoveParameterFromNodeRequest
-from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     DiffusionPipelineArtifact,
@@ -19,6 +17,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.mixins.parameter_removal_mixin import ParameterRemovalMixin
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.config_utils import get_config_value
@@ -26,6 +25,7 @@ from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimen
 from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
+from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 from modular_diffusion_nodes_library.utils.video_utils import load_video_frames_from_url_artifact
 
 if TYPE_CHECKING:
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
-class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
+class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, SuccessFailureNode):
     def __init__(self, **kwargs) -> None:
         self._initializing = True
         self._current_input_type = "image"
@@ -91,12 +91,6 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             param.user_defined = True
             super().add_parameter(param)
 
-    def remove_parameter_element_by_name(self, element_name: str) -> None:
-        if self.get_element_by_name_and_type(element_name):
-            GriptapeNodes.handle_request(
-                RemoveParameterFromNodeRequest(parameter_name=element_name, node_name=self.name)
-            )
-
     def set_parameter_value(
         self,
         param_name: str,
@@ -129,7 +123,9 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.pipe_params.runtime_parameters.after_value_set(parameter, value)
 
         if param_name == "pipeline":
-            self._update_input_parameter()
+            # Loading only connects parameters the saved node had, and it had none of the ones being swapped out.
+            with self.removing_locally_while_loading(initial_setup=initial_setup):
+                self._update_input_parameter()
 
         fires_reactively = param_name in ("pipeline", "image", "input_video")
         if initial_setup and fires_reactively:
@@ -218,7 +214,11 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def process(self) -> AsyncResult:
         self._clear_execution_status()
         yield lambda: self._run_with_status(
-            self._encode, success_msg="Encoded successfully.", failure_log="VAE encode failed", logger=logger
+            self._encode,
+            success_msg="Encoded successfully.",
+            failure_log="VAE encode failed",
+            logger=logger,
+            on_error=cleanup_memory_caches,
         )
 
     def _encode(self) -> None:
@@ -226,6 +226,7 @@ class VaeEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             self.convert_video_to_latent()
         else:
             self.convert_image_to_latent()
+        cleanup_memory_caches()
 
     def convert_image_to_latent(self) -> None:
         from PIL.Image import Resampling

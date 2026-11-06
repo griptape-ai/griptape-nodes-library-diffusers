@@ -38,9 +38,10 @@ Category: `ModularDiffusion/Pipeline`
 
 | Name | Type | Notes |
 | --- | --- | --- |
-| `provider` | choice | `Flux`, `Flux2`, `Stable Diffusion`, `Stable Diffusion 3`, `Qwen`, `Z-Image`, `HunyuanVideo 1.5`, `LTX`, `LTX2`, `MiniMax-H3`, `WAN`. Changing this swaps every parameter below. Connectable — wire in a string to drive it. |
+| `provider` | choice | `Flux`, `Flux2`, `Flux3`, `Stable Diffusion`, `Stable Diffusion 3`, `Qwen`, `Z-Image`, `HunyuanVideo 1.5`, `LTX`, `LTX2`, `MiniMax-H3`, `WAN`. Changing this swaps every parameter below. Connectable — wire in a string to drive it. |
 | `pipeline_type` | choice | Per-provider pipeline class (e.g. `FluxPipeline`, `WanImageToVideoPipeline`). Determines what the pipeline can do. Connectable — wire in a string to drive it. |
 | `<model repo>` | HF repo picker | Hugging Face repo ID. Diffusers-format only — single-file `.safetensors` checkpoints are not loaded directly. Models your license does not permit are shown but marked unavailable. Connectable — a wired string overrides the picker selection. |
+| `prompt_upsampler_model` | HF repo picker (Flux3 only) | `black-forest-labs/flux-3-image-klein-pup` | Optional 9B prompt upsampler. Choose `Disabled` to pass prompts through unchanged; selecting the repo enables its download button and loads both upsampler components. |
 
 ### Memory optimization
 
@@ -60,6 +61,7 @@ Enable only what you need — each option trades speed for memory.
 | Provider | Behavior |
 | --- | --- |
 | MiniMax-H3 | The **Memory optimization** knobs above are ignored. MiniMax-H3 is a Modular Diffusers pipeline whose transformer (61.7 GB in bfloat16) and Qwen3-VL conditioner (62.1 GB) cannot be placed by the post-load optimizer, so the builder loads it in bfloat16 and registers the components for automatic CPU offload instead. Expect a single 80 GB accelerator plus ample host RAM. LoRAs are not supported. |
+| Flux3 | The UI offers `Flux3Pipeline` (base) and `Flux3DistilledPipeline` (16-step distilled). The model picker lists the repo itself (full-precision transformer, the default) plus `<repo>/fp8r` and `<repo>/nvfp4` rows for the quantized transformers stored in the repo's `variants/` folders. A variant row is offered only when its `model.safetensors` is in the cached snapshot, otherwise it shows as not downloaded. A variant replaces only the transformer: it is read from the single BFL-format file with Diffusers' `BFLQuantizationConfig` (bf16 compute), while the VAE and text encoder always come from the repo root. A wired string can select one (e.g. `black-forest-labs/flux-3-image-klein/fp8r`). Without hardware kernels for the format, `nvfp4` (and `fp8r`) weights are dequantized to bf16 on every forward pass, which saves memory but not time; `nvfp4` is best suited to recent NVIDIA GPUs. LoRA loading with a quantized variant is untested. The Model Manager downloads the whole repo, so all variants arrive together. `prompt_upsampler_model` selects the optional 9B prompt upsampler; Choose `Disabled` to pass prompts through unchanged. The builder uses ComponentsManager CPU offload, so the memory optimization knobs above are ignored. Both image checkpoints are gated under the FLUX Kommunity License and require Hugging Face access; the upsampler is Apache-2.0. Diffusers LoRA loading and fusion are supported for the default transformer. |
 | LTX2 — `pipeline_type` = `LTX-2.5 Distilled` or `LTX-2.5 Full (SFT)` | Both build an `LTX2Pipeline` from the single gated `Lightricks/LTX-2.5-Diffusers` repo, differing only in which transformer checkpoint is loaded (distilled vs. full/SFT). Decoding always uses the plain VAE. The repo is gated on Hugging Face — accept the license and authenticate before it can be downloaded. |
 
 ## Tips & pitfalls

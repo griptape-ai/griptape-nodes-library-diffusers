@@ -67,6 +67,18 @@ _DRIVER_REGISTRY: dict[str, DriverSpec] = {
         video_fps=16,
         supports_inpainting=True,
     ),
+    "Flux3ModularPipeline": DriverSpec(
+        "flux3:Flux3LatentPipelineDriver",
+        produces_video=False,
+        video_fps=16,
+        supports_inpainting=False,
+    ),
+    "Flux3DistilledModularPipeline": DriverSpec(
+        "flux3:Flux3DistilledLatentPipelineDriver",
+        produces_video=False,
+        video_fps=16,
+        supports_inpainting=False,
+    ),
     "HunyuanVideo15Pipeline": DriverSpec(
         "hunyuan_video1_5:HunyuanVideo15TextToVideoLatentPipelineDriver",
         produces_video=True,

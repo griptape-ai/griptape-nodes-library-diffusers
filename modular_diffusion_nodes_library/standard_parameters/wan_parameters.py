@@ -49,11 +49,6 @@ class WanPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
     def remove_input_parameters(self) -> None:
         self._model_repo_parameter.remove_input_parameters()
 
-    def get_config_kwargs(self) -> dict:
-        return {
-            "model": self._node.get_parameter_value("model"),
-        }
-
     def validate_before_node_run(self) -> list[Exception] | None:
         errors = []
         model_errors = self._model_repo_parameter.validate_before_node_run()
@@ -64,13 +59,14 @@ class WanPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     def get_build_data(self) -> dict[str, Any]:
         repo_id, revision = self._resolve_repo(self._model_repo_parameter)
+        return self.build_data(repo_id, revision)
 
-        return {
-            "base_repo_id": repo_id,
-            "revision": revision,
-        }
+    @classmethod
+    def build_data(cls, repo_id: str, revision: str) -> dict[str, Any]:
+        return {"base_repo_id": repo_id, "revision": revision}
 
-    def requires_device_map(self) -> bool:
+    @classmethod
+    def requires_device_map(cls) -> bool:
         # The 14B and A14B WAN T2V models (~28 GB in bfloat16) load the entire model
         # into CPU RAM before any CUDA placement, exhausting memory on many systems.
         # Using device_map lets accelerate stream each layer directly to the right

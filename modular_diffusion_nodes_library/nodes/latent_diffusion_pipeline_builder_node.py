@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage
@@ -32,6 +33,8 @@ from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
+_RENAMED_PIPELINE_TYPE = re.compile(r"pipeline_type(_\d+)+")
+
 # This code was duplicated/copied from diffusers_nodes_library/common/nodes/diffusion_pipeline_builder_node.py.
 
 
@@ -40,7 +43,13 @@ class LatentDiffusionPipelineBuilderNode(
 ):
     STATIC_PARAMS: ClassVar = ["provider", "pipeline"]
     START_PARAMS: ClassVar = ["pipeline", "provider", "pipeline_type"]
-    END_PARAMS: ClassVar = ["component_overrides", "loras", "Status", "logs"]
+    END_PARAMS: ClassVar = [
+        *HuggingFacePipelineParameter.get_hf_pipeline_parameter_names(),
+        "component_overrides",
+        "loras",
+        "Status",
+        "logs",
+    ]
 
     # Severity policy: component-compatibility findings in these categories block
     # the build (returned as validation errors); all others are surfaced as a
@@ -123,7 +132,7 @@ class LatentDiffusionPipelineBuilderNode(
     def _config_hash(self) -> str:
         """Generate a hash for the current configuration to use as cache key."""
         identity = BasePipelineIdentity(
-            pipeline_name=self.params.pipeline_type_parameters.pipeline_type_pipeline_params.pipeline_name,
+            pipeline_name=self.params.pipeline_type_parameters.pipeline_type_pipeline_params.pipeline_name(),
             config_kwargs=self.params.get_config_kwargs(),
             loras=self.loras_params.get_loras(),
             optimization_kwargs=self.huggingface_pipeline_params.get_hf_pipeline_parameters(),
@@ -166,7 +175,7 @@ class LatentDiffusionPipelineBuilderNode(
                 build_data = {}
                 build_data_error = (
                     f"{self.name}: Failed to collect pipeline build data for "
-                    f"pipeline '{pipeline_params.pipeline_name}': {e}"
+                    f"pipeline '{pipeline_params.pipeline_name()}': {e}"
                 )
 
             if component_overrides:
@@ -180,7 +189,7 @@ class LatentDiffusionPipelineBuilderNode(
             supports_layerwise_casting = pipeline_params.supports_layerwise_casting() and not override_is_quantized
 
         return DiffusionPipelineArtifact(
-            pipeline_name=pipeline_params.pipeline_name,
+            pipeline_name=pipeline_params.pipeline_name(),
             config_hash=self._config_hash,
             builder_module=pipeline_params.__class__.__module__,
             builder_class_name=pipeline_params.__class__.__name__,
@@ -225,6 +234,10 @@ class LatentDiffusionPipelineBuilderNode(
         if self._initializing:
             super().add_parameter(param)
             return
+        # Workflows saved while __init__ also made pipeline_type carry the engine's renamed copies of it,
+        # pipeline_type_<n>, which a load would otherwise add back.
+        if _RENAMED_PIPELINE_TYPE.fullmatch(param.name) and self.does_name_exist("pipeline_type"):
+            return
 
         # Dynamic mode: prevent duplicates and mark as user-defined
         if not self.does_name_exist(param.name):
@@ -268,7 +281,7 @@ class LatentDiffusionPipelineBuilderNode(
         if not initial_setup:
             self.params.raise_if_unsupported_value(parameter, value)
 
-        self.params.before_value_set(parameter, value)
+        self.params.before_value_set(parameter, value, initial_setup=initial_setup)
 
         super().set_parameter_value(
             param_name,

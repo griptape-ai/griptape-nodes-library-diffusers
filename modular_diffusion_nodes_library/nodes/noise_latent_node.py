@@ -38,6 +38,7 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         self.pipe_params = ModularDiffusionPipelineParameters(self)
         self.pipe_params.add_input_parameters()
 
+        self._seed_parameter: SeedParameter | None = None
         self.add_seed_parameter()
 
         self.add_parameter(
@@ -134,6 +135,8 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
 
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
         super().after_value_set(parameter, value)
+        if self._seed_parameter is not None:
+            self._seed_parameter.after_value_set(parameter, value)
         if parameter.name in ("height", "width", "num_frames", "pipeline"):
             self._update_compatibility_message(build_if_needed=False)
 
@@ -244,7 +247,8 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
             self._dimensionality_warning.hide = True
 
     def preprocess(self) -> None:
-        pass
+        if self._seed_parameter is not None:
+            self._seed_parameter.preprocess()
 
     def process(self) -> AsyncResult:
         self.preprocess()
@@ -255,12 +259,11 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
                 self.publish_update_to_parameter("output_latent", latent_artifact)
                 self.set_parameter_value("output_latent", latent_artifact)
                 self.parameter_output_values["output_latent"] = latent_artifact
-
             except Exception:
                 logger.exception("%s: Diffusion Pipeline execution failed", self.name)
-                # Aggressive cleanup on failure
-                cleanup_memory_caches()
                 raise
+            finally:
+                cleanup_memory_caches()
 
         yield work
 

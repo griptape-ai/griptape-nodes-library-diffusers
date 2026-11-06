@@ -18,6 +18,7 @@ import pytest
 from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import (
     MODULAR_PIPELINE_TYPE_PROVIDER_MAP,
 )
+from modular_diffusion_nodes_library.parameters.providers import Provider
 
 pytest.importorskip(
     "diffusers",
@@ -40,3 +41,11 @@ def test_overridable_covers_required(case_id: str, pipeline_type_cls: type) -> N
     if not pipeline_type_cls.supports_build_from_overrides_only():
         pytest.skip(f"{case_id} opts out of building from overrides alone")
     pipeline_type_cls.verify_overridable_covers_required()
+
+
+def test_flux3_picker_labels_map_to_real_modular_pipeline_classes() -> None:
+    pipeline_types = MODULAR_PIPELINE_TYPE_PROVIDER_MAP[Provider.FLUX3].get_pipeline_type_dict()
+
+    assert set(pipeline_types) == {"Flux3Pipeline", "Flux3DistilledPipeline"}
+    assert pipeline_types["Flux3Pipeline"]._pipeline_cls_path.endswith(":Flux3ModularPipeline")
+    assert pipeline_types["Flux3DistilledPipeline"]._pipeline_cls_path.endswith(":Flux3DistilledModularPipeline")

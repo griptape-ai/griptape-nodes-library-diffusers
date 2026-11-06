@@ -1,6 +1,6 @@
 [project]
 name = "griptape-nodes-library-modular-diffusion"
-version = "0.7.1"
+version = "0.8.0"
 description = "Modular Diffusion nodes for Griptape Nodes."
 authors = [
     {name = "Griptape, Inc."}
@@ -15,7 +15,7 @@ dependencies = [
     # Reads a model's cached config at edit time, which is how the loader and builder nodes answer
     # questions about a component without diffusers. Declared because the orchestrator imports it: the
     # host engine happens to provide it today, and that is not a guarantee this library can rely on.
-    "huggingface-hub",
+    "huggingface-hub>=1.5.0,<2.0",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +25,7 @@ dependencies = [
 exec = [
     "accelerate>=1.6.0",
     "av>=14.0.0",
-    "diffusers==0.41.0",
+    "diffusers==0.42.0",
     "imageio[ffmpeg]>=2.37.2",
     "numpy>=2.2.4",
     "opencv-python>=4.11.0.86",
@@ -52,6 +52,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[project.scripts]
+estimate-workflow-memory = "modular_diffusion_nodes_library.tools.estimate_workflow_memory:main"
 
 [tool.hatch.build.targets.wheel]
 packages = [
@@ -109,7 +112,7 @@ exclude = ["workflows/","preconfigured_workflows/", ".venv/", "**/__pycache__"]
 [dependency-groups]
 dev = [
     "nox>=2026.4.0",
-    "griptape-nodes-engine>=0.104.0",
+    "griptape-nodes-engine>=0.105.0",
     "pyright>=1.1.396",
     "ruff>=0.8.0",
     "pytest",

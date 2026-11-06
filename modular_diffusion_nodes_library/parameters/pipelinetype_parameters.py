@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMode
 from griptape_nodes.traits.options import Options
 
-from modular_diffusion_nodes_library.parameters.component_override_parameters import ComponentOverrideParameters
-from modular_diffusion_nodes_library.parameters.huggingface_pipeline_parameter import HuggingFacePipelineParameter
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
 )
@@ -18,6 +16,10 @@ from modular_diffusion_nodes_library.standard_parameters.flux2_klein_parameters 
 )
 from modular_diffusion_nodes_library.standard_parameters.flux2_parameters import (
     Flux2PipelineParameters,
+)
+from modular_diffusion_nodes_library.standard_parameters.flux3_parameters import (
+    Flux3DistilledPipelineParameters,
+    Flux3PipelineParameters,
 )
 from modular_diffusion_nodes_library.standard_parameters.flux_fill_parameters import (
     FluxFillPipelineParameters,
@@ -87,9 +89,6 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class LatentPipelineTypeParameters(ABC):
-    START_PARAMS: ClassVar = ["pipeline", "provider", "pipeline_type"]
-    END_PARAMS: ClassVar = ["loras", "Status", "logs"]
-
     def __init__(self, node: LatentDiffusionPipelineBuilderNode):
         self._node = node
         self.did_pipeline_type_change = False
@@ -125,6 +124,21 @@ class LatentPipelineTypeParameters(ABC):
 
         self._pipeline_type_pipeline_params = self.pipeline_type_dict[pipeline_type](self._node)
 
+    def bind_pipeline_type_choices(self) -> None:
+        """Offer this provider's pipeline types on the node's pipeline_type parameter, changing only the node.
+
+        A loaded pipeline_type carries whatever its save described, and saves from earlier releases describe
+        it with no choices, so the saved value would otherwise reopen with no dropdown.
+        """
+        parameter = self._node.get_parameter_by_name("pipeline_type")
+        if parameter is None:
+            return
+        options = parameter.find_elements_by_type(Options)
+        if options:
+            options[0].choices = self.pipeline_types
+            return
+        parameter.add_trait(Options(choices=self.pipeline_types))
+
     @property
     def pipeline_type_pipeline_params(self) -> ModularDiffusionPipelineTypePipelineParameters:
         if self._pipeline_type_pipeline_params is None:
@@ -157,7 +171,7 @@ class LatentPipelineTypeParameters(ABC):
         pipeline_type_param.allowed_modes = pipeline_type_param.allowed_modes | {ParameterMode.INPUT}
 
     def remove_input_parameters(self) -> None:
-        self._node.remove_parameter_element_by_name("pipeline_type")
+        self._node.remove_parameter_with_connection_cleanup("pipeline_type")
         self.pipeline_type_pipeline_params.remove_input_parameters()
 
     def before_value_set(self, parameter: Parameter, value: Any) -> None:
@@ -166,8 +180,13 @@ class LatentPipelineTypeParameters(ABC):
             self.did_pipeline_type_change = current_pipeline_type != value
 
     def after_value_set(self, parameter: Parameter, value: Any, *, initial_setup: bool = False) -> None:
-        if parameter.name == "pipeline_type" and self.did_pipeline_type_change and not initial_setup:
-            self.regenerate_elements_for_pipeline_type(value)
+        if parameter.name != "pipeline_type" or not self.did_pipeline_type_change:
+            return
+        if initial_setup:
+            # The loaded parameters already belong to this pipeline type; only the helper that reads them is rebound.
+            self.set_pipeline_type_pipeline_params(value)
+            return
+        self.regenerate_elements_for_pipeline_type(value)
 
     def regenerate_elements_for_pipeline_type(self, pipeline_type: str) -> None:
         self._node.save_parameter_properties()
@@ -179,26 +198,7 @@ class LatentPipelineTypeParameters(ABC):
 
         self._node._restore_connections(saved_incoming, saved_outgoing)
 
-        # Get all current element names
-        all_element_names = [element.name for element in self._node.root_ui_element.children]
-
-        # Build parameter groupings
-        hf_param_names = HuggingFacePipelineParameter.get_hf_pipeline_parameter_names()
-
-        overrides_group = (
-            [ComponentOverrideParameters.GROUP_NAME]
-            if ComponentOverrideParameters.GROUP_NAME in all_element_names
-            else []
-        )
-        start_params = LatentPipelineTypeParameters.START_PARAMS
-        end_params = [*hf_param_names, *overrides_group, *LatentPipelineTypeParameters.END_PARAMS]
-        excluded_params = {*start_params, *end_params}
-
-        # Assemble final order: start -> middle -> end
-        middle_params = [name for name in all_element_names if name not in excluded_params]
-        sorted_parameters = [*start_params, *middle_params, *end_params]
-
-        self._node.reorder_elements(sorted_parameters)
+        self._node.reorder_parameters_by_groups()
 
         self._node.clear_parameter_cache()
 
@@ -240,6 +240,22 @@ class LatentFlux2PipelineTypeParameters(LatentPipelineTypeParameters):
         return {
             "Flux2Pipeline": Flux2PipelineParameters,
             "Flux2KleinPipeline": Flux2KleinPipelineParameters,
+        }
+
+
+class LatentFlux3PipelineTypeParameters(LatentPipelineTypeParameters):
+    @property
+    def pipeline_type_badge_message(self) -> str:
+        return (
+            "- `Flux3Pipeline` — FLUX.3 Image Klein base, with classifier-free guidance and 50-step sampling.\n"
+            "- `Flux3DistilledPipeline` — Step-distilled FLUX.3 Image Klein, with 16-step sampling and no negative prompt."
+        )
+
+    @classmethod
+    def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
+        return {
+            "Flux3Pipeline": Flux3PipelineParameters,
+            "Flux3DistilledPipeline": Flux3DistilledPipelineParameters,
         }
 
 
@@ -413,6 +429,7 @@ class LatentZImagePipelineTypeParameters(LatentPipelineTypeParameters):
 MODULAR_PIPELINE_TYPE_PROVIDER_MAP: dict[Provider, type[LatentPipelineTypeParameters]] = {
     Provider.FLUX: LatentFluxPipelineTypeParameters,
     Provider.FLUX2: LatentFlux2PipelineTypeParameters,
+    Provider.FLUX3: LatentFlux3PipelineTypeParameters,
     Provider.HUNYUAN_VIDEO_1_5: LatentHunyuanVideo15PipelineTypeParameters,
     Provider.LTX: LatentLTXPipelineTypeParameters,
     Provider.LTX2: LatentLTX2PipelineTypeParameters,

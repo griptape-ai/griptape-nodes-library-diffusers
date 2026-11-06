@@ -18,12 +18,14 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutputType,
     DecodeResult,
     GeneratorState,
     ImageMedia,
     PipelineOutput,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
     MediaGenConditioningPayload,
     normalize_to_payloads,
@@ -204,6 +206,7 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
     ``_prepare_input_latent`` / ``prepare_output_latent``.
     """
 
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.VIDEO_DIT_JOINT_SDPA
     produces_video: ClassVar[bool] = True
     video_fps: ClassVar[int] = 25
 
@@ -334,32 +337,22 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
     # ------------------------------------------------------------------
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         """Decode a 5D video latent and return frames as PIL images."""
         from diffusers.modular_pipelines.ltx.decoders import LTXVaeDecoderStep  # type: ignore[reportMissingImports]
 
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
 
-        packed_latents = self._pack_latents(latents)
-
-        num_frames = latents.shape[2]
-        pixel_height = latents.shape[3] * self._vae_spatial_compression_ratio
-        pixel_width = latents.shape[4] * self._vae_spatial_compression_ratio
-        pixel_num_frames = (num_frames - 1) * self._vae_temporal_compression_ratio + 1
-
         output_state = self._call_block(
             LTXVaeDecoderStep(),
-            latents=packed_latents,
-            height=pixel_height,
-            width=pixel_width,
-            num_frames=pixel_num_frames,
+            latents=latents,
             batch_size=1,
             dtype=dtype,
-            output_type="pil",
+            output_type=output_type,
             decode_timestep=0.0,
         )
-        return self._get_required(output_state, "videos", list)[0]
+        return self._get_decoded_media(output_state, "videos", output_type, is_video=True)
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:

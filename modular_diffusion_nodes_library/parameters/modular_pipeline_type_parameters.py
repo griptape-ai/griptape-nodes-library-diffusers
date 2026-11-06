@@ -85,9 +85,8 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     def remove_input_parameters(self) -> None:
         raise NotImplementedError
 
-    @abstractmethod
     def get_config_kwargs(self) -> dict:
-        raise NotImplementedError
+        return self.config_kwargs(self._node.get_parameter_value("model"))
 
     @staticmethod
     def _modular_pipeline_cls() -> type[ModularPipeline]:
@@ -96,15 +95,19 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         return module.ModularPipeline
 
     @classmethod
+    def config_kwargs(cls, model_value: str) -> dict:
+        return {"model": model_value}
+
+    @classmethod
     def pipeline_cls(cls) -> type[DiffusionPipeline] | type[ModularPipeline]:
         """The pipeline class, imported on first call."""
         module_name, _, attribute = cls._pipeline_cls_path.partition(":")
         return getattr(importlib.import_module(module_name), attribute)
 
-    @property
-    def pipeline_name(self) -> str:
+    @classmethod
+    def pipeline_name(cls) -> str:
         """Read off the configured path, so naming a pipeline never imports diffusers."""
-        return self._pipeline_cls_path.rpartition(":")[2]
+        return cls._pipeline_cls_path.rpartition(":")[2]
 
     @staticmethod
     def _extract_text_conditioning_width(config: dict[str, Any] | None) -> int | None:
@@ -139,14 +142,15 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         """Return the effective text-conditioning width for this pipeline, or ``None`` to skip."""
         return None
 
-    def get_component_slots(self) -> list[str]:
+    @classmethod
+    def get_component_slots(cls) -> list[str]:
         """Component slot names available for override on this pipeline type.
 
         `tests/test_component_slots.py` checks every declaration against the pinned diffusers, so a
         signature change upstream surfaces as a failing test rather than wrong ports in the builder.
         That test needs diffusers, so it runs under `make test/exec` and not in `make check`.
         """
-        return list(self._component_slots)
+        return list(cls._component_slots)
 
     @classmethod
     def _materialize_overrides(cls, build_data: dict[str, Any], *, pipeline_cls: type) -> dict[str, Any]:
@@ -199,6 +203,15 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         raise NotImplementedError
 
     @classmethod
+    def build_data(cls, repo_id: str, revision: str) -> dict[str, Any]:
+        """Build the repository-specific data stored on the pipeline artifact."""
+        return {"base_repo_id": repo_id, "base_revision": revision}
+
+    @classmethod
+    def is_prequantized_repo(cls, repo_id: str) -> bool:
+        return False
+
+    @classmethod
     def _build_pipeline_from_overrides_only(
         cls, build_data: dict[str, Any], overrides: dict[str, Any]
     ) -> ModularPipeline | DiffusionPipeline | Any | None:
@@ -233,7 +246,8 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         """
         return False
 
-    def supports_layerwise_casting(self) -> bool:
+    @classmethod
+    def supports_layerwise_casting(cls) -> bool:
         """Return True if the pipeline's transformer supports layerwise casting.
 
         Some transformers (e.g., ZImage) check weight dtype before calling modules,
@@ -242,7 +256,8 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
         """
         return True
 
-    def requires_device_map(self) -> bool:
+    @classmethod
+    def requires_device_map(cls) -> bool:
         """Return True if the pipeline requires device_map during loading.
 
         Some pipelines (e.g., GLM-Image) have components that must be loaded with

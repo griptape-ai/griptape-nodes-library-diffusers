@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, override
 
+from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
     SequentialPipelineBlocks,
@@ -24,11 +25,13 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutputType,
     DecodeResult,
     GeneratorState,
     ImageMedia,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.memory_family import MemoryFamily
 
 if TYPE_CHECKING:
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
@@ -68,6 +71,8 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
     ``DiffusionPipeline.__call__`` (via the base class ``denoise_latent``).
     """
 
+    memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
+    controlnet_model_class: ClassVar[type | None] = SD3ControlNetModel
     _inpaint_pipeline_class = StableDiffusion3InpaintPipeline
     _inpaint_controlnet_pipeline_class: ClassVar[type[DiffusionPipeline] | None] = (
         StableDiffusion3ControlNetInpaintingPipeline
@@ -97,7 +102,6 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         pipe: ModularPipeline | DiffusionPipeline,
         control_net_model_lists: list[str] | str | None,
     ) -> ModularPipeline | DiffusionPipeline:
-        from diffusers.models.controlnets.controlnet_sd3 import SD3ControlNetModel  # type: ignore[reportMissingImports]
         from diffusers.pipelines.controlnet_sd3.pipeline_stable_diffusion_3_controlnet import (  # type: ignore[reportMissingImports]
             StableDiffusion3ControlNetPipeline,
         )
@@ -222,12 +226,12 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
         decode_block = self.modular_pipe.blocks.sub_blocks["decode"]
-        output_state = self._call_block(decode_block, latents=latents, output_type="pil")
-        return self._get_required(output_state, "images", list)[0]
+        output_state = self._call_block(decode_block, latents=latents, output_type=output_type)
+        return self._get_decoded_media(output_state, "images", output_type, is_video=False)
 
     @override
     def _get_inpaint_kwargs(self, artifact: InpaintMaskArtifact) -> dict[str, Any]:
