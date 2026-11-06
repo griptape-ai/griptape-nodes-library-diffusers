@@ -658,6 +658,7 @@ exec = [
     { name = "torchvision", version = "0.22.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
     { name = "torchvision", version = "0.22.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_python_implementation != 'CPython' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "transformers" },
+    { name = "triton-windows", marker = "sys_platform == 'win32'" },
 ]
 
 [package.dev-dependencies]
@@ -698,6 +699,7 @@ requires-dist = [
     { name = "torchvision", marker = "(sys_platform == 'linux' and extra == 'exec') or (sys_platform == 'win32' and extra == 'exec')", specifier = "==0.22.0", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchvision", marker = "sys_platform != 'linux' and sys_platform != 'win32' and extra == 'exec'", specifier = "==0.22.0" },
     { name = "transformers", marker = "extra == 'exec'", specifier = "==5.13.0" },
+    { name = "triton-windows", marker = "sys_platform == 'win32' and extra == 'exec'", specifier = ">=3.3,<3.4" },
 ]
 provides-extras = ["exec"]
 
@@ -2495,6 +2497,17 @@ dependencies = [
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/11/53/ce18470914ab6cfbec9384ee565d23c4d1c55f0548160b1c7b33000b11fd/triton-3.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b68c778f6c4218403a6bd01be7484f6dc9e20fe2083d22dd8aef33e3b87a10a3", size = 156504509, upload-time = "2025-04-09T20:27:40.413Z" },
+]
+
+[[package]]
+name = "triton-windows"
+version = "3.3.1.post21"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "setuptools" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e2/5e/2730d1a18ac336eaa3bea1e9f2fbe718d3868b71e794f46d572ce3fcd845/triton_windows-3.3.1.post21-cp312-cp312-win_amd64.whl", hash = "sha256:c75e473e2d7edb41037b50477bda5e9fd01939ce9ac25a143c9c149bc9d8adf5", size = 41508919, upload-time = "2025-10-17T05:07:51.569Z" },
 ]
 
 [[package]]
