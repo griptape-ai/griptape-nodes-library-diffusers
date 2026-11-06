@@ -1,4 +1,4 @@
-# Save Latent Tensor
+# Save Latent
 
 **Writes a `LatentArtifact` to disk as a torch `.pt` file. Useful for debugging, or building offline test fixtures.**
 
@@ -10,8 +10,8 @@ Category: `ModularDiffusion/IO`
 
 ## Typical workflow position
 ```text
-Generate Media Latents → [Save Latent Tensor]
-                       └→ Decode Media Latent → Save Image
+Generate Latent ──┬→ [Save Latent]
+                  └→ Decode Media → Save Image
 ```
 
 ## Node preview
@@ -44,4 +44,4 @@ Generate Media Latents → [Save Latent Tensor]
 
 ## See also
 
-- [Generate Media Latents](generate_media_latents.md) — typical upstream node.
+- [Generate Latent](generate_media_latents.md) — typical upstream node.

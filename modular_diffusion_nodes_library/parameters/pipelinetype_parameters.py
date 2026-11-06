@@ -204,7 +204,7 @@ class LatentFluxPipelineTypeParameters(LatentPipelineTypeParameters):
         return (
             "- `FluxPipeline` — Standard text-to-image generation (FLUX.1-schnell or FLUX.1-dev). "
             "Supports ***ControlNet***, ***inpainting***, and ***ControlNet + inpainting*** via the "
-            "ControlNet Pipeline Builder and VAE Mask Encode nodes.\n"
+            "Apply ControlNet and VAE Mask Encode nodes.\n"
             "- `FluxFillPipeline` — Dedicated inpainting pipeline. Requires a separate Fill checkpoint "
             "(e.g. `FLUX.1-Fill-dev`). Cannot be used with base model weights."
         )
@@ -257,8 +257,8 @@ class LatentHunyuanVideo15PipelineTypeParameters(LatentPipelineTypeParameters):
         return (
             "- `HunyuanVideo15Pipeline` — Text-to-video generation (Tencent HunyuanVideo 1.5).\n"
             "- `HunyuanVideo15ImageToVideoPipeline` — Image-to-video. Requires a dedicated I2V checkpoint. \n\n"
-            "For first-frame conditioning, connect a Media Gen Conditioning node to the "
-            "`conditioning_images` input of Generate Media Latents."
+            "For first-frame conditioning, connect a Reference Media node to the "
+            "`conditioning_images` input of Generate Latent."
         )
 
     @classmethod
@@ -319,7 +319,7 @@ class LatentQwenPipelineTypeParameters(LatentPipelineTypeParameters):
         return (
             "- `QwenImagePipeline` — Text-to-image generation. "
             "Supports ***ControlNet***, ***inpainting***, and ***ControlNet + inpainting*** via the "
-            "ControlNet Pipeline Builder and VAE Mask Encode nodes.\n"
+            "Apply ControlNet and VAE Mask Encode nodes.\n"
             "- `QwenImageEditPipeline` — Image editing conditioned on an input image and a text instruction. "
             "Requires a dedicated Edit checkpoint. Cannot be used with base Qwen weights. "
             "Does not support ControlNet."
@@ -339,7 +339,7 @@ class LatentStableDiffusionPipelineTypeParameters(LatentPipelineTypeParameters):
         return (
             "- `StableDiffusionXLPipeline` — Text-to-image generation.\n\n"
             "Supports ***ControlNet***, ***inpainting***, and ***ControlNet + inpainting*** via the "
-            "ControlNet Pipeline Builder and VAE Mask Encode nodes."
+            "Apply ControlNet and VAE Mask Encode nodes."
         )
 
     @classmethod
@@ -355,7 +355,7 @@ class LatentStableDiffusion3PipelineTypeParameters(LatentPipelineTypeParameters)
         return (
             "- `StableDiffusion3Pipeline` — Text-to-image generation.\n\n"
             "Supports ***ControlNet***, ***inpainting***, and ***ControlNet + inpainting*** via the "
-            "ControlNet Pipeline Builder and VAE Mask Encode nodes."
+            "Apply ControlNet and VAE Mask Encode nodes."
         )
 
     @classmethod
@@ -388,8 +388,8 @@ class LatentWanPipelineTypeParameters(LatentPipelineTypeParameters):
             "- `WanPipeline` — Text-to-video generation (Alibaba WAN).\n"
             "- `WanImageToVideoPipeline` — Image-to-video. Requires a dedicated I2V checkpoint. "
             "Cannot be used with base WAN weights.\n\n"
-            "For first/last-frame conditioning, connect a Media Gen Conditioning node to the "
-            "`conditioning_images` input of Generate Media Latents."
+            "For first/last-frame conditioning, connect a Reference Media node to the "
+            "`conditioning_images` input of Generate Latent."
         )
 
     @classmethod
@@ -408,7 +408,7 @@ class LatentZImagePipelineTypeParameters(LatentPipelineTypeParameters):
         return (
             "- `ZImagePipeline` — Text-to-image generation.\n\n"
             "Supports ***ControlNet***, ***inpainting***, and ***ControlNet + inpainting*** via the "
-            "ControlNet Pipeline Builder and VAE Mask Encode nodes."
+            "Apply ControlNet and VAE Mask Encode nodes."
         )
 
     @classmethod

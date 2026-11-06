@@ -86,8 +86,9 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
         latents_param = Parameter(
             name="latents",
+            display_name="output_latent",
             output_type="InpaintMaskArtifact",
-            tooltip="Inpaint artifact bundling the mask plus source and masked-image latents. Connect to a Generate Latents input_latent for inpainting.",
+            tooltip="Inpaint artifact bundling the mask plus source and masked-image latents. Connect to a Generate Latent input_latent for inpainting.",
             allowed_modes={ParameterMode.OUTPUT},
             serializable=False,
         )
@@ -95,7 +96,7 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             variant="help",
             title="Where to connect this",
             message=(
-                "Connect to the `input_latent` of a ***Generate Media Latents*** node — not to a VAE Decode node.\n\n"
+                "Connect to the `input_latent` of a ***Generate Latent*** node — not to a VAE Decode node.\n\n"
                 "The Generate node detects the `InpaintMaskArtifact` type and automatically switches to inpainting mode, "
                 "regenerating only the masked region while preserving the rest of the image."
             ),

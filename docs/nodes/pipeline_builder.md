@@ -1,4 +1,4 @@
-# Modular Diffusion Pipeline Builder
+# Build Pipeline
 
 **Loads and caches a 🧨 Diffusers pipeline once, so every other node in the flow can reuse it.**
 
@@ -12,12 +12,12 @@ Category: `ModularDiffusion/Pipeline`
 
 ## Typical workflow position
 ```text
-[Pipeline Builder] → Create Noise Latents → Generate Media Latents → Decode Media Latent
+[Pipeline Builder] → Create Noise Latent → Generate Latent → Decode Media Latent
 ```
 
 ## Node preview
 
-<img src="../assets/nodes/pipeline-builder.png" alt="Modular Diffusion Pipeline Builder" width="480">
+<img src="../assets/nodes/pipeline-builder.png" alt="Build Pipeline" width="480">
 
 ## Inputs
 
@@ -74,6 +74,6 @@ Enable only what you need — each option trades speed for memory.
 
 ## See also
 
-- [Configure ControlNet](configure_controlnet.md) · [ControlNet Pipeline](controlnet_pipeline.md) — add ControlNet to a built pipeline.
+- [Load ControlNet](configure_controlnet.md) · [Apply ControlNet](controlnet_pipeline.md) — add ControlNet to a built pipeline.
 - [Load LoRA](load_lora.md) — attach LoRAs to this builder.
-- [Generate Media Latents](generate_media_latents.md) — the most common consumer of the `pipeline` output.
+- [Generate Latent](generate_media_latents.md) — the most common consumer of the `pipeline` output.

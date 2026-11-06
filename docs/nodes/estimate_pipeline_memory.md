@@ -9,12 +9,12 @@ Category: `ModularDiffusion/Pipeline`
 - Uses the latent's shape to calculate the denoiser's and VAE's activation-memory estimate, so it must be wired to a real latent.
 - Reads weight sizes from the loaded pipeline's tensors and offload topology from its live hooks, so weight figures reflect the pipeline's actual dtype and quantization.
 - Activation memory is modeled analytically from the latent's shape. Estimates are biased to overestimate and are approximations.
-- Folds unfused LoRA adapter weights from a connected LoRA Pipeline into the transformer/UNet estimate; the widget does not add a separate LoRA component row.
+- Folds unfused LoRA adapter weights from a connected Apply Runtime LoRA into the transformer/UNet estimate; the widget does not add a separate LoRA component row.
 
 ## Typical workflow position
 
 ```text
-Pipeline Builder → Generate Media Latents → [Estimate Pipeline Memory]
+Pipeline Builder → Generate Latent → [Estimate Pipeline Memory]
 ```
 
 ## Node preview
@@ -40,11 +40,11 @@ Pipeline Builder → Generate Media Latents → [Estimate Pipeline Memory]
 
 Denoiser activation memory is estimated using one of three architecture families: UNet-SDPA (SDXL), Image-DiT-SDPA (Flux, Flux2, SD3, Qwen, Z-Image, ...), or Video-DiT-joint-SDPA (LTX, LTX2, WAN, HunyuanVideo 1.5, MiniMax-H3). A pipeline class without a registered family, or a component whose config can't be read (e.g. a heavily fused/custom checkpoint), falls back to a weight-only estimate with a warning in the widget rather than failing.
 
-**Unfused LoRA.** When the connected pipeline comes from a [LoRA Pipeline](lora_pipeline.md) node, each distinct runtime adapter file is counted once and its header-derived weight bytes are folded into the primary transformer/UNet estimate. The transformer hover text reports the total LoRA bytes as both a percentage of the base transformer weights and a percentage of the combined transformer-plus-LoRA weights. LoRA activation workspace is not separately modeled. The source-only CLI keeps the detailed adapter list in a separate `lora_adapters` section.
+**Unfused LoRA.** When the connected pipeline comes from an [Apply Runtime LoRA](lora_pipeline.md) node, each distinct runtime adapter file is counted once and its header-derived weight bytes are folded into the primary transformer/UNet estimate. The transformer hover text reports the total LoRA bytes as both a percentage of the base transformer weights and a percentage of the combined transformer-plus-LoRA weights. LoRA activation workspace is not separately modeled. The source-only CLI keeps the detailed adapter list in a separate `lora_adapters` section.
 
 The `memory_breakdown` output renders the estimate as a segmented bar and a labeled component list inside the node. Segment widths use the sum of component totals; the estimated peak is shown separately because it applies offload topology, non-overlapping activation phases, and safety headroom. The widget remains read-only and reports loading, unavailable, and warning states without changing the estimate.
 
-**ControlNet (Flux, SD3, SDXL, Qwen, Z-Image).** When the connected pipeline is wrapped by a [ControlNet Pipeline](controlnet_pipeline.md) node, each stacked ControlNet appears as its own `controlnet_0`, `controlnet_1`, … component — weight bytes scale ~linearly with stack size, since each is an independent weight set regardless of the multi-ControlNet wrapper class used under the hood. Weight bytes are read from each ControlNet's own config (its own repo, not the base pipeline's), so a ControlNet's shape is never assumed to match the base denoiser's. Activation bytes reuse the base architecture family's per-token formula against the ControlNet's own (usually smaller) layer count — an approximation, always flagged `[ESTIMATED: ...]`. On SDXL specifically, this reuses the full UNet-SDPA level formula against the real ControlNetModel's down-only architecture (no up-blocks), which overestimates on purpose per this node's bias-toward-overestimate stance. If a ControlNet's config can't be read, that ControlNet's entry falls back to weights-only with a warning.
+**ControlNet (Flux, SD3, SDXL, Qwen, Z-Image).** When the connected pipeline is wrapped by a [Apply ControlNet](controlnet_pipeline.md) node, each stacked ControlNet appears as its own `controlnet_0`, `controlnet_1`, … component — weight bytes scale ~linearly with stack size, since each is an independent weight set regardless of the multi-ControlNet wrapper class used under the hood. Weight bytes are read from each ControlNet's own config (its own repo, not the base pipeline's), so a ControlNet's shape is never assumed to match the base denoiser's. Activation bytes reuse the base architecture family's per-token formula against the ControlNet's own (usually smaller) layer count — an approximation, always flagged `[ESTIMATED: ...]`. On SDXL specifically, this reuses the full UNet-SDPA level formula against the real ControlNetModel's down-only architecture (no up-blocks), which overestimates on purpose per this node's bias-toward-overestimate stance. If a ControlNet's config can't be read, that ControlNet's entry falls back to weights-only with a warning.
 
 Offload topology is detected from the loaded pipeline's live CPU-offload hooks, so the peak reflects the setup the pipeline is actually running with. VAE activation memory reflects whether `vae_tiling`/`vae_slicing` are configured.
 
@@ -118,7 +118,7 @@ To estimate a generated workflow file from the command line, without starting Gr
 
 ## See also
 
-- [Modular Diffusion Pipeline Builder](pipeline_builder.md)
-- [Generate Media Latents](generate_media_latents.md)
+- [Build Pipeline](pipeline_builder.md)
+- [Generate Latent](generate_media_latents.md)
 - [Clear Pipeline Cache](clear_pipeline_cache.md)
 - [Estimate Workflow Memory (CLI)](../tools/estimate_workflow_memory.md)

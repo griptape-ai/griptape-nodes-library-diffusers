@@ -38,13 +38,13 @@ class Flux2KleinPipelineRuntimeParameters(Flux2PipelineRuntimeParameters):
             node,
             param_name="reference_images",
             accepted_modes=(ConditioningMode.IMAGE,),
-            tooltip="Reference images that guide what the inpainted region should look like. Connect a Media Gen Conditioning node.",
+            tooltip="Reference images that guide what the inpainted region should look like. Connect a Reference Media node.",
             badge_title="Reference images",
             badge_message=(
-                "Connect a **Media Gen Conditioning** node here to supply reference images. "
+                "Connect a **Reference Media** node here to supply reference images. "
                 "This allows conditioning the edited or inpainted region on a specific reference image. "
                 "Only **image** payloads are accepted; **video** payloads are not allowed.\n\n"
-                "**Tip:** You can also connect an image directly — without a Media Gen Conditioning node — "
+                "**Tip:** You can also connect an image directly — without a Reference Media node — "
                 "for single-image conditioning."
             ),
         )

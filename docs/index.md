@@ -9,48 +9,48 @@ Node groups mirror the categories in [`griptape-nodes-library.json`](../griptape
 ### Preconfigured
 - [Text to Image](nodes/text_to_image.md)
 - [Image to Image](nodes/image_to_image.md)
-- [Inpainting](nodes/inpainting.md)
+- [Inpaint Image](nodes/inpainting.md)
 - [Text to Video](nodes/text_to_video.md)
 - [First/Last Frame to Video](nodes/first_last_frame_to_video.md)
 
 ### Pipeline
-- [Modular Diffusion Pipeline Builder](nodes/pipeline_builder.md)
-- [ControlNet Pipeline](nodes/controlnet_pipeline.md)
+- [Build Pipeline](nodes/pipeline_builder.md)
+- [Apply ControlNet](nodes/controlnet_pipeline.md)
 - [Load LoRA](nodes/load_lora.md)
-- [Load Pipeline Component](nodes/load_component.md)
+- [Load Component](nodes/load_component.md)
 - [Load Scheduler](nodes/load_scheduler.md)
-- [LoRA Pipeline](nodes/lora_pipeline.md)
+- [Apply Runtime LoRA](nodes/lora_pipeline.md)
 - [Clear Pipeline Cache](nodes/clear_pipeline_cache.md)
 - [Estimate Pipeline Memory](nodes/estimate_pipeline_memory.md)
 
 ### Create
-- [Create Noise Latents](nodes/create-noise-latents.md)
-- [Create Empty Latents](nodes/empty_latents.md)
+- [Create Noise Latent](nodes/create-noise-latents.md)
+- [Create Empty Latent](nodes/empty_latents.md)
 
 ### Processing
-- [Generate Media Latents](nodes/generate_media_latents.md)
-- [Latent Upsampler](nodes/latent_upsampler.md)
+- [Generate Latent](nodes/generate_media_latents.md)
+- [Upsample Latent](nodes/latent_upsampler.md)
 
 ### Transform
 - [Add Latents](nodes/add_latents.md)
 - [Subtract Latents](nodes/subtract_latents.md)
 - [Multiply Latents](nodes/multiply_latents.md)
-- [Latents Composite Mask](nodes/latents_composite_mask.md)
+- [Composite Latents with Mask](nodes/latents_composite_mask.md)
 
 ### Conditioning
-- [Configure ControlNet](nodes/configure_controlnet.md)
-- [Media Generation Conditioning](nodes/media_gen_conditioning.md)
+- [Load ControlNet](nodes/configure_controlnet.md)
+- [Reference Media](nodes/media_gen_conditioning.md)
 
 ### Encode / Decode
 - [Encode Media Latent](nodes/encode_media_latent.md)
 - [Encode Masked Media Latent](nodes/encode_masked_media_latent.md)
 - [Decode Media Latent](nodes/decode_media_latent.md)
-- [Decode HDR Latents](nodes/decode_hdr_latents.md)
-- [Latent to Media (Standalone Decoder)](nodes/latent_to_media.md)
+- [Decode HDR Media](nodes/decode_hdr_latents.md)
+- [Convert Latent to Media](nodes/latent_to_media.md)
 
 ### IO
 - [Save EXR Sequence](nodes/save_exr_sequence.md)
-- [Save Latent Tensor](nodes/save_latent_tensor.md)
+- [Save Latent](nodes/save_latent_tensor.md)
 
 ## Command-line tools
 - [Estimate Workflow Memory (CLI)](tools/estimate_workflow_memory.md)

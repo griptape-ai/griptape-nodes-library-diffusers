@@ -2,7 +2,7 @@
 
 **Runs the pipeline's VAE decoder on a latent, producing an image or video — typically the final node in a flow.**
 
-Category: `ModularDiffusion/Encode\Decode`
+Category: `ModularDiffusion/Encode & Decode`
 
 ## TL;DR
 - Output is **dynamic**: `output_image` for image pipelines, `output_video` (+ `fps`) for video pipelines (LTX, LTX2, WAN, HunyuanVideo 1.5, MiniMax-H3). It swaps automatically when you connect a `pipeline`.
@@ -11,7 +11,7 @@ Category: `ModularDiffusion/Encode\Decode`
 
 ## Typical workflow position
 ```text
-Generate Media Latents → [Decode Media Latent] → Save Image / Save Video
+Generate Latent → [Decode Media Latent] → Save Image / Save Video
 ```
 
 ## Node preview
@@ -44,7 +44,7 @@ Generate Media Latents → [Decode Media Latent] → Save Image / Save Video
 | --- | --- |
 | Image pipelines | `output_image` as an `ImageUrlArtifact`. |
 | LTX, WAN, HunyuanVideo 1.5 | `output_video` as a silent MP4 at `fps`. |
-| LTX2 (base, video-conditioning, IC-LoRA) | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. The HDR IC-LoRA path (`Decode HDR Latents`) never produces audio. |
+| LTX2 (base, video-conditioning, IC-LoRA) | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. The HDR IC-LoRA path (`Decode HDR Media`) never produces audio. |
 | MiniMax-H3 | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. `fps` defaults to the model's fixed **24** — changing it desynchronises the soundtrack, since the audio is muxed at its own true sample rate. |
 | Flux3 | `output_image` as an `ImageUrlArtifact`. The decoder restores the model's packed VAE patches internally and crops VAE-encoded single-image latents back to their reference bounds. |
 
@@ -52,9 +52,9 @@ Generate Media Latents → [Decode Media Latent] → Save Image / Save Video
 
 Both models' audio latent travels in the latent's *metadata*, not in its tensor:
 
-- **Empty Latents, Save/Load Latent Tensor** drop the audio metadata. Decoding still works and
+- **Empty Latents, Save Latent, Load Latent Tensor** drop the audio metadata. Decoding still works and
   produces a silent video, with a debug-level log message.
-- **Add / Subtract / Multiply Latents, Latents Composite Mask, Latent Upsampler** are worse: they
+- **Add / Subtract / Multiply Latents, Composite Latents with Mask, Upsample Latent** are worse: they
   change the video latent while retaining its existing audio metadata. Decoding muxes that retained
   soundtrack with the edited video.
 
@@ -66,5 +66,5 @@ Both models' audio latent travels in the latent's *metadata*, not in its tensor:
 ## See also
 
 - [Encode Media Latent](encode_media_latent.md) — inverse operation.
-- [Generate Media Latents](generate_media_latents.md) — typical upstream node.
-- [Latent to Media](latent_to_media.md) — standalone alternative that needs no pipeline, for models both nodes support.
+- [Generate Latent](generate_media_latents.md) — typical upstream node.
+- [Convert Latent to Media](latent_to_media.md) — standalone alternative that needs no pipeline, for models both nodes support.

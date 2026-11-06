@@ -23,10 +23,10 @@ Category: `ModularDiffusion/Preconfigured`
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `pipeline_type` | Supported Pipeline Types | Yes | Selects which pipeline family the internal Pipeline Builder resolves and builds. |
-| `prompt` | str | Yes | Positive text prompt, forwarded to the internal Generate Media Latents node. |
-| `seed` | int | No | Default `42`. Forwarded to the internal Create Noise Latents node. |
-| `width` | int | No | Default `1024`. Forwarded to the internal Create Noise Latents node. |
-| `height` | int | No | Default `1024`. Forwarded to the internal Create Noise Latents node. |
+| `prompt` | str | Yes | Positive text prompt, forwarded to the internal Generate Latent node. |
+| `seed` | int | No | Default `42`. Forwarded to the internal Create Noise Latent node. |
+| `width` | int | No | Default `1024`. Forwarded to the internal Create Noise Latent node. |
+| `height` | int | No | Default `1024`. Forwarded to the internal Create Noise Latent node. |
 
 ## Outputs
 
@@ -42,13 +42,13 @@ This workflow ships with a default model pre-set for every supported `pipeline_t
 
 ## Tips & pitfalls
 
-- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to see and tweak the internal Create Noise Latents / Pipeline Builder / Generate Media Latents / Decode Media Latent chain, including hidden parameters like `model` repo and optimization toggles.
+- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to see and tweak the internal Create Noise Latent / Pipeline Builder / Generate Latent / Decode Media Latent chain, including hidden parameters like `model` repo and optimization toggles.
 - **Fixed model selection.** You cannot change the model selection or other internal parameters directly from the top-level node; you must open the sub-flow to make changes.
 - **No download status visibility.** There is no visual indication within the node itself whether the required model has been downloaded or if it needs to be installed via the Model Manager.
-- **`guidance_scale` (3.5), `true_cfg_scale` (1.0), and `num_inference_steps` (20) are fixed inside the sub-flow.** They are not exposed as top-level inputs; edit the internal Generate Media Latents node to change them.
-- **`add_noise` is disabled on the internal Generate node.** The Create Noise Latents node already supplies a pure-noise starting latent, so the Generate node denoises it directly without re-noising. The seed set here fully controls reproducibility.
+- **`guidance_scale` (3.5), `true_cfg_scale` (1.0), and `num_inference_steps` (20) are fixed inside the sub-flow.** They are not exposed as top-level inputs; edit the internal Generate Latent node to change them.
+- **`add_noise` is disabled on the internal Generate node.** The Create Noise Latent node already supplies a pure-noise starting latent, so the Generate node denoises it directly without re-noising. The seed set here fully controls reproducibility.
 - **Want more granular control?** Open the sub-flow and edit the internal nodes directly — anything not exposed as a top-level input here can be changed there.
 
 ## See also
-- [Image to Image](image_to_image.md) · [Inpainting](inpainting.md) · [Text to Video](text_to_video.md) · [First/Last Frame to Video](first_last_frame_to_video.md)
-- [Modular Diffusion Pipeline Builder](pipeline_builder.md) · [Generate Media Latents](generate_media_latents.md) — the nodes this workflow wraps internally.
+- [Image to Image](image_to_image.md) · [Inpaint Image](inpainting.md) · [Text to Video](text_to_video.md) · [First/Last Frame to Video](first_last_frame_to_video.md)
+- [Build Pipeline](pipeline_builder.md) · [Generate Latent](generate_media_latents.md) — the nodes this workflow wraps internally.

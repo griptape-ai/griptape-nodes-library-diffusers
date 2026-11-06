@@ -1,4 +1,4 @@
-# Inpainting
+# Inpaint Image
 
 **A preconfigured, self-contained workflow that inpaints a masked region of an image using a text prompt — dropped in as a single node.**
 
@@ -12,7 +12,7 @@ Category: `ModularDiffusion/Preconfigured`
 ## Typical workflow position
 ```text
 Load Image ──┐
-             ├─→ [Inpainting] → Display Image
+             ├─→ [Inpaint Image] → Display Image
 Paint Mask ──┘
 ```
 
@@ -28,7 +28,7 @@ Paint Mask ──┘
 | `prompt` | str | Yes | Positive text prompt describing what should appear in the masked region. |
 | `image` | `ImageArtifact` / `ImageUrlArtifact` | Yes | Source image. |
 | `mask` | `ImageArtifact` / `ImageUrlArtifact` | Yes | Binary mask — white pixels = inpaint region, black = keep original. |
-| `seed` | int | No | Forwarded to the internal Generate Media Latents node. |
+| `seed` | int | No | Forwarded to the internal Generate Latent node. |
 
 ## Outputs
 
@@ -46,7 +46,7 @@ The internal Encode Masked Media Latent node's `strength` is set to `1.0` for th
 
 ## Tips & pitfalls
 
-- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to see and tweak the internal Pipeline Builder / Encode Masked Media Latent / Generate Media Latents / Decode Media Latent chain.
+- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to see and tweak the internal Pipeline Builder / Encode Masked Media Latent / Generate Latent / Decode Media Latent chain.
 - **Fixed model selection.** You cannot change the model selection or other internal parameters directly from the top-level node; you must open the sub-flow to make changes.
 - **No download status visibility.** There is no visual indication within the node itself whether the required model has been downloaded or if it needs to be installed via the Model Manager.
 - **Mask is resized to match the (possibly snapped) source image automatically**, per the underlying [Encode Masked Media Latent](encode_masked_media_latent.md) node.
@@ -55,4 +55,4 @@ The internal Encode Masked Media Latent node's `strength` is set to `1.0` for th
 ## See also
 
 - [Text to Image](text_to_image.md) · [Image to Image](image_to_image.md) · [Text to Video](text_to_video.md) · [First/Last Frame to Video](first_last_frame_to_video.md)
-- [Modular Diffusion Pipeline Builder](pipeline_builder.md) · [Encode Masked Media Latent](encode_masked_media_latent.md) · [Generate Media Latents](generate_media_latents.md) — the nodes this workflow wraps internally.
+- [Build Pipeline](pipeline_builder.md) · [Encode Masked Media Latent](encode_masked_media_latent.md) · [Generate Latent](generate_media_latents.md) — the nodes this workflow wraps internally.

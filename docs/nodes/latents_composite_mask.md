@@ -1,4 +1,4 @@
-# Latents Composite Mask
+# Composite Latents with Mask
 
 **Pastes a source latent onto a destination latent at a given pixel offset, blended through an optional image mask.**
 
@@ -13,14 +13,14 @@ Category: `ModularDiffusion/Transform`
 
 ## Typical workflow position
 ```text
-Generate Latents (dest) ──┐
-Generate Latents (src) ───┼─→ [Latents Composite Mask] → Generate Media Latents
-Paint Mask (mask) ────────┘
+Generate Latent (dest) ────┐
+Generate Latent (src) ─────┼─→ [Composite Latents with Mask] → Generate Latent
+Paint Mask (mask) ─────────┘
 ```
 
 ## Node preview
 
-<img src="../assets/nodes/latents-composite-mask.png" alt="Latents Composite Mask" width="480">
+<img src="../assets/nodes/latents-composite-mask.png" alt="Composite Latents with Mask" width="480">
 
 ## Inputs
 
@@ -67,5 +67,5 @@ Paint Mask (mask) ────────┘
 
 ## See also
 
-- [Create Empty Latents](empty_latents.md) — typical destination canvas.
+- [Create Empty Latent](empty_latents.md) — typical destination canvas.
 - [Add Latents](add_latents.md) — for unmasked elementwise blending.
