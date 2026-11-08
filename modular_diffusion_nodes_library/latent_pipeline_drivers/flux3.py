@@ -16,6 +16,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
     read_driver_meta,
 )
+from modular_diffusion_nodes_library.masked_denoise.driver_integration import make_masked_denoise_block
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
     MediaGenConditioningPayload,
@@ -45,6 +46,8 @@ if TYPE_CHECKING:
         SequentialPipelineBlocks,  # type: ignore[reportMissingImports]
     )
     from PIL.Image import Image
+
+    from modular_diffusion_nodes_library.masked_denoise.driver_integration import PreparedMaskedDenoising
 
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -82,6 +85,7 @@ def _make_callback_denoise_step(
     height: int,
     width: int,
     force_fully_denoised: bool = False,
+    masked_denoising: PreparedMaskedDenoising | None = None,
 ) -> Flux3DenoiseLoopWrapper:
     import torch  # type: ignore[reportMissingImports]
     from diffusers.modular_pipelines.flux3.decoders import (  # type: ignore[reportMissingImports]
@@ -108,10 +112,18 @@ def _make_callback_denoise_step(
         model_name = "flux3"
     callback_model_name = model_name
 
+    loop_block_classes: list[type] = [denoiser_class, Flux3LoopAfterDenoiser]
+    loop_block_names = ["denoiser", "after_denoiser"]
+    if masked_denoising is not None:
+        loop_block_classes.append(
+            make_masked_denoise_block(model_name=callback_model_name, masked_denoising=masked_denoising)
+        )
+        loop_block_names.append("masked_denoise")
+
     class CallbackDenoiseStep(Flux3DenoiseLoopWrapper):
         model_name = callback_model_name
-        block_classes: ClassVar[list[type]] = [denoiser_class, Flux3LoopAfterDenoiser]
-        block_names: ClassVar[list[str]] = ["denoiser", "after_denoiser"]
+        block_classes: ClassVar[list[type]] = loop_block_classes
+        block_names: ClassVar[list[str]] = loop_block_names
 
         def __init__(self) -> None:
             super().__init__()
@@ -198,6 +210,11 @@ class Flux3LatentPipelineDriver(LatentPipelineDriver):
     @override
     def _prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
         return _patchify_latents(latents)
+
+    @override
+    def _prepare_callback_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
+        patchified_latents = self._prepare_input_latent(latents, latents_source_shape)
+        return patchified_latents.flatten(2).transpose(1, 2)
 
     @override
     def prepare_output_latent(
@@ -438,6 +455,7 @@ class Flux3LatentPipelineDriver(LatentPipelineDriver):
         height: int,
         width: int,
         force_fully_denoised: bool = False,
+        masked_denoising: PreparedMaskedDenoising | None = None,
     ) -> SequentialPipelineBlocks:
         from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
             SequentialPipelineBlocks,
@@ -453,6 +471,7 @@ class Flux3LatentPipelineDriver(LatentPipelineDriver):
             height=height,
             width=width,
             force_fully_denoised=force_fully_denoised,
+            masked_denoising=masked_denoising,
         )
         denoise_blocks = SequentialPipelineBlocks.from_blocks_dict(inner_blocks)
 
@@ -563,13 +582,29 @@ class Flux3LatentPipelineDriver(LatentPipelineDriver):
 
         references = self._resolve_reference_kwargs(kwargs)
         guidance_scale = kwargs.pop("guidance_scale", 3.5)
-        generator = kwargs.pop("generator", generator_state.to_generator())
+        masked_latent_artifact = kwargs.pop("_masked_latent_artifact", None)
         prompt = kwargs.pop("prompt", "")
         upsampler_enabled = self._has_prompt_upsampler()
         layout = self._resolve_layout(prompt, kwargs.pop("boxes", None), upsampler_enabled)
         prompt = layout.prompt
         device, dtype = self._get_device_and_type()
-        latents = self._prepare_input_latent(latent.to_torch(device=device, dtype=dtype), source_shape)
+        masked_denoising = None
+        if masked_latent_artifact is not None:
+            masked_denoising = self._prepare_masked_denoising(
+                latent=latent,
+                masked_latent=masked_latent_artifact,
+                num_inference_steps=num_inference_steps,
+                generator_state=generator_state,
+                start_step=start_step,
+                end_step=end_step,
+                return_fully_denoised=return_fully_denoised,
+                kwargs=kwargs,
+            )
+            latents = masked_denoising.latents
+            generator = masked_denoising.generator_state.to_generator()
+        else:
+            latents = self._prepare_input_latent(latent.to_torch(device=device, dtype=dtype), source_shape)
+            generator = kwargs.pop("generator", generator_state.to_generator())
 
         core_step = self._select_core_step(has_references=bool(references))
         blocks = self._build_generation_blocks(
@@ -580,6 +615,7 @@ class Flux3LatentPipelineDriver(LatentPipelineDriver):
             height=height,
             width=width,
             force_fully_denoised=return_fully_denoised,
+            masked_denoising=masked_denoising,
         )
 
         run_kwargs = {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any, ClassVar, override
 
 from diffusers.models.controlnets.controlnet import ControlNetModel  # type: ignore[reportMissingImports]
@@ -34,12 +35,16 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
 )
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.misc.schedule_utils import (
+    preserved_scheduler_state,
     strength_for_step_index,
     truncation_safe_strength,
 )
 
 if TYPE_CHECKING:
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+
+    from modular_diffusion_nodes_library.artifact_utils.masked_latent_artifact import MaskedLatentArtifact
+    from modular_diffusion_nodes_library.masked_denoise.driver_integration import PreparedMaskedDenoising
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -283,6 +288,39 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
             upstream=result_artifact,
             meta={_KIND_META_KEY: "image_latents"},
         )
+
+    @override
+    def _prepare_masked_denoising(
+        self,
+        latent: LatentArtifact | InpaintMaskArtifact,
+        masked_latent: MaskedLatentArtifact,
+        num_inference_steps: int,
+        generator_state: GeneratorState,
+        start_step: int,
+        end_step: int,
+        return_fully_denoised: bool,
+        kwargs: dict[str, Any],
+    ) -> PreparedMaskedDenoising:
+        """Scale noise latents by ``init_noise_sigma``, as SDXL stores them normalised."""
+        prepared = super()._prepare_masked_denoising(
+            latent=latent,
+            masked_latent=masked_latent,
+            num_inference_steps=num_inference_steps,
+            generator_state=generator_state,
+            start_step=start_step,
+            end_step=end_step,
+            return_fully_denoised=return_fully_denoised,
+            kwargs=kwargs,
+        )
+        if read_driver_meta(latent, _KIND_META_KEY, self.driver_namespace, "") != "noise":
+            return prepared
+
+        # init_noise_sigma depends on the timestep schedule, so it must be set for this step count first.
+        # Restore the scheduler afterwards so a cached pipeline is not left holding this schedule.
+        with preserved_scheduler_state(self.pipe.scheduler):
+            self.pipe.scheduler.set_timesteps(num_inference_steps, device=prepared.latents.device)
+            scaled_latents = prepared.latents * self.pipe.scheduler.init_noise_sigma
+        return replace(prepared, latents=scaled_latents)
 
     @override
     def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
