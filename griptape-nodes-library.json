@@ -1009,6 +1009,29 @@
       }
     },
     {
+      "class_name": "SetLatentMaskNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/set_latent_mask.py",
+      "metadata": {
+        "category": "ModularDiffusion/Transform",
+        "description": "Pair an image or video latent with a mask image, with options to pick the mask channel, invert, grow or shrink, and blur it.",
+        "display_name": "Set Latent Mask",
+        "group": "diffusion",
+        "tags": [
+          "mask",
+          "latent mask",
+          "masked denoising",
+          "differential diffusion",
+          "video"
+        ],
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "BETA"
+          }
+        ]
+      }
+    },
+    {
       "class_name": "ControlNetNode",
       "file_path": "./modular_diffusion_nodes_library/nodes/controlnet_node.py",
       "metadata": {

@@ -36,6 +36,7 @@ Node groups mirror the categories in [`griptape-nodes-library.json`](../griptape
 - [Subtract Latents](nodes/subtract_latents.md)
 - [Multiply Latents](nodes/multiply_latents.md)
 - [Composite Latents with Mask](nodes/latents_composite_mask.md)
+- [Set Latent Mask](nodes/set_latent_mask.md)
 
 ### Conditioning
 - [Load ControlNet](nodes/configure_controlnet.md)
