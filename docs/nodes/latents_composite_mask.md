@@ -51,7 +51,7 @@ Paint Mask (mask) ─────────┘
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `channel` | choice | `alpha` | Which channel of `mask_image` to use as blend weight. |
+| `channel` | choice | `red` | Which channel of `mask_image` to use as blend weight. |
 | `invert_mask` | bool | `False` | Swap source/destination regions. |
 | `grow_shrink` | float (-100..100) | `0` | Dilate (+) or erode (-) the mask edge. |
 | `blur_mask` | float (0..100) | `0` | Feather the mask edge. |

@@ -156,7 +156,7 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             channel_param = ParameterString(
                 name="channel",
                 tooltip="Channel to extract from the mask image as blend weight.",
-                default_value="alpha",
+                default_value="red",
                 ui_options={"expander": True, "edit_mask": True, "edit_mask_paint_mask": True},
             )
             channel_param.add_trait(Options(choices=["red", "green", "blue", "alpha"]))
