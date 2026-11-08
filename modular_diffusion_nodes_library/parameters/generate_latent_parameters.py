@@ -14,6 +14,7 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import (
     LatentArtifact,  # type: ignore[reportMissingImports]
 )
+from modular_diffusion_nodes_library.artifact_utils.masked_latent_artifact import MaskedLatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
@@ -54,9 +55,9 @@ class DiffusionPipelineGenerateLatentParameters:
     def add_input_parameters(self) -> None:
         input_latent_param = Parameter(
             name="input_latent",
-            input_types=["LatentArtifact", "InpaintMaskArtifact"],
+            input_types=["LatentArtifact", "InpaintMaskArtifact", "MaskedLatentArtifact"],
             type="LatentArtifact",
-            tooltip="Input latent tensor. Connect an Encode Inpaint Latent to enable inpainting mode.",
+            tooltip="Input latent tensor, an inpaint artifact, or a masked latent artifact.",
             allowed_modes={ParameterMode.INPUT},
             serializable=False,
         )
@@ -74,7 +75,11 @@ class DiffusionPipelineGenerateLatentParameters:
                 "Enable `add_noise` to blend the input with noise before denoising.\n\n"
                 "***InpaintMaskArtifact*** (from a VAE Mask Encode node) — inpainting. "
                 "The node automatically switches to the inpaint pipeline and hides `add_noise`. "
-                "Only the masked region is regenerated; the rest of the image is preserved."
+                "Only the masked region is regenerated; the rest of the image is preserved.\n\n"
+                "***MaskedLatentArtifact*** (from Set Latent Mask) — masked denoising. "
+                "Enable `add_noise`: without it denoising starts from the clean source image instead of noise. "
+                "The mask is applied at every step without switching to a native inpaint pipeline, and "
+                "`start_step` / `end_step` select the schedule window."
             ),
         )
         self._node.add_parameter(input_latent_param)
@@ -95,17 +100,22 @@ class DiffusionPipelineGenerateLatentParameters:
             name="add_noise",
             default_value=False,
             type="bool",
-            tooltip="Add noise to the input latent before denoising. Enable for image-to-image/video-to-video/refinement workflows.",
+            tooltip=(
+                "Blend the input latent with noise before denoising. Enable for text-to-image from an empty latent, "
+                "image-to-image, video-to-video, refinement, and masked denoising workflows."
+            ),
             allowed_modes={ParameterMode.PROPERTY},
         )
         add_noise_param.set_badge(
             variant="help",
-            title="Image-to-image blending",
+            title="Noising the input",
             message=(
                 "When enabled, the input latent is blended with noise before denoising starts. "
                 "The blend amount is controlled by `start_step` relative to `num_inference_steps`: "
                 "a higher `start_step` adds less noise and keeps the output closer to the input. "
-                "A `start_step` of 0 adds maximum noise — effectively ignoring the input content."
+                "A `start_step` of 0 adds maximum noise — effectively ignoring the input content.\n\n"
+                "Enable it whenever the input is a clean encoded image or an empty latent, including masked "
+                "denoising from Set Latent Mask. With it off, denoising starts from the input exactly as it is."
             ),
         )
         self._node.add_parameter(add_noise_param)
@@ -288,6 +298,8 @@ class DiffusionPipelineGenerateLatentParameters:
             output_latent_artifact = input_latent_for_denoise
         else:
             pipe_kwargs = self.update_kwargs(pipe_kwargs)
+            if isinstance(input_latent_artifact, MaskedLatentArtifact):
+                pipe_kwargs["_masked_latent_artifact"] = input_latent_artifact
             output_latent_artifact = latent_pipeline_driver.denoise_latent(
                 input_latent_for_denoise,
                 num_inference_steps,
@@ -302,18 +314,30 @@ class DiffusionPipelineGenerateLatentParameters:
         self._node.log_params.append_to_logs("Done.\n")  # type: ignore[reportAttributeAccessIssue]
 
     def _prepare_input_latent(
-        self, input_latent_artifact: LatentArtifact | InpaintMaskArtifact, latent_pipeline_driver: LatentPipelineDriver
+        self,
+        input_latent_artifact: LatentArtifact | InpaintMaskArtifact | MaskedLatentArtifact,
+        latent_pipeline_driver: LatentPipelineDriver,
     ) -> LatentArtifact | InpaintMaskArtifact | None:
         if input_latent_artifact is None:
             raise ValueError("Input latent is missing")
-        if not self.add_noise():
-            return input_latent_artifact
         if isinstance(input_latent_artifact, InpaintMaskArtifact):
             # Inpaint flows manage their own noising inside denoise_latent.
             return input_latent_artifact
+        if isinstance(input_latent_artifact, MaskedLatentArtifact):
+            if input_latent_artifact.source_latent is None:
+                raise ValueError(
+                    f"Attempted to prepare the input latent for {self._node.name}. Failed with a MaskedLatentArtifact "
+                    "that has no source_latent because Set Latent Mask must be given an encoded latent."
+                )
+            prepared_input_latent_artifact = input_latent_artifact.source_latent
+        else:
+            prepared_input_latent_artifact = input_latent_artifact
+        if not self.add_noise():
+            return prepared_input_latent_artifact
+
         return latent_pipeline_driver.add_noise_to_latent(
-            input_latent_artifact,
-            self._resolve_generator_state(input_latent_artifact),
+            prepared_input_latent_artifact,
+            self._resolve_generator_state(prepared_input_latent_artifact),
             self.get_num_inference_steps(),
             self.start_step,
         )
@@ -355,7 +379,9 @@ class DiffusionPipelineGenerateLatentParameters:
     def get_seed(self) -> int:
         return int(self._node.get_parameter_value("seed"))
 
-    def _resolve_generator_state(self, upstream: LatentArtifact | InpaintMaskArtifact) -> GeneratorState:
+    def _resolve_generator_state(
+        self, upstream: LatentArtifact | InpaintMaskArtifact | MaskedLatentArtifact
+    ) -> GeneratorState:
         """Return GeneratorState from upstream meta, or build one from the UI seed."""
         return GeneratorState.from_artifact(upstream) or GeneratorState.from_seed(self.get_seed())
 
@@ -449,7 +475,17 @@ class DiffusionPipelineGenerateLatentParameters:
             if input_latent_artifact is None:
                 return [ValueError("Input latent is required but not connected.")]
 
-            source_shape = input_latent_artifact.source_shape
+            if isinstance(input_latent_artifact, MaskedLatentArtifact):
+                if input_latent_artifact.source_latent is None:
+                    return [
+                        ValueError(
+                            f"Attempted to validate {self._node.name}. Failed with a MaskedLatentArtifact that has no "
+                            "source_latent because Set Latent Mask must be given an encoded latent."
+                        )
+                    ]
+                source_shape = input_latent_artifact.source_latent.source_shape
+            else:
+                source_shape = input_latent_artifact.source_shape
             if source_shape is None or len(source_shape) < 2:
                 return [
                     ValueError(
@@ -512,11 +548,22 @@ class DiffusionPipelineGenerateLatentParameters:
         return None
 
     def _validate_driver_run_configuration(
-        self, input_latent_artifact: LatentArtifact | None
+        self,
+        input_latent_artifact: LatentArtifact | InpaintMaskArtifact | MaskedLatentArtifact | None,
     ) -> list[Exception] | None:
         pipeline_value = self._node.get_parameter_value("pipeline")
         if not isinstance(pipeline_value, DiffusionPipelineArtifact):
             return None
+
+        if isinstance(input_latent_artifact, MaskedLatentArtifact):
+            driver_spec = get_driver_spec(pipeline_value.pipeline_name)
+            if driver_spec is None or not driver_spec.supports_masked_denoising:
+                return [
+                    ValueError(
+                        f"Attempted to validate {self._node.name} for masked-latent denoising. Failed with pipeline "
+                        f"'{pipeline_value.pipeline_name}' because it does not support masked-latent denoising."
+                    )
+                ]
 
         driver_cls = self._resolve_driver_class(pipeline_value)
         if driver_cls is None:

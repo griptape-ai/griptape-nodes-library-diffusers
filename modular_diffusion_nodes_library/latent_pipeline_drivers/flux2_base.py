@@ -33,6 +33,12 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         super().__init__(pipe)
 
     @override
+    def _prepare_callback_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
+        """Pack ``[B, C, H, W]`` to the ``[B, H*W, C]`` tokens the pipeline passes to its step callback."""
+        batch_size, num_channels, height, width = latents.shape
+        return latents.reshape(batch_size, num_channels, height * width).permute(0, 2, 1)
+
+    @override
     def _get_spatial_alignment(self) -> int:
         return self.pipe.image_processor.vae_scale_factor
 

@@ -35,6 +35,16 @@ def _clamp(value: int, lo: int, hi: int) -> int:
     return max(lo, min(value, hi))
 
 
+def _fractional_step_index(fraction: float, num_steps: int, *, round_up: bool) -> int:
+    scaled = fraction * num_steps
+    nearest = round(scaled)
+    if math.isclose(scaled, nearest, rel_tol=0.0, abs_tol=1e-9):
+        return int(nearest)
+    if round_up:
+        return math.ceil(scaled)
+    return math.floor(scaled)
+
+
 # ---------------------------------------------------------------------------
 # Scheduler proxy for partial denoising
 # ---------------------------------------------------------------------------
@@ -115,8 +125,8 @@ class PartialDenoiseSchedulerProxy:
             return
 
         # Compute the begin and end index.
-        begin = _clamp(math.floor(denoise_begin * n), 0, n - 1)
-        end = _clamp(math.ceil(denoise_end * n), begin + 1, n)
+        begin = _clamp(_fractional_step_index(denoise_begin, n, round_up=False), 0, n - 1)
+        end = _clamp(_fractional_step_index(denoise_end, n, round_up=True), begin + 1, n)
 
         timesteps_slice = timesteps[begin:end]
 

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.artifact_utils.masked_latent_artifact import MaskedLatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
@@ -25,11 +26,18 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     TextEncodings,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.masked_denoise.driver_integration import (
+    PreparedMaskedDenoising,
+    make_masked_denoising_callback,
+    validate_masked_denoising_inputs,
+)
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
+from modular_diffusion_nodes_library.misc.masked_denoising import validate_schedule_length
 from modular_diffusion_nodes_library.misc.partial_denoise import (
     PartialDenoisePipelineRunner,
     PartialDenoiseSchedulerProxy,
 )
+from modular_diffusion_nodes_library.misc.schedule_utils import preserved_scheduler_state
 from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult
 from modular_diffusion_nodes_library.utils.pipeline_utils import create_pipe_variant
 from modular_diffusion_nodes_library.utils.torch_utils import inference_mode
@@ -327,6 +335,10 @@ class LatentPipelineDriver(ABC):
         """Return latents ready to be passed into the pipeline, which may involve packing or other preprocessing."""
         return latents
 
+    def _prepare_callback_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
+        """Return latents in the layout `callback_on_step_end` receives, which can differ from the pipeline input."""
+        return self._prepare_input_latent(latents, latents_source_shape)
+
     def prepare_output_latent(
         self, latents_from_pipe: torch.Tensor, latents_source_shape: tuple[int, ...]
     ) -> torch.Tensor:
@@ -445,6 +457,62 @@ class LatentPipelineDriver(ABC):
             call_kwargs["negative_prompt"] = negative_prompt
         return self._call_block(text_encoder_pipe, **call_kwargs)
 
+    def _prepare_masked_denoising(
+        self,
+        latent: LatentArtifact | InpaintMaskArtifact,
+        masked_latent: MaskedLatentArtifact,
+        num_inference_steps: int,
+        generator_state: GeneratorState,
+        start_step: int,
+        end_step: int,
+        return_fully_denoised: bool,
+        kwargs: dict[str, Any],
+    ) -> PreparedMaskedDenoising:
+        """Prepare packed masked latents and per-step sources. Sources are held on CPU to spare VRAM."""
+        source_latent = validate_masked_denoising_inputs(
+            latent=latent, masked_latent=masked_latent, scheduler=self.pipe.scheduler, kwargs=kwargs
+        )
+        source_shape = latent.source_shape
+        with preserved_scheduler_state(self.pipe.scheduler):
+            validate_schedule_length(scheduler=self.pipe.scheduler, num_inference_steps=num_inference_steps)
+
+        device, dtype = self._get_device_and_type()
+        clean_source = source_latent.to_torch(device="cpu", dtype=dtype)
+        initial_latents = latent.to_torch(device=device, dtype=dtype)
+        if clean_source.shape != initial_latents.shape:
+            raise ValueError(
+                f"Attempted to prepare masked denoising for {self.driver_namespace}. Failed with source latent shape "
+                f"{tuple(clean_source.shape)} and input latent shape {tuple(initial_latents.shape)} because they "
+                "must match."
+            )
+
+        active_end_step = end_step
+        if end_step == -1:
+            active_end_step = num_inference_steps
+        noised_sources: dict[int, torch.Tensor] = {}
+        # Noising each step's source runs the pipeline's timestep blocks, which leave the scheduler mutated.
+        with preserved_scheduler_state(self.pipe.scheduler):
+            # Nothing is overwritten after the final step, so it needs no source.
+            for absolute_step in range(start_step, min(active_end_step, num_inference_steps - 1)):
+                if return_fully_denoised and absolute_step == active_end_step - 1:
+                    noised_sources[absolute_step] = self._prepare_callback_latent(clean_source, source_shape)
+                    continue
+                source_at_next_step = self.add_noise_to_latent(
+                    source_latent,
+                    generator_state,
+                    num_inference_steps,
+                    absolute_step + 1,
+                ).to_torch(device="cpu", dtype=clean_source.dtype)
+                noised_sources[absolute_step] = self._prepare_callback_latent(source_at_next_step, source_shape)
+
+        return PreparedMaskedDenoising(
+            latents=self._prepare_input_latent(initial_latents, source_shape),
+            mask=self._prepare_callback_latent(masked_latent.to_mask_tensor(device=device), source_shape),
+            noised_sources=noised_sources,
+            # Prefer the generator state the input latent carries so a chained run continues its random stream.
+            generator_state=GeneratorState.from_artifact(latent) or generator_state,
+        )
+
     def denoise_latent(
         self,
         latent: LatentArtifact | InpaintMaskArtifact,
@@ -478,8 +546,35 @@ class LatentPipelineDriver(ABC):
         pipe = self.pipe
         device, dtype = self._get_device_and_type()
         source_shape = latent.source_shape
+        masked_latent_artifact = kwargs.pop("_masked_latent_artifact", None)
+        pipeline_generator_state = generator_state
 
-        if isinstance(latent, InpaintMaskArtifact):
+        if masked_latent_artifact is not None:
+            if "callback_on_step_end" not in inspect.signature(pipe.__call__).parameters:
+                raise NotImplementedError(
+                    f"Attempted to run masked denoising with {type(pipe).__name__}. Failed with driver "
+                    f"'{self.driver_namespace}' because the pipeline has no 'callback_on_step_end' required to apply the mask."
+                )
+            prepared_masked_denoising = self._prepare_masked_denoising(
+                latent=latent,
+                masked_latent=masked_latent_artifact,
+                num_inference_steps=num_inference_steps,
+                generator_state=generator_state,
+                start_step=start_step,
+                end_step=end_step,
+                return_fully_denoised=return_fully_denoised,
+                kwargs=kwargs,
+            )
+            kwargs["latents"] = prepared_masked_denoising.latents
+            pipeline_generator_state = prepared_masked_denoising.generator_state
+            callback = make_masked_denoising_callback(
+                mask=prepared_masked_denoising.mask,
+                noised_sources=prepared_masked_denoising.noised_sources,
+                start_step=start_step,
+                num_inference_steps=num_inference_steps,
+                callback=callback,
+            )
+        elif isinstance(latent, InpaintMaskArtifact):
             pipe = self._get_inpaint_pipe()
             if pipe is None:
                 raise NotImplementedError(f"Inpainting is not supported by {self.driver_namespace}. ")
@@ -500,7 +595,7 @@ class LatentPipelineDriver(ABC):
         if "callback_on_step_end" in pipe_call_params:
             kwargs["callback_on_step_end"] = callback
 
-        generator = kwargs.pop("generator", generator_state.to_generator())
+        generator = kwargs.pop("generator", pipeline_generator_state.to_generator())
         pipe_kwargs: dict[str, Any] = {
             **kwargs,
             "output_type": "latent",
@@ -545,7 +640,7 @@ class LatentPipelineDriver(ABC):
     def validate_run_configuration(
         cls,
         pipeline_artifact: DiffusionPipelineArtifact,
-        input_latent: LatentArtifact | None,
+        input_latent: LatentArtifact | InpaintMaskArtifact | MaskedLatentArtifact | None,
     ) -> list[Exception] | None:
         """Validate that the requested run configuration is supported by this driver.
 

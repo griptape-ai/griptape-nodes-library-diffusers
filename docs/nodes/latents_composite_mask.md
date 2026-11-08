@@ -28,7 +28,7 @@ Paint Mask (mask) ─────────┘
 | --- | --- | --- | --- |
 | `destination_latent` | `LatentArtifact` | Yes | Base canvas. |
 | `source_latent` | `LatentArtifact` | Yes | Latent to paste in. |
-| `mask_image` | `ImageArtifact` / `ImageUrlArtifact` | No | Blend mask. If omitted, the source replaces the destination wholesale within its placement region. |
+| `mask_image` | `ImageUrlArtifact` | No | Blend mask. If omitted, the source replaces the destination wholesale within its placement region. The parameter also has an output mode, so the mask painted in the node can be wired to other nodes. |
 
 ## Outputs
 

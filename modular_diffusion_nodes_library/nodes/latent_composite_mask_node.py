@@ -142,13 +142,14 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.add_parameter(
             Parameter(
                 name="mask_image",
-                input_types=["ImageArtifact", "ImageUrlArtifact"],
+                input_types=["ImageUrlArtifact"],
+                type="ImageUrlArtifact",
                 tooltip=(
                     "Optional mask image controlling the blend. "
                     "White pixels use the source; black pixels keep the destination. "
                     "The mask is resized to match the source latent automatically."
                 ),
-                allowed_modes={ParameterMode.INPUT},
+                allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
             )
         )
 

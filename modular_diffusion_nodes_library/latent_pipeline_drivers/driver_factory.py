@@ -34,6 +34,8 @@ class DriverSpec:
     video_fps: int
     #: Whether the driver declares an inpaint pipeline class, which decides whether mask inputs appear.
     supports_inpainting: bool
+    #: Whether the driver supports masked-latent (Differential Diffusion) denoising.
+    supports_masked_denoising: bool = False
 
 
 _DRIVER_REGISTRY: dict[str, DriverSpec] = {
@@ -48,36 +50,42 @@ _DRIVER_REGISTRY: dict[str, DriverSpec] = {
         produces_video=False,
         video_fps=16,
         supports_inpainting=True,
+        supports_masked_denoising=True,
     ),
     "FluxPipeline": DriverSpec(
         "flux:FluxLatentPipelineDriver",
         produces_video=False,
         video_fps=16,
         supports_inpainting=True,
+        supports_masked_denoising=True,
     ),
     "Flux2Pipeline": DriverSpec(
         "flux2:Flux2LatentPipelineDriver",
         produces_video=False,
         video_fps=16,
         supports_inpainting=False,
+        supports_masked_denoising=True,
     ),
     "Flux2KleinPipeline": DriverSpec(
         "flux2_klein:Flux2KleinLatentPipelineDriver",
         produces_video=False,
         video_fps=16,
         supports_inpainting=True,
+        supports_masked_denoising=True,
     ),
     "Flux3ModularPipeline": DriverSpec(
         "flux3:Flux3LatentPipelineDriver",
         produces_video=False,
         video_fps=16,
         supports_inpainting=False,
+        supports_masked_denoising=True,
     ),
     "Flux3DistilledModularPipeline": DriverSpec(
         "flux3:Flux3DistilledLatentPipelineDriver",
         produces_video=False,
         video_fps=16,
         supports_inpainting=False,
+        supports_masked_denoising=True,
     ),
     "HunyuanVideo15Pipeline": DriverSpec(
         "hunyuan_video1_5:HunyuanVideo15TextToVideoLatentPipelineDriver",
@@ -114,24 +122,28 @@ _DRIVER_REGISTRY: dict[str, DriverSpec] = {
         produces_video=False,
         video_fps=16,
         supports_inpainting=True,
+        supports_masked_denoising=True,
     ),
     "QwenImageEditPipeline": DriverSpec(
         "qwen_edit:QwenEditLatentPipelineDriver",
         produces_video=False,
         video_fps=16,
         supports_inpainting=True,
+        supports_masked_denoising=True,
     ),
     "StableDiffusion3Pipeline": DriverSpec(
         "stable_diffusion_3:StableDiffusion3LatentPipelineDriver",
         produces_video=False,
         video_fps=16,
         supports_inpainting=True,
+        supports_masked_denoising=True,
     ),
     "StableDiffusionXLPipeline": DriverSpec(
         "stable_diffusion_xl:StableDiffusionXLLatentPipelineDriver",
         produces_video=False,
         video_fps=16,
         supports_inpainting=True,
+        supports_masked_denoising=True,
     ),
     "WanPipeline": DriverSpec(
         "wan:WanTextToVideoLatentPipelineDriver",
@@ -168,6 +180,7 @@ _DRIVER_REGISTRY: dict[str, DriverSpec] = {
         produces_video=False,
         video_fps=16,
         supports_inpainting=True,
+        supports_masked_denoising=True,
     ),
 }
 
