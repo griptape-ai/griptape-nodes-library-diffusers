@@ -20,6 +20,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     PipelineOutput,
     VideoMedia,
 )
+from modular_diffusion_nodes_library.misc.schedule_utils import strength_for_step_index
 from modular_diffusion_nodes_library.utils.torch_utils import no_grad
 
 if TYPE_CHECKING:
@@ -239,7 +240,7 @@ class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         import torch  # type: ignore[reportMissingImports]
 
@@ -254,7 +255,7 @@ class HunyuanVideo15TextToVideoLatentPipelineDriver(LatentPipelineDriver):
             latents=latents,
             noise=noise,
             num_inference_steps=num_inference_steps,
-            strength=strength,
+            strength=strength_for_step_index(start_step, num_inference_steps),
         )
         result = self._get_required(output, "noisy_latents", torch.Tensor)
         return self._make_latent_artifact(

@@ -33,6 +33,10 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     read_driver_meta,
 )
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
+from modular_diffusion_nodes_library.misc.schedule_utils import (
+    strength_for_step_index,
+    truncation_safe_strength,
+)
 
 if TYPE_CHECKING:
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
@@ -163,12 +167,12 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         """Add noise to image latents via modular pipeline blocks.
 
-        1. ``strength <= 0.0`` — no-op, return input unchanged.
-        2. ``strength >= 1.0`` — delegate to ``create_noise_latent``; output
+        1. ``start_step >= num_inference_steps`` — no-op, return input unchanged.
+        2. ``start_step == 0`` — delegate to ``create_noise_latent``; output
            tagged ``"noise"``.
         3. Input is degenerate (``kind in {"", "noise"}``) with partial strength —
            run the block on the (zero-or-noise) input, normalise by
@@ -180,9 +184,9 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
         """
         import torch  # type: ignore[reportMissingImports]
 
-        if strength <= 0.0:
+        if start_step >= num_inference_steps:
             return latent
-        if strength >= 1.0:
+        if start_step == 0:
             noise_artifact = self.create_noise_latent(latent.source_shape, generator_state)
             return self._make_latent_artifact(
                 noise_artifact.to_torch(),
@@ -194,6 +198,10 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
         device, dtype = self._get_device_and_type()
         latents = latent.to_torch(device=device, dtype=dtype)
         generator = generator_state.to_generator()
+        # SDXL truncates int(N * strength), so a step-aligned strength must not fall a hair short.
+        strength = truncation_safe_strength(
+            strength_for_step_index(start_step, num_inference_steps), num_inference_steps
+        )
         output_state = self._call_block(
             _SDXLAddNoiseStep(),
             image_latents=latents,

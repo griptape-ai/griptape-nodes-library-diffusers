@@ -129,7 +129,7 @@ Required overrides:
 | `create_noise_latent()` | `(source_shape, generator_state) -> LatentArtifact` | Prefer the diffusers modular `PrepareLatents` block via `self._call_block(...)`. See [`stable_diffusion_xl.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) `_SDXLPrepareNoiseLatentStep`. Return via `_make_latent_artifact`. |
 | `encode_media()` | `(media: ImageMedia \| VideoMedia, generator_state) -> LatentArtifact` | Single entry point for image and video. Image-only drivers raise `NotImplementedError` for `VideoMedia` and vice versa. Use `self.modular_pipe.blocks.sub_blocks["vae_encoder"]` where available. Apply VAE whitening. |
 | `decode_latent()` | `(latent: LatentArtifact) -> Image \| list[Image] \| np.ndarray` | Use `self.modular_pipe.blocks.sub_blocks["decode"]` where available. Apply inverse whitening. `source_shape` is on the input artifact. |
-| `add_noise_to_latent()` | `(latent, generator_state, num_inference_steps, strength) -> LatentArtifact` | Prefer modular e.g.`Img2ImgSetTimesteps` + `Img2ImgPrepareLatents` block sequence. |
+| `add_noise_to_latent()` | `(latent, generator_state, num_inference_steps, start_step) -> LatentArtifact` | Prefer modular e.g.`Img2ImgSetTimesteps` + `Img2ImgPrepareLatents` block sequence. |
 
 Optional overrides:
 - `_prepare_input_latent` / `prepare_output_latent` — pack/unpack for transformers that use sequence-packed latents (Flux, Qwen)
