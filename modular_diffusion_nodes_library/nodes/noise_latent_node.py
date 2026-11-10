@@ -37,6 +37,7 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         self.pipe_params = ModularDiffusionPipelineParameters(self)
         self.pipe_params.add_input_parameters()
 
+        self._seed_parameter: SeedParameter | None = None
         self.add_seed_parameter()
 
         self.add_parameter(
@@ -133,6 +134,8 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
 
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
         super().after_value_set(parameter, value)
+        if self._seed_parameter is not None:
+            self._seed_parameter.after_value_set(parameter, value)
         if parameter.name in ("height", "width", "num_frames", "pipeline"):
             self._update_compatibility_message(build_if_needed=False)
 
@@ -246,7 +249,8 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
             self._dimensionality_warning.hide = True
 
     def preprocess(self) -> None:
-        pass
+        if self._seed_parameter is not None:
+            self._seed_parameter.preprocess()
 
     def process(self) -> AsyncResult:
         self.preprocess()

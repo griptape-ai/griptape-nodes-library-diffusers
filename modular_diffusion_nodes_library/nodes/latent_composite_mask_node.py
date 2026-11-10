@@ -7,11 +7,18 @@ from griptape.artifacts import ImageUrlArtifact
 from griptape_nodes.exe_types.core_types import Parameter, ParameterGroup, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.exe_types.param_types.parameter_bool import ParameterBool
+from griptape_nodes.exe_types.param_types.parameter_dict import ParameterDict
 from griptape_nodes.exe_types.param_types.parameter_float import ParameterFloat
 from griptape_nodes.exe_types.param_types.parameter_int import ParameterInt
 from griptape_nodes.exe_types.param_types.parameter_string import ParameterString
+from griptape_nodes.retained_mode.events.connection_events import (
+    ListConnectionsForNodeRequest,
+    ListConnectionsForNodeResultSuccess,
+)
+from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.traits.options import Options
 from griptape_nodes.traits.slider import Slider
+from griptape_nodes.traits.widget import Widget
 
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
@@ -30,6 +37,13 @@ MAX_HEIGHT = MAX_IMAGE_DIMENSION
 
 LATENT_SCALE_FACTOR = 8  # Latent space is 1/8 of pixel space
 
+_PLACEMENT_WIDGET_LIBRARY = "Griptape Modular Diffusion Nodes Library"
+_PLACEMENT_WIDGET_NAME = "LatentPlacementEditor"
+# Parameters the placement editor mirrors; either side can set them.
+_PLACEMENT_PARAMS = ("x_offset", "y_offset", "resize_source")
+# Pixel sizes of both latents. Only a run can read the latents, so only a run reports these.
+_SIZE_KEYS = ("dest_width", "dest_height", "source_width", "source_height")
+
 
 class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     """Composite a source latent onto a destination latent with an optional mask blend.
@@ -46,6 +60,8 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def __init__(self, **kwargs) -> None:
         self._initializing = True
         super().__init__(**kwargs)
+        self._syncing_to_widget = False  # Prevent loop: param → widget → param
+        self._syncing_to_params = False  # Prevent loop: widget → param → widget
 
         self.MAX_WIDTH = MAX_WIDTH
         self.MAX_HEIGHT = MAX_HEIGHT
@@ -75,11 +91,32 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
 
         self.add_parameter(
+            ParameterDict(
+                name="placement_editor",
+                default_value={
+                    "dest_width": 0,
+                    "dest_height": 0,
+                    "source_width": 0,
+                    "source_height": 0,
+                    "x_offset": 0,
+                    "y_offset": 0,
+                    "resize_source": False,
+                },
+                tooltip=(
+                    "Drag the source over the destination to set x_offset / y_offset. "
+                    "Latent sizes appear after the node has run once."
+                ),
+                allowed_modes={ParameterMode.PROPERTY},
+                traits={Widget(name=_PLACEMENT_WIDGET_NAME, library=_PLACEMENT_WIDGET_LIBRARY)},
+            )
+        )
+
+        self.add_parameter(
             ParameterInt(
                 name="x_offset",
                 default_value=0,
                 tooltip="Horizontal offset in pixel space (divided by 8 internally for latent space).",
-                traits={Slider(min_val=0, max_val=self.MAX_WIDTH)},
+                traits={Slider(min_val=-self.MAX_WIDTH, max_val=self.MAX_WIDTH, soft_limits=True)},
             )
         )
 
@@ -88,7 +125,7 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
                 name="y_offset",
                 default_value=0,
                 tooltip="Vertical offset in pixel space (divided by 8 internally for latent space).",
-                traits={Slider(min_val=0, max_val=self.MAX_HEIGHT)},
+                traits={Slider(min_val=-self.MAX_HEIGHT, max_val=self.MAX_HEIGHT, soft_limits=True)},
             )
         )
 
@@ -167,6 +204,106 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             skip_before_value_set=skip_before_value_set,
         )
 
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        if parameter.name == "placement_editor" and not self._syncing_to_widget and isinstance(value, dict):
+            self._sync_params_from_widget(value)
+        elif parameter.name in _PLACEMENT_PARAMS and not self._syncing_to_params:
+            self._update_widget_placement()
+        return super().after_value_set(parameter, value)
+
+    def after_incoming_connection(self, source_node, source_parameter, target_parameter) -> None:
+        if target_parameter.name in _PLACEMENT_PARAMS:
+            self._refresh_locked_in_widget()
+        return super().after_incoming_connection(source_node, source_parameter, target_parameter)
+
+    def after_incoming_connection_removed(self, source_node, source_parameter, target_parameter) -> None:
+        if target_parameter.name in _PLACEMENT_PARAMS:
+            self._refresh_locked_in_widget()
+        return super().after_incoming_connection_removed(source_node, source_parameter, target_parameter)
+
+    # ── Widget ↔ parameter sync ────────────────────────────────────────────────
+
+    def _get_locked_params(self) -> list[str]:
+        """Placement params with an incoming connection, which the widget must not overwrite."""
+        result = GriptapeNodes.handle_request(ListConnectionsForNodeRequest(node_name=self.name))
+        if not isinstance(result, ListConnectionsForNodeResultSuccess):
+            return []
+        return [
+            conn.target_parameter_name
+            for conn in result.incoming_connections
+            if conn.target_parameter_name in _PLACEMENT_PARAMS
+        ]
+
+    def _current_widget_value(self) -> dict:
+        """The stored widget value, with the latent sizes from the latest run laid over it.
+
+        A run reports sizes through `publish_update_to_parameter`, which reaches the editor and this
+        node's `parameter_output_values` but not its stored value, so the sizes are read from there.
+        """
+        stored = self.get_parameter_value("placement_editor") or {}
+        produced = self.parameter_output_values.get("placement_editor") or {}
+        sizes = {key: produced[key] for key in _SIZE_KEYS if key in produced}
+        return {**stored, **sizes}
+
+    def _push_widget(self, new_dict: dict) -> None:
+        self._syncing_to_widget = True
+        try:
+            self.set_parameter_value("placement_editor", new_dict)
+            self.publish_update_to_parameter("placement_editor", new_dict)
+        finally:
+            self._syncing_to_widget = False
+
+    def _refresh_locked_in_widget(self) -> None:
+        existing = self._current_widget_value()
+        new_locked = self._get_locked_params()
+        if set(existing.get("locked") or []) == set(new_locked):
+            return
+        self._push_widget({**existing, "locked": new_locked})
+
+    def _update_widget_placement(self) -> None:
+        """Mirror the placement params into the widget, skipping the push when nothing changed."""
+        existing = self._current_widget_value()
+        placement = {
+            "x_offset": self.get_parameter_value("x_offset") or 0,
+            "y_offset": self.get_parameter_value("y_offset") or 0,
+            "resize_source": bool(self.get_parameter_value("resize_source")),
+        }
+        if all(existing.get(key) == placement[key] for key in _PLACEMENT_PARAMS):
+            return
+        self._push_widget({**existing, **placement, "locked": self._get_locked_params()})
+
+    def _sync_params_from_widget(self, widget_dict: dict) -> None:
+        """Copy the widget's placement into every placement param that has no incoming connection.
+
+        The widget value is published first so the editor already holds it when the param updates
+        re-render the node; otherwise the widget would redraw from the old value and snap back.
+        """
+        locked = set(widget_dict.get("locked") or [])
+        self.publish_update_to_parameter("placement_editor", widget_dict)
+        self._syncing_to_params = True
+        try:
+            for name in _PLACEMENT_PARAMS:
+                if name in widget_dict and name not in locked:
+                    self.set_parameter_value(name, widget_dict[name])
+                    self.publish_update_to_parameter(name, widget_dict[name])
+        finally:
+            self._syncing_to_params = False
+
+    def _publish_latent_sizes(self, dest_shape: tuple[int, ...], src_shape: tuple[int, ...]) -> None:
+        """Report both latents' pixel sizes to the widget. Runs where the node runs."""
+        existing = self.get_parameter_value("placement_editor") or {}
+        widget_dict = {
+            **existing,
+            "dest_width": dest_shape[-1] * LATENT_SCALE_FACTOR,
+            "dest_height": dest_shape[-2] * LATENT_SCALE_FACTOR,
+            "source_width": src_shape[-1] * LATENT_SCALE_FACTOR,
+            "source_height": src_shape[-2] * LATENT_SCALE_FACTOR,
+            "x_offset": self.get_parameter_value("x_offset") or 0,
+            "y_offset": self.get_parameter_value("y_offset") or 0,
+            "resize_source": bool(self.get_parameter_value("resize_source")),
+        }
+        self.publish_update_to_parameter("placement_editor", widget_dict)
+
     def validate_in_execution_environment(self) -> list[Exception] | None:
         """Both inputs are held latents, so only the process running the node can read them."""
         errors: list[Exception] = []
@@ -213,6 +350,7 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         dest_h, dest_w = destination.shape[-2], destination.shape[-1]
         src_h, src_w = source.shape[-2], source.shape[-1]
+        self._publish_latent_sizes(tuple(destination.shape), tuple(source.shape))
 
         if resize_source:
             source = F.interpolate(source, size=(dest_h, dest_w), mode="bilinear", align_corners=False)

@@ -29,7 +29,7 @@ POLICY_KEYS = (
 def _call_sites(attribute: str) -> list[str]:
     sites = []
     for path in sorted(PACKAGE.rglob("*.py")):
-        tree = ast.parse(path.read_text())
+        tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and getattr(node.func, "attr", "") == attribute:
                 sites.append(f"{path.relative_to(PACKAGE.parent)}:{node.lineno}")
@@ -39,7 +39,7 @@ def _call_sites(attribute: str) -> list[str]:
 def _files_reading(key: str) -> set[str]:
     found = set()
     for path in sorted(PACKAGE.rglob("*.py")):
-        if f'"{key}"' in path.read_text():
+        if f'"{key}"' in path.read_text(encoding="utf-8"):
             found.add(str(path.relative_to(PACKAGE.parent)))
     return found
 

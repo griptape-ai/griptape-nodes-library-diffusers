@@ -90,7 +90,7 @@ def _survey() -> tuple[set[str], dict[str, set[str]], dict[pathlib.Path, dict[st
     per_file: dict[pathlib.Path, dict[str, set[str]]] = {}
 
     for path in _source_files():
-        tree = ast.parse(path.read_text())
+        tree = ast.parse(path.read_text(encoding="utf-8"))
         local: dict[str, set[str]] = defaultdict(set)
         for call in _parameter_calls(tree):
             name = _parameter_name(call)
@@ -152,7 +152,7 @@ def test_no_orchestrator_hook_reads_a_held_parameter() -> None:
 
     offenders: list[str] = []
     for path, local in per_file.items():
-        tree = ast.parse(path.read_text())
+        tree = ast.parse(path.read_text(encoding="utf-8"))
         for function in ast.walk(tree):
             if not isinstance(function, ast.FunctionDef) or function.name not in ORCHESTRATOR_HOOKS:
                 continue
