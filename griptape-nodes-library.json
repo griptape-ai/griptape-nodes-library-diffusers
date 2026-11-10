@@ -1324,6 +1324,7 @@
     "workflows/templates/CustomPipelineText2Image.py",
     "workflows/templates/Flux3LayoutControlText2Image.py",
     "workflows/templates/Flux3LayoutControlImageBasedEditing.py",
-    "workflows/templates/WanAnimate2.py"
+    "workflows/templates/WanAnimate2.py",
+    "workflows/templates/LatentCompositionWithMaskedDenoising.py"
   ]
 }
