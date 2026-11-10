@@ -423,9 +423,13 @@ class LatentPipelineDriver(ABC):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
-        """Return noised latent. See class docstring for the latent shape contract."""
+        """Return the latent noised to the level at which denoising resumes at ``start_step``.
+
+        ``start_step`` is an index into the ``num_inference_steps`` schedule; 0 returns pure noise.
+        See class docstring for the latent shape contract.
+        """
         ...
 
     def encode_prompt(self, prompt: str, negative_prompt: str, **kwargs: Any) -> TextEncodings:  # noqa: ARG002

@@ -357,7 +357,7 @@ class Flux3LatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         import torch  # type: ignore[reportMissingImports]
         from diffusers.modular_pipelines.flux3.before_denoise import (  # type: ignore[reportMissingImports]
@@ -378,11 +378,9 @@ class Flux3LatentPipelineDriver(LatentPipelineDriver):
         latents = latent.to_torch(device=device, dtype=dtype)
         latents = _patchify_latents(latents)
         noise = _patchify_latents(noise_artifact.to_torch(device=device, dtype=dtype))
-        init_timestep = min(round(num_inference_steps * strength), num_inference_steps)
-        start = max(num_inference_steps - init_timestep, 0)
-        latent_timestep = timesteps[start : start + 1]
+        latent_timestep = timesteps[start_step : start_step + 1]
         # scale_noise reads sigmas from begin_index, not the timestep argument, so point it at the start step.
-        self.modular_pipe.scheduler.set_begin_index(start)
+        self.modular_pipe.scheduler.set_begin_index(start_step)
         noisy_latents = self.modular_pipe.scheduler.scale_noise(latents, latent_timestep, noise)
         noise_state = GeneratorState.from_artifact(noise_artifact) or generator_state
         return self._make_latent_artifact(

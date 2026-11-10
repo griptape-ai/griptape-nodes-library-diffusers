@@ -786,7 +786,7 @@ class WanAnimate2LatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         # A noised video cannot become segment conditioning: each segment conditions on the previous
         # segment's fully denoised pixels, and there is no block path for starting mid-schedule from one.

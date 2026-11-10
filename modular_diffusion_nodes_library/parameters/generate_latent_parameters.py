@@ -315,7 +315,7 @@ class DiffusionPipelineGenerateLatentParameters:
             input_latent_artifact,
             self._resolve_generator_state(input_latent_artifact),
             self.get_num_inference_steps(),
-            self.get_strength(),
+            self.start_step,
         )
 
     def publish_output_latent(self, output_latent_artifact: LatentArtifact) -> None:
@@ -370,12 +370,6 @@ class DiffusionPipelineGenerateLatentParameters:
     @property
     def return_fully_denoised(self) -> bool:
         return bool(self._node.get_parameter_value("return_fully_denoised"))
-
-    def get_strength(self) -> float:
-        number_of_steps = self.get_num_inference_steps()
-        if number_of_steps > 0 and self.start_step > 0:
-            return 1.0 - (self.start_step / number_of_steps)
-        return 1.0
 
     def get_strength_affected_steps(self, num_inference_steps: int) -> int:
         start_step = min(self.start_step, num_inference_steps)

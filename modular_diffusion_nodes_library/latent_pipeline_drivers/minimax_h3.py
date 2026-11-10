@@ -596,7 +596,7 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         # Video-to-video would need to resume a partially-noised latent mid-schedule, but
         # MiniMaxH3Scheduler.set_timesteps always rebuilds the full linspace(1, 0, n) grid and the

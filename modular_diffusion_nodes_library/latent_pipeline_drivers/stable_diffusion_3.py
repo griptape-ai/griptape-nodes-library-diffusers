@@ -32,6 +32,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
 )
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
+from modular_diffusion_nodes_library.misc.schedule_utils import strength_for_step_index
 
 if TYPE_CHECKING:
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
@@ -156,7 +157,7 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         """Add noise to image latents via modular pipeline blocks.
 
@@ -177,7 +178,7 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
             latents=noise_latent,
             image_latents=image_latents,
             num_inference_steps=num_inference_steps,
-            strength=strength,
+            strength=strength_for_step_index(start_step, num_inference_steps),
             height=latent.source_shape[-2],
             width=latent.source_shape[-1],
         )
