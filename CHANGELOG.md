@@ -10,6 +10,38 @@ the `library_version` in `griptape-nodes-library.json`.
 
 <!-- Entries go in changelog.d/, one file each. See changelog.d/README.md. -->
 
+## [0.9.0] - 2026-11-11
+
+### Added
+
+- `Latents Composite Mask` has a placement editor: drag the source over the destination, or use the
+  position presets, to set `x_offset` and `y_offset`. It also toggles `resize_source`, and stays in
+  step with those parameters. Latent sizes appear after the node has run once.
+  [#116](https://github.com/griptape-ai/griptape-nodes-library-diffusers/issues/116)
+- Added `Latent to Media (Standalone Decoder)`, which currently supports only the LTX-2.5
+  diffusion decoder. LTX-2.5 uses chunked neighborhood attention by default to keep decoder memory
+  use bounded. This node is intended to host future operations that transform latents into media.
+- `Latents Composite Mask` accepts negative `x_offset` and `y_offset`, so the source can hang off the
+  top or left edge of the destination. The sliders and the placement editor both allow it.
+  [#126](https://github.com/griptape-ai/griptape-nodes-library-diffusers/issues/126)
+- Save EXR Sequence writes float RGB images or video frames as numbered OpenEXR files, preserving
+  the input values and allowing float16 or float32 output.
+
+### Changed
+
+- **Breaking:** Decode HDR Latents no longer saves EXR files itself. Workflows using its EXR
+  settings must connect the new `raw_media` output to Save EXR Sequence; tone-mapped previews remain
+  available from the decoder.
+
+### Fixed
+
+- Image preview intermediates are saved under the static files folder instead of the project
+  outputs, and Enable Directory Cleanup now trims the folder they are actually written to.
+  [#129](https://github.com/griptape-ai/griptape-nodes-library-diffusers/issues/129)
+- `Create Noise Latents` now picks a new seed on each run when `randomize_seed` is on, and locks the
+  `seed` field while it is. It used the same seed, and so the same noise, on every run.
+  [#127](https://github.com/griptape-ai/griptape-nodes-library-diffusers/issues/127)
+
 ## [0.8.0] - 2026-11-03
 
 ### Added
@@ -49,5 +81,6 @@ the `library_version` in `griptape-nodes-library.json`.
 - Create Noise Latents now produces correctly shaped latents for Flux Fill pipelines.
 - LTX2 no longer fails on Apple Silicon (MPS) during RoPE computation or audio decoding.
 
-[Unreleased]: https://github.com/griptape-ai/griptape-nodes-library-diffusers/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/griptape-ai/griptape-nodes-library-diffusers/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/griptape-ai/griptape-nodes-library-diffusers/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/griptape-ai/griptape-nodes-library-diffusers/compare/v0.7.1...v0.8.0

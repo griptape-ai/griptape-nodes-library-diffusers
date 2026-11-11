@@ -35,7 +35,7 @@
   "metadata": {
     "author": "Griptape, Inc.",
     "description": "Modular Diffusion nodes for Griptape Nodes.",
-    "library_version": "0.8.0",
+    "library_version": "0.9.0",
     "engine_version": "0.105.0",
     "tags": [
       "Griptape",
@@ -429,18 +429,18 @@
                 "notes": "Apache-2.0."
               },
               "md_wan_2_2_animate_2_14b": {
-                  "display_name": "Wan 2.2 Animate 2 14B",
-                  "provider_model_id": "Wan-AI/Wan2.2-Animate-2-14B-Diffusers",
-                  "family": "Wan",
-                  "key_support": "NO_KEY_REQUIRED",
-                  "notes": "Apache-2.0."
+                "display_name": "Wan 2.2 Animate 2 14B",
+                "provider_model_id": "Wan-AI/Wan2.2-Animate-2-14B-Diffusers",
+                "family": "Wan",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
               },
               "md_wan_2_2_animate_2_14b_distilled": {
-                  "display_name": "Wan 2.2 Animate 2 14B Distilled",
-                  "provider_model_id": "Wan-AI/Wan2.2-Animate-2-14B-Distilled-Diffusers",
-                  "family": "Wan",
-                  "key_support": "NO_KEY_REQUIRED",
-                  "notes": "Apache-2.0."
+                "display_name": "Wan 2.2 Animate 2 14B Distilled",
+                "provider_model_id": "Wan-AI/Wan2.2-Animate-2-14B-Distilled-Diffusers",
+                "family": "Wan",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
               },
               "md_z_image_turbo": {
                 "display_name": "Z-Image Turbo",
@@ -868,14 +868,14 @@
       }
     },
     {
-        "class_name": "SaveExrNode",
-        "file_path": "./modular_diffusion_nodes_library/nodes/save_exr_node.py",
-        "metadata": {
-            "category": "ModularDiffusion/IO",
-            "description": "Write FloatMediaArtifact RGB frames unchanged to an OpenEXR sequence.",
-            "display_name": "Save EXR Sequence",
-            "group": "diffusion"
-        }
+      "class_name": "SaveExrNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/save_exr_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/IO",
+        "description": "Write FloatMediaArtifact RGB frames unchanged to an OpenEXR sequence.",
+        "display_name": "Save EXR Sequence",
+        "group": "diffusion"
+      }
     },
     {
       "class_name": "VaeEncodeNode",
@@ -918,20 +918,22 @@
       }
     },
     {
-        "class_name": "LatentToMediaNode",
-        "file_path": "./modular_diffusion_nodes_library/nodes/latent_to_media_node.py",
-        "metadata": {
-            "category": "ModularDiffusion/Encode\\Decode",
-            "description": "Standalone alternative to Decode Media: runs its own model (e.g. a diffusion decode model), to turn image or video latents into media, with no pipeline required.",
-            "display_name": "Latent to Media (Standalone Decoder)",
-            "group": "diffusion",
-            "declarations": [
-                {
-                    "type": "model_usage",
-                    "model_ids": ["md_ltx_2_5_diffusers"]
-                }
+      "class_name": "LatentToMediaNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/latent_to_media_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Encode\\Decode",
+        "description": "Standalone alternative to Decode Media: runs its own model (e.g. a diffusion decode model), to turn image or video latents into media, with no pipeline required.",
+        "display_name": "Latent to Media (Standalone Decoder)",
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "model_usage",
+            "model_ids": [
+              "md_ltx_2_5_diffusers"
             ]
-        }
+          }
+        ]
+      }
     },
     {
       "class_name": "LatentCompositeMaskNode",
