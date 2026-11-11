@@ -27,9 +27,6 @@ from __future__ import annotations
 
 import logging
 import math
-import os
-import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast, override
 
 from diffusers.models.transformers.transformer_wan_animate_2 import (  # type: ignore[reportMissingImports]
@@ -63,6 +60,7 @@ from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (
+    DecodeOutputType,
     DecodeResult,
     GeneratorState,
     ImageMedia,
@@ -72,6 +70,10 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
 from modular_diffusion_nodes_library.utils.conditioning_utils import MediaGenConditioningKey
 from modular_diffusion_nodes_library.utils.torch_utils import no_grad
+from modular_diffusion_nodes_library.utils.triton_utils import (
+    configure_compile_cache_dirs,
+    configure_triton_compiler,
+)
 
 if TYPE_CHECKING:
     import torch  # type: ignore[reportMissingImports]
@@ -692,7 +694,7 @@ class WanAnimate2LatentPipelineDriver(LatentPipelineDriver):
         )
 
     @override
-    def decode_latent(self, latent: LatentArtifact) -> DecodeResult:
+    def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
         """Decode per segment when the meta allows it, else decode the tensor as one plain Wan latent."""
         import torch  # type: ignore[reportMissingImports]
         from diffusers.modular_pipelines.wan_animate_2.denoise import (  # type: ignore[reportMissingImports]
@@ -747,9 +749,9 @@ class WanAnimate2LatentPipelineDriver(LatentPipelineDriver):
             real_frame_len=num_frames,
             # The driver stretches its inputs to the latent's size, so there are never letterbox bars.
             crop_region=(0, 0, height, width),
-            output_type="pil",
+            output_type=output_type,
         )
-        return self._get_required(state.values, "videos", list)[0]
+        return self._get_decoded_media(state.values, "videos", output_type, is_video=True)
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
@@ -796,33 +798,6 @@ class WanAnimate2LatentPipelineDriver(LatentPipelineDriver):
     # ------------------------------------------------------------------
     # Denoise
     # ------------------------------------------------------------------
-    def _configure_triton_compiler(self) -> None:
-        """Point Triton's Windows compiler at the tcc bundled with the execution dependency."""
-        if sys.platform != "win32":
-            return
-
-        try:
-            import triton
-        except ImportError as error:
-            raise RuntimeError(
-                f"{self.driver_namespace}: Attempted to configure Triton's Windows compiler. Failed because "
-                "the declared 'triton-windows' execution dependency is not importable."
-            ) from error
-
-        existing_compiler = os.environ.get("CC")
-        if existing_compiler:
-            logger.debug("Keeping existing CC compiler setting: %s", existing_compiler)
-            return
-
-        tcc_path = Path(cast(str, triton.__file__)).parent / "runtime" / "tcc" / "tcc.exe"
-        if not tcc_path.is_file():
-            raise RuntimeError(
-                f"{self.driver_namespace}: Attempted to configure Triton's Windows compiler. Failed because "
-                f"the bundled tcc compiler was not found at '{tcc_path}'."
-            )
-
-        os.environ["CC"] = str(tcc_path)
-
     @override
     def denoise_latent(
         self,
@@ -970,7 +945,8 @@ class WanAnimate2LatentPipelineDriver(LatentPipelineDriver):
         transformer = pipe.transformer
         # Avoid reinstalling torch.compile wrappers on cached transformer blocks for every generation.
         if not getattr(transformer, _COMPILED_FLAG, False):
-            self._configure_triton_compiler()
+            configure_triton_compiler(self.driver_namespace)
+            configure_compile_cache_dirs()
             transformer.compile_repeated_blocks()
             setattr(transformer, _COMPILED_FLAG, True)
 

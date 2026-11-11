@@ -111,6 +111,6 @@ class WanAnimate2PipelineParameters(ModularDiffusionPipelineTypePipelineParamete
             components_manager=manager,
             local_files_only=True,
         )
-        pipe.load_components(dtype=torch.bfloat16, local_files_only=True)
+        pipe.load_components(dtype=torch.bfloat16, revision=build_data["revision"], local_files_only=True)
         manager.enable_auto_cpu_offload(device=get_best_device())
         return pipe  # type: ignore[reportReturnType]

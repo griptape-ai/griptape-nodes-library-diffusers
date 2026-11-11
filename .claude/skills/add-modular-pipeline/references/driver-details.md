@@ -190,7 +190,7 @@ Inverse of `encode_media`. Apply the inverse whitening **first**, then decode. `
 
 ```python
 @override
-def decode_latent(self, latent: LatentArtifact) -> Image:
+def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = "pil") -> DecodeResult:
     device, dtype = self._get_device_and_type()
     latents = latent.to_torch(device=device, dtype=dtype)
     decode_block = self.modular_pipe.blocks.sub_blocks["decode"]
