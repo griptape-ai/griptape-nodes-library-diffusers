@@ -58,6 +58,7 @@ The exact list depends on the connected pipeline. Common parameters:
 | `add_noise` | bool | `False` | Re-noise the input before denoising (useful for rediffusion / Image-to-Image-style runs). |
 | `start_step` | int | `0` | 0-based start index into the denoising schedule. |
 | `end_step` | int | `-1` | 0-based end index; `-1` runs to the end. |
+| `return_fully_denoised` | bool | `false` | When on, the final step is aimed at a fully clean latent (sigma 0) instead of the next point on the schedule, so stopping early with `end_step` still returns a denoised result. The step count does not change. Not supported with a masked latent. |
 
 ## Provider / model behavior
 
