@@ -142,9 +142,8 @@ class DiffusionPipelineGenerateLatentParameters:
                 name="return_fully_denoised",
                 default_value=False,
                 type="bool",
-                tooltip="When enabled, the terminal sigma is appended to the sliced schedule so the denoiser always reaches a fully clean latent.",
+                tooltip="When enabled, the final step is aimed at a fully clean latent (sigma 0), so stopping early with end_step still returns a denoised result.",
                 allowed_modes={ParameterMode.PROPERTY},
-                hide=True,  # TO DO: This parameter doesn't work as intended yet
             )
         )
         self._node.add_parameter(
