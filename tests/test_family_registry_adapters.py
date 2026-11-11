@@ -29,6 +29,7 @@ from modular_diffusion_nodes_library.memory_estimation.family_registry import ( 
     _adapt_minimax_h3,
     _adapt_qwen_family,
     _adapt_sd3,
+    _adapt_wan_animate_2,
     _adapt_wan_family,
     _adapt_zimage,
     get_sdxl_unet_levels,
@@ -119,6 +120,17 @@ def test_adapt_wan_family_reads_wan_field_names_and_unpacks_the_patch_size_tuple
     fields = _adapt_wan_family(pipe)
 
     assert fields.hidden_dim == 40 * 128
+    assert fields.num_layers == 40
+    assert fields.patch_size_spatial == 2
+    assert fields.patch_size_temporal == 1
+
+
+def test_adapt_wan_animate_2_reads_animate_2_field_names_and_unpacks_the_patch_size_tuple() -> None:
+    pipe = _pipe_with_transformer_config(dim=5120, num_heads=40, num_layers=40, patch_size=(1, 2, 2))
+
+    fields = _adapt_wan_animate_2(pipe)
+
+    assert fields.hidden_dim == 5120
     assert fields.num_layers == 40
     assert fields.patch_size_spatial == 2
     assert fields.patch_size_temporal == 1

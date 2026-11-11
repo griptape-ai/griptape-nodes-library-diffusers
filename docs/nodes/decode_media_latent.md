@@ -36,7 +36,7 @@ Generate Media Latents → [Decode Media Latent] → Save Image / Save Video
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `fps` | int (1–120) | model's native rate | Output frame rate. **Only shown for video pipelines.** Defaults to the rate the selected model generates at (LTX 25, MiniMax-H3 24, WAN 16, HunyuanVideo 1.5 15), so leaving it alone plays back at the correct speed. |
+| `fps` | int (1–120) | model's native rate | Output frame rate. **Only shown for video pipelines.** Defaults to the rate the selected model generates at (LTX 25, MiniMax-H3 24, WAN Animate 2 24, WAN 16, HunyuanVideo 1.5 15), so leaving it alone plays back at the correct speed. |
 
 ## Provider / model behavior
 
@@ -44,6 +44,7 @@ Generate Media Latents → [Decode Media Latent] → Save Image / Save Video
 | --- | --- |
 | Image pipelines | `output_image` as an `ImageUrlArtifact`. |
 | LTX, WAN, HunyuanVideo 1.5 | `output_video` as a silent MP4 at `fps`. |
+| WAN Animate 2 (and Distilled) | `output_video` as a silent MP4 at `fps` (default **24**). A latent straight from [Generate Media Latents](generate_media_latents.md) carries per-segment metadata, so long clips decode exactly as they were generated. Without that metadata (after Save/Load Latent Tensor, Create Empty Latents, a cancelled run, or in the live preview) the latent decodes as one plain WAN video: the frame count is the same, but frames near each segment seam can differ slightly. |
 | LTX2 (base, video-conditioning, IC-LoRA) | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. The HDR IC-LoRA path (`Decode HDR Latents`) never produces audio. |
 | MiniMax-H3 | `output_video` as an MP4 **with an audio track**. Video and audio are generated jointly by one denoising loop, and are muxed together here. `fps` defaults to the model's fixed **24** — changing it desynchronises the soundtrack, since the audio is muxed at its own true sample rate. |
 | Flux3 | `output_image` as an `ImageUrlArtifact`. The decoder restores the model's packed VAE patches internally and crops VAE-encoded single-image latents back to their reference bounds. |

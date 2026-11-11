@@ -151,6 +151,12 @@ _DRIVER_REGISTRY: dict[str, DriverSpec] = {
         video_fps=16,
         supports_inpainting=False,
     ),
+    "WanAnimate2Pipeline": DriverSpec(
+        "wan_animate_2:WanAnimate2LatentPipelineDriver",
+        produces_video=True,
+        video_fps=24,
+        supports_inpainting=False,
+    ),
     "WanVACEPipeline": DriverSpec(
         "wan_vace:WanVaceLatentPipelineDriver",
         produces_video=True,
