@@ -212,8 +212,14 @@ class PipelineMemoryEstimateNode(SuccessFailureNode):
             estimate_pipeline_memory_from_artifact,
         )
 
+        resident_pipe = None
+        if pipeline_artifact.config_hash:
+            resident_pipe = self.local_objects.get(self.local_objects.key_for(pipeline_artifact.config_hash))
+
         try:
-            estimate = estimate_pipeline_memory_from_artifact(pipeline_artifact, latent_artifact)
+            estimate = estimate_pipeline_memory_from_artifact(
+                pipeline_artifact, latent_artifact, resident_pipe=resident_pipe
+            )
         except Exception as e:
             logger.exception("%s: Pipeline memory estimation failed", self.name)
             self.publish_update_to_parameter("memory_breakdown", _empty_memory_report("error", message=str(e)))

@@ -38,7 +38,7 @@ def _mask() -> PILImage.Image:
 def test_the_encode_node_can_be_sent_to_a_worker() -> None:
     node = VaeMaskEncodeNode(name="encode")
 
-    assert NodeManager._unencodable_value_names(node._list_rows.values_for_dispatch()) == []
+    assert NodeManager._unencodable_value_names(node.parameter_values) == []
 
 
 def test_the_mask_survives() -> None:

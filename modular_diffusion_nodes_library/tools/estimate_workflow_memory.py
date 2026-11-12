@@ -240,7 +240,8 @@ def estimate_workflow(
             num_frames=num_frames,
         )
         latent = _make_latent(builder.artifact, resolved_width, resolved_height, resolved_frames)
-        estimate = estimate_pipeline_memory_from_artifact(builder.artifact, latent)
+        # An offline estimate never has a built pipeline to measure.
+        estimate = estimate_pipeline_memory_from_artifact(builder.artifact, latent, resident_pipe=None)
         estimate_data = estimate.to_dict()
         estimate_data.pop("pipeline_name", None)
         dimensions: dict[str, int | None] = {"width": resolved_width, "height": resolved_height}

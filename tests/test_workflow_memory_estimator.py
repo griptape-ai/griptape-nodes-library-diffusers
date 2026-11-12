@@ -293,8 +293,9 @@ def test_estimate_workflow_json_shape(monkeypatch: pytest.MonkeyPatch, tmp_path:
     workflow = workflow_memory.extract_workflow(path)
     received_latents: list[workflow_memory.LatentArtifact] = []
 
-    def fake_estimator(artifact, latent):
+    def fake_estimator(artifact, latent, *, resident_pipe):
         assert artifact is workflow.builders[0].artifact
+        assert resident_pipe is None
         received_latents.append(latent)
         return Estimate()
 

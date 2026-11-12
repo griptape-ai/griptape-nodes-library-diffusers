@@ -44,7 +44,7 @@ def guarded_managers() -> set[str]:
     return {
         node.name
         for node in facade.body
-        if isinstance(node, ast.FunctionDef) and "_forbid_manager_during_worker_execution" in ast.dump(node)
+        if isinstance(node, ast.FunctionDef) and "_check_manager_access_during_execution" in ast.dump(node)
     }
 
 

@@ -70,7 +70,6 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
     ModularDiffusionPipelineTypePipelineParameters,
 )
 from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import MODULAR_PIPELINE_TYPE_PROVIDER_MAP
-from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_utils import (
     MEMORY_HEADROOM_FACTOR,
     apply_vae_memory_options,
@@ -1019,22 +1018,21 @@ def estimate_pipeline_memory_from_build_data(
 def estimate_pipeline_memory_from_artifact(
     artifact: DiffusionPipelineArtifact,
     latent: LatentArtifact,
+    *,
+    resident_pipe: Any | None,
 ) -> PipelineMemoryEstimate:
     """Single public entry point: estimate memory for `artifact`, regardless of whether
     its pipeline has been built yet.
 
-    Dispatches to the exact post-load estimator when the pipeline is already resident
-    in model_cache under artifact.config_hash, otherwise to the pre-load, config-only
-    estimator. See docs/spikes/memory_estimation_preload_api_plan.md, Decision 1.
+    Dispatches to the exact post-load estimator when `resident_pipe` is the pipeline already
+    built for `artifact`, otherwise to the pre-load, config-only estimator. See
+    docs/spikes/memory_estimation_preload_api_plan.md, Decision 1.
     """
     lora_adapters = collect_runtime_lora_memory(artifact)
-    cached_pipe = None
-    if artifact.config_hash and model_cache.has_pipeline(artifact.config_hash):
-        cached_pipe = model_cache.get_pipeline(artifact.config_hash)
-    if cached_pipe is None:
+    if resident_pipe is None:
         return estimate_pipeline_memory_from_build_data(artifact, latent, lora_adapters=lora_adapters)
     return estimate_pipeline_memory(
-        cached_pipe,
+        resident_pipe,
         latent,
         artifact.pipeline_name,
         lora_adapters=lora_adapters,
