@@ -200,7 +200,7 @@ The Pipeline Builder caches the loaded pipeline in memory and reuses it across r
 **Creating a node:**
 
 1. Add the implementation under `modular_diffusion_nodes_library/nodes/<your_node>.py`, extending `BaseNode` from the engine.
-2. Register it in `griptape-nodes-library.json` (category, metadata, file path).
+2. Register it in `griptape-nodes-library.json` (category, metadata, file path). Give it its own `lifecycle_stage` (`ALPHA` for nodes, `LABS` for preconfigured workflows) and lowercase `tags`, per [`.claude/rules/new-node-metadata.md`](.claude/rules/new-node-metadata.md).
 3. Restart the engine — the node appears under the **ModularDiffusion** categories in the node picker.
 4. **Document the node.** Add a page under `docs/nodes/<your_node>.md` following [docs/node-doc-format.md](docs/node-doc-format.md) and link it from `docs/index.md`. Use the `document-node` skill.
 
