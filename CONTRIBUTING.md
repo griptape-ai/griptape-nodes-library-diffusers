@@ -131,6 +131,8 @@ engine's registered-libraries config is not consulted.
 
 Node names start with a verb (`Load LoRA`, `Upsample Latent`), say "Latent" in the singular unless the node takes two or more (`Add Latents`), and stay short. Detail goes in the node's description and tags, not in brackets in the name. Rename a node by its display name only, never its class name, so saved workflows keep loading. The full rules are in [`.claude/rules/node-naming.md`](.claude/rules/node-naming.md).
 
+A new node declares its own `lifecycle_stage` (`ALPHA`, or `LABS` for a preconfigured workflow) rather than inheriting the library's `STABLE`, and gets lowercase `tags` for search. See [`.claude/rules/new-node-metadata.md`](.claude/rules/new-node-metadata.md).
+
 ## Code quality
 
 1. **Check code quality:**
