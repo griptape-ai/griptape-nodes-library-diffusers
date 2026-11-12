@@ -104,3 +104,18 @@ def get_component_class(pipeline_cls: type, component: str) -> type:
         raise ValueError(msg)
 
     return component_cls
+
+
+def get_loadable_component_class(pipeline_cls: type, component: str) -> type:
+    """Return the class whose ``from_pretrained`` loads a pipeline slot's weights.
+
+    Same as ``get_component_class``, except that a slot typed as the generic transformers
+    ``PreTrainedModel`` (e.g. ``ZImagePipeline.text_encoder``) resolves to ``AutoModel``, which picks
+    the concrete class from the weights' ``config.json``. ``PreTrainedModel`` itself cannot load them.
+    """
+    from transformers import AutoModel, PreTrainedModel  # type: ignore[reportMissingImports]
+
+    component_cls = get_component_class(pipeline_cls, component)
+    if component_cls is PreTrainedModel:
+        component_cls = AutoModel
+    return component_cls
