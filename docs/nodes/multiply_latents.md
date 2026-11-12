@@ -6,7 +6,7 @@ Category: `ModularDiffusion/Transform`
 
 ## TL;DR
 - `output = left_latent * right_latent` elementwise.
-- For masked compositing of two different latents, prefer [Latents Composite Mask](latents_composite_mask.md) — it's purpose-built and handles the mask resampling for you.
+- For masked compositing of two different latents, prefer [Composite Latents with Mask](latents_composite_mask.md) — it's purpose-built and handles the mask resampling for you.
 
 ## Typical workflow position
 ```text
@@ -39,4 +39,4 @@ Latent B ─┘
 
 ## See also
 
-- [Add Latents](add_latents.md) · [Subtract Latents](subtract_latents.md) · [Latents Composite Mask](latents_composite_mask.md)
+- [Add Latents](add_latents.md) · [Subtract Latents](subtract_latents.md) · [Composite Latents with Mask](latents_composite_mask.md)

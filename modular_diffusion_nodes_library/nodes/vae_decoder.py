@@ -34,6 +34,7 @@ class VaeDecodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
         self.add_parameter(
             Parameter(
                 name="latent_tensor",
+                display_name="input_latent",
                 input_types=["LatentArtifact"],
                 type="LatentArtifact",
                 tooltip="Latent tensor to decode with the pipeline VAE.",

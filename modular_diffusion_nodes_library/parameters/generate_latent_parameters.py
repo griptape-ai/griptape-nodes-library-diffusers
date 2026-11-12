@@ -67,7 +67,7 @@ class DiffusionPipelineGenerateLatentParameters:
                 "What you connect here determines the generation mode:\n\n"
                 "***Empty Latent*** (from Empty Latents node) — "
                 "ENABLE 'add_noise' for text-to-image / text-to-video. Denoising starts from pure noise.\n\n"
-                "***Noise Latent*** (from Create Noise Latents) — "
+                "***Noise Latent*** (from Create Noise Latent) — "
                 "text-to-image / text-to-video. Denoising starts from pure noise.\n\n"
                 "***Already-diffused or encoded LatentArtifact*** (output of a previous Generate node, "
                 "or from a VAE Encode node) — image-to-image or refinement. "
@@ -142,9 +142,8 @@ class DiffusionPipelineGenerateLatentParameters:
                 name="return_fully_denoised",
                 default_value=False,
                 type="bool",
-                tooltip="When enabled, the terminal sigma is appended to the sliced schedule so the denoiser always reaches a fully clean latent.",
+                tooltip="When enabled, the final step is aimed at a fully clean latent (sigma 0), so stopping early with end_step still returns a denoised result.",
                 allowed_modes={ParameterMode.PROPERTY},
-                hide=True,  # TO DO: This parameter doesn't work as intended yet
             )
         )
         self._node.add_parameter(
@@ -220,7 +219,7 @@ class DiffusionPipelineGenerateLatentParameters:
             title="Pipeline-specific inputs",
             message=(
                 "Use this only when a selected pipeline requires extra structured inputs. "
-                "For example, connect a Media Gen Conditioning output for LTX/WAN video workflows. "
+                "For example, connect a Reference Media output for LTX/WAN video workflows. "
                 "Or add any key/value pair and it will be forwarded to the selected pipeline as a kwarg. "
                 "If the same key appears multiple times, values are merged into a list."
             ),
@@ -316,7 +315,7 @@ class DiffusionPipelineGenerateLatentParameters:
             input_latent_artifact,
             self._resolve_generator_state(input_latent_artifact),
             self.get_num_inference_steps(),
-            self.get_strength(),
+            self.start_step,
         )
 
     def publish_output_latent(self, output_latent_artifact: LatentArtifact) -> None:
@@ -371,12 +370,6 @@ class DiffusionPipelineGenerateLatentParameters:
     @property
     def return_fully_denoised(self) -> bool:
         return bool(self._node.get_parameter_value("return_fully_denoised"))
-
-    def get_strength(self) -> float:
-        number_of_steps = self.get_num_inference_steps()
-        if number_of_steps > 0 and self.start_step > 0:
-            return 1.0 - (self.start_step / number_of_steps)
-        return 1.0
 
     def get_strength_affected_steps(self, num_inference_steps: int) -> int:
         start_step = min(self.start_step, num_inference_steps)

@@ -49,7 +49,7 @@ class WanVacePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             tooltip="Source media for VACE conditioning. Black areas in the mask will be conditioned on this source; white areas will be generated from the prompt.",
             badge_title="Source media",
             badge_message=(
-                "Connect a **Media Gen Conditioning** node here to supply the source media for VACE conditioning. "
+                "Connect a **Reference Media** node here to supply the source media for VACE conditioning. "
                 "The source media defines the content to condition on: black areas in the mask are filled from this "
                 "video, white areas are generated freely from the prompt.\n\n"
                 "**IMAGE payload** — individual images are placed at their frame positions (`first`, `last`, or an "
@@ -60,7 +60,7 @@ class WanVacePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 "extension workflows: e.g. supply a short clip at `frame_index=N/2` and the model generates the rest.\n\n"
                 "If no mask is connected, the driver auto-derives one: frame positions covered by the source are "
                 "marked black (preserve), uncovered positions are marked white (generate).\n\n"
-                "**Tip:** You can also connect an image or video directly — without a Media Gen Conditioning node — "
+                "**Tip:** You can also connect an image or video directly — without a Reference Media node — "
                 "for single-item conditioning at frame index **0**."
             ),
         )
@@ -72,7 +72,7 @@ class WanVacePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             tooltip="Per-frame binary mask. Black (0) = condition on source media (preserve); white (255) = generate from prompt (edit). If omitted, the mask is derived automatically from source_media. Requires source_media.",
             badge_title="Mask",
             badge_message=(
-                "Connect a **Media Gen Conditioning** node here to supply the per-frame mask for selective VACE editing.\n\n"
+                "Connect a **Reference Media** node here to supply the per-frame mask for selective VACE editing.\n\n"
                 "**Black (0)** = condition on the source video (keep / preserve).\n"
                 "**White (255)** = generate freely from the prompt (edit / inpaint).\n\n"
                 "**IMAGE payload** — individual mask images are placed at their frame positions; unspecified frames "
@@ -89,7 +89,7 @@ class WanVacePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 "covered by the source are marked black (preserve); uncovered positions are marked white (generate). "
                 "⚠️ Requires `source_media` to be connected — connecting mask without source_media raises an error "
                 "at generation time.\n\n"
-                "**Tip:** You can also connect an image or video directly — without a Media Gen Conditioning node — "
+                "**Tip:** You can also connect an image or video directly — without a Reference Media node — "
                 "for a single mask at frame index **0**."
             ),
         )
@@ -101,14 +101,14 @@ class WanVacePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             tooltip="Optional reference images for VACE. VIDEO payloads are automatically split into individual frames. Requires source_media.",
             badge_title="Reference images",
             badge_message=(
-                "Connect one or more **Media Gen Conditioning** nodes here to supply optional reference images for "
+                "Connect one or more **Reference Media** nodes here to supply optional reference images for "
                 "VACE generation. Reference images provide additional visual guidance for the generated content — "
                 "for example, a reference photo of a character to inpaint into the masked region.\n\n"
                 "**IMAGE payload** — each image is used directly as a reference.\n\n"
                 "**VIDEO payload** — the video is automatically broken into individual frames, each treated as a "
                 "separate reference image. Multiple conditioning nodes can be connected.\n\n"
                 "⚠️ Requires `source_media` to be connected.\n\n"
-                "**Tip:** You can also connect an image or video directly — without a Media Gen Conditioning node — "
+                "**Tip:** You can also connect an image or video directly — without a Reference Media node — "
                 "for single-item conditioning at frame index **0** and strength **1.0**."
             ),
         )

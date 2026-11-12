@@ -1,6 +1,6 @@
 [project]
 name = "griptape-nodes-library-modular-diffusion"
-version = "0.8.0"
+version = "0.9.0"
 description = "Modular Diffusion nodes for Griptape Nodes."
 authors = [
     {name = "Griptape, Inc."}

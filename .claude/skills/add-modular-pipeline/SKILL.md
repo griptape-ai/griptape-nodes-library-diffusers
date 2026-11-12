@@ -22,7 +22,7 @@ Read these rules before doing anything. Violating them invalidates the work.
 
 ### Rule 0 — Update affected node docs in the same change
 
-Adding a new pipeline type rarely creates new nodes, but it almost always changes what existing nodes expose for the new provider. Before finishing, update the `Provider / model behavior` section of every node whose dynamic parameters now branch on the new pipeline type — typically Pipeline Builder, Generate Media Latents, and any encode/decode/conditioning node involved. Follow [docs/node-doc-format.md](../../../docs/node-doc-format.md); for any doc work beyond a one-line tweak, use the `document-node` skill. Report doc changes alongside code in your final summary.
+Adding a new pipeline type rarely creates new nodes, but it almost always changes what existing nodes expose for the new provider. Before finishing, update the `Provider / model behavior` section of every node whose dynamic parameters now branch on the new pipeline type — typically Pipeline Builder, Generate Latent, and any encode/decode/conditioning node involved. Follow [docs/node-doc-format.md](../../../docs/node-doc-format.md); for any doc work beyond a one-line tweak, use the `document-node` skill. Report doc changes alongside code in your final summary.
 
 ### Rule 1 — Classify the change, then get approval before coding
 
@@ -262,7 +262,7 @@ All `uv run ...` commands below must be executed from the repo root. `make check
 
    **Surgical-edits check**: diff each shared file — including `family_registry.py` — and confirm only added lines / one inserted block are present — no reformatted neighbours, no reordered entries, no touched sibling cases.
 6. **Smoke test in UI** → verify with the user: drop a builder node, select the new provider/type, build, wire to generate + decode, confirm an image/video comes out.
-7. **Node docs updated** (Rule 0) → verify: every node whose dynamic parameters now branch on the new pipeline type (typically Pipeline Builder, Generate Media Latents, and affected encode/decode/conditioning nodes) has its `docs/nodes/<name>.md` updated and passes the `/document-node` skill's drift check.
+7. **Node docs updated** (Rule 0) → verify: every node whose dynamic parameters now branch on the new pipeline type (typically Pipeline Builder, Generate Latent, and affected encode/decode/conditioning nodes) has its `docs/nodes/<name>.md` updated and passes the `/document-node` skill's drift check.
 8. **Model catalog** → declare every repo id the new standard parameters offer in `model_catalog` in [`griptape-nodes-library.json`](../../../griptape-nodes-library.json), and add each catalog key to the owning node's `model_usage` list (see Step 6 of [docs/adding-new-model.md](../../../docs/adding-new-model.md)) → verify: `uv run pytest tests/test_model_catalog_consistency.py` passes.
 9. **Single-file loader metadata** → if the new pipeline supports single-file component loading (GGUF / safetensors), add entries for every relevant `model_type` string to [`component_loading/pipeline_type_registry.py`](../../../modular_diffusion_nodes_library/component_loading/pipeline_type_registry.py) `MODEL_TYPE_TO_PIPELINE_TYPE`.
 

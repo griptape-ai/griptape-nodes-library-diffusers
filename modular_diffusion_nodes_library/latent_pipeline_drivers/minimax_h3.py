@@ -586,8 +586,8 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         # node instead. There is no general image or video encode in the blockset.
         raise NotImplementedError(
             f"{self.driver_namespace} does not support encoding media into a latent. MiniMax-H3 has "
-            f"no general VAE-encode path; supply keyframes via the Media Gen Conditioning input on "
-            f"Generate Media Latents instead."
+            f"no general VAE-encode path; supply keyframes via the Reference Media input on "
+            f"Generate Latent instead."
         )
 
     @override
@@ -596,14 +596,14 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         # Video-to-video would need to resume a partially-noised latent mid-schedule, but
         # MiniMaxH3Scheduler.set_timesteps always rebuilds the full linspace(1, 0, n) grid and the
         # blockset exposes no encode path to noise from in the first place.
         raise NotImplementedError(
             f"{self.driver_namespace} does not support adding noise to an existing latent "
-            f"(no video-to-video path). Use Create Noise Latents for a fresh latent."
+            f"(no video-to-video path). Use Create Noise Latent for a fresh latent."
         )
 
     # ------------------------------------------------------------------
@@ -611,7 +611,7 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
     # ------------------------------------------------------------------
 
     def _resolve_keyframes(self, kwargs: dict[str, Any], num_frames: int) -> None:
-        """Translate a Media Gen Conditioning payload into ``image`` / ``last_image`` kwargs."""
+        """Translate a Reference Media payload into ``image`` / ``last_image`` kwargs."""
         payloads = normalize_to_payloads(kwargs.pop(MediaGenConditioningKey.OUTPUT, None))
         if payloads is None:
             return
@@ -690,7 +690,7 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
                 f"{self.driver_namespace}: Attempted to resume a MiniMax-H3 denoise at step "
                 f"{start_step}. Failed because the input latent carries no audio latent, so the "
                 f"soundtrack would restart from pure noise mid-schedule. Chain partial denoise "
-                f"directly from a previous Generate Media Latents run."
+                f"directly from a previous Generate Latent run."
             )
         if audio_latents is not None:
             audio_latents = audio_latents.to(device=device, dtype=torch.float32)

@@ -84,4 +84,4 @@ The JSON result contains:
 ## See also
 
 - [Estimate Pipeline Memory](../nodes/estimate_pipeline_memory.md)
-- [Modular Diffusion Pipeline Builder](../nodes/pipeline_builder.md)
+- [Build Pipeline](../nodes/pipeline_builder.md)

@@ -35,7 +35,7 @@ FORWARDABLE_METHOD_POSITIONAL: dict[str, tuple[str, ...]] = {
     "encode_media": ("media", "generator_state"),
     "decode_latent": ("latent",),
     "create_noise_latent": ("source_shape", "generator_state"),
-    "add_noise_to_latent": ("latent", "generator_state", "num_inference_steps", "strength"),
+    "add_noise_to_latent": ("latent", "generator_state", "num_inference_steps", "start_step"),
 }
 ```
 
@@ -202,7 +202,7 @@ def decode_latent(self, latent: LatentArtifact, output_type: DecodeOutputType = 
 - Return `PIL.Image` for image, `list[Image]` (frames) for video.
 - Does NOT return a `LatentArtifact` — it returns the rendered media (this is the only forwardable method whose return type is `DecodeResult`, not `LatentArtifact`).
 
-### `add_noise_to_latent(latent, generator_state, num_inference_steps, strength) -> LatentArtifact`
+### `add_noise_to_latent(latent, generator_state, num_inference_steps, start_step) -> LatentArtifact`
 
 Forward-noise an existing latent for img2img/v2v. Preferred — modular `Img2ImgSetTimesteps` + `Img2ImgPrepareLatents`. `stable_diffusion_xl.py` `_SDXLAddNoiseStep` is the canonical no-packing shape; scan other existing drivers for packed-latent and video variants.
 

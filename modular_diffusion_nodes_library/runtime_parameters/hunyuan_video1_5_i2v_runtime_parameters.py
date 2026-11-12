@@ -32,12 +32,12 @@ class HunyuanVideo15ImageToVideoPipelineRuntimeParameters(DiffusionPipelineRunti
             node,
             param_name="conditioning_images",
             accepted_modes=(ConditioningMode.IMAGE,),
-            tooltip="First-frame conditioning image for HunyuanVideo I2V, from a Media Gen Conditioning node.",
+            tooltip="First-frame conditioning image for HunyuanVideo I2V, from a Reference Media node.",
             badge_title="First-frame conditioning image",
             badge_message=(
-                "Connect a **Media Gen Conditioning** node here to supply the start frame "
+                "Connect a **Reference Media** node here to supply the start frame "
                 "for image-to-video generation. Only **image**-mode payloads are accepted.\n\n"
-                "**Tip:** You can also connect an image directly — without a Media Gen Conditioning node — "
+                "**Tip:** You can also connect an image directly — without a Reference Media node — "
                 "for single first-frame conditioning (frame index **0**)."
             ),
         )

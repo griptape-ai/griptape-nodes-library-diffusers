@@ -39,14 +39,14 @@ class MiniMaxH3PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             node,
             param_name="conditioning_images",
             accepted_modes=(ConditioningMode.IMAGE,),
-            tooltip="First/last keyframes for keyframe-to-video generation, from a Media Gen Conditioning node.",
+            tooltip="First/last keyframes for keyframe-to-video generation, from a Reference Media node.",
             badge_title="First/last keyframes",
             badge_message=(
-                "Connect a **Media Gen Conditioning** node here to supply the frame the video starts "
+                "Connect a **Reference Media** node here to supply the frame the video starts "
                 "from and/or the frame it ends on. Leave it unconnected for text-only "
                 "video-and-audio generation. Only **image**-mode payloads are accepted.\n\n"
                 "**Note:** the generated canvas comes from the input latent, not from the keyframe — "
-                "set the dimensions on the **Create Noise Latents** node, matching your keyframe's "
+                "set the dimensions on the **Create Noise Latent** node, matching your keyframe's "
                 "aspect ratio if you want the framing preserved."
             ),
         )

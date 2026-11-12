@@ -623,7 +623,7 @@ wheels = [
 
 [[package]]
 name = "griptape-nodes-library-modular-diffusion"
-version = "0.8.0"
+version = "0.9.0"
 source = { editable = "." }
 dependencies = [
     { name = "griptape", extra = ["loaders-image"] },

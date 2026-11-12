@@ -81,7 +81,7 @@ Upstream Node → [<Display Name>] → Downstream Node
 ### Typical workflow position
 
 - A fenced ` ```text ` block, **not** per-line backticks. Per-line backticks render as inline code on separate paragraph lines and break visual alignment of arrows and box-drawing characters.
-- Wrap the node being documented in square brackets so the eye can find it: `[Generate Media Latents]`.
+- Wrap the node being documented in square brackets so the eye can find it: `[Generate Latent]`.
 - Keep it to 1–3 lines. Use box drawing only when the graph genuinely branches.
 
 ### Node preview

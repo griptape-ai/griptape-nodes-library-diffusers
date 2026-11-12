@@ -46,13 +46,13 @@ class Flux2DevPipelineRuntimeParameters(Flux2PipelineRuntimeParameters):
             node,
             param_name="reference_images",
             accepted_modes=(ConditioningMode.IMAGE,),
-            tooltip="Reference images that guide the generation. Connect a Media Gen Conditioning node or an image directly.",
+            tooltip="Reference images that guide the generation. Connect a Reference Media node or an image directly.",
             badge_title="Reference images",
             badge_message=(
-                "Connect a **Media Gen Conditioning** node here to supply reference images. "
+                "Connect a **Reference Media** node here to supply reference images. "
                 "The model uses them as visual references alongside the text prompt. "
                 "Only **image** payloads are accepted; **video** payloads are not allowed.\n\n"
-                "**Tip:** You can also connect an image directly — without a Media Gen Conditioning node — "
+                "**Tip:** You can also connect an image directly — without a Reference Media node — "
                 "for single-image conditioning."
             ),
         )

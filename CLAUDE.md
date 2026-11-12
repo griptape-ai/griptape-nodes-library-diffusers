@@ -167,7 +167,7 @@ and has no connections, so a question about the graph is answerable *only* on th
 
 **Top-level layout** (under `modular_diffusion_nodes_library/`):
 
-- `nodes/` — the user-facing Griptape nodes (Pipeline Builder, Generate Latent, VAE Encode/Decode, Noise/Empty/Add Latent, LoRA, ControlNet, Latent Math, Conditioning, Save Latent Tensor, etc.). Each node is registered in `griptape-nodes-library.json`.
+- `nodes/` — the user-facing Griptape nodes (Pipeline Builder, Generate Latent, VAE Encode/Decode, Noise/Empty/Add Latent, LoRA, ControlNet, Latent Math, Conditioning, Save Latent, etc.). Each node is registered in `griptape-nodes-library.json`.
 - `latent_pipeline_drivers/` — per-model drivers (`flux`, `flux2`, `qwen`, `z_image`, `ltx`, `wan`, `wan_i2v`, `stable_diffusion_xl`, `stable_diffusion_3`, `flux_fill`, …) all extending `LatentPipelineDriver` in `base_driver.py`. `driver_factory.py` maps a diffusers pipeline class name → driver class.
 - `standard_parameters/` — per-model **load-time** parameter sets (repo IDs, dtype, quantization, offload). Subclass `ModularDiffusionPipelineTypePipelineParameters`.
 - `runtime_parameters/` — per-model **generate-time** parameter sets (prompt, negative_prompt, guidance, true_cfg, etc.). Subclass `DiffusionPipelineRuntimeParameters` — never re-add `num_inference_steps`, `seed`, or `generator`; the base class owns those.
@@ -200,9 +200,11 @@ The Pipeline Builder caches the loaded pipeline in memory and reuses it across r
 **Creating a node:**
 
 1. Add the implementation under `modular_diffusion_nodes_library/nodes/<your_node>.py`, extending `BaseNode` from the engine.
-2. Register it in `griptape-nodes-library.json` (category, metadata, file path).
+2. Register it in `griptape-nodes-library.json` (category, metadata, file path). Give it its own `lifecycle_stage` (`ALPHA` for nodes, `LABS` for preconfigured workflows) and lowercase `tags`, per [`.claude/rules/new-node-metadata.md`](.claude/rules/new-node-metadata.md).
 3. Restart the engine — the node appears under the **ModularDiffusion** categories in the node picker.
 4. **Document the node.** Add a page under `docs/nodes/<your_node>.md` following [docs/node-doc-format.md](docs/node-doc-format.md) and link it from `docs/index.md`. Use the `document-node` skill.
+
+**Naming a node:** read [`.claude/rules/node-naming.md`](.claude/rules/node-naming.md) before adding or renaming a node or parameter.
 
 **Wiring a node to a model:**
 
