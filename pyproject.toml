@@ -33,6 +33,7 @@ exec = [
     "pillow>=11.2.1",
     "sentencepiece>=0.2.0",
     "torch==2.7.0",
+    "triton-windows>=3.3,<3.4; sys_platform == 'win32'",
     "torchvision==0.22.0",
     "safetensors>=0.8.0rc0",
     "scipy>=1.10.0",
