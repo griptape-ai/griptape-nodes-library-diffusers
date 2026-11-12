@@ -70,7 +70,6 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
     ModularDiffusionPipelineTypePipelineParameters,
 )
 from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import MODULAR_PIPELINE_TYPE_PROVIDER_MAP
-from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.pipeline_utils import (
     MEMORY_HEADROOM_FACTOR,
     apply_vae_memory_options,
@@ -169,6 +168,9 @@ def _estimate_denoiser_activation_bytes(
             )
             return activation_bytes, None
 
+        # TODO(wan-animate-2 memory estimation): every remaining family falls through to the video formula,
+        # including WanAnimate2Pipeline's placeholder. Its dedicated family needs an explicit branch here that
+        # sizes one segment (default segment_frame_length=81) and adds the per-layer reference KV cache.
         num_frames_latent = latent_shape[-3] if len(latent_shape) >= 5 else 1  # noqa: PLR2004
         activation_bytes = estimate_video_dit_joint_sdpa_activation_bytes(
             num_frames_latent,
@@ -179,7 +181,15 @@ def _estimate_denoiser_activation_bytes(
             fields.patch_size_temporal,
             element_size,
         )
-        return activation_bytes, None
+        if pipeline_name == "WanAnimate2Pipeline":
+            warning = (
+                "The Wan Animate 2 transformer memory estimate is a temporary placeholder and is inaccurate. "
+                "It sizes the whole clip instead of one segment and leaves out the reference KV cache kept "
+                "for every transformer layer, so real usage is likely much higher than shown."
+            )
+        else:
+            warning = None
+        return activation_bytes, warning
     except (AttributeError, KeyError, TypeError, IndexError) as e:
         return 0, f"Failed to read denoiser config for pipeline '{pipeline_name}': {e}. Showing weights only."
 
@@ -1008,22 +1018,21 @@ def estimate_pipeline_memory_from_build_data(
 def estimate_pipeline_memory_from_artifact(
     artifact: DiffusionPipelineArtifact,
     latent: LatentArtifact,
+    *,
+    resident_pipe: Any | None,
 ) -> PipelineMemoryEstimate:
     """Single public entry point: estimate memory for `artifact`, regardless of whether
     its pipeline has been built yet.
 
-    Dispatches to the exact post-load estimator when the pipeline is already resident
-    in model_cache under artifact.config_hash, otherwise to the pre-load, config-only
-    estimator. See docs/spikes/memory_estimation_preload_api_plan.md, Decision 1.
+    Dispatches to the exact post-load estimator when `resident_pipe` is the pipeline already
+    built for `artifact`, otherwise to the pre-load, config-only estimator. See
+    docs/spikes/memory_estimation_preload_api_plan.md, Decision 1.
     """
     lora_adapters = collect_runtime_lora_memory(artifact)
-    cached_pipe = None
-    if artifact.config_hash and model_cache.has_pipeline(artifact.config_hash):
-        cached_pipe = model_cache.get_pipeline(artifact.config_hash)
-    if cached_pipe is None:
+    if resident_pipe is None:
         return estimate_pipeline_memory_from_build_data(artifact, latent, lora_adapters=lora_adapters)
     return estimate_pipeline_memory(
-        cached_pipe,
+        resident_pipe,
         latent,
         artifact.pipeline_name,
         lora_adapters=lora_adapters,

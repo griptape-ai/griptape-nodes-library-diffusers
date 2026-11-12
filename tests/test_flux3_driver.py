@@ -96,7 +96,7 @@ def test_add_noise_patchifies_inputs_and_returns_public_shape(
     monkeypatch.setattr(driver, "_call_block", lambda block, **kwargs: {"timesteps": torch_module.tensor([999, 0])})
     monkeypatch.setattr(driver, "create_noise_latent", lambda shape, state: noise_artifact)
 
-    result = driver.add_noise_to_latent(latent, GeneratorState.from_seed(7), num_inference_steps=2, strength=1.0)
+    result = driver.add_noise_to_latent(latent, GeneratorState.from_seed(7), num_inference_steps=2, start_step=0)
 
     assert scheduler_inputs == {
         "begin_index": 0,

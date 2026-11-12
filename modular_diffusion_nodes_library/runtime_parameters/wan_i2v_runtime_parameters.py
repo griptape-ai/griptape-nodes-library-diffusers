@@ -32,13 +32,13 @@ class WanImageToVideoPipelineRuntimeParameters(DiffusionPipelineRuntimeParameter
             node,
             param_name="conditioning_images",
             accepted_modes=(ConditioningMode.IMAGE,),
-            tooltip="First/last conditioning images for WAN i2v, from a Media Gen Conditioning node.",
+            tooltip="First/last conditioning images for WAN i2v, from a Reference Media node.",
             badge_title="First/last conditioning images",
             badge_message=(
-                "Connect a **Media Gen Conditioning** node here to supply the start (and optionally end) "
+                "Connect a **Reference Media** node here to supply the start (and optionally end) "
                 "frame for image-to-video generation. Only **image**-mode payloads are accepted; "
                 "**video** payloads are rejected.\n\n"
-                "**Tip:** You can also connect an image directly — without a Media Gen Conditioning node — "
+                "**Tip:** You can also connect an image directly — without a Reference Media node — "
                 "for single first-frame conditioning (frame index **0**)."
             ),
         )

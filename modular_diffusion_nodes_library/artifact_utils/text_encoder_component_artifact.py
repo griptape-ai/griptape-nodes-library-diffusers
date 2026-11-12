@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, override
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import ModelComponentArtifact
-from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import get_component_class
+from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import get_loadable_component_class
 
 
 @dataclass(frozen=True)
@@ -22,7 +22,7 @@ class TextEncoderComponentArtifact(ModelComponentArtifact):
                 f"Failed because file_path is required for SINGLE_FILE source type."
             )
             raise ValueError(msg)
-        component_cls = get_component_class(pipeline_cls, effective_slot)
+        component_cls = get_loadable_component_class(pipeline_cls, effective_slot)
 
         file_path = Path(self.file_path)
         if not file_path.is_file():

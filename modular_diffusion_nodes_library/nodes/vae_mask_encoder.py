@@ -22,7 +22,6 @@ from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin impo
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.config_utils import get_config_value
 from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
-from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
 
@@ -86,8 +85,9 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
         latents_param = Parameter(
             name="latents",
+            display_name="output_latent",
             output_type="InpaintMaskArtifact",
-            tooltip="Inpaint artifact bundling the mask plus source and masked-image latents. Connect to a Generate Latents input_latent for inpainting.",
+            tooltip="Inpaint artifact bundling the mask plus source and masked-image latents. Connect to a Generate Latent input_latent for inpainting.",
             allowed_modes={ParameterMode.OUTPUT},
             serializable=False,
         )
@@ -95,7 +95,7 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             variant="help",
             title="Where to connect this",
             message=(
-                "Connect to the `input_latent` of a ***Generate Media Latents*** node — not to a VAE Decode node.\n\n"
+                "Connect to the `input_latent` of a ***Generate Latent*** node — not to a VAE Decode node.\n\n"
                 "The Generate node detects the `InpaintMaskArtifact` type and automatically switches to inpainting mode, "
                 "regenerating only the masked region while preserving the rest of the image."
             ),
@@ -258,10 +258,13 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         # `build_if_needed` is really "I am in the execution environment": True comes only from
         # `validate_in_execution_environment`, and everything past this point reaches diffusers. A
-        # resident pipeline is the proxy, `model_cache` being process-local, so a miss means either no
+        # resident pipeline is the proxy, `local_objects` being process-local, so a miss means either no
         # pipeline or the wrong process.
         if not build_if_needed:
-            if not pipeline_value.config_hash or not model_cache.has_pipeline(pipeline_value.config_hash):
+            if (
+                not pipeline_value.config_hash
+                or self.local_objects.get(self.local_objects.key_for(pipeline_value.config_hash)) is None
+            ):
                 self._set_compatibility_message(None)
                 return None
 

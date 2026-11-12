@@ -5,7 +5,7 @@
 Category: `ModularDiffusion/Preconfigured`
 
 ## TL;DR
-- One node wraps a full Pipeline Builder → Noise → Generate → Decode chain for various supported text-to-video pipelines.
+- The sub-flow uses Build Pipeline, Create Noise Latent, Generate Latent, and Decode Media to create a video from a text prompt.
 - Pipeline defaults to a supported model; open the sub-flow to change the model repo or any hidden parameter.
 - Outputs `output_video` (`VideoUrlArtifact`).
 
@@ -22,12 +22,12 @@ Category: `ModularDiffusion/Preconfigured`
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `pipeline_type` | Supported Pipeline Types | Yes | Selects which pipeline family the internal Pipeline Builder resolves and builds. |
-| `prompt` | str | Yes | Positive text prompt, forwarded to the internal Generate Media Latents node. |
-| `seed` | int | No | Forwarded to the internal Create Noise Latents node. |
-| `width` | int | No | Forwarded to the internal Create Noise Latents node. |
-| `height` | int | No | Forwarded to the internal Create Noise Latents node. |
-| `num_frames` | int | No | Forwarded to the internal Create Noise Latents node. |
+| `pipeline_type` | Supported Pipeline Types | Yes | Selects which pipeline family to use in the internal Build Pipeline node. |
+| `prompt` | str | Yes | Positive text prompt, forwarded to the internal Generate Latent node. |
+| `seed` | int | No | Forwarded to the internal Create Noise Latent node. |
+| `width` | int | No | Forwarded to the internal Create Noise Latent node. |
+| `height` | int | No | Forwarded to the internal Create Noise Latent node. |
+| `num_frames` | int | No | Forwarded to the internal Create Noise Latent node. |
 
 ## Outputs
 
@@ -39,17 +39,17 @@ Category: `ModularDiffusion/Preconfigured`
 
 ## Provider / model behavior
 
-This workflow ships with a default model pre-set for every supported `pipeline_type` — switching `pipeline_type` updates the internal Pipeline Builder node's `model` to a matching default, so no sub-flow edit is required to try a different architecture.
+Each `pipeline_type` has a default model. Changing the type updates the model selection in the internal Build Pipeline node, so you can try another architecture without editing the sub-flow.
 
 ## Tips & pitfalls
 
-- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to see and tweak the internal Create Noise Latents / Pipeline Builder / Generate Media Latents / Decode Media chain, including hidden parameters like `model` repo and optimization toggles.
+- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to inspect or change the Create Noise Latent, Build Pipeline, Generate Latent, and Decode Media nodes, including hidden settings such as the model repo and optimization toggles.
 - **Fixed model selection.** You cannot change the model selection or other internal parameters directly from the top-level node; you must open the sub-flow to make changes.
 - **No download status visibility.** There is no visual indication within the node itself whether the required model has been downloaded or if it needs to be installed via the Model Manager.
-- **`guidance_scale` and `num_inference_steps` are fixed inside the sub-flow.** They are not exposed as top-level inputs; edit the internal Generate Media Latents node to change them.
+- **`guidance_scale` and `num_inference_steps` are fixed inside the sub-flow.** They are not exposed as top-level inputs; edit the internal Generate Latent node to change them.
 - **The internal `num_inference_steps` tooltip mentions recommended values** instead of "video" — a wording leftover in the underlying node's runtime parameters; the setting still controls video denoising steps as expected.
-- **`add_noise` is disabled on the internal Generate node.** The Create Noise Latents node already supplies a pure-noise starting latent, so the Generate node denoises it directly without re-noising. The seed set here fully controls reproducibility.
+- **`add_noise` is disabled on the internal Generate node.** The Create Noise Latent node already supplies a pure-noise starting latent, so the Generate node denoises it directly without re-noising. The seed set here fully controls reproducibility.
 - **Want more granular control?** Open the sub-flow and edit the internal nodes directly — anything not exposed as a top-level input here can be changed there.
 
 ## See also
-- [Modular Diffusion Pipeline Builder](pipeline_builder.md) · [Generate Media Latents](generate_media_latents.md) — the nodes this workflow wraps internally.
+- [Build Pipeline](pipeline_builder.md) · [Generate Latent](generate_media_latents.md) — the nodes this workflow wraps internally.

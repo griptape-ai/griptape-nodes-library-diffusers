@@ -26,6 +26,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
 )
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
+from modular_diffusion_nodes_library.misc.schedule_utils import strength_for_step_index
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
     MediaGenConditioningPayload,
     normalize_to_payloads,
@@ -296,7 +297,7 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         """Add noise to image latents via modular pipeline blocks.
 
@@ -318,7 +319,7 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
             latents=noise,
             image_latents=latents,
             num_inference_steps=num_inference_steps,
-            strength=strength,
+            strength=strength_for_step_index(start_step, num_inference_steps),
             height=height,
             width=width,
             num_frames=num_frames,

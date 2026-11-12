@@ -196,7 +196,7 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         """Add noise to a WAN video latent using modular blocks."""
         import torch  # type: ignore[reportMissingImports]
@@ -219,10 +219,7 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
         noise = noise_artifact.to_torch(device=device, dtype=dtype)
         noise_generator_state = GeneratorState.from_artifact(noise_artifact) or generator_state
 
-        # Compute timestep based on strength
-        init_timestep = min(num_inference_steps * strength, num_inference_steps)
-        t_start = int(max(num_inference_steps - init_timestep, 0))
-        latent_timestep = timesteps[t_start * self.pipe.scheduler.order :][:1]
+        latent_timestep = timesteps[start_step * self.pipe.scheduler.order :][:1]
 
         # Scale noise at the target timestep
         with torch.no_grad():

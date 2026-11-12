@@ -81,6 +81,7 @@ def _make_callback_denoise_step(
     end_step: int,
     height: int,
     width: int,
+    force_fully_denoised: bool = False,
 ) -> Flux3DenoiseLoopWrapper:
     import torch  # type: ignore[reportMissingImports]
     from diffusers.modular_pipelines.flux3.decoders import (  # type: ignore[reportMissingImports]
@@ -117,6 +118,7 @@ def _make_callback_denoise_step(
             self.callback = callback
             self.start_step = start_step
             self.end_step = end_step
+            self.force_fully_denoised = force_fully_denoised
 
         @no_grad
         def __call__(self, components: Flux3ModularPipeline, state: PipelineState) -> PipelineState:
@@ -136,6 +138,8 @@ def _make_callback_denoise_step(
                 end = min(max(self.end_step, begin + 1), num_steps)
 
             components.scheduler.set_begin_index(begin)
+            if self.force_fully_denoised:
+                components.scheduler.sigmas[end] = 0.0
             unpack_block = Flux3UnpackLatentsStep()
             with self.progress_bar(total=end - begin) as progress_bar:
                 for step_index in range(begin, end):
@@ -353,7 +357,7 @@ class Flux3LatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         import torch  # type: ignore[reportMissingImports]
         from diffusers.modular_pipelines.flux3.before_denoise import (  # type: ignore[reportMissingImports]
@@ -374,11 +378,9 @@ class Flux3LatentPipelineDriver(LatentPipelineDriver):
         latents = latent.to_torch(device=device, dtype=dtype)
         latents = _patchify_latents(latents)
         noise = _patchify_latents(noise_artifact.to_torch(device=device, dtype=dtype))
-        init_timestep = min(round(num_inference_steps * strength), num_inference_steps)
-        start = max(num_inference_steps - init_timestep, 0)
-        latent_timestep = timesteps[start : start + 1]
+        latent_timestep = timesteps[start_step : start_step + 1]
         # scale_noise reads sigmas from begin_index, not the timestep argument, so point it at the start step.
-        self.modular_pipe.scheduler.set_begin_index(start)
+        self.modular_pipe.scheduler.set_begin_index(start_step)
         noisy_latents = self.modular_pipe.scheduler.scale_noise(latents, latent_timestep, noise)
         noise_state = GeneratorState.from_artifact(noise_artifact) or generator_state
         return self._make_latent_artifact(
@@ -435,6 +437,7 @@ class Flux3LatentPipelineDriver(LatentPipelineDriver):
         end_step: int,
         height: int,
         width: int,
+        force_fully_denoised: bool = False,
     ) -> SequentialPipelineBlocks:
         from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
             SequentialPipelineBlocks,
@@ -449,6 +452,7 @@ class Flux3LatentPipelineDriver(LatentPipelineDriver):
             end_step=end_step,
             height=height,
             width=width,
+            force_fully_denoised=force_fully_denoised,
         )
         denoise_blocks = SequentialPipelineBlocks.from_blocks_dict(inner_blocks)
 
@@ -572,9 +576,10 @@ class Flux3LatentPipelineDriver(LatentPipelineDriver):
             core_step=core_step,
             callback=callback,
             start_step=start_step,
-            end_step=num_inference_steps if return_fully_denoised else end_step,
+            end_step=end_step,
             height=height,
             width=width,
+            force_fully_denoised=return_fully_denoised,
         )
 
         run_kwargs = {

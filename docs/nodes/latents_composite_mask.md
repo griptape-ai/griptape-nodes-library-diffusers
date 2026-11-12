@@ -1,4 +1,4 @@
-# Latents Composite Mask
+# Composite Latents with Mask
 
 **Pastes a source latent onto a destination latent at a given pixel offset, blended through an optional image mask.**
 
@@ -13,14 +13,14 @@ Category: `ModularDiffusion/Transform`
 
 ## Typical workflow position
 ```text
-Generate Latents (dest) ──┐
-Generate Latents (src) ───┼─→ [Latents Composite Mask] → Generate Media Latents
-Paint Mask (mask) ────────┘
+Generate Latent (dest) ────┐
+Generate Latent (src) ─────┼─→ [Composite Latents with Mask] → Generate Latent
+Paint Mask (mask) ─────────┘
 ```
 
 ## Node preview
 
-<img src="../assets/nodes/latents-composite-mask.png" alt="Latents Composite Mask" width="480">
+<img src="../assets/nodes/latents-composite-mask.png" alt="Composite Latents with Mask" width="480">
 
 ## Inputs
 
@@ -43,8 +43,8 @@ Paint Mask (mask) ────────┘
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `placement_editor` | widget | — | Drag the source box over the destination, or pick a position preset. Writes `x_offset` / `y_offset` (snapped to multiples of 8) and toggles `resize_source`. Shows latent sizes after the node has run once. A connected offset is left to its connection. |
-| `x_offset` | int (pixels; slider 0–2000, larger values accepted) | `0` | Horizontal placement (divided by 8 internally). |
-| `y_offset` | int (pixels; slider 0–2000, larger values accepted) | `0` | Vertical placement (divided by 8 internally). |
+| `x_offset` | int (pixels; slider −2000 to 2000, larger values accepted) | `0` | Horizontal placement (divided by 8 internally). |
+| `y_offset` | int (pixels; slider −2000 to 2000, larger values accepted) | `0` | Vertical placement (divided by 8 internally). |
 | `resize_source` | bool | `False` | Bilinearly resize source to match destination spatial size before compositing. |
 
 ### Mask options *(collapsed by default)*
@@ -58,7 +58,7 @@ Paint Mask (mask) ────────┘
 
 ## Tips & pitfalls
 
-- **Only the overlapping region is composited.** If `x_offset` + source width extends beyond the destination canvas, the out-of-bounds portion is ignored; if source and destination don't intersect at all, the destination is returned unchanged.
+- **Only the overlapping region is composited.** Offsets can be negative, so the source can hang off the top or left edge as well. If the source extends beyond the destination canvas on any side, the out-of-bounds portion is ignored; if source and destination don't intersect at all, the destination is returned unchanged.
 - **The placement editor needs one run.** Latent sizes are only known where the node runs, so the editor is blank until the first run and refreshes on every run after. Sizes are saved with the workflow once you place the source in the editor; otherwise a reopened workflow shows a blank editor until the next run.
 - **`resize_source` still uses the offsets.** The resized source is as large as the destination, so a non-zero offset shifts it and clips its far edge. The editor shows this; a position preset in the editor resets it to 0, 0 for a full replacement.
 - **Pixel offsets, not latent offsets.** A 1024-px destination = 128 latent units. Offsets are in the bigger pixel space — the node divides by the VAE scale factor (8) internally.
@@ -67,5 +67,5 @@ Paint Mask (mask) ────────┘
 
 ## See also
 
-- [Create Empty Latents](empty_latents.md) — typical destination canvas.
+- [Create Empty Latent](empty_latents.md) — typical destination canvas.
 - [Add Latents](add_latents.md) — for unmasked elementwise blending.

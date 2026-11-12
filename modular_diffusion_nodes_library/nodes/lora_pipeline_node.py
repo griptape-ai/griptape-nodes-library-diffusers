@@ -10,7 +10,6 @@ from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     normalize_diffusion_pipeline_value,
 )
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
-from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
 from modular_diffusion_nodes_library.utils.lora_apply_utils import LoraPipelineRuntimeAdapterStep
 from modular_diffusion_nodes_library.utils.lora_spec import LoraSpec, normalize_loras
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
@@ -68,7 +67,7 @@ class LoraActivationPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNod
                 "***Activation (this node)*** — adapters are loaded and switched on per generation, "
                 "then released. The base pipeline is ***not*** mutated, so the same cached pipeline can "
                 "power multiple branches (e.g. one branch with LoRAs, one without) without rebuilding.\n\n"
-                "***Fused*** (the `loras` input on the Modular Diffusion Pipeline Builder) — adapters "
+                "***Fused*** (the `loras` input on the Build Pipeline node) — adapters "
                 "are baked permanently into the cached weights. Changing the LoRA set evicts and "
                 "rebuilds the entire pipeline.\n\n"
                 "Prefer activation for in-context (IC) LoRAs, distillation/acceleration LoRAs, slider "
@@ -197,11 +196,11 @@ class LoraActivationPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNod
 
         def build() -> Any:
             with self.log_params.append_profile_to_logs("Pipeline building/caching"):
-                return pipeline_artifact.get_or_build_pipeline(log_params=self.log_params)
+                return pipeline_artifact.get_or_build_pipeline(self, log_params=self.log_params)
 
         def cleanup() -> None:
             self.log_params.append_to_logs("Pipeline building failed.\n")
-            model_cache.remove_pipeline(pipeline_artifact.config_hash)
+            self.local_objects.drop(self.local_objects.key_for(pipeline_artifact.config_hash))
             cleanup_memory_caches()
 
         return self._run_with_status(

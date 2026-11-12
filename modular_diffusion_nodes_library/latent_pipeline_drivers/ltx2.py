@@ -192,7 +192,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
     @override
     def add_noise_to_latent(
-        self, latent: LatentArtifact, generator_state: GeneratorState, num_inference_steps: int, strength: float
+        self, latent: LatentArtifact, generator_state: GeneratorState, num_inference_steps: int, start_step: int
     ) -> LatentArtifact:
         """Return latent that has been noised, shape should match create_noise_latent. Latent should be unpacked so it may be processed further e.g. with mask."""
         import numpy as np
@@ -222,9 +222,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         generator = generator_state.to_generator()
         noise = randn_tensor(latents.shape, device=latents.device, dtype=latents.dtype, generator=generator)
 
-        init_timestep = min(num_inference_steps * strength, num_inference_steps)
-        t_start = int(max(num_inference_steps - init_timestep, 0))
-        latent_timestep = timesteps[t_start * scheduler.order :][:1]
+        latent_timestep = timesteps[start_step * scheduler.order :][:1]
 
         noisy = scheduler.scale_noise(latents, latent_timestep, noise)
         return self._make_latent_artifact(

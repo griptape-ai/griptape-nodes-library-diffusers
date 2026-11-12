@@ -54,9 +54,9 @@ class PartialDenoiseSchedulerProxy:
     denoise_end:
         Fraction of total steps at which to stop (1.0 = end, exclusive).
     return_fully_denoised:
-        When ``True``, the terminal sigma is always appended to the sliced
-        sigma sequence so the denoiser reaches a fully clean latent, even
-        when ``denoise_end < 1.0``.  Defaults to ``False``.
+        When ``True``, the last sigma of the sliced sequence is set to 0 so
+        the final step lands on a fully clean latent, even when
+        ``denoise_end < 1.0``.
     """
 
     def __init__(self, scheduler: Any, denoise_begin: float, denoise_end: float, return_fully_denoised: bool) -> None:
@@ -93,8 +93,6 @@ class PartialDenoiseSchedulerProxy:
         """
         Intercept the scheduler's ``set_timesteps`` call and slice the timesteps to the specified range.
         """
-        import torch  # type: ignore[import]
-
         scheduler = object.__getattribute__(self, "_scheduler")
         denoise_begin = object.__getattribute__(self, "_denoise_begin")
         denoise_end = object.__getattribute__(self, "_denoise_end")
@@ -129,10 +127,15 @@ class PartialDenoiseSchedulerProxy:
             sigmas_slice = sigmas[begin : min(end + 1, len(sigmas))]  # type: ignore[reportOptionalSubscript, reportArgumentType]
 
         # Optionally append the final timestep/sigma to ensure a fully denoised output, even when denoise_end < 1.0.
-        if return_fully_denoised and timesteps_slice[-1] != timesteps[-1]:
-            timesteps_slice = torch.cat([timesteps_slice, timesteps[-1:]])  # type: ignore[reportArgumentType]
-            if sigmas_slice is not None:
-                sigmas_slice = torch.cat([sigmas_slice, sigmas[-1:]])  # type: ignore[reportArgumentType, reportOptionalSubscript]
+        if return_fully_denoised:
+            if sigmas_slice is None:
+                logger.warning(
+                    "PartialDenoiseSchedulerProxy: return_fully_denoised ignored because %s has no sigmas to retarget.",
+                    type(scheduler).__name__,
+                )
+            else:
+                sigmas_slice = sigmas_slice.clone()  # type: ignore[reportAttributeAccessIssue]
+                sigmas_slice[-1] = 0.0
 
         m = len(timesteps_slice)
         logger.debug(

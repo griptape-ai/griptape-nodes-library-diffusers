@@ -214,7 +214,7 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         # scale_noise is called manually because diffusers has no modular block for
         # strength-based noise addition. Flux2PrepareLatentsStep only generates or
@@ -242,10 +242,7 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         noise = noise_artifact.to_torch(device=device, dtype=dtype)
         noise_generator_state = GeneratorState.from_artifact(noise_artifact) or generator_state
 
-        # Compute the timestep at which to add noise based on strength
-        init_timestep = min(num_inference_steps * strength, num_inference_steps)
-        t_start = int(max(num_inference_steps - init_timestep, 0))
-        latent_timestep = timesteps[t_start * self.pipe.scheduler.order :][:1]
+        latent_timestep = timesteps[start_step * self.pipe.scheduler.order :][:1]
 
         noisy_latent = self.pipe.scheduler.scale_noise(latents, latent_timestep, noise)
         return self._make_latent_artifact(

@@ -32,6 +32,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
 )
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
+from modular_diffusion_nodes_library.misc.schedule_utils import strength_for_step_index
 from modular_diffusion_nodes_library.utils.pipeline_utils import detect_offload_method
 
 if TYPE_CHECKING:
@@ -197,7 +198,7 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         """Add noise to image latents via modular pipeline blocks."""
         import torch  # type: ignore[reportMissingImports]
@@ -214,7 +215,7 @@ class ZImageLatentPipelineDriver(LatentPipelineDriver):
             latents=noise,
             image_latents=latents,
             num_inference_steps=num_inference_steps,
-            strength=strength,
+            strength=strength_for_step_index(start_step, num_inference_steps),
         )
         result = self._get_required(output_state, "latents", torch.Tensor)
         return self._make_latent_artifact(

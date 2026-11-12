@@ -52,10 +52,10 @@ class Flux3PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             node,
             param_name="reference_images",
             accepted_modes=(ConditioningMode.IMAGE,),
-            tooltip="Reference images for FLUX.3 image editing. Connect a Media Gen Conditioning node.",
+            tooltip="Reference images for FLUX.3 image editing. Connect a Reference Media node.",
             badge_title="Reference images",
             badge_message=(
-                "Connect a **Media Gen Conditioning** node here to supply up to **10 reference images** for editing. "
+                "Connect a **Reference Media** node here to supply up to **10 reference images** for editing. "
                 "Only **image**-mode payloads are accepted; **video** payloads are not allowed.\n\n"
                 "**Tip:** You can also connect an image directly for single-image conditioning."
             ),

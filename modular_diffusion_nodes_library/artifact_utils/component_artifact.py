@@ -19,6 +19,7 @@ from modular_diffusion_nodes_library.component_loading.config_resolver import (
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import (
     MODEL_TYPE_TO_PIPELINE_TYPE,
     get_component_class,
+    get_loadable_component_class,
 )
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -155,7 +156,7 @@ class ModelComponentArtifact(ComponentArtifact):
         (e.g. a generic text-encoder artifact wired to the ``text_encoder_2`` port).
         """
         effective_slot = slot if slot is not None else self.component
-        component_cls = get_component_class(pipeline_cls, effective_slot)
+        component_cls = get_loadable_component_class(pipeline_cls, effective_slot)
         try:
             if self.source_type == ComponentSourceType.HF_REPO:
                 return self._materialize_hf_repo(pipeline_cls=pipeline_cls, effective_slot=effective_slot)
@@ -272,7 +273,7 @@ class ModelComponentArtifact(ComponentArtifact):
             )
             raise ValueError(msg)
 
-        component_cls = get_component_class(pipeline_cls, effective_slot)
+        component_cls = get_loadable_component_class(pipeline_cls, effective_slot)
 
         subfolder = self.repo_ref.subfolder or ""
         if not subfolder:
@@ -416,7 +417,7 @@ class ModelComponentArtifact(ComponentArtifact):
             )
             raise FileNotFoundError(msg)
 
-        component_cls = get_component_class(pipeline_cls, effective_slot)
+        component_cls = get_loadable_component_class(pipeline_cls, effective_slot)
 
         logger.info(
             "Materializing %s (%s) from LOCAL_DIR path='%s'.",

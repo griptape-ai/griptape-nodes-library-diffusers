@@ -35,8 +35,8 @@
   "metadata": {
     "author": "Griptape, Inc.",
     "description": "Modular Diffusion nodes for Griptape Nodes.",
-    "library_version": "0.8.0",
-    "engine_version": "0.105.0",
+    "library_version": "0.9.0",
+    "engine_version": "0.108.0",
     "tags": [
       "Griptape",
       "AI"
@@ -63,6 +63,7 @@
         "pillow>=11.2.1",
         "sentencepiece>=0.2.0",
         "torch==2.7.0",
+        "triton-windows>=3.3,<3.4; sys_platform == 'win32'",
         "torchvision==0.22.0",
         "safetensors>=0.8.0rc0",
         "scipy>=1.10.0",
@@ -90,7 +91,7 @@
     "declarations": [
       {
         "type": "lifecycle_stage",
-        "stage": "LABS"
+        "stage": "STABLE"
       },
       {
         "type": "model_catalog",
@@ -427,6 +428,20 @@
                 "key_support": "NO_KEY_REQUIRED",
                 "notes": "Apache-2.0."
               },
+              "md_wan_2_2_animate_2_14b": {
+                "display_name": "Wan 2.2 Animate 2 14B",
+                "provider_model_id": "Wan-AI/Wan2.2-Animate-2-14B-Diffusers",
+                "family": "Wan",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
+              "md_wan_2_2_animate_2_14b_distilled": {
+                "display_name": "Wan 2.2 Animate 2 14B Distilled",
+                "provider_model_id": "Wan-AI/Wan2.2-Animate-2-14B-Distilled-Diffusers",
+                "family": "Wan",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Apache-2.0."
+              },
               "md_z_image_turbo": {
                 "display_name": "Z-Image Turbo",
                 "provider_model_id": "Tongyi-MAI/Z-Image-Turbo",
@@ -712,9 +727,13 @@
       "file_path": "./modular_diffusion_nodes_library/nodes/latent_diffusion_pipeline_builder_node.py",
       "metadata": {
         "category": "ModularDiffusion/Pipeline",
-        "description": "Build and cache latent-compatible 🧨 Diffusers Pipelines. Any LoRAs wired into this node are fused permanently into the cached weights — changing them rebuilds the pipeline. For dynamic adapters that swap per generation, use the LoRA Pipeline node instead.",
-        "display_name": "Modular Diffusion Pipeline Builder",
+        "description": "Build and cache latent-compatible 🧨 Diffusers Pipelines. Any LoRAs wired into this node are fused permanently into the cached weights — changing them rebuilds the pipeline. For dynamic adapters that swap per generation, use the Apply Runtime LoRA node instead.",
+        "display_name": "Build Pipeline",
         "group": "diffusion",
+        "tags": [
+          "diffusion",
+          "modular"
+        ],
         "declarations": [
           {
             "type": "model_usage",
@@ -772,6 +791,8 @@
               "md_wan_2_1_vace_14b",
               "md_wan_2_1_vace_1_3b",
               "md_wan_2_2_animate_14b",
+              "md_wan_2_2_animate_2_14b",
+              "md_wan_2_2_animate_2_14b_distilled",
               "md_wan_2_2_i2v_a14b",
               "md_wan_2_2_t2v_a14b",
               "md_z_image_turbo"
@@ -786,7 +807,7 @@
       "metadata": {
         "category": "ModularDiffusion/Processing",
         "description": "Generate latents via 🧨 Diffusers Pipelines.",
-        "display_name": "Generate Media Latents (Modular Diffusion Pipeline)",
+        "display_name": "Generate Latent",
         "group": "diffusion"
       }
     },
@@ -796,7 +817,7 @@
       "metadata": {
         "category": "ModularDiffusion/Create",
         "description": "Create an initial noise latent tensor for a selected 🧨 Diffusers pipeline.",
-        "display_name": "Create Noise Latents",
+        "display_name": "Create Noise Latent",
         "group": "diffusion"
       }
     },
@@ -806,7 +827,7 @@
       "metadata": {
         "category": "ModularDiffusion/Create",
         "description": "Create a zero-filled (empty) latent tensor for a selected 🧨 Diffusers pipeline.",
-        "display_name": "Create Empty Latents",
+        "display_name": "Create Empty Latent",
         "group": "diffusion"
       }
     },
@@ -817,7 +838,13 @@
         "category": "ModularDiffusion/Transform",
         "description": "Add two latent artifacts elementwise.",
         "display_name": "Add Latents",
-        "group": "diffusion"
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "LABS"
+          }
+        ]
       }
     },
     {
@@ -827,7 +854,13 @@
         "category": "ModularDiffusion/Transform",
         "description": "Subtract the right latent from the left latent elementwise.",
         "display_name": "Subtract Latents",
-        "group": "diffusion"
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "LABS"
+          }
+        ]
       }
     },
     {
@@ -837,7 +870,13 @@
         "category": "ModularDiffusion/Transform",
         "description": "Multiply two latent artifacts elementwise.",
         "display_name": "Multiply Latents",
-        "group": "diffusion"
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "LABS"
+          }
+        ]
       }
     },
     {
@@ -846,25 +885,37 @@
       "metadata": {
         "category": "ModularDiffusion/IO",
         "description": "Save a latent artifact to a torch .pt file.",
-        "display_name": "Save Latent Tensor",
-        "group": "diffusion"
+        "display_name": "Save Latent",
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "LABS"
+          }
+        ]
       }
     },
     {
-        "class_name": "SaveExrNode",
-        "file_path": "./modular_diffusion_nodes_library/nodes/save_exr_node.py",
-        "metadata": {
-            "category": "ModularDiffusion/IO",
-            "description": "Write FloatMediaArtifact RGB frames unchanged to an OpenEXR sequence.",
-            "display_name": "Save EXR Sequence",
-            "group": "diffusion"
-        }
+      "class_name": "SaveExrNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/save_exr_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/IO",
+        "description": "Write FloatMediaArtifact RGB frames unchanged to an OpenEXR sequence.",
+        "display_name": "Save EXR Sequence",
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "LABS"
+          }
+        ]
+      }
     },
     {
       "class_name": "VaeEncodeNode",
       "file_path": "./modular_diffusion_nodes_library/nodes/vae_encoder.py",
       "metadata": {
-        "category": "ModularDiffusion/Encode\\Decode",
+        "category": "ModularDiffusion/Encode & Decode",
         "description": "Encode images or video into VAE latent space via 🧨 Diffusers Pipelines.",
         "display_name": "Encode Media",
         "group": "diffusion"
@@ -874,7 +925,7 @@
       "class_name": "VaeMaskEncodeNode",
       "file_path": "modular_diffusion_nodes_library/nodes/vae_mask_encoder.py",
       "metadata": {
-        "category": "ModularDiffusion/Encode\\Decode",
+        "category": "ModularDiffusion/Encode & Decode",
         "description": "Encode a source image and mask into an inpaint artifact (mask + masked-image latent) for use with inpainting pipelines.",
         "display_name": "Encode Masked Media",
         "group": "diffusion"
@@ -884,7 +935,7 @@
       "class_name": "VaeDecodeNode",
       "file_path": "./modular_diffusion_nodes_library/nodes/vae_decoder.py",
       "metadata": {
-        "category": "ModularDiffusion/Encode\\Decode",
+        "category": "ModularDiffusion/Encode & Decode",
         "description": "Decode VAE latent images or video via 🧨 Diffusers Pipelines.",
         "display_name": "Decode Media",
         "group": "diffusion"
@@ -894,27 +945,44 @@
       "class_name": "DecodeHdrNode",
       "file_path": "./modular_diffusion_nodes_library/nodes/decode_hdr_node.py",
       "metadata": {
-        "category": "ModularDiffusion/Encode\\Decode",
+        "category": "ModularDiffusion/Encode & Decode",
         "description": "Decode VAE latents to float RGB media, expose raw media, and publish a configurable SDR preview.",
-        "display_name": "Decode HDR Latents",
-        "group": "diffusion"
+        "display_name": "Decode HDR Media",
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "ALPHA"
+          }
+        ]
       }
     },
     {
-        "class_name": "LatentToMediaNode",
-        "file_path": "./modular_diffusion_nodes_library/nodes/latent_to_media_node.py",
-        "metadata": {
-            "category": "ModularDiffusion/Encode\\Decode",
-            "description": "Standalone alternative to Decode Media: runs its own model (e.g. a diffusion decode model), to turn image or video latents into media, with no pipeline required.",
-            "display_name": "Latent to Media (Standalone Decoder)",
-            "group": "diffusion",
-            "declarations": [
-                {
-                    "type": "model_usage",
-                    "model_ids": ["md_ltx_2_5_diffusers"]
-                }
+      "class_name": "LatentToMediaNode",
+      "file_path": "./modular_diffusion_nodes_library/nodes/latent_to_media_node.py",
+      "metadata": {
+        "category": "ModularDiffusion/Encode & Decode",
+        "description": "Standalone alternative to Decode Media: runs its own model (e.g. a diffusion decode model), to turn image or video latents into media, with no pipeline required.",
+        "display_name": "Convert Latent to Media",
+        "group": "diffusion",
+        "tags": [
+          "standalone decode",
+          "decode",
+          "diffusion decode"
+        ],
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "ALPHA"
+          },
+          {
+            "type": "model_usage",
+            "model_ids": [
+              "md_ltx_2_5_diffusers"
             ]
-        }
+          }
+        ]
+      }
     },
     {
       "class_name": "LatentCompositeMaskNode",
@@ -922,17 +990,31 @@
       "metadata": {
         "category": "ModularDiffusion/Transform",
         "description": "Composite two latent tensors together by pasting masked latent into destination latent.",
-        "display_name": "Latents Composite Mask",
-        "group": "diffusion"
+        "display_name": "Composite Latents with Mask",
+        "group": "diffusion",
+        "tags": [
+          "composite",
+          "mask",
+          "blend",
+          "paste",
+          "inpainting",
+          "video"
+        ],
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "BETA"
+          }
+        ]
       }
     },
     {
       "class_name": "ControlNetNode",
       "file_path": "./modular_diffusion_nodes_library/nodes/controlnet_node.py",
       "metadata": {
-        "category": "ModularDiffusion/Conditioning",
+        "category": "ModularDiffusion/Pipeline",
         "description": "ControlNet node for configuring different ControlNet models.",
-        "display_name": "Configure ControlNet",
+        "display_name": "Load ControlNet",
         "group": "diffusion",
         "declarations": [
           {
@@ -969,7 +1051,7 @@
       "metadata": {
         "category": "ModularDiffusion/Pipeline",
         "description": "Add ControlNet model to the pipeline.",
-        "display_name": "ControlNet Pipeline",
+        "display_name": "Apply ControlNet",
         "group": "diffusion"
       }
     },
@@ -979,8 +1061,15 @@
       "metadata": {
         "category": "ModularDiffusion/Pipeline",
         "description": "Layers non-fused LoRA adapters on top of an existing pipeline. The base pipeline stays untouched, so the same model can power multiple branches (one with adapters, one without). Adapters are loaded and activated per generation, then released — ideal for in-context (IC) LoRAs, distillation/acceleration LoRAs, slider LoRAs, or any workflow that swaps adapters between runs.",
-        "display_name": "LoRA Pipeline",
-        "group": "diffusion"
+        "display_name": "Apply Runtime LoRA",
+        "group": "diffusion",
+        "tags": [
+          "unfused",
+          "runtime",
+          "dynamic",
+          "adapter",
+          "apply lora"
+        ]
       }
     },
     {
@@ -988,9 +1077,14 @@
       "file_path": "./modular_diffusion_nodes_library/nodes/media_gen_conditioning_node.py",
       "metadata": {
         "category": "ModularDiffusion/Conditioning",
-        "description": "Conditioning node for media generation pipelines. Supports image or video conditioning inputs with configurable strength. Connect `conditioning` to the matching input on Generate Media Latents, which appears once the same pipeline is connected there (e.g. `conditioning_images` for WAN Image-to-Video, `media_conditions` for LTX / LTX2, `source_media` for WAN VACE).",
-        "display_name": "Media Generation Conditioning",
-        "group": "diffusion"
+        "description": "Conditioning node for media generation pipelines. Supports image or video conditioning inputs with configurable strength. Connect `conditioning` to the matching input on Generate Latent, which appears once the same pipeline is connected there (e.g. `conditioning_images` for WAN Image-to-Video, `media_conditions` for LTX / LTX2, `source_media` for WAN VACE).",
+        "display_name": "Reference Media",
+        "group": "diffusion",
+        "tags": [
+          "conditioning",
+          "editing",
+          "media references"
+        ]
       }
     },
     {
@@ -998,10 +1092,14 @@
       "file_path": "./modular_diffusion_nodes_library/nodes/latent_upsampler_node.py",
       "metadata": {
         "category": "ModularDiffusion/Processing",
-        "description": "Spatially upsample a latent tensor using a latent upsampler model.",
-        "display_name": "Latent Upsampler",
+        "description": "Upsample a latent tensor using a latent upsampler model (spatial upsampling today).",
+        "display_name": "Upsample Latent",
         "group": "diffusion",
         "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "BETA"
+          },
           {
             "type": "model_usage",
             "model_ids": [
@@ -1030,7 +1128,13 @@
         "category": "ModularDiffusion/Pipeline",
         "description": "Estimates per-component GPU memory usage (weights + activations) for an already-loaded diffusion pipeline, given a latent shape.",
         "display_name": "Estimate Pipeline Memory",
-        "group": "diffusion"
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "BETA"
+          }
+        ]
       }
     },
     {
@@ -1038,7 +1142,7 @@
       "file_path": "./modular_diffusion_nodes_library/nodes/load_lora_node.py",
       "metadata": {
         "category": "ModularDiffusion/Pipeline",
-        "description": "Load a LoRA file from a local path and expose it as a `loras` output. Wire to the Modular Diffusion Pipeline Builder to fuse the LoRA into the cached weights, or to a LoRA Pipeline node to activate it dynamically per generation.",
+        "description": "Load a LoRA file from a local path and expose it as a `loras` output. Wire to the Build Pipeline node to fuse the LoRA into the cached weights, or to an Apply Runtime LoRA node to activate it dynamically per generation.",
         "display_name": "Load LoRA",
         "group": "diffusion"
       }
@@ -1049,8 +1153,19 @@
       "metadata": {
         "category": "ModularDiffusion/Pipeline",
         "description": "Load a single pipeline component (transformer / unet / vae / tokenizer / text_encoder) from a single-file checkpoint, a local diffusers-format folder, or a local HuggingFace repo cache. Wire into a Pipeline Builder override port to inject the component at build time into the pipeline.",
-        "display_name": "Load Pipeline Component",
-        "group": "diffusion"
+        "display_name": "Load Component",
+        "group": "diffusion",
+        "tags": [
+          "gguf",
+          "pt",
+          "safetensors"
+        ],
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "BETA"
+          }
+        ]
       }
     },
     {
@@ -1060,7 +1175,13 @@
         "category": "ModularDiffusion/Pipeline",
         "description": "Configure a scheduler by choosing a scheduler class and a scheduler_config.json source (local file/folder or a local HuggingFace repo cache). Wire into a Pipeline Builder scheduler override port to replace the pipeline's scheduler at build time.",
         "display_name": "Load Scheduler",
-        "group": "diffusion"
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "BETA"
+          }
+        ]
       }
     }
   ],
@@ -1072,7 +1193,13 @@
         "category": "ModularDiffusion/Preconfigured",
         "description": "Generate an image from a text prompt using a preconfigured Modular Diffusion pipeline.",
         "display_name": "Text to Image",
-        "group": "diffusion"
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "LABS"
+          }
+        ]
       }
     },
     {
@@ -1081,8 +1208,14 @@
       "metadata": {
         "category": "ModularDiffusion/Preconfigured",
         "description": "Inpaint a masked region of an image using a preconfigured Modular Diffusion pipeline.",
-        "display_name": "Inpainting",
-        "group": "diffusion"
+        "display_name": "Inpaint Image",
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "LABS"
+          }
+        ]
       }
     },
     {
@@ -1092,7 +1225,13 @@
         "category": "ModularDiffusion/Preconfigured",
         "description": "Generate an image from an input image and a text prompt using a preconfigured Modular Diffusion pipeline.",
         "display_name": "Image to Image",
-        "group": "diffusion"
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "LABS"
+          }
+        ]
       }
     },
     {
@@ -1102,7 +1241,13 @@
         "category": "ModularDiffusion/Preconfigured",
         "description": "Generate a video from a text prompt using a preconfigured Modular Diffusion pipeline.",
         "display_name": "Text to Video",
-        "group": "diffusion"
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "LABS"
+          }
+        ]
       }
     },
     {
@@ -1112,7 +1257,13 @@
         "category": "ModularDiffusion/Preconfigured",
         "description": "Generate a video from first/last frame images and a text prompt using a preconfigured Modular Diffusion pipeline.",
         "display_name": "First/Last Frame to Video",
-        "group": "diffusion"
+        "group": "diffusion",
+        "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "LABS"
+          }
+        ]
       }
     }
   ],
@@ -1149,6 +1300,7 @@
     "workflows/templates/Multi-ViewPromptBatcher.py",
     "workflows/templates/CustomPipelineText2Image.py",
     "workflows/templates/Flux3LayoutControlText2Image.py",
-    "workflows/templates/Flux3LayoutControlImageBasedEditing.py"
+    "workflows/templates/Flux3LayoutControlImageBasedEditing.py",
+    "workflows/templates/WanAnimate2.py"
   ]
 }

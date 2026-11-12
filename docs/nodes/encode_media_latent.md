@@ -1,25 +1,25 @@
-# Encode Media Latent
+# Encode Media
 
 **Runs the pipeline's VAE encoder on an image or video, producing a latent you can feed into denoising for Image-to-Image / Video-to-Video flows.**
 
-Category: `ModularDiffusion/Encode\Decode`
+Category: `ModularDiffusion/Encode & Decode`
 
 ## TL;DR
 - The input parameter is **dynamic**: `image` for image pipelines, `input_video` for video pipelines (LTX, LTX2, WAN etc). It swaps automatically when you connect a `pipeline`.
-- Latents are normalized and unpacked — they're shape-compatible with [Create Noise Latents](create-noise-latents.md), so the latent math / composite nodes work on them directly.
-- Pair with `add_noise=True` on a downstream Generate Media Latents for classic Image-to-Image. The amount of noise added is controlled by `start_step` on that node: `strength = 1 − (start_step / num_inference_steps)`. Examples with `num_inference_steps=20`:
+- Latents are normalized and unpacked — they're shape-compatible with [Create Noise Latent](create-noise-latents.md), so the latent math / composite nodes work on them directly.
+- Pair with `add_noise=True` on a downstream Generate Latent for classic Image-to-Image. The amount of noise added is controlled by `start_step` on that node: `strength = 1 − (start_step / num_inference_steps)`. Examples with `num_inference_steps=20`:
   - `start_step=0` → full noise (strength 1.0) — original image is ignored, behaves like Text-to-Image.
   - `start_step=10` → half noise (strength 0.5) — balanced blend of original and generated.
   - `start_step=18` → very little noise (strength 0.1) — result stays very close to the original image.
 
 ## Typical workflow position
 ```text
-Load Image → [Encode Media Latent] → Generate Media Latents → Decode Media Latent
+Load Image → [Encode Media] → Generate Latent → Decode Media
 ```
 
 ## Node preview
 
-<img src="../assets/nodes/encode-media.png" alt="Encode Media Latent" width="480">
+<img src="../assets/nodes/encode-media.png" alt="Encode Media" width="480">
 
 ## Inputs
 
@@ -39,17 +39,18 @@ Load Image → [Encode Media Latent] → Generate Media Latents → Decode Media
 
 | Provider | Behavior |
 | --- | --- |
-| MiniMax-H3 | **Not supported.** MiniMax-H3 has no general VAE-encode path — its only encoder is keyframe-specific and produces conditioning rows rather than a reusable latent. This node raises an error. For keyframe conditioning, connect a [Media Gen Conditioning](media_gen_conditioning.md) node to `conditioning_images` on [Generate Media Latents](generate_media_latents.md) instead. |
-| Flux3 | Image-only. The encoder pads a single reference to the 16-pixel grid and may downscale it to fit the 4-megapixel limit. Crop metadata is carried with the latent so Decode Media Latent can restore the reference image bounds. |
+| WAN Animate 2 (and Distilled) | **Video only.** `input_video` is encoded to a normalised WAN video latent at its aligned size (width and height multiples of 16, `num_frames` of the form 4N + 1), usable with the latent math nodes and Decode Media. Images raise an error: the character image is conditioning, not a latent, so connect it to `image` on [Generate Latent](generate_media_latents.md). An encoded latent cannot be re-noised for Video-to-Video, because WAN Animate 2 does not support `add_noise`. |
+| MiniMax-H3 | **Not supported.** MiniMax-H3 has no general VAE-encode path — its only encoder is keyframe-specific and produces conditioning rows rather than a reusable latent. This node raises an error. For keyframe conditioning, connect a [Reference Media](media_gen_conditioning.md) node to `conditioning_images` on [Generate Latent](generate_media_latents.md) instead. |
+| Flux3 | Image-only. The encoder pads a single reference to the 16-pixel grid and may downscale it to fit the 4-megapixel limit. Crop metadata is carried with the latent so Decode Media can restore the reference image bounds. |
 
 ## Tips & pitfalls
 
 - **The input slot adapts to the connected pipeline.** Image pipelines (Flux, SD3, etc.) show an `image` input; video pipelines (LTX, LTX2, WAN, etc.) show `input_video` instead. Switching pipeline types replaces the slot — rewire the input after switching.
-- **For fresh text-to-image or text-to-video, use [Create Noise Latents](create-noise-latents.md) instead.** This node encodes an existing image or video into latent space for Image-to-Image or Video-to-Video workflows, not for generation from scratch.
+- **For fresh text-to-image or text-to-video, use [Create Noise Latent](create-noise-latents.md) instead.** This node encodes an existing image or video into latent space for Image-to-Image or Video-to-Video workflows, not for generation from scratch.
 - **Input dimensions must satisfy the pipeline's alignment constraints for all media types.** All pipelines enforce spatial alignment — most require width and height to be multiples of 8 or 16. Video pipelines additionally require `(num_frames − 1)` to be divisible by `vae_scale_factor_temporal`. Some pipelines (HunyuanVideo I2V) use aspect-ratio bucketing. The node validates before running and reports an error with the corrected values; set `modular_diffusion_library.enable_auto_resize = true` in `griptape-nodes-library.json` to silently resize misaligned images or re-frame videos instead.
 
 ## See also
 
-- [Encode Masked Media Latent](encode_masked_media_latent.md) — inpaint variant.
-- [Decode Media Latent](decode_media_latent.md) — inverse operation.
+- [Encode Masked Media](encode_masked_media_latent.md) — inpaint variant.
+- [Decode Media](decode_media_latent.md) — inverse operation.
 - Workflow template: `workflows/templates/Image2Image.py`.

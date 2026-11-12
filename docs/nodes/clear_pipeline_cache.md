@@ -7,12 +7,12 @@ Category: `ModularDiffusion/Pipeline`
 ## TL;DR
 - Clears every pipeline currently stored in the in-memory model cache.
 - Useful when troubleshooting out-of-memory issues or forcing a fresh pipeline load.
-- This node does not take pipeline input; it operates on the global cache.
+- This node does not require a pipeline input; it clears the global cache.
 - Status outputs report whether clearing succeeded and how many pipelines were removed.
 
 ## Typical workflow position
 ```text
-Pipeline Builder(s) → [Clear Pipeline Cache] → Pipeline Builder
+Build Pipeline → [Clear Pipeline Cache] → Build Pipeline
 ```
 
 ## Node preview
@@ -35,10 +35,10 @@ Pipeline Builder(s) → [Clear Pipeline Cache] → Pipeline Builder
 ## Tips & pitfalls
 
 - **Place it only where a full cache reset is intentional.** It clears every cached pipeline, not a single selected model.
-- **Expect the next generation to rebuild.** The next Pipeline Builder execution after clearing has to load/build the model again.
+- **Expect the next generation to rebuild.** After you clear the cache, run Build Pipeline again to reload the model.
 
 ## See also
 
-- [Modular Diffusion Pipeline Builder](pipeline_builder.md)
-- [Generate Media Latents](generate_media_latents.md)
-- [LoRA Pipeline](lora_pipeline.md)
+- [Build Pipeline](pipeline_builder.md)
+- [Generate Latent](generate_media_latents.md)
+- [Apply Runtime LoRA](lora_pipeline.md)

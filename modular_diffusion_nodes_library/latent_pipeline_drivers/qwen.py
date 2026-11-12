@@ -36,6 +36,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
 )
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
+from modular_diffusion_nodes_library.misc.schedule_utils import strength_for_step_index
 from modular_diffusion_nodes_library.parameters.controlnet_node_parameter_types import (
     QwenImageControlNetNodesParameterType,
 )
@@ -178,7 +179,7 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         noise_with_strength_pipeline = _QwenImageNoiseWithStrengthSequence()
         device, dtype = self._get_device_and_type()
@@ -198,7 +199,7 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
             latents=None,
             image_latents=self.modular_pipe.pachifier.pack_latents(latents),
             num_inference_steps=num_inference_steps,
-            strength=strength,
+            strength=strength_for_step_index(start_step, num_inference_steps),
         )
 
         output_latents = self._get_unpacked_image_latents(noisy_state, height, width)

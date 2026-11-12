@@ -85,7 +85,7 @@ class ControlNetNode(ParameterConnectionPreservationMixin, ControlNode):
                 type="control_net",
                 output_type="control_net",
                 allowed_modes={ParameterMode.OUTPUT},
-                tooltip="Configured ControlNet to connect to a ControlNet Pipeline Builder.",
+                tooltip="Configured ControlNet to connect to an Apply ControlNet node.",
             )
         )
         self.set_controlnet_parameter_type(self.provider_choices[0])

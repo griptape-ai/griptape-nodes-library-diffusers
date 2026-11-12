@@ -123,6 +123,17 @@ def _adapt_wan_family(pipe: DiffusionPipeline) -> DenoiserConfigFields:
     )
 
 
+def _adapt_wan_animate_2(pipe: DiffusionPipeline) -> DenoiserConfigFields:
+    cfg = pipe.transformer.config
+    patch_t, patch_h, _patch_w = cfg.patch_size
+    return DenoiserConfigFields(
+        hidden_dim=cfg.dim,
+        num_layers=cfg.num_layers,
+        patch_size_spatial=patch_h,
+        patch_size_temporal=patch_t,
+    )
+
+
 def _adapt_hunyuan_video15(pipe: DiffusionPipeline) -> DenoiserConfigFields:
     cfg = pipe.transformer.config
     return DenoiserConfigFields(
@@ -166,6 +177,7 @@ _DENOISER_FIELD_ADAPTERS: dict[str, Callable[[DiffusionPipeline], DenoiserConfig
     "WanImageToVideoPipeline": _adapt_wan_family,
     "WanVACEPipeline": _adapt_wan_family,
     "WanAnimatePipeline": _adapt_wan_family,
+    "WanAnimate2Pipeline": _adapt_wan_animate_2,
     "HunyuanVideo15Pipeline": _adapt_hunyuan_video15,
     "HunyuanVideo15ImageToVideoPipeline": _adapt_hunyuan_video15,
     "MiniMaxH3ModularPipeline": _adapt_minimax_h3,

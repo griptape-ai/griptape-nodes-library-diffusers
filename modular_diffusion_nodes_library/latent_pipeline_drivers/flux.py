@@ -26,6 +26,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     VideoMedia,
 )
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
+from modular_diffusion_nodes_library.misc.schedule_utils import strength_for_step_index
 from modular_diffusion_nodes_library.utils.torch_utils import no_grad
 
 if TYPE_CHECKING:
@@ -208,7 +209,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         latent: LatentArtifact,
         generator_state: GeneratorState,
         num_inference_steps: int,
-        strength: float,
+        start_step: int,
     ) -> LatentArtifact:
         """Return noised latent with shape [B, C, H, W]."""
         import torch  # type: ignore[reportMissingImports]
@@ -238,7 +239,7 @@ class FluxLatentPipelineDriver(LatentPipelineDriver):
         output_state = self._call_block(
             noise_with_strength_pipeline,
             num_inference_steps=num_inference_steps,
-            strength=strength,
+            strength=strength_for_step_index(start_step, num_inference_steps),
             height=height,
             width=width,
             batch_size=1,

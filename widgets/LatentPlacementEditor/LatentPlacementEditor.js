@@ -243,11 +243,13 @@ export default function LatentPlacementEditor(container, props) {
 
   function snapAxis(v) { return Math.round(v / LATENT_STEP) * LATENT_STEP; }
 
-  // Keeps a dragged source inside the destination. A source that started past the far edge
-  // can stay where it is, but dragging never pushes it further out.
+  // Keeps a dragged source overlapping the destination by at least one latent step; it may hang
+  // off either edge, matching the negative offsets the node accepts. A source that started
+  // further out can stay where it is, but dragging never pushes it further out.
   function clampAxis(v, dest, src, start) {
-    const max = Math.max(Math.floor(Math.max(0, dest - src) / LATENT_STEP) * LATENT_STEP, start);
-    return Math.max(0, Math.min(snapAxis(v), max));
+    const max = Math.max(Math.floor((dest - LATENT_STEP) / LATENT_STEP) * LATENT_STEP, start);
+    const min = Math.min(Math.ceil((LATENT_STEP - src) / LATENT_STEP) * LATENT_STEP, start);
+    return Math.max(min, Math.min(snapAxis(v), max));
   }
 
   canvas.addEventListener("pointerdown", (e) => {

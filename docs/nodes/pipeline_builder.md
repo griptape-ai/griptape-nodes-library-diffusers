@@ -1,23 +1,23 @@
-# Modular Diffusion Pipeline Builder
+# Build Pipeline
 
 **Loads and caches a 🧨 Diffusers pipeline once, so every other node in the flow can reuse it.**
 
 Category: `ModularDiffusion/Pipeline`
 
 ## TL;DR
-- **Build once, generate many.** Place this node first; connect its `pipeline` output to every other Modular Diffusion node that needs weights (Generate Media Latent, VAE Encode/Decode, Create Noise, etc.).
+- **Build once, generate many.** Place this node first, then connect its `pipeline` output to each node that needs the model weights, such as Generate Latent, Encode Media, Decode Media, and Create Noise Latent.
 - **Pick `provider` first.** All other parameters (model repo, runtime knobs) regenerate based on this choice.
 - **The pipeline is cached** by a hash of its config. Changing a load-time parameter (model repo, quantization, LoRAs) rebuilds and re-caches; runtime parameters (prompt, steps) do **not** trigger a rebuild.
 - Output type: `Pipeline Config`.
 
 ## Typical workflow position
 ```text
-[Pipeline Builder] → Create Noise Latents → Generate Media Latents → Decode Media Latent
+[Build Pipeline] → Create Noise Latent → Generate Latent → Decode Media
 ```
 
 ## Node preview
 
-<img src="../assets/nodes/pipeline-builder.png" alt="Modular Diffusion Pipeline Builder" width="480">
+<img src="../assets/nodes/pipeline-builder.png" alt="Build Pipeline" width="480">
 
 ## Inputs
 
@@ -62,6 +62,7 @@ Enable only what you need — each option trades speed for memory.
 | --- | --- |
 | MiniMax-H3 | The **Memory optimization** knobs above are ignored. MiniMax-H3 is a Modular Diffusers pipeline whose transformer (61.7 GB in bfloat16) and Qwen3-VL conditioner (62.1 GB) cannot be placed by the post-load optimizer, so the builder loads it in bfloat16 and registers the components for automatic CPU offload instead. Expect a single 80 GB accelerator plus ample host RAM. LoRAs are not supported. |
 | Flux3 | The UI offers `Flux3Pipeline` (base) and `Flux3DistilledPipeline` (16-step distilled). The model picker lists the repo itself (full-precision transformer, the default) plus `<repo>/fp8r` and `<repo>/nvfp4` rows for the quantized transformers stored in the repo's `variants/` folders. A variant row is offered only when its `model.safetensors` is in the cached snapshot, otherwise it shows as not downloaded. A variant replaces only the transformer: it is read from the single BFL-format file with Diffusers' `BFLQuantizationConfig` (bf16 compute), while the VAE and text encoder always come from the repo root. A wired string can select one (e.g. `black-forest-labs/flux-3-image-klein/fp8r`). Without hardware kernels for the format, `nvfp4` (and `fp8r`) weights are dequantized to bf16 on every forward pass, which saves memory but not time; `nvfp4` is best suited to recent NVIDIA GPUs. LoRA loading with a quantized variant is untested. The Model Manager downloads the whole repo, so all variants arrive together. `prompt_upsampler_model` selects the optional 9B prompt upsampler; Choose `Disabled` to pass prompts through unchanged. The builder uses ComponentsManager CPU offload, so the memory optimization knobs above are ignored. Both image checkpoints are gated under the FLUX Kommunity License and require Hugging Face access; the upsampler is Apache-2.0. Diffusers LoRA loading and fusion are supported for the default transformer. |
+| WAN — `pipeline_type` = `WanAnimate2Pipeline` | WAN Animate 2. `model` offers the standard and the distilled checkpoint (`Wan-AI/Wan2.2-Animate-2-14B-Diffusers`, `Wan-AI/Wan2.2-Animate-2-14B-Distilled-Diffusers`); choosing the distilled one switches the Generate defaults to 10 steps and `guidance_scale` `1.0`. Like MiniMax-H3, this is a Modular Diffusers pipeline: the **Memory optimization** knobs above are ignored, and the builder loads it in bfloat16 with automatic CPU offload instead. LoRAs are not supported. The transformer is compiled with `torch.compile` on the first Generate run, not at build, so that first run takes noticeably longer.
 | LTX2 — `pipeline_type` = `LTX-2.5 Distilled` or `LTX-2.5 Full (SFT)` | Both build an `LTX2Pipeline` from the single gated `Lightricks/LTX-2.5-Diffusers` repo, differing only in which transformer checkpoint is loaded (distilled vs. full/SFT). Decoding always uses the plain VAE. The repo is gated on Hugging Face — accept the license and authenticate before it can be downloaded. |
 
 ## Tips & pitfalls
@@ -74,6 +75,6 @@ Enable only what you need — each option trades speed for memory.
 
 ## See also
 
-- [Configure ControlNet](configure_controlnet.md) · [ControlNet Pipeline](controlnet_pipeline.md) — add ControlNet to a built pipeline.
+- [Load ControlNet](configure_controlnet.md) · [Apply ControlNet](controlnet_pipeline.md) — add ControlNet to a built pipeline.
 - [Load LoRA](load_lora.md) — attach LoRAs to this builder.
-- [Generate Media Latents](generate_media_latents.md) — the most common consumer of the `pipeline` output.
+- [Generate Latent](generate_media_latents.md) — the most common consumer of the `pipeline` output.
