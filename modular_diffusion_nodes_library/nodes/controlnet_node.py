@@ -111,7 +111,11 @@ class ControlNetNode(ParameterConnectionPreservationMixin, ControlNode):
 
     def set_controlnet_parameter_type(self, provider: str) -> None:
         if provider not in self.PROVIDER_MAP:
-            msg = f"Unsupported pipeline provider: {provider}"
+            valid_providers = ", ".join(self.PROVIDER_MAP)
+            msg = (
+                f"Attempted to set provider on '{self.name}'. Failed with provider='{provider}' "
+                f"because it is not a supported provider. Valid providers: {valid_providers}."
+            )
             logger.error(msg)
             raise ValueError(msg)
 
