@@ -19,6 +19,7 @@ from PIL import Image  # noqa: E402
 
 from modular_diffusion_nodes_library.latent_pipeline_drivers.minimax_h3_ref2va import (  # noqa: E402
     MiniMaxH3Ref2VALatentPipelineDriver,
+    _temporary_reference_image_short_edge,
 )
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (  # noqa: E402
     ConditioningInputValue,
@@ -134,3 +135,25 @@ def test_reference_builder_slices_trimmed_frames(
     assert references[0].audio is None
     assert references[0].sample_rate is None
     assert fake_video_loader == []
+
+
+def test_reference_image_short_edge_override_is_restored_after_failure() -> None:
+    class _Config:
+        def __init__(self) -> None:
+            self.reference_image_short_edge = 2048
+
+    class _Pipeline:
+        def __init__(self) -> None:
+            self.config = _Config()
+
+        def update_components(self, **kwargs: int) -> None:
+            for name, value in kwargs.items():
+                setattr(self.config, name, value)
+
+    pipe = _Pipeline()
+    with pytest.raises(RuntimeError, match="generation failed"):
+        with _temporary_reference_image_short_edge(pipe, 512):
+            assert pipe.config.reference_image_short_edge == 512
+            raise RuntimeError("generation failed")
+
+    assert pipe.config.reference_image_short_edge == 2048
