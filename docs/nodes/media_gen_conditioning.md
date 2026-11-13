@@ -66,7 +66,7 @@ Load Image (last)  ───┴→ [Reference Media] ───┘
 | No pipeline connected (default) | Both image and video modes are available. `Preset` choices: **Custom** (default), First + Middle + Last, First + Last, First frame. In Custom mode, `num_images` (0–8), `frame_index`, and `strength` are all adjustable. In video mode, a single `video` input with `frame_index` and `video_strength` is shown. |
 | Flux2 Klein | Image mode only. Flexible image slots (1–8). The `reference_images` input on Generate Latent is active only when an inpaint mask is also connected. |
 | LTX / LTX2 | Same as "No pipeline connected" but in image mode, **First + Middle + Last** is default. |
-| MiniMax-H3 ref2va | Image and video modes; image is the default. Image mode has flexible slots for **1–9** images. Video mode holds **one** clip per node, so use one node per clip (up to 3) and connect them all to `references` on Generate Media Latents. Strength and frame-index controls are hidden because MiniMax-H3 references have neither. Clips must be at least 2 s long, and their audio is discarded. |
+| MiniMax-H3 ref2va | Image and video modes; image is the default. Image mode has flexible slots for **1–9** images. Video mode holds **one** clip per node, so use one node per clip (up to 3) and connect them all to `references` on Generate Latent. Clips must be at least 2s long, and their audio is discarded. |
 | WAN Image-to-Video | Image mode only. `Preset` choices: **First + Last** (default), First frame. |
 | WAN VACE | Image mode only. `Preset` choices: **First + Middle + Last** (default), First + Last, First frame — feeds the `source_media` input on Generate Latent. The same node can also feed `mask` and `reference_images`; `reference_images` accepts up to 8 images. |
 
