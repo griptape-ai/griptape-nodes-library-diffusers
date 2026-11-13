@@ -308,10 +308,10 @@ class LatentMiniMaxH3PipelineTypeParameters(LatentPipelineTypeParameters):
             "Fixed 24 fps, 5 to 15 seconds. Frame count is snapped up to the next `17 * n + 5` "
             "(124, 141, 158, … 345). Height and width must be multiples of 32 and default to "
             "MiniMax-H3's own canvas. Guidance is baked into the weights, so there is no "
-            "`guidance_scale` and no `negative_prompt`. Image-to-video, video-to-video, ControlNet "
-            "and inpainting are not supported.\n"
-            "- `MiniMaxH3Ref2VAModularPipeline` — Reference-to-video generation with a jointly generated soundtrack. "
-            "Reference conditioning is added in the next implementation stage."
+            "`guidance_scale` and no `negative_prompt`. Image-to-video, ControlNet and inpainting are not "
+            "supported. Video-to-video works from a MiniMax-H3 encoded video latent.\n"
+            "- `MiniMaxH3Ref2VAModularPipeline` — Reference-to-video generation with a jointly generated soundtrack, "
+            "conditioned on up to 9 images and up to 3 video clips. Clip audio is discarded."
         )
 
     @classmethod
