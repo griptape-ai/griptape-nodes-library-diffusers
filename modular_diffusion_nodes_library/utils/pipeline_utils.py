@@ -16,6 +16,7 @@ from modular_diffusion_nodes_library.utils.torch_utils import (
 
 if TYPE_CHECKING:
     import torch  # type: ignore[reportMissingImports]
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -408,10 +409,10 @@ def optimize_diffusion_pipeline(  # noqa: PLR0913
         logger.debug("sdp_kernel not supported, continuing without")
 
 
-def clear_diffusion_pipeline(
+def _clear_diffusion_pipeline(
     pipe: DiffusionPipeline,
 ) -> None:
-    """Clear pipeline from memory."""
+    """Clear a DiffusionPipeline from memory."""
     _remove_pipeline_hooks(pipe)
 
     for component_name in get_pipeline_component_names(pipe):
@@ -425,6 +426,39 @@ def clear_diffusion_pipeline(
 
     del pipe
     cleanup_memory_caches()
+
+
+def _clear_modular_pipeline(
+    pipe: ModularPipeline,
+) -> None:
+    """Clear a ModularPipeline and its manager-held components from memory."""
+    # Disable first: ComponentsManager.remove() reattaches hooks while auto-offload is enabled.
+    manager = getattr(pipe, "_components_manager", None)
+    disable_auto_cpu_offload = getattr(manager, "disable_auto_cpu_offload", None)
+    if callable(disable_auto_cpu_offload):
+        disable_auto_cpu_offload()
+
+    # ModularPipeline owns components on itself and through its manager; this removes both references.
+    pipe.unload_components([name for name, component in pipe.components.items() if component is not None])
+    del pipe
+    cleanup_memory_caches()
+
+
+def clear_pipeline(pipe: DiffusionPipeline | ModularPipeline) -> None:
+    """Clear a supported Diffusers pipeline type from memory."""
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+
+    if isinstance(pipe, ModularPipeline):
+        _clear_modular_pipeline(pipe)
+    elif isinstance(pipe, DiffusionPipeline):
+        _clear_diffusion_pipeline(pipe)
+    else:
+        msg = (
+            f"Attempted to clear pipeline of type '{type(pipe).__name__}'. Failed because only "
+            "DiffusionPipeline and ModularPipeline instances are supported."
+        )
+        raise TypeError(msg)
 
 
 def cleanup_memory_caches() -> None:
