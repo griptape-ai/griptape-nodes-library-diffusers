@@ -25,7 +25,7 @@ from modular_diffusion_nodes_library.utils.pipeline_runtime_adapter_step import 
     PipelineRuntimeAdapterStep,
     rebuild_runtime_adapter_step,
 )
-from modular_diffusion_nodes_library.utils.pipeline_utils import clear_diffusion_pipeline
+from modular_diffusion_nodes_library.utils.pipeline_utils import clear_pipeline
 
 if TYPE_CHECKING:
     from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
@@ -59,8 +59,7 @@ def release_held_pipelines(node: BaseNode, *, keep: str | None = None) -> int:
     """Release every pipeline built in this process, returning how many were still held.
 
     `keep` names a config hash to leave held, for a build that reuses that pipeline's components:
-    releasing it runs `clear_diffusion_pipeline`, which moves those shared components to the CPU
-    underneath the pipeline being built from them.
+    releasing it clears those shared components underneath the pipeline being built from them.
     """
     cache = node.local_objects
     keep_key = cache.key_for(keep) if keep is not None else None
@@ -303,7 +302,7 @@ class DiffusionPipelineArtifact:
         # One pipeline resident at a time: free the previous one's VRAM before allocating the next.
         release_held_pipelines(node)
         pipe = self._build_pipeline(log_params=log_params)
-        _HELD_PIPELINE_KEYS.add(cache.put(pipe, key=self.config_hash, on_drop=clear_diffusion_pipeline))
+        _HELD_PIPELINE_KEYS.add(cache.put(pipe, key=self.config_hash, on_drop=clear_pipeline))
         return pipe
 
     # --- Crossing a process boundary ------------------------------------------------------------
@@ -539,14 +538,14 @@ class BaseDiffusionPipelineArtifact(DiffusionPipelineArtifact, ABC):
 
         release_held_pipelines(node, keep=base_config_hash if base_pipe_ref is not None else None)
         derived_pipeline = self._build_pipeline_with_base(base_pipe_ref, log_params=log_params)
-        _HELD_PIPELINE_KEYS.add(cache.put(derived_pipeline, key=self.config_hash, on_drop=clear_diffusion_pipeline))
+        _HELD_PIPELINE_KEYS.add(cache.put(derived_pipeline, key=self.config_hash, on_drop=clear_pipeline))
 
         if base_pipe_ref is not None and not self._should_return_base_to_cache():
             context = self._get_reuse_log_context()
             self._append_log(log_params, f"Dropping the contaminated base pipeline after {context} build.\n")
             # Re-registering the same object clears its release hook without running it, which is what
-            # makes the drop below forget the entry rather than tear it down: `clear_diffusion_pipeline`
-            # moves every component to CPU, and the derived pipeline shares those components.
+            # makes the drop below forget the entry rather than tear it down: clearing either pipeline
+            # would unload components, and the derived pipeline shares those components.
             cache.put(base_pipe_ref, key=base_config_hash, on_drop=None)
             cache.drop(base_key)
 
