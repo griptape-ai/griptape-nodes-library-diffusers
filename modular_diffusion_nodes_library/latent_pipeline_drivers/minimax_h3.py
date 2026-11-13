@@ -25,6 +25,9 @@ from diffusers.modular_pipelines.minimax_h3.denoise import (  # type: ignore[rep
     MiniMaxH3LoopDenoiser,
     MiniMaxH3LoopSchedulerStep,
 )
+from diffusers.modular_pipelines.minimax_h3.encoders import (  # type: ignore[reportMissingImports]
+    MiniMaxH3Ref2VAReferenceEncoderStep,
+)
 from diffusers.modular_pipelines.minimax_h3.modular_pipeline import (  # type: ignore[reportMissingImports]  # type: ignore[reportMissingImports]
     MINIMAX_H3_AUDIO_CHANNELS,
     MINIMAX_H3_FPS,
@@ -34,6 +37,9 @@ from diffusers.modular_pipelines.minimax_h3.modular_pipeline import (  # type: i
     align_num_frames,
     audio_latent_num_frames,
     video_latent_num_frames,
+)
+from diffusers.modular_pipelines.minimax_h3.references import (  # type: ignore[reportMissingImports]
+    MiniMaxH3VideoReference,
 )
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
     ModularPipeline,
@@ -54,9 +60,11 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
     read_driver_meta,
 )
 from modular_diffusion_nodes_library.memory_family import MemoryFamily
+from modular_diffusion_nodes_library.misc.schedule_utils import preserved_scheduler_state
 from modular_diffusion_nodes_library.parameters.media_gen_conditioning.conditioning_payload import (
     normalize_to_payloads,
 )
+from modular_diffusion_nodes_library.utils.audio_utils import resample_waveform
 from modular_diffusion_nodes_library.utils.conditioning_utils import (
     ConditioningMode,
     MediaGenConditioningKey,
@@ -201,6 +209,73 @@ class _MiniMaxH3PrepareNoiseStep(ModularPipelineBlocks):
         block_state.audio_latents = audio_rows.reshape(
             MINIMAX_H3_AUDIO_CHANNELS, block_state.num_audio_latents, components.audio_latent_channels
         ).permute(0, 2, 1)
+
+        self.set_block_state(state, block_state)
+        return components, state
+
+
+class _MiniMaxH3AddNoiseStep(ModularPipelineBlocks):
+    """Noise the video and audio latents to the schedule point at ``start_step``."""
+
+    model_name = "minimax-h3"
+
+    @property
+    def inputs(self) -> list[InputParam]:
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            InputParam,
+        )
+
+        return [
+            InputParam("latents", required=True),
+            InputParam("noise", required=True),
+            InputParam("audio_latents"),
+            InputParam("audio_noise"),
+            InputParam("num_inference_steps", required=True),
+            InputParam("start_step", required=True),
+        ]
+
+    @property
+    def intermediate_outputs(self) -> list[OutputParam]:
+        import torch  # type: ignore[reportMissingImports]
+        from diffusers.modular_pipelines.modular_pipeline_utils import (  # type: ignore[reportMissingImports]
+            OutputParam,
+        )
+
+        return [
+            OutputParam("noisy_latents", type_hint=torch.Tensor, description="Video latents noised to start_step."),
+            OutputParam(
+                "noisy_audio_latents",
+                type_hint=torch.Tensor,
+                description="Audio latents noised to start_step, or None when there is no soundtrack.",
+            ),
+        ]
+
+    @no_grad
+    def __call__(
+        self, components: MiniMaxH3ModularPipeline, state: PipelineState
+    ) -> tuple[MiniMaxH3ModularPipeline, PipelineState]:
+        block_state = cast(Any, self.get_block_state(state))
+        device = components._execution_device
+
+        with preserved_scheduler_state(components.scheduler), preserved_scheduler_state(components.audio_scheduler):
+            components.scheduler.set_timesteps(block_state.num_inference_steps, device=device)
+            components.audio_scheduler.set_timesteps(block_state.num_inference_steps, device=device)
+            timesteps = components.scheduler.timesteps
+            audio_timesteps = components.audio_scheduler.timesteps
+            if len(timesteps) != len(audio_timesteps):
+                raise RuntimeError(
+                    "The MiniMax-H3 video and audio schedulers produced schedules of different lengths "
+                    f"({len(timesteps)} and {len(audio_timesteps)}). This is a pipeline configuration error."
+                )
+            timestep_index = min(block_state.start_step, len(timesteps) - 1)
+            block_state.noisy_latents = components.scheduler.scale_noise(
+                block_state.latents, timesteps[timestep_index], block_state.noise
+            )
+            block_state.noisy_audio_latents = None
+            if block_state.audio_latents is not None:
+                block_state.noisy_audio_latents = components.audio_scheduler.scale_noise(
+                    block_state.audio_latents, audio_timesteps[timestep_index], block_state.audio_noise
+                )
 
         self.set_block_state(state, block_state)
         return components, state
@@ -580,15 +655,70 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
-        # MiniMax-H3's only VAE-encode block is keyframe-specific: it seeds the posterior with a
-        # fixed seed, rounds to fp16 and emits noise-augmented conditioning rows rather than a
-        # public latent. Keyframes reach the model through `conditioning_images` on the Generate
-        # node instead. There is no general image or video encode in the blockset.
-        raise NotImplementedError(
-            f"{self.driver_namespace} does not support encoding media into a latent. MiniMax-H3 has "
-            f"no general VAE-encode path; supply keyframes via the Reference Media input on "
-            f"Generate Latent instead."
+        import numpy as np
+        import torch  # type: ignore[reportMissingImports]
+        from griptape_nodes.exe_types.core_types import NodeError
+
+        if isinstance(media, ImageMedia):
+            raise NodeError(f"{self.driver_namespace} supports video encoding only. Connect a video to 'Input Video'.")
+
+        pipe = cast(MiniMaxH3ModularPipeline, self.modular_pipe)
+        num_frames = align_num_frames(
+            len(media.frames), self.modular_pipe.vae_frames_per_chunk, self.modular_pipe.vae_latents_per_chunk
         )
+        frames = np.stack([np.asarray(frame.convert("RGB")) for frame in media.frames])
+        # Alignment can round the count up to the next 17n+5; the extra frames repeat the last source frame.
+        frames = np.concatenate([frames, np.repeat(frames[-1:], num_frames - len(frames), axis=0)])
+        _, height, width, _ = frames.shape
+
+        audio = None
+        audio_sample_rate = None
+        if media.audio is not None:
+            audio = self._prepare_audio(media.audio, media.audio_sample_rate, num_frames)
+            audio_sample_rate = pipe.audio_sampling_rate
+
+        # Skips the ref2va setup step on purpose: it resamples to 24 fps and resizes onto its own canvas,
+        # and the source video must be encoded as it is.
+        reference = MiniMaxH3VideoReference(
+            frames=frames, fps=float(MINIMAX_H3_FPS), audio=audio, sample_rate=audio_sample_rate
+        )
+        output = self._call_block(MiniMaxH3Ref2VAReferenceEncoderStep(), normalized_references=[reference])
+        video_latents = output["condition_latents"][0].to(dtype=torch.float32)
+        meta: dict[str, Any] = generator_state.as_meta()
+        if audio is not None:
+            # The block returns channel-major rows of shape (2 * N, C); the driver stores (2, C, N).
+            rows = output["audio_condition_latents"][0]
+            meta[AUDIO_LATENTS_META_KEY] = rows.reshape(2, -1, rows.shape[-1]).transpose(1, 2).contiguous()
+        else:
+            logger.warning(
+                "Minimax-H3: video has no audio track. Denoising from a nonzero start step without audio is not supported; "
+                "start at step 0 to generate a new soundtrack.",
+            )
+
+        source_shape = (1, 3, num_frames, height, width)
+        return self._make_latent_artifact(video_latents, source_shape=source_shape, meta=meta)
+
+    def _prepare_audio(self, waveform: torch.Tensor, sample_rate: int | None, num_frames: int) -> torch.Tensor:
+        """Return the soundtrack as stereo at the audio VAE's rate, sized to the video's ``num_frames``."""
+        import torch  # type: ignore[reportMissingImports]
+        import torch.nn.functional as functional
+        from griptape_nodes.exe_types.core_types import NodeError
+
+        if sample_rate is None:
+            raise NodeError(
+                f"{self.driver_namespace} needs the input video's soundtrack sample rate. Re-import the video."
+            )
+        if waveform.shape[0] not in (1, 2):
+            raise NodeError(
+                f"The input video's soundtrack has {waveform.shape[0]} channels. MiniMax-H3 accepts mono or stereo audio."
+            )
+
+        pipe = cast(MiniMaxH3ModularPipeline, self.modular_pipe)
+        stereo = waveform.to(dtype=torch.float32).expand(2, -1).contiguous()
+        audio = resample_waveform(stereo, sample_rate, pipe.audio_sampling_rate)
+
+        target_samples = audio_latent_num_frames(num_frames) * pipe.audio_vae.hop_length
+        return functional.pad(audio, (0, max(0, target_samples - audio.shape[-1])))[..., :target_samples]
 
     @override
     def add_noise_to_latent(
@@ -598,12 +728,59 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         num_inference_steps: int,
         start_step: int,
     ) -> LatentArtifact:
-        # Video-to-video would need to resume a partially-noised latent mid-schedule, but
-        # MiniMaxH3Scheduler.set_timesteps always rebuilds the full linspace(1, 0, n) grid and the
-        # blockset exposes no encode path to noise from in the first place.
-        raise NotImplementedError(
-            f"{self.driver_namespace} does not support adding noise to an existing latent "
-            f"(no video-to-video path). Use Create Noise Latent for a fresh latent."
+        import torch  # type: ignore[reportMissingImports]
+        from griptape_nodes.exe_types.core_types import NodeError
+
+        if num_inference_steps < 2:
+            raise NodeError(
+                f"'Number of Inference Steps' is {num_inference_steps}. MiniMax-H3 requires at least 2 schedule points."
+            )
+
+        audio_latents = self._read_audio_latents(latent)
+        if audio_latents is None and start_step > 0:
+            raise NodeError(
+                f"This MiniMax-H3 latent has no audio state for start_step={start_step}. Connect an encoded video "
+                "with an audio track or set 'Start Step' to 0 so H3 can create a new soundtrack."
+            )
+        device, _ = self._get_device_and_type()
+        # The same noise Create Noise Latents draws for this seed: video first, then audio in upstream's row layout.
+        # It is built from the latent's recorded dimensions, so it is also what the latent's tensors must match.
+        noise = self.create_noise_latent(latent.source_shape, generator_state)
+        video_noise = noise.to_torch(device=device, dtype=torch.float32)
+        audio_noise = self._get_required(noise.meta[self.driver_namespace], AUDIO_LATENTS_META_KEY, torch.Tensor)
+        video_latents = latent.to_torch(device=device, dtype=torch.float32)
+        if video_latents.shape != video_noise.shape:
+            raise NodeError(
+                f"MiniMax-H3 Video latent is {tuple(video_latents.shape)}, expected {tuple(video_noise.shape)}."
+            )
+        if audio_latents is not None:
+            audio_latents = audio_latents.to(device=device, dtype=torch.float32)
+            if audio_latents.shape != audio_noise.shape:
+                raise NodeError(
+                    f"MiniMax-H3 Audio latent is {tuple(audio_latents.shape)}, expected {tuple(audio_noise.shape)}."
+                )
+
+        state = self._run_blocks(
+            _MiniMaxH3AddNoiseStep(),
+            latents=video_latents,
+            noise=video_noise,
+            audio_latents=audio_latents,
+            audio_noise=audio_noise.to(device=device, dtype=torch.float32),
+            num_inference_steps=num_inference_steps,
+            start_step=start_step,
+        )
+        noised_video = self._get_required(state.values, "noisy_latents", torch.Tensor)
+        meta: dict[str, Any] = latent.meta.copy()
+        noised_audio = state.values.get("noisy_audio_latents")
+        if noised_audio is not None:
+            meta[AUDIO_LATENTS_META_KEY] = noised_audio
+        meta.update((GeneratorState.from_artifact(noise) or generator_state).as_meta())
+
+        return self._make_latent_artifact(
+            noised_video,
+            source_shape=latent.source_shape,
+            upstream=latent,
+            meta=meta,
         )
 
     # ------------------------------------------------------------------

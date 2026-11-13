@@ -3,4 +3,6 @@
   to 3 video clips of at least 2 s each. Connect them to `references` on Generate Media Latents
   through Media Gen Conditioning nodes: one image node, plus one video node per clip. Audio in the
   clips is discarded. If the clips add up to more than 15 s, they are trimmed to fit and a warning
-  appears on the node. Latents work with either MiniMax-H3 pipeline type.
+  appears on the node. Latents work with either MiniMax-H3 pipeline type. Encode Media
+  accepts video for MiniMax-H3, and Generate Media Latents with `add_noise` on does
+  Video-to-Video from an encoded MiniMax-H3 video, re-noising its soundtrack too.

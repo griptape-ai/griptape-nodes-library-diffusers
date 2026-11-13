@@ -12,6 +12,8 @@ from griptape_nodes.files.file import File
 if TYPE_CHECKING:
     import numpy as np  # type: ignore[reportMissingImports]
 
+    from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import VideoMedia
+
 
 def resize_video_frames_torch(frames: np.ndarray, height: int, width: int) -> np.ndarray:
     """Resize an FHWC float video array with antialiased bicubic interpolation.
@@ -73,8 +75,41 @@ def download_video_to_temp_file(video_url_artifact: VideoUrlArtifact) -> Path:
     return temp_path
 
 
+def load_video_media_from_url_artifact(video_url_artifact: VideoUrlArtifact) -> VideoMedia:
+    """Load a video artifact into frames and optional soundtrack media.
+
+    Diffusers' MiniMax-H3 video reference decoder reads the video's reported fps and, when
+    present, its soundtrack and sample rate. The audio fields are optional so video-only
+    drivers can ignore them.
+    """
+    import numpy as np
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.modular_pipelines.minimax_h3.references import MiniMaxH3VideoReference
+    from PIL import Image
+
+    from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import VideoMedia
+
+    temp_path = download_video_to_temp_file(video_url_artifact)
+    try:
+        reference = MiniMaxH3VideoReference.from_file(temp_path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+    frames = [Image.fromarray(np.asarray(frame)) for frame in reference.frames]
+    height, width = frames[0].height, frames[0].width
+    audio = None if reference.audio is None else reference.audio.to(dtype=torch.float32).contiguous()
+
+    return VideoMedia(
+        frames=frames,
+        source_shape=(1, 3, len(frames), height, width),
+        audio=audio,
+        audio_sample_rate=reference.sample_rate,
+        fps=reference.fps,
+    )
+
+
 def load_video_frames_from_url_artifact(video_url_artifact: VideoUrlArtifact) -> list:
-    """Load a VideoUrlArtifact as a list of PIL frames.
+    """Load a VideoUrlArtifact as a list of PIL frames without decoding its soundtrack.
 
     Resolves Griptape path macros (e.g. `{inputs}/foo.mp4`) and HTTP URLs via
     `File(...)`, then decodes frames with `diffusers.utils.load_video`.

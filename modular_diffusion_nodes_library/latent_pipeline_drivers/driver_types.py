@@ -68,6 +68,9 @@ class ImageMedia:
 class VideoMedia:
     frames: list[Image]
     source_shape: tuple[int, ...]
+    audio: torch.Tensor | None = None
+    audio_sample_rate: int | None = None
+    fps: float | None = None
 
 
 @dataclass(frozen=True)
