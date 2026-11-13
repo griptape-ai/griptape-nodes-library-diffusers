@@ -76,10 +76,29 @@ class MiniMaxH3Ref2VAPipelineRuntimeParameters(DiffusionPipelineRuntimeParameter
             )
         )
         self._references_param.add_input_parameters()
+        reference_image_short_edge_param = Parameter(
+            name="reference_image_short_edge",
+            default_value=2048,
+            type="int",
+            tooltip="The size, in pixels, used to prepare image references.",
+        )
+        reference_image_short_edge_param.set_badge(
+            variant="help",
+            title="Reference image encode size",
+            message=(
+                "Sets the target short edge to which the pipeline resizes each still-image reference before "
+                "encoding it. The default is 2048, matching Diffusers. Since references are re-encoded at every "
+                "denoising stage, this can make generation slower. A good starting point is your reference image's "
+                "shorter side: try 512 for a 512 px image or 1024 for a 1024 px image. Lower values can speed up "
+                "generation but may lose fine detail."
+            ),
+        )
+        self._node.add_parameter(reference_image_short_edge_param)
 
     def _remove_input_parameters(self) -> None:
         self._references_param.remove_input_parameters()
         self._node.remove_parameter_element_by_name("prompt")
+        self._node.remove_parameter_element_by_name("reference_image_short_edge")
         self._node.remove_parameter_element_by_name("ref2va_duration_warning")
 
     def on_incoming_connection_added(self, param_name: str) -> None:
@@ -91,6 +110,7 @@ class MiniMaxH3Ref2VAPipelineRuntimeParameters(DiffusionPipelineRuntimeParameter
     def _get_pipe_kwargs(self) -> dict:
         return {
             "prompt": self._node.get_parameter_value("prompt"),
+            "reference_image_short_edge": self._node.get_parameter_value("reference_image_short_edge"),
             **self._references_param.get_pipe_kwargs(),
         }
 
@@ -101,6 +121,23 @@ class MiniMaxH3Ref2VAPipelineRuntimeParameters(DiffusionPipelineRuntimeParameter
         else:
             self._duration_warning.value = ""
             self._duration_warning.hide = True
+
+    def validate_before_node_run(self) -> list[Exception] | None:
+        errors = super().validate_before_node_run() or []
+        reference_image_short_edge = self._node.get_parameter_value("reference_image_short_edge")
+        if (
+            not isinstance(reference_image_short_edge, int)
+            or isinstance(reference_image_short_edge, bool)
+            or reference_image_short_edge <= 0
+        ):
+            errors.append(
+                ValueError(
+                    f"Attempted to validate MiniMax-H3 ref2va settings on '{self._node.name}'. "
+                    f"Failed with reference_image_short_edge={reference_image_short_edge!r} because it must be a "
+                    "positive integer."
+                )
+            )
+        return errors or None
 
     def validate_in_execution_environment(self) -> list[Exception] | None:
         errors = super().validate_in_execution_environment() or []

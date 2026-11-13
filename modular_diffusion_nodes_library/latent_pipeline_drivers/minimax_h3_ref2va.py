@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from threading import Lock
 from typing import Any, ClassVar, cast, override
 
 from diffusers.modular_pipelines.minimax_h3.denoise import (  # type: ignore[reportMissingImports]
@@ -34,6 +37,19 @@ from modular_diffusion_nodes_library.utils.minimax_h3_ref2va_utils import (
     load_reference_video,
     plan_reference_video_trim,
 )
+
+# The cached pipeline config is shared, so serialize temporary per-run overrides.
+_REF2VA_PIPELINE_CONFIG_LOCK = Lock()
+
+
+@contextmanager
+def _temporary_reference_image_short_edge(pipe: Any, short_edge: int) -> Iterator[None]:
+    previous_short_edge = pipe.config.reference_image_short_edge
+    pipe.update_components(reference_image_short_edge=short_edge)
+    try:
+        yield
+    finally:
+        pipe.update_components(reference_image_short_edge=previous_short_edge)
 
 
 class _MiniMaxH3Ref2VACallbackDenoiseStep(_MiniMaxH3CallbackDenoiseStep):
@@ -119,8 +135,15 @@ class MiniMaxH3Ref2VALatentPipelineDriver(MiniMaxH3LatentPipelineDriver):
                 "reference is required."
             )
 
-        references = self._build_references(payloads)
         pipe = cast(Any, self.modular_pipe)
+        reference_image_short_edge = kwargs.pop("reference_image_short_edge", None)
+        if reference_image_short_edge is not None and int(reference_image_short_edge) <= 0:
+            raise ValueError(
+                f"{self.driver_namespace}: Attempted to run ref2va denoising. Failed with "
+                f"reference_image_short_edge={reference_image_short_edge!r} because it must be a positive integer."
+            )
+
+        references = self._build_references(payloads)
         device, _ = self._get_device_and_type()
         source_shape = latent.source_shape
         geometry = self._latent_geometry(source_shape)
@@ -160,18 +183,22 @@ class MiniMaxH3Ref2VALatentPipelineDriver(MiniMaxH3LatentPipelineDriver):
         }
         blocks = SequentialPipelineBlocks.from_blocks_dict(outer_blocks)
 
-        pipe._interrupt = False
-        try:
-            state = self._run_blocks(
-                blocks,
-                latents=video_latents_in,
-                audio_latents=audio_latents,
-                num_inference_steps=num_inference_steps,
-                generator=generator,
-                **update_kwargs,
-            )
-        finally:
+        with _REF2VA_PIPELINE_CONFIG_LOCK:
+            if reference_image_short_edge is None:
+                reference_image_short_edge = pipe.config.reference_image_short_edge
             pipe._interrupt = False
+            try:
+                with _temporary_reference_image_short_edge(pipe, int(reference_image_short_edge)):
+                    state = self._run_blocks(
+                        blocks,
+                        latents=video_latents_in,
+                        audio_latents=audio_latents,
+                        num_inference_steps=num_inference_steps,
+                        generator=generator,
+                        **update_kwargs,
+                    )
+            finally:
+                pipe._interrupt = False
 
         video_latents = self._get_required(state.values, "latents", torch.Tensor)
         audio_out = self._get_required(state.values, "audio_latents", torch.Tensor)
