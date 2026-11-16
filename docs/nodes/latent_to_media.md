@@ -68,7 +68,7 @@ Common controls are available for every model family; settings specific to a fam
 | --- | --- |
 | LTX-2.5 (diffusion decoder) | Decodes compatible 5-D LTX-2 video latents by running the diffusion decoder, and publishes an MP4. Its model repository contains the decoder weights. |
 
-> **Warning:** The FlexAttention processor that diffusers uses by default is uncompiled, so it materialises the full score matrix. At video resolutions, it can require tens of GB of GPU VRAM and may run out of memory. The NATTEN kernels used by the original implementation are only prebuilt for Linux and WSL, so this library cannot use them on native Windows.
+> **Warning:** The FlexAttention processor that diffusers uses by default is uncompiled, so it materializes the full score matrix. At video resolutions, it can require tens of GB of GPU VRAM and may run out of memory. The NATTEN kernels used by the original implementation are only prebuilt for Linux and WSL, so this library cannot use them on native Windows.
 
 > **Note:** This library uses chunked attention by default to cap memory. Enable `decoder_use_flex_attention` when matching the original FlexAttention reference path matters more than VRAM use. The chunked approach processes queries in chunks, a known technique (Rabe and Staats, 2021, "Self-attention Does Not Need O(n²) Memory").
 

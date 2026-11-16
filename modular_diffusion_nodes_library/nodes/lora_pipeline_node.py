@@ -26,8 +26,8 @@ class LoraActivationPipelineNode(SuccessFailureExecutionMixin, SuccessFailureNod
                 name="pipeline",
                 type="Pipeline Config",
                 tooltip=(
-                    "Base diffusion pipeline. Connect from Pipeline Builder. The base pipeline is reused, "
-                    "not modified — wire it to other nodes simultaneously."
+                    "Base diffusion pipeline. Connect the Build Pipeline node's output. The pipeline is "
+                    "reused without modification, so you can connect it to other nodes too."
                 ),
                 allowed_modes={ParameterMode.INPUT},
             )
