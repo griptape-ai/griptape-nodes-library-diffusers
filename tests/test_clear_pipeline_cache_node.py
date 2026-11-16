@@ -181,6 +181,7 @@ def test_modular_pipeline_cache_uses_dispatcher(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_pipeline_cleanup_rejects_unknown_types() -> None:
+    pytest.importorskip("diffusers.modular_pipelines.modular_pipeline")
     from modular_diffusion_nodes_library.utils.pipeline_utils import clear_pipeline
 
     with pytest.raises(TypeError, match="only DiffusionPipeline and ModularPipeline instances are supported"):
