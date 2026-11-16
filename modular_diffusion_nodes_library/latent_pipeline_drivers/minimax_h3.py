@@ -75,6 +75,7 @@ from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionA
 from modular_diffusion_nodes_library.utils.torch_utils import no_grad
 
 if TYPE_CHECKING:
+    import numpy as np  # type: ignore[reportMissingImports]
     import torch  # type: ignore[reportMissingImports]
     from diffusers.modular_pipelines.modular_pipeline_utils import (
         InputParam,  # type: ignore[reportMissingImports]
@@ -389,6 +390,15 @@ class _MiniMaxH3CallbackDenoiseStep(MiniMaxH3DenoiseLoopWrapper):
         return components, state
 
 
+def _fit_frame_count(frames: np.ndarray, num_frames: int) -> np.ndarray:
+    """Cut or pad ``(T, H, W, 3)`` frames to ``num_frames``; padding repeats the last frame."""
+    import numpy as np
+
+    if num_frames <= len(frames):
+        return frames[:num_frames]
+    return np.concatenate([frames, np.repeat(frames[-1:], num_frames - len(frames), axis=0)])
+
+
 class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
     memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.VIDEO_DIT_JOINT_SDPA
     produces_video: ClassVar[bool] = True
@@ -663,13 +673,12 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
             raise NodeError(f"{self.driver_namespace} supports video encoding only. Connect a video to 'Input Video'.")
 
         pipe = cast(MiniMaxH3ModularPipeline, self.modular_pipe)
-        num_frames = align_num_frames(
-            len(media.frames), self.modular_pipe.vae_frames_per_chunk, self.modular_pipe.vae_latents_per_chunk
-        )
         frames = np.stack([np.asarray(frame.convert("RGB")) for frame in media.frames])
-        # Alignment can round the count up to the next 17n+5; the extra frames repeat the last source frame.
-        frames = np.concatenate([frames, np.repeat(frames[-1:], num_frames - len(frames), axis=0)])
         _, height, width, _ = frames.shape
+        # The frame count snap_dimensions reports (clamped into 124-345, then 17n+5), so the latent is one that
+        # decode and denoise accept. Without this a short or long clip encodes to a count they reject.
+        num_frames = cast(int, self.align_dimensions(height, width, len(frames)).num_frames)
+        frames = _fit_frame_count(frames, num_frames)
 
         audio = None
         audio_sample_rate = None
@@ -770,7 +779,8 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
             start_step=start_step,
         )
         noised_video = self._get_required(state.values, "noisy_latents", torch.Tensor)
-        meta: dict[str, Any] = latent.meta.copy()
+        # Only the fields this step replaces. `upstream=latent` carries the rest of the driver's meta forward.
+        meta: dict[str, Any] = {}
         noised_audio = state.values.get("noisy_audio_latents")
         if noised_audio is not None:
             meta[AUDIO_LATENTS_META_KEY] = noised_audio

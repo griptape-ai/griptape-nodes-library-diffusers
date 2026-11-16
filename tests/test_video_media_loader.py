@@ -10,24 +10,40 @@ pytest.importorskip("torch", reason="Uses the MiniMax-H3 media reference; run `m
 pytest.importorskip("diffusers", reason="Uses the MiniMax-H3 media reference; run `make test/exec`.")
 pytest.importorskip("av", reason="Uses the MiniMax-H3 media reference; run `make test/exec`.")
 
-import numpy as np  # noqa: E402
 import torch  # noqa: E402
 from PIL import Image  # noqa: E402
 
 from modular_diffusion_nodes_library.utils import video_utils  # noqa: E402
 
 
+class _FakeContainer:
+    """Stands in for an `av` container, exposing only the audio streams the loader inspects."""
+
+    def __init__(self, audio_streams: list[object]) -> None:
+        self.streams = SimpleNamespace(audio=audio_streams)
+
+    def __enter__(self) -> _FakeContainer:
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        return None
+
+
+def _frames(count: int) -> list[Image.Image]:
+    return [Image.new("RGB", (10, 8)) for _ in range(count)]
+
+
 def test_video_media_loader_returns_frames_fps_and_optional_audio(monkeypatch: pytest.MonkeyPatch) -> None:
-    frames = np.zeros((3, 8, 10, 3), dtype=np.uint8)
     waveform = torch.ones((2, 3200), dtype=torch.float32)
-    reference = SimpleNamespace(frames=frames, fps=24.0, audio=waveform, sample_rate=32000)
     temp_path = Path("video-test.mp4")
     deleted: list[Path] = []
     monkeypatch.setattr(video_utils, "download_video_to_temp_file", lambda _artifact: temp_path)
     monkeypatch.setattr(Path, "unlink", lambda self, **_kwargs: deleted.append(self))
+    monkeypatch.setattr("diffusers.utils.load_video", lambda _path, return_fps: (_frames(3), 24.0))
+    monkeypatch.setattr("av.open", lambda _path: _FakeContainer(audio_streams=[object()]))
     monkeypatch.setattr(
-        "diffusers.modular_pipelines.minimax_h3.references.MiniMaxH3VideoReference.from_file",
-        lambda _path: reference,
+        "diffusers.modular_pipelines.minimax_h3.references.MiniMaxH3AudioReference.from_file",
+        lambda _path: SimpleNamespace(audio=waveform, sample_rate=32000),
     )
 
     media = video_utils.load_video_media_from_url_artifact(VideoUrlArtifact(value="video.mp4"))
@@ -42,13 +58,10 @@ def test_video_media_loader_returns_frames_fps_and_optional_audio(monkeypatch: p
 
 
 def test_video_media_loader_accepts_missing_audio(monkeypatch: pytest.MonkeyPatch) -> None:
-    reference = SimpleNamespace(frames=np.zeros((2, 8, 10, 3), dtype=np.uint8), fps=15.0, audio=None, sample_rate=None)
     monkeypatch.setattr(video_utils, "download_video_to_temp_file", lambda _artifact: Path("silent.mp4"))
     monkeypatch.setattr(Path, "unlink", lambda self, **_kwargs: None)
-    monkeypatch.setattr(
-        "diffusers.modular_pipelines.minimax_h3.references.MiniMaxH3VideoReference.from_file",
-        lambda _path: reference,
-    )
+    monkeypatch.setattr("diffusers.utils.load_video", lambda _path, return_fps: (_frames(2), 15.0))
+    monkeypatch.setattr("av.open", lambda _path: _FakeContainer(audio_streams=[]))
 
     media = video_utils.load_video_media_from_url_artifact(VideoUrlArtifact(value="silent.mp4"))
 

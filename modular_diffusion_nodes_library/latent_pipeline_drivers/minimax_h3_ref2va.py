@@ -33,7 +33,6 @@ from modular_diffusion_nodes_library.parameters.media_gen_conditioning.condition
 )
 from modular_diffusion_nodes_library.utils.conditioning_utils import ConditioningMode, resolve_conditioning_image
 from modular_diffusion_nodes_library.utils.minimax_h3_ref2va_utils import (
-    get_reference_video_duration_seconds,
     load_reference_video,
     plan_reference_video_trim,
 )
@@ -83,14 +82,11 @@ class MiniMaxH3Ref2VALatentPipelineDriver(MiniMaxH3LatentPipelineDriver):
             MiniMaxH3ImageReference(image=resolve_conditioning_image(entry.artifact)) for entry in image_entries
         ]
 
-        durations = [
-            get_reference_video_duration_seconds(cast(VideoUrlArtifact, entry.artifact)) for entry in video_entries
-        ]
-        trim_plan = plan_reference_video_trim(durations)
-        for entry, kept_seconds in zip(video_entries, trim_plan.kept_seconds, strict=True):
+        loaded_videos = [load_reference_video(cast(VideoUrlArtifact, entry.artifact)) for entry in video_entries]
+        trim_plan = plan_reference_video_trim([loaded.duration_seconds for loaded in loaded_videos])
+        for loaded_video, kept_seconds in zip(loaded_videos, trim_plan.kept_seconds, strict=True):
             if kept_seconds is None:
                 continue
-            loaded_video = load_reference_video(cast(VideoUrlArtifact, entry.artifact))
             fps = loaded_video.reference.fps
             assert fps is not None
             frame_count = round(kept_seconds * fps)
@@ -162,7 +158,7 @@ class MiniMaxH3Ref2VALatentPipelineDriver(MiniMaxH3LatentPipelineDriver):
                 f"{self.driver_namespace}: Attempted to resume a MiniMax-H3 denoise at step "
                 f"{start_step}. Failed because the input latent carries no audio latent, so the "
                 "soundtrack would restart from pure noise mid-schedule. Chain partial denoise "
-                "directly from a previous Generate Media Latents run."
+                "directly from a previous Generate Latent run."
             )
         if audio_latents is not None:
             audio_latents = audio_latents.to(device=device, dtype=torch.float32)

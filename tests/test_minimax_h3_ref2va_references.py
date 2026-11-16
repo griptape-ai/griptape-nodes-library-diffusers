@@ -4,13 +4,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import torch
 from griptape.artifacts import ImageUrlArtifact
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
 
 pytest.importorskip("torch", reason="Uses the real MiniMax-H3 reference dataclasses; run `make test/exec`.")
 pytest.importorskip("diffusers", reason="Uses the real MiniMax-H3 reference dataclasses; run `make test/exec`.")
 
+import torch  # noqa: E402
 from diffusers.modular_pipelines.minimax_h3.references import (  # noqa: E402
     MiniMaxH3ImageReference,
     MiniMaxH3VideoReference,
@@ -91,7 +91,6 @@ def test_reference_builder_orders_images_first_then_videos(
         reference = MiniMaxH3VideoReference(frames=frames, fps=10.0, audio=torch.ones(1), sample_rate=44100)
         return LoadedReferenceVideo(reference=reference, duration_seconds=3.0)
 
-    monkeypatch.setattr(driver_module, "get_reference_video_duration_seconds", lambda artifact: 3.0)
     monkeypatch.setattr(driver_module, "load_reference_video", load_video)
     monkeypatch.setattr(driver_module, "resolve_conditioning_image", lambda artifact: Image.new("RGB", (2, 2)))
 
@@ -124,7 +123,6 @@ def test_reference_builder_slices_trimmed_frames(
         reference = MiniMaxH3VideoReference(frames=frames, fps=10.0, audio=torch.ones(1), sample_rate=44100)
         return LoadedReferenceVideo(reference=reference, duration_seconds=20.0)
 
-    monkeypatch.setattr(driver_module, "get_reference_video_duration_seconds", lambda artifact: 20.0)
     monkeypatch.setattr(driver_module, "load_reference_video", load_video)
 
     references = MiniMaxH3Ref2VALatentPipelineDriver._build_references([_video_payload("long.mp4")])
