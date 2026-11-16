@@ -264,6 +264,22 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
             raise ValueError(msg)
 
         media = load_video_media_from_url_artifact(video_artifact)
+        if not media.frames:
+            msg = "Attempted to encode video. Failed because no frames could be loaded from the input video."
+            raise ValueError(msg)
+
+        # TODO: Video frames should be resampled to the model's fps (`latents_pipeline_driver.video_fps`) before
+        # validation and encoding, so the frame count and duration checks apply to the frames the model sees.
+        # Decide what happens to the audio when the video is resampled.
+        model_fps = latents_pipeline_driver.video_fps
+        if media.fps is not None and media.fps != model_fps:
+            logger.warning(
+                "%s: Attempted to encode video. Source frame rate does not match the model, so frames are encoded "
+                "without resampling. Source is %s fps and the model runs at %s fps.",
+                self.name,
+                media.fps,
+                model_fps,
+            )
         frames_rgb = [frame.convert("RGB") for frame in media.frames]
         h, w = frames_rgb[0].height, frames_rgb[0].width
         num_frames = len(frames_rgb)

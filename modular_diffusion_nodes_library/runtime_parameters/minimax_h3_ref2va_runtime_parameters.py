@@ -48,7 +48,7 @@ class MiniMaxH3Ref2VAPipelineRuntimeParameters(DiffusionPipelineRuntimeParameter
             tooltip="Image and video references for MiniMax-H3 ref2va generation.",
             badge_title="References",
             badge_message=(
-                "Connect one image-mode **Media Gen Conditioning** node with up to 9 images, and up to three "
+                "Connect one image-mode **Reference Media** node with up to 9 images, and up to three "
                 "video-mode nodes (one clip per node). At least one reference is required. Each video must be "
                 "at least 2 seconds; all videos together are limited to 15 seconds. Video audio is discarded.\n\n"
                 "In your prompt, refer to images as `<Picture i>` and videos as `<Video k>`."
