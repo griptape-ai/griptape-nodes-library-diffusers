@@ -249,7 +249,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 default_value=None,
                 # No `serializable=False`: see the component loader. This artifact is a description of
                 # what to load, not the loaded scheduler.
-                tooltip="Scheduler artifact. Wire into a Pipeline Builder scheduler override port.",
+                tooltip="Scheduler artifact. Connect it to the scheduler override input on the Build Pipeline node.",
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )

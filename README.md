@@ -18,7 +18,7 @@ The Diffusers Nodes Library is a node library for creators who want more control
 
 A typical flow looks like this:
 
-1. **Build a pipeline once** with the Pipeline Builder, and reuse it across multiple generations.
+1. Create a pipeline with the Build Pipeline node, then reuse its output across generations.
 1. **Create or load latents** (noise, empty, encoded image/video, or a saved tensor).
 1. **Run diffusion** to produce new latents — optionally multiple times for multi-stage or rediffusion workflows.
 1. **Transform latents** with math, masked compositing, or upsampling between stages.
@@ -59,19 +59,22 @@ Alternatively, register the library directly in your `griptape_nodes_config.json
 
 ## Supported models
 
-Models are selected on the Pipeline Builder via a `provider` dropdown. Currently supported:
+Choose a provider from the Build Pipeline node's `provider` dropdown. Supported models include:
 
-- **Flux** and **Flux2** (including Flux2-Klein)
-- **Stable Diffusion XL** and **Stable Diffusion 3**
-- **Qwen-Image** (and Qwen-Edit)
-- **Z-Image**
+- **Flux** (dev, schnell, Krea, Fill, and Kontext) and **Flux2** (including Flux2-Klein)
+- **FLUX.3 Image Klein** (base and step-distilled, with an optional prompt upsampler)
+- **Stable Diffusion XL** (including refiner and inpainting) and **Stable Diffusion 3 / 3.5**
+- **Qwen-Image** (and Qwen-Image-Edit)
+- **Z-Image** (Turbo)
 - **LTX** (video)
-- **LTX-2.x** (text-to-video, image-to-video, video-to-video, image/video conditioning, IC-LoRA, and HDR IC-LoRA for linear HDR output).
+- **LTX-2.x** (text-to-video, image-to-video, video-to-video, image/video conditioning, IC-LoRA, and HDR IC-LoRA for linear HDR output)
 - **HunyuanVideo 1.5** (text-to-video and image-to-video)
 - **MiniMax-H3** (text-to-video and keyframe-to-video with jointly generated audio)
-- **WAN** (text-to-video and image-to-video)
+- **WAN 2.1 / 2.2** (text-to-video, image-to-video, VACE, and Animate 2 character animation)
 
-Models are loaded from Hugging Face repositories in Diffusers format (single-file `.safetensors` checkpoints are not loaded directly — use a Hugging Face repo ID). Multiple **LoRAs** can be attached to a pipeline via the builder.
+**ControlNet** is supported for Flux, Stable Diffusion XL, Stable Diffusion 3, Qwen-Image, and Z-Image through the Load ControlNet and Apply ControlNet nodes.
+
+Models are loaded from Hugging Face repositories in Diffusers format (single-file `.safetensors` checkpoints are not loaded directly — use a Hugging Face repo ID). To fuse LoRAs into the model weights, connect their outputs to the Build Pipeline node.
 
 > **Note:** All models are downloaded locally to the Hugging Face cache the first time they're used (default: `~/.cache/huggingface/hub` on Linux/macOS, `%USERPROFILE%\.cache\huggingface\hub` on Windows). To store them elsewhere, set the `HF_HOME` environment variable globally before launching the engine — e.g. `HF_HOME=D:\models\hf` on Windows or `export HF_HOME=/mnt/models/hf` on Linux/macOS.
 
@@ -92,9 +95,9 @@ To turn it on:
 
 ## Performance and memory
 
-The Pipeline Builder caches the loaded pipeline in memory and reuses it across runs, only rebuilding when the configuration changes.
+The Build Pipeline node caches the loaded pipeline and reuses it across runs, rebuilding only when its configuration changes.
 
-For lower-VRAM setups, the builder exposes a **Memory Optimization Strategy** selector:
+For lower-VRAM setups, the Build Pipeline node provides a **Memory Optimization Strategy** selector:
 
 - **Automatic** — Griptape picks reasonable defaults for the chosen model.
 - **Manual** — you control each knob individually:
@@ -104,7 +107,7 @@ For lower-VRAM setups, the builder exposes a **Memory Optimization Strategy** se
     - **VAE slicing** — decodes the latent in batches of 1; helps with large batch sizes.
     - **Transformer layerwise casting** — keeps the transformer in a lower precision and upcasts per layer during compute.
 
-Enable only what you need — each option trades some speed for memory. The Pipeline Builder includes per-parameter help badges with more detail.
+Enable only what you need — each option trades some speed for memory. Each parameter on the Build Pipeline node has a help badge with more detail.
 
 > ## ⚠️ Separate pipeline caches when using both libraries
 > The Modular Diffusion Library and the Advanced Media Library's fixed diffusion pipelines each maintain their own in-memory pipeline cache. If both libraries are loaded and used in the same session, you may end up holding two full copies of overlapping model weights in VRAM/RAM at once, leading to significantly higher memory usage and out-of-memory errors. Prefer using one library per session, or reduce memory pressure via the optimization knobs above.

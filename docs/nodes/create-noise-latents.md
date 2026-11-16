@@ -5,7 +5,7 @@
 Category: `ModularDiffusion/Create`
 
 ## TL;DR
-- In text-to-image and text-to-video workflows, place this node after the **Build Pipeline** node and before the **Generate Latent** node.
+- In text-to-image and text-to-video workflows, place this node between the **Build Pipeline** and **Generate Latent** nodes.
 - `width` / `height` are pixel-space; the node handles VAE down-scaling internally.
 - `num_frames` appears only when the connected pipeline produces video (LTX, LTX2, WAN). It's hidden otherwise.
 - `seed` controls reproducibility — same seed + same pipeline + same dimensions → identical latent.
@@ -23,7 +23,7 @@ Build Pipeline → [Create Noise Latent] → Generate Latent → Decode Media
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `pipeline` | `Pipeline Config` | Yes | Connect the `pipeline` output from the Build Pipeline node. The selected pipeline determines the latent shape, VAE scale factor, and whether `num_frames` appears. |
+| `pipeline` | `Pipeline Config` | Yes | Connect the `pipeline` output from the Build Pipeline node. The selected pipeline determines the latent shape and VAE scale factor, and whether `num_frames` is available. |
 
 ## Outputs
 

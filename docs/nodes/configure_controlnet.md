@@ -7,7 +7,7 @@ Category: `ModularDiffusion/Pipeline`
 ## TL;DR
 - Pick `provider` first; the rest of the parameters are **dynamic** and regenerate per provider.
 - One node = one ControlNet. To stack multiple, drop multiple nodes and connect each `control_net` output to the [Apply ControlNet](controlnet_pipeline.md) node's `control_nets` list input.
-- Supported providers: **Flux, Qwen, Stable Diffusion, Z-Image** etc.
+- Supported providers: **Flux, Qwen, Stable Diffusion, Z-Image**, and others.
 
 ## Typical workflow position
 ```text

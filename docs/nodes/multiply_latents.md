@@ -11,7 +11,7 @@ Category: `ModularDiffusion/Transform`
 ## Typical workflow position
 ```text
 Latent A ─┐
-          ├─→ [Multiply Latents] → Add Latents / Generate
+          ├─→ [Multiply Latents] → Add Latents / Generate Latent
 Latent B ─┘
 ```
 

@@ -5,7 +5,7 @@
 Category: `ModularDiffusion/Preconfigured`
 
 ## TL;DR
-- The sub-flow uses Build Pipeline, Encode Masked Media, Generate Latent, and Decode Media to create an inpainting workflow.
+- The sub-flow uses the Build Pipeline, Encode Masked Media, Generate Latent, and Decode Media nodes to create an inpainting workflow.
 - Pipeline defaults to a supported model; open the sub-flow to change the model repo or any hidden parameter.
 - Outputs `output_image` (`ImageUrlArtifact`)
 
@@ -46,7 +46,7 @@ The internal Encode Masked Media node's `strength` is set to `1.0` for this work
 
 ## Tips & pitfalls
 
-- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to inspect and edit the internal Build Pipeline, Encode Masked Media, Generate Latent, and Decode Media nodes.
+- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to inspect and edit the Build Pipeline, Encode Masked Media, Generate Latent, and Decode Media nodes it contains.
 - **Fixed model selection.** You cannot change the model selection or other internal parameters directly from the top-level node; you must open the sub-flow to make changes.
 - **No download status visibility.** There is no visual indication within the node itself whether the required model has been downloaded or if it needs to be installed via the Model Manager.
 - **Mask is resized to match the (possibly snapped) source image automatically**, per the underlying [Encode Masked Media](encode_masked_media_latent.md) node.

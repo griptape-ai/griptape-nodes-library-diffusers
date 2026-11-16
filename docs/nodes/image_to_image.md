@@ -5,8 +5,8 @@
 Category: `ModularDiffusion/Preconfigured`
 
 ## TL;DR
-- The sub-flow uses Build Pipeline, Encode Media, Generate Latent, and Decode Media to create an image-to-image workflow.
-- `start_step` controls how much of the source image is preserved. It must be less than or equal to num inference.
+- The sub-flow uses the Build Pipeline, Encode Media, Generate Latent, and Decode Media nodes to create an image-to-image workflow.
+- `start_step` controls how much of the source image is preserved. It must be less than or equal to `num_inference_steps`.
 - Pipeline defaults to a supported model; open the sub-flow to change the model repo or any hidden parameter.
 - Outputs `output_image` (`ImageUrlArtifact`)
 
@@ -23,7 +23,7 @@ Load Image → [Image to Image] → Display Image
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `pipeline_type` | Supported Pipeline Types | Yes | Selects which pipeline family the internal Build Pipeline node uses. |
+| `pipeline_type` | Supported Pipeline Types | Yes | Selects the pipeline family used by the sub-flow. |
 | `input` | `ImageArtifact` / `ImageUrlArtifact` | Yes | Source image, forwarded to the internal Encode Media node. |
 | `start_step` | int | No | Default `5`. Which denoising step to start from — higher values preserve more of the source image. |
 | `num_inference_steps` | int | No | Forwarded to the internal Generate Latent node. |
@@ -40,11 +40,11 @@ Load Image → [Image to Image] → Display Image
 
 ## Provider / model behavior
 
-Each `pipeline_type` has a matching default model. Selecting a different type also selects its default model in the internal Build Pipeline node, so you can try another architecture without editing the sub-flow.
+Each `pipeline_type` has a matching default model. Selecting a different type also selects its default model in the sub-flow, so you can try another architecture without editing the workflow.
 
 ## Tips & pitfalls
 
-- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to inspect and edit the internal Build Pipeline, Encode Media, Generate Latent, and Decode Media nodes, including hidden settings such as the model repo and optimization toggles.
+- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to inspect and edit the Build Pipeline, Encode Media, Generate Latent, and Decode Media nodes it contains, including hidden settings such as the model repo and optimization toggles.
 - **Fixed model selection.** You cannot change the model selection or other internal parameters directly from the top-level node; you must open the sub-flow to make changes.
 - **No download status visibility.** There is no visual indication within the node itself whether the required model has been downloaded or if it needs to be installed via the Model Manager.
 - **`start_step` controls fidelity to the source image.** Lower values allow more deviation from `input`; higher values stay closer to it. Open the sub-flow to see how it maps onto the internal Generate Latent node's partial-denoise range.

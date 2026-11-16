@@ -1165,7 +1165,7 @@
       "file_path": "./modular_diffusion_nodes_library/nodes/load_lora_node.py",
       "metadata": {
         "category": "ModularDiffusion/Pipeline",
-        "description": "Load a LoRA file from a local path and expose it as a `loras` output. Wire to the Build Pipeline node to fuse the LoRA into the cached weights, or to an Apply Runtime LoRA node to activate it dynamically per generation.",
+        "description": "Load a LoRA file from a local path and expose it as a `loras` output. Connect it to the Build Pipeline node to fuse the LoRA into the cached weights, or to an Apply Runtime LoRA node to activate it for each generation.",
         "display_name": "Load LoRA",
         "group": "diffusion"
       }
@@ -1175,7 +1175,7 @@
       "file_path": "./modular_diffusion_nodes_library/nodes/load_component_node.py",
       "metadata": {
         "category": "ModularDiffusion/Pipeline",
-        "description": "Load a single pipeline component (transformer / unet / vae / tokenizer / text_encoder) from a single-file checkpoint, a local diffusers-format folder, or a local HuggingFace repo cache. Wire into a Pipeline Builder override port to inject the component at build time into the pipeline.",
+        "description": "Load a single pipeline component (transformer / unet / vae / tokenizer / text_encoder) from a single-file checkpoint, a local diffusers-format folder, or a local HuggingFace repo cache. Connect it to the matching component override input on the Build Pipeline node to replace that component.",
         "display_name": "Load Component",
         "group": "diffusion",
         "tags": [
@@ -1196,7 +1196,7 @@
       "file_path": "./modular_diffusion_nodes_library/nodes/load_scheduler_component_node.py",
       "metadata": {
         "category": "ModularDiffusion/Pipeline",
-        "description": "Configure a scheduler by choosing a scheduler class and a scheduler_config.json source (local file/folder or a local HuggingFace repo cache). Wire into a Pipeline Builder scheduler override port to replace the pipeline's scheduler at build time.",
+        "description": "Configure a scheduler by choosing a scheduler class and a scheduler_config.json source (local file/folder or a local HuggingFace repo cache). Connect it to the scheduler override input on the Build Pipeline node to replace the pipeline's default scheduler.",
         "display_name": "Load Scheduler",
         "group": "diffusion",
         "declarations": [

@@ -1,6 +1,6 @@
 # Load LoRA
 
-**Loads a LoRA file from disk and exposes it as an output for the Build Pipeline node.**
+**Loads a LoRA file from disk. Connect its output to Build Pipeline to fuse it into the model, or to Apply Runtime LoRA for per-generation use.**
 
 Category: `ModularDiffusion/Pipeline`
 

@@ -50,4 +50,4 @@ Generate Latent → Decode HDR Media → [Save EXR Sequence]
 
 ## See also
 
-- [Decode HDR Media](decode_hdr_latents.md) · [DiffHDR Conditioning](diffhdr_conditioning.md)
+- [Decode HDR Media](decode_hdr_latents.md)

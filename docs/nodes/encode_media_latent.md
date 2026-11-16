@@ -5,7 +5,7 @@
 Category: `ModularDiffusion/Encode & Decode`
 
 ## TL;DR
-- The input parameter is **dynamic**: `image` for image pipelines, `input_video` for video pipelines (LTX, LTX2, WAN etc). It swaps automatically when you connect a `pipeline`.
+- The input parameter is **dynamic**: `image` for image pipelines, `input_video` for video pipelines (LTX, LTX2, WAN, etc.). It swaps automatically when you connect a `pipeline`.
 - Latents are normalized and unpacked — they're shape-compatible with [Create Noise Latent](create-noise-latents.md), so the latent math / composite nodes work on them directly.
 - Pair with `add_noise=True` on a downstream Generate Latent for classic Image-to-Image. The amount of noise added is controlled by `start_step` on that node: `strength = 1 − (start_step / num_inference_steps)`. Examples with `num_inference_steps=20`:
   - `start_step=0` → full noise (strength 1.0) — original image is ignored, behaves like Text-to-Image.
@@ -39,7 +39,7 @@ Load Image → [Encode Media] → Generate Latent → Decode Media
 
 | Provider | Behavior |
 | --- | --- |
-| WAN Animate 2 (and Distilled) | **Video only.** `input_video` is encoded to a normalised WAN video latent at its aligned size (width and height multiples of 16, `num_frames` of the form 4N + 1), usable with the latent math nodes and Decode Media. Images raise an error: the character image is conditioning, not a latent, so connect it to `image` on [Generate Latent](generate_media_latents.md). An encoded latent cannot be re-noised for Video-to-Video, because WAN Animate 2 does not support `add_noise`. |
+| WAN Animate 2 (and Distilled) | **Video only.** `input_video` is encoded to a normalized WAN video latent at its aligned size (width and height multiples of 16, `num_frames` of the form 4N + 1), usable with the latent math nodes and Decode Media. Images raise an error: the character image is conditioning, not a latent, so connect it to `image` on [Generate Latent](generate_media_latents.md). An encoded latent cannot be re-noised for Video-to-Video, because WAN Animate 2 does not support `add_noise`. |
 | MiniMax-H3 | **Not supported.** MiniMax-H3 has no general VAE-encode path — its only encoder is keyframe-specific and produces conditioning rows rather than a reusable latent. This node raises an error. For keyframe conditioning, connect a [Reference Media](media_gen_conditioning.md) node to `conditioning_images` on [Generate Latent](generate_media_latents.md) instead. |
 | Flux3 | Image-only. The encoder pads a single reference to the 16-pixel grid and may downscale it to fit the 4-megapixel limit. Crop metadata is carried with the latent so Decode Media can restore the reference image bounds. |
 

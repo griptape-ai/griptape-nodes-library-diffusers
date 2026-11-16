@@ -73,7 +73,7 @@ Load Image (last)  ───┴→ [Reference Media] ───┘
 
 - **Connect the pipeline first.** The layout swaps immediately on connection, replacing slots with the correct preset arrangement for that model.
 - **Named presets lock frame positions.** When you select a named preset, each slot's output position is fixed by the preset's definition — you cannot override it. For example, with "First + Last", slot 0 is pinned to frame 0 and slot 1 is pinned to the final frame; the `frame_index` control is hidden because there is nothing to adjust. Switch to **Custom** preset if you need to place an image at a specific frame.
-- **`frame_index` controls *where in the output video* the conditioning image appears**. `0` places the image at the very first frame of the generated video; -1 set it to the last frame number to anchor it at the end.
+- **`frame_index` controls *where in the output video* the conditioning image appears**. `0` places the image at the first frame; `-1` places it at the last.
 
 ## See also
 
