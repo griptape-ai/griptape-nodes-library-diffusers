@@ -511,7 +511,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         if isinstance(media, ImageMedia):
             if not isinstance(media.image, Image):
                 raise TypeError(f"{self.driver_namespace}: Expected a PIL Image, got {type(media.image).__name__}.")
-            frames = [media.image]
+            frames = [media.image.convert("RGB")]
         else:
             frames = media.frames
         device, dtype = self._get_device_and_type()

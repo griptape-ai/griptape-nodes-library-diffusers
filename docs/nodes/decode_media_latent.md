@@ -42,6 +42,7 @@ Generate Latent → [Decode Media] → Save Image / Save Video
 
 | Provider | Behavior |
 | --- | --- |
+| Qwen Image 2.1 / Turbo | `output_image` is RGBA. Alpha is retained through VAE decoding and the saved image artifact. |
 | Image pipelines | `output_image` as an `ImageUrlArtifact`. |
 | LTX, WAN, HunyuanVideo 1.5 | `output_video` as a silent MP4 at `fps`. |
 | WAN Animate 2 (and Distilled) | `output_video` as a silent MP4 at `fps` (default **24**). For multi-segment generations, [Generate Latent](generate_media_latents.md) stores per-segment metadata that Decode Media uses to reconstruct the clip with the original segment boundaries and overlaps. If that metadata is missing or incomplete (for example, when decoding an untouched Create Empty Latent output, after saving and reloading a latent tensor, or when a canceled run leaves segments unrecorded), Decode Media falls back to a single-pass WAN decode. The output keeps the requested frame count, but frames near segment boundaries may differ from the segmented result. Live previews decode only the current segment and may therefore differ from the final output. |
