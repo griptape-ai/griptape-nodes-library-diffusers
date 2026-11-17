@@ -1348,6 +1348,7 @@
     "workflows/templates/Flux3LayoutControlText2Image.py",
     "workflows/templates/Flux3LayoutControlImageBasedEditing.py",
     "workflows/templates/WanAnimate2.py",
-    "workflows/templates/LatentCompositionWithMaskedDenoising.py"
+    "workflows/templates/LatentCompositionWithMaskedDenoising.py",
+    "workflows/templates/QwenImage21Panorama.py"
   ]
 }
