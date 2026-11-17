@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## About This Repository
 
-This is the **Modular Diffusion Nodes Library** — a Griptape Nodes library that exposes 🧨 Diffusers pipelines as composable nodes (pipeline builder, VAE encode/decode, noise, denoise, latent math, ControlNet, LoRA, etc.). Each diffusion stage is its own node, so flows can branch, chain, and reorder steps (multi-stage refinement, ControlNet stacking, latent composition, first/last-frame video conditioning, latent upscaling).
+This is the **Diffusion Library** — a Griptape Nodes library that exposes 🧨 Diffusers pipelines as composable nodes (pipeline builder, VAE encode/decode, noise, denoise, latent math, ControlNet, LoRA, etc.). Each diffusion stage is its own node, so flows can branch, chain, and reorder steps (multi-stage refinement, ControlNet stacking, latent composition, first/last-frame video conditioning, latent upscaling).
 
 It is consumed by the [`griptape-nodes`](../griptape-nodes) engine, which loads it via `griptape-nodes-library.json`.
 
@@ -201,7 +201,7 @@ The Pipeline Builder caches the loaded pipeline in memory and reuses it across r
 
 1. Add the implementation under `modular_diffusion_nodes_library/nodes/<your_node>.py`, extending `BaseNode` from the engine.
 2. Register it in `griptape-nodes-library.json` (category, metadata, file path). Give it its own `lifecycle_stage` (`ALPHA` for nodes, `LABS` for preconfigured workflows) and lowercase `tags`, per [`.claude/rules/new-node-metadata.md`](.claude/rules/new-node-metadata.md).
-3. Restart the engine — the node appears under the **ModularDiffusion** categories in the node picker.
+3. Restart the engine — the node appears under the **Diffusion** categories in the node picker.
 4. **Document the node.** Add a page under `docs/nodes/<your_node>.md` following [docs/node-doc-format.md](docs/node-doc-format.md) and link it from `docs/index.md`. Use the `document-node` skill.
 
 **Naming a node:** read [`.claude/rules/node-naming.md`](.claude/rules/node-naming.md) before adding or renaming a node or parameter.

@@ -2,7 +2,7 @@
 
 **A preconfigured, self-contained workflow that generates a video from a text prompt — dropped in as a single node.**
 
-Category: `ModularDiffusion/Preconfigured`
+Category: `Diffusion/Preconfigured`
 
 ## TL;DR
 - The sub-flow uses the Build Pipeline, Create Noise Latent, Generate Latent, and Decode Media nodes to create a video from a text prompt.

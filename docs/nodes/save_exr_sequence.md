@@ -2,7 +2,7 @@
 
 **Writes decoded float RGB media as a numbered OpenEXR frame sequence.**
 
-Category: `ModularDiffusion/IO`
+Category: `Diffusion/IO`
 
 ## TL;DR
 - Connect `media` (e.g. from Decode HDR Media) to save one or more RGB frames as OpenEXR files.

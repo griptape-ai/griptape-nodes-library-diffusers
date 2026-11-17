@@ -2,7 +2,7 @@
 
 **Configures a scheduler override by choosing a scheduler class and a config source.**
 
-Category: `ModularDiffusion/Pipeline`
+Category: `Diffusion/Pipeline`
 
 ## TL;DR
 - Schedulers are config-only (no weights): pick a **Scheduler Class** and a **Source Type**, and the node emits a `SchedulerComponentArtifact`.

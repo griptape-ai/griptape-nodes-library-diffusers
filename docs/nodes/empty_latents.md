@@ -2,7 +2,7 @@
 
 **Generates a zero-filled latent tensor of the shape expected by the connected pipeline.**
 
-Category: `ModularDiffusion/Create`
+Category: `Diffusion/Create`
 
 ## TL;DR
 - Same shape behavior as [Create Noise Latent](create-noise-latents.md), but the tensor is all zeros (no random seed).

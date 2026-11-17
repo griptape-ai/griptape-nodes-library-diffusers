@@ -2,7 +2,7 @@
 
 **Decodes a latent to float RGB media, exposes the unmodified frames, and publishes a tone-mapped SDR preview.**
 
-Category: `ModularDiffusion/Encode & Decode`
+Category: `Diffusion/Encode & Decode`
 
 ## TL;DR
 - Extends [Decode Media](decode_media_latent.md): same inputs and dynamic image/video preview, plus a `raw_media` float output for downstream processing or EXR export.

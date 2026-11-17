@@ -2,7 +2,7 @@
 
 **Bundles an image or video latent with a mask image.**
 
-Category: `ModularDiffusion/Transform`
+Category: `Diffusion/Transform`
 
 ## TL;DR
 - Connect an image or video `LatentArtifact` from Encode Media and a mask image.

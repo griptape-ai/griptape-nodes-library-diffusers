@@ -2,7 +2,7 @@
 
 **Loads a single pipeline component (transformer / unet / vae / tokenizer / text encoder) from disk or the local HuggingFace cache.**
 
-Category: `ModularDiffusion/Pipeline`
+Category: `Diffusion/Pipeline`
 
 ## TL;DR
 - Emits a `ComponentArtifact` that points to the component weights. The Build Pipeline node loads them when building the pipeline.

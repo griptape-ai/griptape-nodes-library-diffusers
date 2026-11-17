@@ -2,7 +2,7 @@
 
 **Wraps a built pipeline so it accepts ControlNet inputs at generation time.**
 
-Category: `ModularDiffusion/Pipeline`
+Category: `Diffusion/Pipeline`
 
 ## TL;DR
 - Connect the [Build Pipeline](pipeline_builder.md) output to this node, then connect its output to [Generate Latent](generate_media_latents.md). This wraps the cached pipeline in a ControlNet variant.

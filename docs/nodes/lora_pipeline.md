@@ -2,7 +2,7 @@
 
 **Layers non-fused LoRA adapters on top of an existing pipeline so the same cached model can power multiple branches simultaneously.**
 
-Category: `ModularDiffusion/Pipeline`
+Category: `Diffusion/Pipeline`
 
 ## TL;DR
 - Connect the Build Pipeline node's output and at least one `loras` output from a Load LoRA node to this node. Then connect this node's `lora_pipeline` output to Generate Latent.

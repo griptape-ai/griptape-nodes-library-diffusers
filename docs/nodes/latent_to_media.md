@@ -2,7 +2,7 @@
 
 **Runs a selected model on its own to turn a compatible latent tensor into an image or video, with no pipeline connection required.**
 
-Category: `ModularDiffusion/Encode & Decode`
+Category: `Diffusion/Encode & Decode`
 
 ## TL;DR
 - Standalone alternative to [Decode Media](decode_media_latent.md) for the models both nodes support (for example LTX-2): it loads its own model instead of reusing a connected `pipeline`, and runs inference itself.

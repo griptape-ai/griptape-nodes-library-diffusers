@@ -2,7 +2,7 @@
 
 **Loads a LoRA file from disk. Connect its output to Build Pipeline to fuse it into the model, or to Apply Runtime LoRA for per-generation use.**
 
-Category: `ModularDiffusion/Pipeline`
+Category: `Diffusion/Pipeline`
 
 ## TL;DR
 - One LoRA per node. To stack LoRAs, drop multiple `Load LoRA` nodes and connect them all to the same consumer.

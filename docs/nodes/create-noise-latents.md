@@ -2,7 +2,7 @@
 
 **Generates a random-noise latent tensor matching the connected pipeline's expected shape — the typical starting point for text-to-image / text-to-video flows.**
 
-Category: `ModularDiffusion/Create`
+Category: `Diffusion/Create`
 
 ## TL;DR
 - In text-to-image and text-to-video workflows, place this node between the **Build Pipeline** and **Generate Latent** nodes.

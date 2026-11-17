@@ -2,7 +2,7 @@
 
 **Runs the denoising loop. Takes a noise / encoded / partially-denoised latent in, returns a denoised latent out.**
 
-Category: `ModularDiffusion/Processing`
+Category: `Diffusion/Processing`
 
 ## TL;DR
 - The workhorse node. Connect a `pipeline` and an `input_latent`; configure the prompt and steps; run.
@@ -33,7 +33,7 @@ Category: `ModularDiffusion/Processing`
 | Name | Type | Notes |
 | --- | --- | --- |
 | `output_latent` | `LatentArtifact` | The denoised latent. |
-| `preview_image` | `ImageUrlArtifact` | Live intermediate previews — only populated when **Settings → Modular Diffusion Library → Enable Image Preview Intermediates** is on. |
+| `preview_image` | `ImageUrlArtifact` | Live intermediate previews — only populated when **Settings → Diffusion Library → Enable Image Preview Intermediates** is on. |
 | `progress` | progress bar | Step counter. |
 | `logs` | str | Per-step timing log. |
 
@@ -76,7 +76,7 @@ The exact list depends on the connected pipeline. Common parameters:
 ## Tips & pitfalls
 
 - **Switching pipelines preserves matching connections.** Any connection whose parameter name exists in the new pipeline is kept automatically; the UI reorders to reflect the new layout.
-- **Live previews slow inference.** Off by default. Toggle in **Settings → Modular Diffusion Library → Enable Image Preview Intermediates**.
+- **Live previews slow inference.** Off by default. Toggle in **Settings → Diffusion Library → Enable Image Preview Intermediates**.
 - **`start_step` / `end_step` are sliced from the scheduler.** Combine two Generate nodes (e.g. `0–10` then `10–20`) for multi-stage refinement.
 - **Turn `add_noise` on for masked denoising.** With a `MaskedLatentArtifact` connected, `add_noise` starts denoising from a noised copy of the source image, which is what lets the masked areas be redone. Set `start_step` to `0` to redo the white areas fully, or raise it to keep more of the original.
 - **Cancellation works mid-step.** Hitting cancel sets the pipeline's `_interrupt` flag; the run stops after the current step.

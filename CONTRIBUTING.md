@@ -1,6 +1,6 @@
-# Contributing to Griptape Nodes Modular Diffusion Library
+# Contributing to the Griptape Nodes Diffusion Library
 
-We welcome contributions to the Griptape Nodes Modular Diffusion Library! This library provides modular, latent-level diffusion nodes for [Griptape Nodes](https://github.com/griptape-ai/griptape-nodes), built on Hugging Face 🧨 Diffusers.
+We welcome contributions to the Diffusion Library! This library provides composable, latent-level diffusion nodes for [Griptape Nodes](https://github.com/griptape-ai/griptape-nodes), built on Hugging Face 🧨 Diffusers.
 
 ## Development Setup
 

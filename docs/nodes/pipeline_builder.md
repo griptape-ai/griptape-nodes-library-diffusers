@@ -2,7 +2,7 @@
 
 **Loads and caches a 🧨 Diffusers pipeline once, so every other node in the flow can reuse it.**
 
-Category: `ModularDiffusion/Pipeline`
+Category: `Diffusion/Pipeline`
 
 ## TL;DR
 - **Build once, generate many.** Place this node first, then connect its `pipeline` output to each node that needs the model weights, such as Generate Latent, Encode Media, Decode Media, and Create Noise Latent.

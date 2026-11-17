@@ -2,7 +2,7 @@
 
 **A preconfigured, self-contained workflow that regenerates an input image from a text prompt — dropped in as a single node.**
 
-Category: `ModularDiffusion/Preconfigured`
+Category: `Diffusion/Preconfigured`
 
 ## TL;DR
 - The sub-flow uses the Build Pipeline, Encode Media, Generate Latent, and Decode Media nodes to create an image-to-image workflow.
