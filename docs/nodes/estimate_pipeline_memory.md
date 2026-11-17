@@ -26,7 +26,7 @@ Build Pipeline → Encode Media → [Estimate Pipeline Memory]
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `pipeline` | `Pipeline Config` | Yes | Connect the `pipeline` output from the Build Pipeline node. |
-| `latent` | `LatentArtifact` | Yes | Determines the token count / resolution used in the activation-memory estimate. |
+| `input_latent` | `LatentArtifact` | Yes | Determines the token count / resolution used in the activation-memory estimate. |
 
 ## Outputs
 
@@ -69,7 +69,7 @@ Note the import path: `estimate_pipeline_memory_from_artifact` is exported from 
 | Parameter | Type | Notes |
 | --- | --- | --- |
 | `artifact` | `DiffusionPipelineArtifact` | Same object as this node's `pipeline` input. |
-| `latent` | `LatentArtifact` | Same object as this node's `latent` input. |
+| `input_latent` | `LatentArtifact` | Same object as this node's `input_latent` input. |
 
 `PipelineMemoryEstimate` fields:
 

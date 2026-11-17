@@ -18,7 +18,6 @@ Generate Latent → [Convert Latent to Media] → Save Video
 
 ## Node preview
 
-<!-- TODO: add docs/assets/nodes/latent-to-media.png screenshot -->
 <img src="../assets/nodes/latent-to-media.png" alt="Convert Latent to Media" width="480">
 
 ## Inputs

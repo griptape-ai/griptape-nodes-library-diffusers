@@ -9,8 +9,8 @@ This is a standalone repository — all development happens here.
 1. **Clone the repository:**
 
     ```shell
-    git clone https://github.com/griptape-ai/griptape-nodes-library-modular-diffusion.git
-    cd griptape-nodes-library-modular-diffusion
+    git clone https://github.com/griptape-ai/griptape-nodes-library-diffusers.git
+    cd griptape-nodes-library-diffusers
     ```
 
 1. **Install `uv`:** Follow the official instructions at [Astral's uv installation guide](https://docs.astral.sh/uv/getting-started/installation/).
@@ -170,11 +170,11 @@ Write for the person updating the library: which node changed, what they will no
 
     ```shell
     git add pyproject.toml griptape-nodes-library.json CHANGELOG.md changelog.d
-    git commit -m "chore: bump griptape-nodes-library-modular-diffusion to vX.Y.Z"
+    git commit -m "chore: bump griptape-nodes-library-diffusers to vX.Y.Z"
     git push origin main
     ```
 
-1. Go to the [Actions](https://github.com/griptape-ai/griptape-nodes-library-modular-diffusion/actions) tab on GitHub and run the **Publish Version** workflow manually to:
+1. Go to the [Actions](https://github.com/griptape-ai/griptape-nodes-library-diffusers/actions) tab on GitHub and run the **Publish Version** workflow manually to:
 
     - Create the version tag (e.g. `vX.Y.Z`)
     - Update the `stable` tag
@@ -182,6 +182,6 @@ Write for the person updating the library: which node changed, what they will no
 
 ## Questions or Issues?
 
-For questions, bugs, or feature requests, please [open an issue](https://github.com/griptape-ai/griptape-nodes-library-modular-diffusion/issues) in this repository.
+For questions, bugs, or feature requests, please [open an issue](https://github.com/griptape-ai/griptape-nodes-library-diffusers/issues) in this repository.
 
 Thank you for contributing!
