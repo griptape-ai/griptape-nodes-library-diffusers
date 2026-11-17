@@ -31,6 +31,10 @@ from modular_diffusion_nodes_library.runtime_parameters.qwen_image21_runtime_par
     QwenImage21PipelineRuntimeParameters,
 )
 from modular_diffusion_nodes_library.utils.conditioning_utils import resolve_conditioning_image  # noqa: E402
+from modular_diffusion_nodes_library.utils.dimension_alignment import (  # noqa: E402
+    DimensionAlignmentStatus,
+    snap_dimensions,
+)
 
 
 def test_qwen_image21_packing_round_trips_public_image_latents() -> None:
@@ -51,6 +55,21 @@ def test_turbo_modular_pipeline_receives_checkpoint_sigma_schedule() -> None:
 
     assert type(modular_pipe).__name__ == "QwenImage21TurboModularPipeline"
     assert modular_pipe.config["sample_sigmas"] == sigmas
+
+
+def test_align_dimensions_passes_supported_sizes_and_advises_closest_for_others() -> None:
+    driver = QwenImage21LatentPipelineDriver(cast(Any, SimpleNamespace(vae_scale_factor=16)))
+
+    supported = snap_dimensions(driver, height=1536, width=2752)
+    advised = snap_dimensions(driver, height=1024, width=1792)
+
+    assert supported.status is DimensionAlignmentStatus.PASS
+    assert supported.message is None
+    assert advised.status is DimensionAlignmentStatus.ADVISORY
+    assert (advised.height, advised.width) == (1024, 1792)
+    assert advised.message is not None
+    assert "1792x1024" in advised.message
+    assert "16:9 at 2752x1536" in advised.message
 
 
 def test_conditioning_images_can_preserve_alpha_without_changing_default_rgb_behavior() -> None:
