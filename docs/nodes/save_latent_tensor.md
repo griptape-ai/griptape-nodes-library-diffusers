@@ -34,7 +34,7 @@ Generate Latent ──┬→ [Save Latent]
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `file_path` | str | `debug/latent.pt` | Output path. Relative paths resolve from the workspace directory; parent folders are created automatically. |
+| `output_file` | str | `debug/latent.pt` | Output path. Relative paths resolve from the workspace directory; parent folders are created automatically. |
 
 ## Tips & pitfalls
 

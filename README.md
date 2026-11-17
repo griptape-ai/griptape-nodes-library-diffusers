@@ -27,9 +27,9 @@ The easiest way to install this library is through the **Configuration Editor** 
 1. Open **Settings → Libraries** to reach the **Library Downloads** panel.
 1. Under **Libraries To Download**, click **Add Library** and paste the repository URL:
     ```text
-    https://github.com/griptape-ai/griptape-nodes-library-modular-diffusion@main
+    https://github.com/griptape-ai/griptape-nodes-library-diffusers@main
     ```
-    You can pin to a branch, tag, or commit using `@ref` syntax (e.g. `@stable`, `@v1.0.0`).
+    You can pin to a branch, tag, or commit using `@ref` syntax (e.g. `@stable`, or a release tag).
 1. Click **Download Libraries** in the top right, then **Close Settings**.
 1. Restart the engine. The **ModularDiffusion** node categories will appear in the node picker.
 
@@ -55,7 +55,7 @@ Alternatively, register the library directly in your `griptape_nodes_config.json
   "app_events": {
     "on_app_initialization_complete": {
       "libraries_to_register": [
-        "path/to/griptape-nodes-library-modular-diffusion/griptape-nodes-library.json"
+        "path/to/griptape-nodes-library-diffusers/griptape-nodes-library.json"
       ]
     }
   }
@@ -165,13 +165,13 @@ Some models this library exposes are gated by license. Where that applies:
 
 - Models you are not permitted to use still appear in the picker, marked with a shield icon and *"Not permitted by your license"*.
 - Selecting one badges the parameter **Model Not Permitted**; running the node then fails with the reason rather than downloading weights.
-- If a picker reports that models could not be checked against your license, that is a library registration fault, not a licensing one — please [open an issue](https://github.com/griptape-ai/griptape-nodes-library-modular-diffusion/issues).
+- If a picker reports that models could not be checked against your license, that is a library registration fault, not a licensing one — please [open an issue](https://github.com/griptape-ai/griptape-nodes-library-diffusers/issues).
 
 Which models are gated depends on your license, so the picker is the source of truth rather than this page.
 
 ## Support
 
-Found a bug or have a feature request? Please [open an issue](https://github.com/griptape-ai/griptape-nodes-library-modular-diffusion/issues).
+Found a bug or have a feature request? Please [open an issue](https://github.com/griptape-ai/griptape-nodes-library-diffusers/issues).
 
 ## Contributing
 

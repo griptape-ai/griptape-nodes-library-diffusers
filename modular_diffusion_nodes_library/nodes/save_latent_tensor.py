@@ -34,6 +34,7 @@ class SaveLatentTensorNode(DataNode):
         self.add_parameter(
             Parameter(
                 name="file_path",
+                display_name="output_file",
                 type="str",
                 default_value="debug/latent.pt",
                 tooltip="Destination .pt file path. Relative paths are resolved against the workspace directory.",
