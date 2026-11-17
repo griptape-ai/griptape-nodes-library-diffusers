@@ -366,7 +366,10 @@ class LTXLatentPipelineDriver(LatentPipelineDriver):
 
         generator = generator_state.to_generator()
         if isinstance(media, ImageMedia):
-            output_state = self._call_block(LTXAutoVaeEncoderStep(), image=media.image, generator=generator)
+            image = media.image
+            if not isinstance(image, torch.Tensor):
+                image = image.convert("RGB")
+            output_state = self._call_block(LTXAutoVaeEncoderStep(), image=image, generator=generator)
             return self._make_latent_artifact(
                 self._get_required(output_state, "image_latents", torch.Tensor), source_shape=media.source_shape
             )

@@ -1,0 +1,2 @@
+- Build Pipeline now offers Qwen Image 2.1 and Qwen Image 2.1 Turbo. Generate Latent supports up to 10
+  reference images, Image-to-Image, partial denoising, masked denoising, and RGBA latents for these models.

@@ -172,6 +172,8 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
             # Flux2 modular VAE encoder only accepts PIL images
             img_np = image.squeeze(0).permute(1, 2, 0).clamp(0, 1).mul(255).byte().cpu().numpy()
             image = PIL.Image.fromarray(img_np)
+        else:
+            image = image.convert("RGB")
         generator = generator_state.to_generator()
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
         output_state = self._call_block(
@@ -197,6 +199,8 @@ class Flux2BaseLatentPipelineDriver(LatentPipelineDriver):
         if isinstance(pil_image, torch.Tensor):
             img_np = pil_image.squeeze(0).permute(1, 2, 0).clamp(0, 1).mul(255).byte().cpu().numpy()
             pil_image = PIL.Image.fromarray(img_np)
+        else:
+            pil_image = pil_image.convert("RGB")
 
         # PIL -> aligned, normalized tensor (multiple-of-32 alignment + <=1024^2 cap).
         pre = self._call_block(Flux2ProcessImagesInputStep(), image=pil_image)

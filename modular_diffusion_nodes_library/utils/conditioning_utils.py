@@ -70,17 +70,18 @@ def resolve_conditioning_video(video_artifact: Any) -> list[Image]:
     return [frame.convert("RGB") for frame in frames]
 
 
-def resolve_conditioning_image(image_value: Any) -> Image:
+def resolve_conditioning_image(image_value: Any, *, preserve_alpha: bool = False) -> Image:
+    """Resolve an image artifact to PIL, converting to RGB unless alpha is requested."""
     from PIL import Image as PILImage
 
     if isinstance(image_value, PILImage.Image):
-        return image_value.convert("RGB")
+        return image_value.convert("RGBA" if preserve_alpha else "RGB")
 
     if isinstance(image_value, ImageUrlArtifact):
         image_value = load_image_from_url_artifact(image_value)
 
     if isinstance(image_value, ImageArtifact):
-        return image_artifact_to_pil(image_value).convert("RGB")
+        return image_artifact_to_pil(image_value).convert("RGBA" if preserve_alpha else "RGB")
 
     raise ValueError(
         f"Attempted to build image conditioning. Failed with image value type '{type(image_value).__name__}'."
