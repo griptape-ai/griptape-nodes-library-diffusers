@@ -296,7 +296,7 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
         if isinstance(image_artifact, ImageUrlArtifact):
             image_artifact = load_image_from_url_artifact(image_artifact)
 
-        return image_artifact_to_pil(image_artifact).convert("RGB")
+        return image_artifact_to_pil(image_artifact)
 
     def _update_compatibility_message(self, *, build_if_needed: bool = False):
         pipeline_value = self.get_parameter_value("pipeline")

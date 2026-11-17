@@ -169,6 +169,7 @@ _DENOISER_FIELD_ADAPTERS: dict[str, Callable[[DiffusionPipeline], DenoiserConfig
     "Flux2KleinPipeline": _adapt_flux2_family,
     "QwenImagePipeline": _adapt_qwen_family,
     "QwenImageEditPipeline": _adapt_qwen_family,
+    "QwenImage21Pipeline": _adapt_qwen_family,
     "StableDiffusion3Pipeline": _adapt_sd3,
     "ZImagePipeline": _adapt_zimage,
     "LTXPipeline": _adapt_ltx_family,

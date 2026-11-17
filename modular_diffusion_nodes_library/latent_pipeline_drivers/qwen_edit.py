@@ -83,6 +83,7 @@ class QwenEditLatentPipelineDriver(QwenLatentPipelineDriver):
         if isinstance(image, torch.Tensor):
             height, width = image.shape[-2], image.shape[-1]
         else:
+            image = image.convert("RGB")
             height, width = image.height, image.width
         encode_pipeline = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
 

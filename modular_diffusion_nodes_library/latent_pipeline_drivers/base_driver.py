@@ -370,6 +370,7 @@ class LatentPipelineDriver(ABC):
         output_type: DecodeOutputType,
         *,
         is_video: bool,
+        expected_channels: int = 3,
     ) -> DecodeResult:
         import numpy as np
         from PIL import Image
@@ -383,8 +384,11 @@ class LatentPipelineDriver(ABC):
                     f"Expected a batched NumPy {media_kind} array for state key '{key}', got {type(value).__name__}."
                 )
             media = value[0]
-            if media.ndim != expected_ndim or media.shape[-1] != 3:
-                raise ValueError(f"Expected unbatched NumPy RGB {media_kind} for state key '{key}', got {media.shape}.")
+            if media.ndim != expected_ndim or media.shape[-1] != expected_channels:
+                channel_description = "RGB" if expected_channels == 3 else f"{expected_channels}-channel"
+                raise ValueError(
+                    f"Expected unbatched NumPy {channel_description} {media_kind} for state key '{key}', got {media.shape}."
+                )
             return DecodeResult(media=media)
         if not isinstance(value, list) or not value:
             raise ValueError(
@@ -421,10 +425,12 @@ class LatentPipelineDriver(ABC):
         if isinstance(image.image, torch.Tensor):
             height = image.image.shape[-2]
             width = image.image.shape[-1]
+            source_image = image.image
         else:
-            height = image.image.height
-            width = image.image.width
-        source_t = image_processor.preprocess(image.image, height=height, width=width)
+            source_image = image.image.convert("RGB")
+            height = source_image.height
+            width = source_image.width
+        source_t = image_processor.preprocess(source_image, height=height, width=width)
         mask_t = torch.from_numpy(np.array(mask.mask, dtype="float32") / 255.0)[None, None]
         masked_t = source_t * (mask_t < 0.5)
         return self.encode_media(ImageMedia(image=masked_t, source_shape=image.source_shape), generator_state)

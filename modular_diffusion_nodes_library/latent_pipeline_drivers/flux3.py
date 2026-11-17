@@ -355,10 +355,15 @@ class Flux3LatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
+        import torch  # type: ignore[reportMissingImports]
+
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video encoding.")
 
-        image = self._to_pil_image(media.image)
+        image = media.image
+        if not isinstance(image, torch.Tensor):
+            image = image.convert("RGB")
+        image = self._to_pil_image(image)
         output_state = self._call_block(self.modular_pipe.blocks.sub_blocks["vae_encoder"], image=image)
         image_latents = self._get_required(output_state, "image_cond_latents", list)[0]
         reference_crop = self._get_required(output_state, "reference_crop", list)

@@ -262,10 +262,13 @@ class StableDiffusion3LatentPipelineDriver(LatentPipelineDriver):
 
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
+        image = media.image
+        if not isinstance(image, torch.Tensor):
+            image = image.convert("RGB")
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
         output_state = self._call_block(
             encode_block,
-            image=media.image,
+            image=image,
             height=media.source_shape[-2],
             width=media.source_shape[-1],
             generator=generator_state.to_generator(),

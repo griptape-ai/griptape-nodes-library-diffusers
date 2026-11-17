@@ -64,6 +64,7 @@ The exact list depends on the connected pipeline. Common parameters:
 
 | Provider / Pipeline | Behavior |
 | --- | --- |
+| Qwen Image 2.1 / Turbo | `reference_images` accepts up to 10 image-mode references from Reference Media (or a directly connected image). Guidance takes effect only when `true_cfg_scale` is above `1.0`. Turbo uses fixed 8-step sigma schedule and exposes no guidance controls. Both support Image-to-Image, partial denoise, masked denoising, and RGBA latents. |
 | ControlNet | When `pipeline` is a `ControlNetDiffusionPipelineArtifact`, the `controlnet_parameters` input is added automatically. |
 | Inpainting | When `input_latent` is an `InpaintMaskArtifact` (from [Encode Masked Media](encode_masked_media_latent.md)), the node automatically routes through the inpaint pipeline class and uses the artifact's `strength`. |
 | Masked denoising | When `input_latent` is a `MaskedLatentArtifact` (from [Set Latent Mask](set_latent_mask.md)), the node applies the mask at every denoising step using the [Differential Diffusion](https://arxiv.org/abs/2306.00950) technique, without switching pipeline class. White areas are redone, black areas stay close to the original, and gray areas are given less time to change. **Turn `add_noise` on**, and use `start_step` to choose how much of the original survives. Supported by many image generation pipelines; other pipelines fail validation. Image latents only, with schedulers that make one model call per step. Custom `timesteps` / `sigmas` are not supported. |

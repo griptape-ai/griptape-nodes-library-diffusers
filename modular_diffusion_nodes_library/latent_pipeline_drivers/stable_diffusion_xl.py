@@ -352,9 +352,12 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
 
         if isinstance(media, VideoMedia):
             raise NotImplementedError(f"'{self.pipe.__class__.__name__}' does not support video.")
+        image = media.image
+        if not isinstance(image, torch.Tensor):
+            image = image.convert("RGB")
         generator = generator_state.to_generator()
         encode_block = self.modular_pipe.blocks.sub_blocks["vae_encoder"]
-        output_state = self._call_block(encode_block, image=media.image, generator=generator)
+        output_state = self._call_block(encode_block, image=image, generator=generator)
         result = self._get_required(output_state, "image_latents", torch.Tensor)
         meta = {_KIND_META_KEY: "image_latents"}
         return self._make_latent_artifact(result, source_shape=media.source_shape, meta=meta)
