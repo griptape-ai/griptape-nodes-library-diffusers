@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Any, ClassVar, cast, override
 
 from diffusers.modular_pipelines.modular_pipeline import (  # type: ignore[reportMissingImports]
@@ -43,6 +44,7 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     MediaGenConditioningKey,
     resolve_conditioning_image,
 )
+from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentResult, DimensionAlignmentStatus
 
 if TYPE_CHECKING:
     import torch  # type: ignore[reportMissingImports]
@@ -51,6 +53,18 @@ if TYPE_CHECKING:
         OutputParam,
     )
     from PIL.Image import Image
+
+
+# Aspect ratio -> (width, height), from the Qwen-Image-2.1 model card.
+_SUPPORTED_SIZES: dict[str, tuple[int, int]] = {
+    "1:1": (2048, 2048),
+    "4:3": (2400, 1792),
+    "3:4": (1792, 2400),
+    "3:2": (2528, 1696),
+    "2:3": (1696, 2528),
+    "16:9": (2752, 1536),
+    "9:16": (1536, 2752),
+}
 
 
 class _QwenImage21EncodeImageStep(SequentialPipelineBlocks):
@@ -127,6 +141,27 @@ class QwenImage21LatentPipelineDriver(LatentPipelineDriver):
     def _get_spatial_alignment(self) -> int:
         # Qwen Image 2.1 groups 2x2 VAE latents into one transformer token.
         return self.pipe.vae_scale_factor * 2
+
+    @override
+    def align_dimensions(self, height: int, width: int, num_frames: int | None = None) -> DimensionAlignmentResult:
+        aligned = super().align_dimensions(height, width, num_frames)
+        if (aligned.width, aligned.height) in _SUPPORTED_SIZES.values():
+            return aligned
+
+        target_ratio = aligned.width / aligned.height
+        closest_label, (closest_width, closest_height) = min(
+            _SUPPORTED_SIZES.items(),
+            key=lambda item: abs(math.log(item[1][0] / item[1][1] / target_ratio)),
+        )
+        supported = ", ".join(f"{label} ({w}x{h})" for label, (w, h) in _SUPPORTED_SIZES.items())
+        message = (
+            f"{aligned.width}x{aligned.height} is not one of the sizes Qwen Image 2.1 supports, so quality may "
+            f"suffer. Supported: {supported}. Closest to this shape: {closest_label} at "
+            f"{closest_width}x{closest_height}."
+        )
+        return DimensionAlignmentResult(
+            aligned.height, aligned.width, aligned.num_frames, message, DimensionAlignmentStatus.ADVISORY
+        )
 
     @override
     def _create_modular_pipe(self) -> ModularPipeline:
