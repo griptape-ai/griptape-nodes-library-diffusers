@@ -2,7 +2,7 @@
 
 **Evicts all cached diffusion pipelines so the next build starts from a clean cache state.**
 
-Category: `ModularDiffusion/Pipeline`
+Category: `Diffusion/Pipeline`
 
 ## TL;DR
 - Clears every pipeline currently stored in the in-memory model cache.

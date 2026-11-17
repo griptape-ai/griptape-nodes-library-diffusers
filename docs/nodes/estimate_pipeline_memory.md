@@ -2,7 +2,7 @@
 
 **Estimates per-component GPU memory usage for a loaded diffusion pipeline.**
 
-Category: `ModularDiffusion/Pipeline`
+Category: `Diffusion/Pipeline`
 
 ## TL;DR
 - Breaks down memory into weights and activations for each resident component (text encoders, transformer/UNet, VAE).

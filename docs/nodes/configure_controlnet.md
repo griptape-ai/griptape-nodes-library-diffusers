@@ -2,7 +2,7 @@
 
 **Configures one ControlNet entry — model, control image, and conditioning strength — for use with the Apply ControlNet node.**
 
-Category: `ModularDiffusion/Pipeline`
+Category: `Diffusion/Pipeline`
 
 ## TL;DR
 - Pick `provider` first; the rest of the parameters are **dynamic** and regenerate per provider.

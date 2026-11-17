@@ -2,7 +2,7 @@
 
 **A preconfigured, self-contained workflow that inpaints a masked region of an image using a text prompt — dropped in as a single node.**
 
-Category: `ModularDiffusion/Preconfigured`
+Category: `Diffusion/Preconfigured`
 
 ## TL;DR
 - The sub-flow uses the Build Pipeline, Encode Masked Media, Generate Latent, and Decode Media nodes to create an inpainting workflow.

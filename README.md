@@ -1,12 +1,12 @@
-# Modular Diffusion Nodes Library
-Build flexible media generation workflows with modular 🧨 Diffusers pipelines in [Griptape Nodes](https://github.com/griptape-ai/griptape-nodes).
+# Griptape Nodes Diffusion Library
+Build flexible media generation workflows with 🧨 Diffusers pipelines in [Griptape Nodes](https://github.com/griptape-ai/griptape-nodes).
 
-The Diffusers Nodes Library is a node library for creators who want more control over diffusion execution. Instead of running a fixed, monolithic "generate image" step, you break the diffusion process into individual, connectable stages — so you can inspect, reuse, and customize each part of the pipeline.
+The Diffusion Library is a node library for creators who want more control over diffusion execution. Instead of running a fixed, monolithic "generate image" step, you break the diffusion process into individual, connectable stages — so you can inspect, reuse, and customize each part of the pipeline.
 
 ### [How it works](#how-it-works) | [Quick start](#quick-start) | [Supported models](#supported-models) | [Workflows](#workflow-templates-included) | [Docs](docs/index.md) | [Support](#support)
 
 
-![Diffusers Nodes](docs/assets/hero.png)
+![Diffusion Nodes](docs/assets/hero.png)
 
 ## How it works
 
@@ -31,7 +31,7 @@ The easiest way to install this library is through the **Configuration Editor** 
     ```
     You can pin to a branch, tag, or commit using `@ref` syntax (e.g. `@stable`, or a release tag).
 1. Click **Download Libraries** in the top right, then **Close Settings**.
-1. Restart the engine. The **ModularDiffusion** node categories will appear in the node picker.
+1. Restart the engine. The **Diffusion** node categories will appear in the node picker.
 
 ![Adding the Diffusers library in the Configuration Editor](docs/assets/quicksetup.png)
 
@@ -104,7 +104,7 @@ Enable live image previews to stream intermediate decoded images during generati
 To turn it on:
 
 1. Open **Settings → Library Settings** in the Griptape Nodes UI.
-1. Scroll to the **Modular Diffusion Library** section.
+1. Scroll to the **Diffusion Library** section.
 1. Toggle **Enable Image Preview Intermediates** on.
 
 
@@ -125,7 +125,7 @@ For lower-VRAM setups, the Build Pipeline node provides a **Memory Optimization 
 Enable only what you need — each option trades some speed for memory. Each parameter on the Build Pipeline node has a help badge with more detail.
 
 > ## ⚠️ Using alongside the Advanced Media Library
-> The Diffusers Nodes Library and the Advanced Media Library's fixed diffusion pipelines each maintain their own in-memory pipeline cache. If both libraries are loaded and used in the same session, you may end up holding two full copies of overlapping model weights in VRAM/RAM at once, leading to significantly higher memory usage and out-of-memory errors. Prefer using one library per session, or reduce memory pressure via the optimization knobs above.
+> The Diffusion Library and the Advanced Media Library's fixed diffusion pipelines each maintain their own in-memory pipeline cache. If both libraries are loaded and used in the same session, you may end up holding two full copies of overlapping model weights in VRAM/RAM at once, leading to significantly higher memory usage and out-of-memory errors. Prefer using one library per session, or reduce memory pressure via the optimization knobs above.
 
 ## Workflow templates included
 

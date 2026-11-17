@@ -17,7 +17,7 @@ Copy this skeleton verbatim. Section headings, ordering, and casing are fixed; t
 
 **<One-line role, ending in a period. Bolded. No blockquote.>**
 
-Category: `<ModularDiffusion/<Group>>`
+Category: `<Diffusion/<Group>>`
 
 ## TL;DR
 - 2–4 bullets. Each bullet is a complete sentence. Lead with the most actionable fact.

@@ -1,4 +1,4 @@
-# Adding a New Model to the Modular Diffusion Library
+# Adding a New Model to the Diffusion Library
 
 This guide walks through adding support for a new diffusion model (e.g., Stable Diffusion 3.5, HunyuanVideo 1.5) to `modular_diffusion_nodes_library/`.
 

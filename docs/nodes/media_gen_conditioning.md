@@ -2,7 +2,7 @@
 
 **Packages one or more conditioning images (or a video) with per-frame placement and strength, ready to connect into any pipeline that supports media-driven conditioning.**
 
-Category: `ModularDiffusion/Conditioning`
+Category: `Diffusion/Conditioning`
 
 ## TL;DR
 - Connect a pipeline to get preset layouts tailored to that model (e.g. first/last frame slots for WAN Image-to-Video).

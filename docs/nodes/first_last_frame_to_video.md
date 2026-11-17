@@ -2,7 +2,7 @@
 
 **A preconfigured, self-contained workflow that generates a video conditioned on a first and a last frame plus a text prompt — dropped in as a single node.**
 
-Category: `ModularDiffusion/Preconfigured`
+Category: `Diffusion/Preconfigured`
 
 ## TL;DR
 - Ships configured with default strengths at `1.0`; `pipeline_type` also offers various supported pipeline types.

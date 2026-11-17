@@ -2,7 +2,7 @@
 
 **Encodes a source image plus a binary mask into an `InpaintMaskArtifact` — the input format that switches Generate Latent into inpainting mode.**
 
-Category: `ModularDiffusion/Encode & Decode`
+Category: `Diffusion/Encode & Decode`
 
 ## TL;DR
 - Use for **inpainting**. The resulting artifact carries the mask + masked-image latent + strength together so downstream nodes don't need separate inputs.

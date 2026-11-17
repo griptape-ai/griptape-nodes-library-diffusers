@@ -42,5 +42,5 @@ def snap_dimensions(
             f"Resized automatically to the suggested value to match pipeline requirements (Auto Resize is on). {detail}"
         )
     else:
-        message = f'{detail} To resize automatically, enable "Auto Resize" under Library Settings > Modular Diffusion Library.'
+        message = f'{detail} To resize automatically, enable "Auto Resize" under Library Settings > Diffusion Library.'
     return DimensionAlignmentResult(aligned.height, aligned.width, aligned.num_frames, message)

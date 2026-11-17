@@ -2,7 +2,7 @@
 
 **Runs the pipeline's VAE decoder on a latent, producing an image or video — typically the final node in a flow.**
 
-Category: `ModularDiffusion/Encode & Decode`
+Category: `Diffusion/Encode & Decode`
 
 ## TL;DR
 - Output is **dynamic**: `output_image` for image pipelines, `output_video` (+ `fps`) for video pipelines (LTX, LTX2, WAN, HunyuanVideo 1.5, MiniMax-H3). It swaps automatically when you connect a `pipeline`.

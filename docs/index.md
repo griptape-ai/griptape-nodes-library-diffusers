@@ -1,6 +1,6 @@
-# Modular Diffusion Nodes — Documentation
+# Griptape Nodes Diffusion Library — Documentation
 
-Per-node reference for the Modular Diffusion Nodes Library. See the [README](../README.md) for an overview of the library, supported models, and workflow templates.
+Per-node reference for the Diffusion Library. See the [README](../README.md) for an overview of the library, supported models, and workflow templates.
 
 ## Node reference
 

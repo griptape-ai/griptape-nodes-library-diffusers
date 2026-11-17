@@ -2,7 +2,7 @@
 
 **Runs the pipeline's VAE encoder on an image or video, producing a latent you can feed into denoising for Image-to-Image / Video-to-Video flows.**
 
-Category: `ModularDiffusion/Encode & Decode`
+Category: `Diffusion/Encode & Decode`
 
 ## TL;DR
 - The input parameter is **dynamic**: `image` for image pipelines, `input_video` for video pipelines (LTX, LTX2, WAN, etc.). It swaps automatically when you connect a `pipeline`.

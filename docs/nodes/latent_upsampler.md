@@ -2,7 +2,7 @@
 
 **Upsamples a latent tensor (spatially, today) without leaving latent space — typically used between two Generate stages for a fast, high-resolution refinement pass.**
 
-Category: `ModularDiffusion/Processing`
+Category: `Diffusion/Processing`
 
 ## TL;DR
 - Upsamples in **latent space**, so you avoid a costly decode → upscale → re-encode round trip.

@@ -1,1 +1,1 @@
-"""Artifact utilities for modular diffusion library."""
+"""Artifact utilities for diffusion library."""

@@ -3,7 +3,7 @@ name: add-modular-pipeline
 description: 'Add a new diffusion model or pipeline TYPE to modular_diffusion_nodes_library, only when `<NewPipelineClass>.from_pipe(base_pipe)` cannot produce a working pipeline from the base pipe''s loaded components (needs a new component or differently trained weights, e.g. Wan I2V, Flux Fill, Qwen Edit). For ControlNet, inpaint, or other runtime variants, use add-pipeline-variants instead.'
 ---
 
-# Add a Model to the Modular Diffusion Library
+# Add a Model to the Diffusion Library
 
 This skill guides the agent through adding a new diffusion model (image or video) to `modular_diffusion_nodes_library/` in this repo.
 
