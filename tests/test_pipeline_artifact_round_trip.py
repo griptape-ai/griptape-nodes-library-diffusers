@@ -5,7 +5,7 @@ worker's object store, but both processes need the description -- the worker to 
 orchestrator to validate and to decide which parameters to show. So it travels as data.
 
 The engine encodes a parameter value only through a registered codec, and refuses any other class, so
-without one the pipeline builder cannot hand its artifact to a worker at all. These tests drive the
+without one the Build Pipeline node cannot hand its artifact to a worker at all. These tests drive the
 engine's own encoding instead of trusting it.
 """
 

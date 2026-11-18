@@ -87,7 +87,7 @@ class TestAComponentDescriptionTravels:
     """A component artifact says where to load a component from; it never holds the loaded component.
 
     Every field is a string, a `StrEnum`, or a nested dataclass of strings, and `materialize` does the
-    loading in whichever process needs it. Held instead, the pipeline builder was handed a reference it
+    loading in whichever process needs it. Held instead, the Build Pipeline node was handed a reference it
     could not read, and `validate_before_node_run` raised on `component_transformer`.
     """
 
@@ -101,7 +101,7 @@ class TestAComponentDescriptionTravels:
         )
         from modular_diffusion_nodes_library.nodes.load_component_node import LoadComponent
 
-        node = LoadComponent(name="Load Component", metadata={"library": "Modular Diffusion"})
+        node = LoadComponent(name="Load Component", metadata={"library": "Diffusion"})
         artifact = ModelComponentArtifact(
             load_id="transformer@black-forest-labs/FLUX.1-dev",
             source_type=ComponentSourceType.HF_REPO,
@@ -113,7 +113,7 @@ class TestAComponentDescriptionTravels:
         egressed = cache_outputs_for_egress(node.parameter_output_values, node=node)["component_output"]
 
         assert not is_reference(egressed), (
-            "The component description was held in the producing process, so the pipeline builder "
+            "The component description was held in the producing process, so the Build Pipeline node "
             "receives a reference and its validation raises instead of reading the artifact."
         )
         assert egressed == artifact
@@ -162,7 +162,7 @@ class TestTheDecoderOutputActuallyTravels:
 
         from modular_diffusion_nodes_library.nodes.vae_decoder import VaeDecodeNode
 
-        node = VaeDecodeNode(name="Decode Media", metadata={"library": "Modular Diffusion"})
+        node = VaeDecodeNode(name="Decode Media", metadata={"library": "Diffusion"})
         url = "http://localhost:8124/static/decoded.png"
         node.parameter_output_values["output_image"] = ImageUrlArtifact(value=url)
 

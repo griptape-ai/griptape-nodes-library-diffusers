@@ -7,7 +7,7 @@ runs the hook. Both exist because each sees what the other cannot:
   it is built from. It cannot see `get_parameter_value(self._param_name)`, and it cannot see a read one
   call deep in a helper.
 * This test sees any read, however it is spelled, but only for a node it can build and a parameter it
-  can recognise as holding.
+  can recognize as holding.
 
 The conditioning bug is what motivated it. `MediaGenConditioningRuntimeParameter` read its held payload
 on the orchestrator both directly and once per slot through `FixedSizeParameterList.get_values`, seven
@@ -60,7 +60,7 @@ def _build(class_name: str, stem: str) -> BaseNode:
     import importlib
 
     module = importlib.import_module(f"{PACKAGE}.nodes.{stem}")
-    return getattr(module, class_name)(name=class_name, metadata={"library": "Modular Diffusion"})
+    return getattr(module, class_name)(name=class_name, metadata={"library": "Diffusion"})
 
 
 def _data_parameters(node: BaseNode) -> list[Any]:

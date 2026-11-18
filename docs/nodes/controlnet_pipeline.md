@@ -24,7 +24,7 @@ Load ControlNet ───┘
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `pipeline` | `Pipeline Config` | Yes | Connect the base pipeline from [Build Pipeline](pipeline_builder.md). It must **not** already be a ControlNet pipeline. |
+| `pipeline` | `Pipeline Config` | Yes | Connect the base pipeline from the [Build Pipeline](pipeline_builder.md) node. It must **not** already be a ControlNet pipeline. |
 | `control_nets` | `list[control_net]` | Yes | One or more entries from [Load ControlNet](configure_controlnet.md). All must match the base pipeline's provider. |
 
 ## Outputs

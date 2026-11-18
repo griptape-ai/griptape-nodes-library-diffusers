@@ -7,7 +7,7 @@ are released earlier and get more time to change, so they are redone more freely
 
 This is the Differential Diffusion technique (https://arxiv.org/abs/2306.00950).
 
-This module holds the per-step blend and the checks that reject settings it cannot honour.
+This module holds the per-step blend and the checks that reject settings it cannot honor.
 """
 
 from __future__ import annotations

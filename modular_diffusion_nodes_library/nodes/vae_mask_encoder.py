@@ -67,7 +67,7 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             message=(
                 "- ***White*** — region to regenerate (inpaint area)\n"
                 "- ***Black*** — region to preserve\n"
-                "- ***Grey*** — blends proportionally between the two\n\n"
+                "- ***Gray*** — blends proportionally between the two\n\n"
                 "The mask is automatically resized to match the source image."
             ),
         )

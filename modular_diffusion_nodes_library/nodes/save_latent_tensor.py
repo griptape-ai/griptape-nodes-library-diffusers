@@ -27,7 +27,7 @@ class SaveLatentTensorNode(DataNode):
                 display_name="input_latent",
                 type="LatentArtifact",
                 input_types=["LatentArtifact"],
-                tooltip="Latent artifact to serialise to disk as a torch .pt file.",
+                tooltip="Latent artifact to serialize to disk as a torch .pt file.",
                 allowed_modes={ParameterMode.INPUT},
             )
         )

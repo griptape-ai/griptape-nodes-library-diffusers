@@ -43,7 +43,7 @@ class LatentDiffusionPipelineBuilderParameters:
             variant="help",
             title="Choosing a provider",
             message=(
-                "Each provider maps to a model family from a specific organisation:\n\n"
+                "Each provider maps to a model family from a specific organization:\n\n"
                 "- ***Flux / Flux2 / Flux Fill*** — Black Forest Labs. Image generation and inpainting.\n"
                 "- ***Qwen / Qwen Edit*** — Alibaba. Image generation and image editing.\n"
                 "- ***Stable Diffusion XL / SD3*** — Stability AI. Image generation.\n"

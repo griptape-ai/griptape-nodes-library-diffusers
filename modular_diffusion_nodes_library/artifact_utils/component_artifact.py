@@ -86,7 +86,7 @@ class ComponentSourceType(StrEnum):
 class ComponentArtifact(ABC):
     """Descriptor for a single pipeline component.
 
-    Produced by component loader nodes, consumed by the pipeline builder
+    Produced by component loader nodes, consumed by the Build Pipeline node
     at build time. Does not hold the loaded component itself.
 
     Subclasses specialize by component kind (model weights, tokenizer,
