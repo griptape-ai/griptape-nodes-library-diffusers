@@ -902,7 +902,7 @@ def estimate_pipeline_memory_from_build_data(
                     tiling=bool(optimization_kwargs.get("vae_tiling", False)),
                 )
             else:
-                # This matches the behaviour of _automatic_optimize_diffusion_pipeline on cuda (we ignore the behaviour on mps for now).
+                # This matches the behavior of _automatic_optimize_diffusion_pipeline on cuda (we ignore the behavior on mps for now).
                 apply_vae_memory_options(
                     meta_component,
                     slicing=True,

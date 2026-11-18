@@ -249,7 +249,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     def prepare_output_latent(
         self, latents_from_pipe: torch.Tensor, latents_source_shape: tuple[int, ...]
     ) -> torch.Tensor:
-        """Pass through: the pipeline already unpacks (3-D→5-D) and denormalises before returning output latents.
+        """Pass through: the pipeline already unpacks (3-D→5-D) and denormalizes before returning output latents.
         Also handles 3-D callbacks latents from mid-loop callbacks for preview.
         """
         import torch  # type: ignore[reportMissingImports]
@@ -272,7 +272,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     ) -> torch.Tensor:
         """Unpack mid-loop callback latents from ``[B, S, D]`` to ``[B, C, F, H, W]``.
 
-        The LTX2 pipeline keeps latents packed and normalised throughout the denoise loop.
+        The LTX2 pipeline keeps latents packed and normalized throughout the denoise loop.
         """
         pixel_num_frames = latents_source_shape[-3]
         pixel_height = latents_source_shape[-2]

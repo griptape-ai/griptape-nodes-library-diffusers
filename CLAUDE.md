@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## About This Repository
 
-This is the **Diffusion Library** — a Griptape Nodes library that exposes 🧨 Diffusers pipelines as composable nodes (pipeline builder, VAE encode/decode, noise, denoise, latent math, ControlNet, LoRA, etc.). Each diffusion stage is its own node, so flows can branch, chain, and reorder steps (multi-stage refinement, ControlNet stacking, latent composition, first/last-frame video conditioning, latent upscaling).
+This is the **Diffusion Library** — a Griptape Nodes library that exposes 🧨 Diffusers pipelines as composable nodes (Build Pipeline, VAE encode/decode, noise, denoise, latent math, ControlNet, LoRA, etc.). Each diffusion stage is its own node, so flows can branch, chain, and reorder steps (multi-stage refinement, ControlNet stacking, latent composition, first/last-frame video conditioning, latent upscaling).
 
 It is consumed by the [`griptape-nodes`](../griptape-nodes) engine, which loads it via `griptape-nodes-library.json`.
 
@@ -37,7 +37,7 @@ Adapted from the [Karpathy CLAUDE.md guidelines](https://github.com/multica-ai/a
 
 **Think before coding.** State assumptions explicitly. If a request is ambiguous, name the interpretations and ask — do not pick silently. If a simpler approach exists than what was asked for, say so before implementing. If you are confused, stop and name what's unclear.
 
-**Simplicity first.** Write the minimum code that solves the problem. No speculative features, configurability, abstractions for single-use code, or error handling for impossible scenarios. If 200 lines could be 50, rewrite it. (This generalises the Exception Handling rules below.)
+**Simplicity first.** Write the minimum code that solves the problem. No speculative features, configurability, abstractions for single-use code, or error handling for impossible scenarios. If 200 lines could be 50, rewrite it. (This generalizes the Exception Handling rules below.)
 
 **Surgical changes.** Every changed line should trace directly to the user's request.
 
@@ -167,7 +167,7 @@ and has no connections, so a question about the graph is answerable *only* on th
 
 **Top-level layout** (under `modular_diffusion_nodes_library/`):
 
-- `nodes/` — the user-facing Griptape nodes (Pipeline Builder, Generate Latent, VAE Encode/Decode, Noise/Empty/Add Latent, LoRA, ControlNet, Latent Math, Conditioning, Save Latent, etc.). Each node is registered in `griptape-nodes-library.json`.
+- `nodes/` — the user-facing Griptape nodes (Build Pipeline, Generate Latent, VAE Encode/Decode, Noise/Empty/Add Latent, LoRA, ControlNet, Latent Math, Conditioning, Save Latent, etc.). Each node is registered in `griptape-nodes-library.json`.
 - `latent_pipeline_drivers/` — per-model drivers (`flux`, `flux2`, `qwen`, `z_image`, `ltx`, `wan`, `wan_i2v`, `stable_diffusion_xl`, `stable_diffusion_3`, `flux_fill`, …) all extending `LatentPipelineDriver` in `base_driver.py`. `driver_factory.py` maps a diffusers pipeline class name → driver class.
 - `standard_parameters/` — per-model **load-time** parameter sets (repo IDs, dtype, quantization, offload). Subclass `ModularDiffusionPipelineTypePipelineParameters`.
 - `runtime_parameters/` — per-model **generate-time** parameter sets (prompt, negative_prompt, guidance, true_cfg, etc.). Subclass `DiffusionPipelineRuntimeParameters` — never re-add `num_inference_steps`, `seed`, or `generator`; the base class owns those.
@@ -177,7 +177,7 @@ and has no connections, so a question about the graph is answerable *only* on th
 - `misc/` — orthogonal helpers, notably `partial_denoise.py` (timestep slicing for multi-stage workflows).
 - `utils/` — generic utilities (tensor helpers, dtype mapping, hashing).
 
-**Driver contract and modular-blocks-first**: read [`.claude/rules/latent-drivers.md`](.claude/rules/latent-drivers.md) before touching `latent_pipeline_drivers/`, `nodes/`, or `misc/partial_denoise.py`. The public latent contract (unpacked, normalised) must not break.
+**Driver contract and modular-blocks-first**: read [`.claude/rules/latent-drivers.md`](.claude/rules/latent-drivers.md) before touching `latent_pipeline_drivers/`, `nodes/`, or `misc/partial_denoise.py`. The public latent contract (unpacked, normalized) must not break.
 
 **Provider / pipeline-class registration — the three places**
 
@@ -193,7 +193,7 @@ A miss in any of the three surfaces as a confusing UI failure rather than an imp
 
 **Pipeline caching**
 
-The Pipeline Builder caches the loaded pipeline in memory and reuses it across runs. Cache invalidation is driven by hashing the dict returned from `get_config_kwargs()` on the standard parameters. If a load-time parameter affects pipeline identity, it must appear there.
+The Build Pipeline node caches the loaded pipeline in memory and reuses it across runs. Cache invalidation is driven by hashing the dict returned from `get_config_kwargs()` on the standard parameters. If a load-time parameter affects pipeline identity, it must appear there.
 
 ## Node Development
 
@@ -246,4 +246,4 @@ When adding a model or driver:
 - **Existing drivers are the source of truth.** Pick the closest match and copy its structure.
 - **Read the diffusers source** under `.venv/Lib/site-packages/diffusers` before assuming a modular block exists.
 - **Don't bypass `LatentPipelineDriver.denoise_latent()`** for callback / partial-denoise / cancellation concerns — those are framework-level open problems.
-- Check the feature docs in `docs/` (see `docs/adding-new-model.md`) and the path-scoped rules in `.claude/rules/` before re-deriving a subsystem's behaviour. Verify against current source, since docs can drift.
+- Check the feature docs in `docs/` (see `docs/adding-new-model.md`) and the path-scoped rules in `.claude/rules/` before re-deriving a subsystem's behavior. Verify against current source, since docs can drift.

@@ -34,7 +34,7 @@
   ],
   "metadata": {
     "author": "Griptape, Inc.",
-    "description": "Diffusion nodes for Griptape Nodes.",
+    "description": "Griptape Diffusion Library: diffusion nodes for Griptape Nodes.",
     "library_version": "0.9.0",
     "engine_version": "0.108.0",
     "tags": [
@@ -732,7 +732,10 @@
         "group": "diffusion",
         "tags": [
           "diffusion",
-          "modular"
+          "load model",
+          "model loader",
+          "checkpoint",
+          "builder"
         ],
         "declarations": [
           {
@@ -1040,6 +1043,10 @@
         "display_name": "Load ControlNet",
         "group": "diffusion",
         "declarations": [
+          {
+            "type": "lifecycle_stage",
+            "stage": "BETA"
+          },
           {
             "type": "model_usage",
             "model_ids": [

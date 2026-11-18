@@ -284,7 +284,7 @@ class _MiniMaxH3CallbackDenoiseStep(MiniMaxH3DenoiseLoopWrapper):
         block_state.row_timestep_plan = block_state.row_timestep_plan[begin:end]
 
         # The schedulers' own sigma grids stay whole: step() needs sigmas[i + 1], and
-        # index_for_timestep searches the unsliced timesteps, so slicing either would desynchronise
+        # index_for_timestep searches the unsliced timesteps, so slicing either would desynchronize
         # them. set_begin_index pins where in the whole grid this window starts, and MUST run after
         # the set_timesteps block, which resets it to None.
         components.scheduler.set_begin_index(begin)
@@ -317,7 +317,7 @@ class _MiniMaxH3CallbackDenoiseStep(MiniMaxH3DenoiseLoopWrapper):
 class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
     memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.VIDEO_DIT_JOINT_SDPA
     produces_video: ClassVar[bool] = True
-    # MiniMax-H3 generates at a fixed 24 fps; any other rate desynchronises the soundtrack.
+    # MiniMax-H3 generates at a fixed 24 fps; any other rate desynchronizes the soundtrack.
     video_fps: ClassVar[int] = MINIMAX_H3_FPS
 
     @property

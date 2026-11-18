@@ -43,7 +43,7 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     _pipeline_cls_path: ClassVar[str]
     # Component slots this pipeline exposes for override, in ALLOWED_COMPONENT_SLOTS order. Declared
     # rather than read off the pipeline's __init__ signature: reading it imports the pipeline class,
-    # and the orchestrator builds these parameters for every Pipeline Builder it shows without the
+    # and the orchestrator builds these parameters for every Build Pipeline node it shows without the
     # execution environment installed. No default, so a new pipeline type that forgets to declare
     # fails loudly instead of quietly offering no override ports.
     _component_slots: ClassVar[list[str]]

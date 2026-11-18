@@ -94,7 +94,7 @@ class LatentPipelineDriver(ABC):
 
     Space
     ^^^^^
-    Latent tensors are **normalised**: each channel is ~N(0, 1), matching the
+    Latent tensors are **normalized**: each channel is ~N(0, 1), matching the
     distribution of ``torch.randn``. For VAEs whose raw latents are not
     unit-variance (e.g. WAN, Flux2), drivers must apply the per-channel
     whitening ``(z - latents_mean) / latents_std`` inside ``encode_media``
@@ -529,7 +529,7 @@ class LatentPipelineDriver(ABC):
         ``latent`` is either a :class:`LatentArtifact` (standard denoise) or an
         :class:`InpaintMaskArtifact` (inpaint denoise).
 
-        Subclasses can override behaviour by passing extra ``kwargs`` when
+        Subclasses can override behavior by passing extra ``kwargs`` when
         re-implementing this method. E.g. ``height`` / ``width`` default to
         ``latent.source_shape`` but can be overridden by setting kwargs; useful when the
         dimensions differ from the source (e.g. pipeline expects specific resolution).

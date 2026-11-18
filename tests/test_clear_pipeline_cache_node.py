@@ -24,7 +24,7 @@ from modular_diffusion_nodes_library.nodes.vae_encoder import VaeEncodeNode
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-LIBRARY = {"library": "Modular Diffusion"}
+LIBRARY = {"library": "Diffusion"}
 
 
 class _Pipe:

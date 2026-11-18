@@ -48,7 +48,7 @@ Generate Latent → [Decode HDR Media] ─┬→ SDR Preview
 - **Treat `raw_media` as in-process data.** `FloatMediaArtifact` is intentionally not serialized with workflow state; run the decoder and saver in the same execution.
 - **Treat tone-mapped previews as an assumption.** The operators other than `None` assume linear input; whether decoded values are linear depends on the selected model pipeline, and the library does not detect it.
 - **Use the same pipeline that produced the latent.** Each pipeline carries the VAE it was trained with — decoding with a mismatched VAE produces corrupt output.
-- **Large latents need more VRAM to decode.** High-resolution and multi-frame latents require more memory. Enable `vae_tiling` on Build Pipeline to reduce peak VRAM usage.
+- **Large latents need more VRAM to decode.** High-resolution and multi-frame latents require more memory. Enable `vae_tiling` on the Build Pipeline node to reduce peak VRAM usage.
 
 ## See also
 

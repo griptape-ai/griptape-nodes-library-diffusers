@@ -6,7 +6,7 @@ Progressive-load reference. Use when implementing one of the three runtime varia
 
 ## Pattern A — ControlNet (build-time variant)
 
-**Trigger**: `control_net_model_lists: list[str] | str | None` is supplied to the pipeline builder. The two driver classmethods are called during pipeline construction, not during denoising.
+**Trigger**: `control_net_model_lists: list[str] | str | None` is supplied to the Build Pipeline node. The two driver classmethods are called during pipeline construction, not during denoising.
 
 **Reference**: [`stable_diffusion_xl.py`](../../../../modular_diffusion_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) `can_make_control_pipe_from_standard` / `control_pipe_from_standard`.
 
@@ -52,7 +52,7 @@ class MyDriver(LatentPipelineDriver):
 
 ### Pitfalls
 - **Wrong ControlNet model class**: some models use `<Model>ControlNetModel` (e.g., `FluxControlNetModel`) instead of generic `ControlNetModel`. Read the variant pipeline's source to confirm which type its `controlnet` argument expects.
-- **`from_pipe` with quantised base**: if the base pipeline is quantised (bnb-4bit), confirm `from_pipe` handles it; some variants require `torch_dtype=None` and inherit from the base.
+- **`from_pipe` with quantized base**: if the base pipeline is quantized (bnb-4bit), confirm `from_pipe` handles it; some variants require `torch_dtype=None` and inherit from the base.
 - **No matching `<Model>ControlNetPipeline`**: if diffusers doesn't ship a controlnet pipeline for this model, ControlNet is not supportable yet. Return False from `can_make_control_pipe_from_standard` and skip Pattern A.
 
 ---

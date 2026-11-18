@@ -1,4 +1,4 @@
-"""Create Noise Latents honours `randomize_seed` the way the engine's `SeedParameter` defines it."""
+"""Create Noise Latents honors `randomize_seed` the way the engine's `SeedParameter` defines it."""
 
 from __future__ import annotations
 

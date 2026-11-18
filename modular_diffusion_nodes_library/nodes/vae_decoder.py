@@ -275,7 +275,7 @@ class VaeDecodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
                     # frame rate other than the one the model generated at drifts the two apart.
                     logger.warning(
                         "Encoding at the model's native %d fps instead of %d: %s generates audio "
-                        "and video together, and another rate would desynchronise them.",
+                        "and video together, and another rate would desynchronize them.",
                         latents_pipeline_driver.video_fps,
                         fps,
                         type(latents_pipeline_driver).__name__,

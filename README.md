@@ -22,18 +22,16 @@ Because every stage is a node, you can branch, chain, and reorder steps — enab
 
 ## Quick start
 
-The easiest way to install this library is through the **Configuration Editor** in the Griptape Nodes UI:
+The easiest way to install this library is through the Griptape Nodes UI:
 
-1. Open **Settings → Libraries** to reach the **Library Downloads** panel.
-1. Under **Libraries To Download**, click **Add Library** and paste the repository URL:
+1. In Griptape Nodes, open **Manage → Library Management**.
+1. Click **Add Library** and paste:
     ```text
-    https://github.com/griptape-ai/griptape-nodes-library-diffusers@main
+    https://github.com/griptape-ai/griptape-nodes-library-diffusers
     ```
-    You can pin to a branch, tag, or commit using `@ref` syntax (e.g. `@stable`, or a release tag).
-1. Click **Download Libraries** in the top right, then **Close Settings**.
-1. Restart the engine. The **Diffusion** node categories will appear in the node picker.
-
-![Adding the Diffusers library in the Configuration Editor](docs/assets/quicksetup.png)
+    To pin a version, open **Advanced Options** and set **Branch / Tag / Commit** (default `main`). You can also change the **Download Directory** there.
+1. Click **Install**, review the library details, and confirm.
+1. The library registers automatically and its nodes appear in the node picker. If they don't show up, click **Refresh Libraries** in Library Management.
 
 ### Your first generation
 
@@ -46,9 +44,17 @@ The quickest way to see the pieces working together is the **Text2Image** workfl
 
 To go further, open the other templates, which add LoRA, ControlNet, inpainting, multi-stage refinement and video.
 
+### Hugging Face token (gated models)
+
+Some models (e.g. FLUX.1 [dev]/[schnell]) are gated on Hugging Face. To use them:
+
+1. Accept the model's terms on its Hugging Face page.
+1. Create a **Read** token at https://huggingface.co/settings/tokens.
+1. Add it as `HF_TOKEN` under **Settings → API Keys & Secrets**.
+
 ### Manual configuration
 
-Alternatively, register the library directly in your `griptape_nodes_config.json`:
+Clone the repo and register it in `griptape_nodes_config.json`:
 
 ```json
 {

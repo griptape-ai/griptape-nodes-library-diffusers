@@ -51,7 +51,7 @@ class SetLatentMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             name="mask_image",
             input_types=["ImageUrlArtifact"],
             type="ImageUrlArtifact",
-            tooltip="Mask image. White marks the selected region, black marks the rest, and grey is partial.",
+            tooltip="Mask image. White marks the selected region, black marks the rest, and gray is partial.",
             allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
             hide_property=True,
         )
@@ -61,7 +61,7 @@ class SetLatentMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             message=(
                 "- ***White*** — fully selected\n"
                 "- ***Black*** — not selected\n"
-                "- ***Grey*** — partially selected\n\n"
+                "- ***Gray*** — partially selected\n\n"
                 "The mask is resized to match the input latent when it is converted to a tensor."
             ),
         )

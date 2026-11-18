@@ -23,7 +23,7 @@ Category: `Diffusion/Processing`
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `pipeline` | `Pipeline Config` | Yes | Connect the output of [Build Pipeline](pipeline_builder.md) or [Apply ControlNet](controlnet_pipeline.md). |
+| `pipeline` | `Pipeline Config` | Yes | Connect the output of the [Build Pipeline](pipeline_builder.md) or [Apply ControlNet](controlnet_pipeline.md) node. |
 | `input_latent` | `LatentArtifact`, `InpaintMaskArtifact`, or `MaskedLatentArtifact` | Yes | Starting latent. Create Noise Latent, Encode Media, or a prior Generate Latent output for standard denoising; [Encode Masked Media](encode_masked_media_latent.md) for inpainting; or [Set Latent Mask](set_latent_mask.md) for masked denoising. |
 | `controlnet_parameters` | `control_parameters` | Only if `pipeline` is a ControlNet pipeline | From the Apply ControlNet node's `control_parameters` output. |
 | `additional_parameters` | list[dict] | No | Generic provider-specific kwargs forwarded to the pipeline call. |
