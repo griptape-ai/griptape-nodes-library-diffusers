@@ -5,7 +5,9 @@
 Command: `estimate-workflow-memory`
 
 ## TL;DR
-- Run `uv run estimate-workflow-memory <workflow.py>` against a generated workflow `.py` file to get the same estimate the Estimate Pipeline Memory node produces.
+- Run `make estimate-workflow-memory WORKFLOW=<workflow.py>` or
+  `nox -s estimate_workflow_memory -- <workflow.py>` to get the same estimate the Estimate Pipeline
+  Memory node produces. Both commands use the separate execution environment.
 - The workflow file is parsed as source and is never imported or executed. No model weights are loaded and no pipeline is built.
 - The required component configs must already be in the local Hugging Face cache, or the command fails.
 - Use `--json` for machine-readable output.
@@ -13,25 +15,35 @@ Command: `estimate-workflow-memory`
 ## Usage
 
 ```text
-uv run estimate-workflow-memory workflows/templates/Text2Image.py
+make estimate-workflow-memory WORKFLOW=workflows/templates/Text2Image.py
 ```
 
-Use `--json` when the result will be consumed by another tool:
+Or use the Nox session directly:
 
 ```text
-uv run estimate-workflow-memory workflows/templates/Text2Image.py --json
+nox -s estimate_workflow_memory -- workflows/templates/Text2Image.py
+```
+
+Use `ARGS` with Make or append CLI options after the workflow path in Nox. For example, use
+`--json` when the result will be consumed by another tool:
+
+```text
+make estimate-workflow-memory WORKFLOW=workflows/templates/Text2Image.py ARGS=--json
+nox -s estimate_workflow_memory -- workflows/templates/Text2Image.py --json
 ```
 
 Provide dimensions to override the width and height set on the workflow's noise nodes:
 
 ```text
-uv run estimate-workflow-memory workflow.py --width 1024 --height 1024
+make estimate-workflow-memory WORKFLOW=workflow.py ARGS="--width 1024 --height 1024"
+nox -s estimate_workflow_memory -- workflow.py --width 1024 --height 1024
 ```
 
 For a video workflow, provide the frame count as well:
 
 ```text
-uv run estimate-workflow-memory workflow.py --width 832 --height 480 --num-frames 25 --json
+make estimate-workflow-memory WORKFLOW=workflow.py ARGS="--width 832 --height 480 --num-frames 25 --json"
+nox -s estimate_workflow_memory -- workflow.py --width 832 --height 480 --num-frames 25 --json
 ```
 
 ## Arguments

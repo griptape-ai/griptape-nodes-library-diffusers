@@ -174,6 +174,12 @@ test/workflows: ## Run workflow tests.
 	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv sync --extra exec --all-groups
 	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv run pytest -s tests/workflows
 
+.PHONY: estimate-workflow-memory
+estimate-workflow-memory: ## Estimate workflow memory. Usage: make estimate-workflow-memory WORKFLOW=path [ARGS="--json"]
+	@test -n "$(WORKFLOW)" || { echo "Set WORKFLOW to a generated workflow .py file."; exit 2; }
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv sync --extra exec --all-groups
+	@UV_PROJECT_ENVIRONMENT=$(EXEC_TEST_VENV) uv run estimate-workflow-memory "$(WORKFLOW)" $(ARGS)
+
 .DEFAULT_GOAL := help
 .PHONY: help
 help: ## Print Makefile help text.

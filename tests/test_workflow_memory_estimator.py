@@ -316,3 +316,56 @@ def test_estimate_workflow_json_shape(monkeypatch: pytest.MonkeyPatch, tmp_path:
         "components": [],
         "warnings": [],
     }
+
+
+def test_self_referencing_table_entry_raises_extraction_error() -> None:
+    tree = __import__("ast").parse(
+        "top_level_unique_values_dict = {'a': top_level_unique_values_dict['a']}\n"
+        "value = decode_value(top_level_unique_values_dict['a'])\n"
+    )
+    table = workflow_extraction._literal_value_table(tree)
+
+    with pytest.raises(workflow_extraction.WorkflowExtractionError, match="not a supported literal value"):
+        workflow_extraction._resolve_literal_expression(tree.body[1].value, table)
+
+
+def test_table_entry_pickle_error_keeps_specific_reason() -> None:
+    tree = __import__("ast").parse(
+        "top_level_unique_values_dict = {'a': pickle.loads(b'cnot_allowed\\nThing\\n.')}\n"
+        "value = decode_value(top_level_unique_values_dict['a'])\n"
+    )
+    table = workflow_extraction._literal_value_table(tree)
+
+    with pytest.raises(workflow_extraction.WorkflowExtractionError, match="Unsupported pickle global"):
+        workflow_extraction._resolve_literal_expression(tree.body[1].value, table)
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (
+            'node = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type="LatentDiffusionPipelineBuilderNode"))).node_name\n'
+            'await GriptapeNodes.ahandle_request(SetParameterValueRequest(node_name=node, parameter_name="provider", value="Flux"))\n',
+            True,
+        ),
+        (
+            'node = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type="LatentDiffusionPipelineBuilderNode"))).node_name\n'
+            'await GriptapeNodes.ahandle_request(AddParameterToNodeRequest(node_name=node, parameter_name="pipeline_type", default_value="x"))\n',
+            True,
+        ),
+        (
+            'node = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type="LatentDiffusionPipelineBuilderNode"))).node_name\n',
+            False,
+        ),
+        (
+            'node = (await GriptapeNodes.ahandle_request(CreateNodeRequest(node_type="NoiseLatentNode"))).node_name\n'
+            'await GriptapeNodes.ahandle_request(SetParameterValueRequest(node_name=node, parameter_name="provider", value="Flux"))\n',
+            False,
+        ),
+    ],
+)
+def test_has_configured_pipeline_builder(body: str, expected: bool) -> None:
+    source = "async def build_workflow():\n" + "".join(f"    {line}\n" for line in body.splitlines())
+    tree = __import__("ast").parse(source)
+
+    assert workflow_extraction._has_configured_pipeline_builder(tree) is expected

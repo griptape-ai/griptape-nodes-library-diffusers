@@ -380,9 +380,31 @@ def extract_workflow(path: Path) -> WorkflowMemoryInput:
         raise WorkflowExtractionError(msg) from error
 
     schema_version = _workflow_schema_version(source)
-    if schema_version < NEW_WORKFLOW_SCHEMA_VERSION:
-        return _extract_legacy_workflow(path, tree)
-    return _extract_new_workflow(path, tree)
+    if schema_version >= NEW_WORKFLOW_SCHEMA_VERSION or _has_configured_pipeline_builder(tree):
+        return _extract_new_workflow(path, tree)
+    return _extract_legacy_workflow(path, tree)
+
+
+def _has_configured_pipeline_builder(tree: ast.Module) -> bool:
+    node_types = _collect_node_types(tree)
+    builder_nodes = {
+        name for name, node_type in node_types.items() if node_type == "LatentDiffusionPipelineBuilderNode"
+    }
+    if not builder_nodes:
+        return False
+
+    regions = _node_context_regions(tree)
+    for request_name in ("AddParameterToNodeRequest", "SetParameterValueRequest"):
+        for request in _request_calls(tree, request_name):
+            parameter_name = _string_or_name(_keyword_value(request, "parameter_name"))
+            if parameter_name not in {"provider", "pipeline_type"}:
+                continue
+            node_name = _string_or_name(_keyword_value(request, "node_name"))
+            if node_name is None:
+                node_name = _node_context_for_line(regions, request.lineno)
+            if node_name in builder_nodes:
+                return True
+    return False
 
 
 def _extract_legacy_workflow(path: Path, tree: ast.Module) -> WorkflowMemoryInput:
@@ -504,6 +526,18 @@ def _literal_value_table(tree: ast.Module) -> dict[str, ast.expr]:
     return table
 
 
+def _resolve_table_entry(node: ast.expr) -> Any:
+    # A table entry is a pickle payload or a plain literal. It is never resolved through the
+    # table again, so entries that reference each other cannot recurse.
+    payload = _literal_pickle_bytes(node)
+    if payload is not None:
+        return _restricted_loads(payload)
+    try:
+        return ast.literal_eval(node)
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError) as error:
+        raise WorkflowExtractionError("Workflow table entry is not a supported literal expression.") from error
+
+
 def _resolve_literal_expression(node: ast.expr, values_table: dict[str, ast.expr]) -> Any:
     if (
         isinstance(node, ast.Call)
@@ -512,6 +546,10 @@ def _resolve_literal_expression(node: ast.expr, values_table: dict[str, ast.expr
         and not node.keywords
     ):
         node = node.args[0]
+
+    payload = _literal_pickle_bytes(node)
+    if payload is not None:
+        return _restricted_loads(payload)
 
     if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name):
         if node.value.id != "top_level_unique_values_dict":
@@ -523,10 +561,10 @@ def _resolve_literal_expression(node: ast.expr, values_table: dict[str, ast.expr
         if value_node is None:
             raise WorkflowExtractionError(f"Workflow value '{key_node.value}' was not found in its value table.")
         try:
-            return ast.literal_eval(value_node)
-        except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError) as error:
+            return _resolve_table_entry(value_node)
+        except WorkflowExtractionError as error:
             raise WorkflowExtractionError(
-                f"Workflow value '{key_node.value}' is not a supported literal value."
+                f"Workflow value '{key_node.value}' is not a supported literal value. {error}"
             ) from error
 
     try:

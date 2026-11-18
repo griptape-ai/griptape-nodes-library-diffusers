@@ -68,6 +68,23 @@ def workflow_tests_strict(session: nox.Session) -> None:
 
 
 @nox.session(venv_backend="none")
+def estimate_workflow_memory(session: nox.Session) -> None:
+    """Estimate memory for a generated workflow in the execution environment."""
+    if not session.posargs:
+        session.error(
+            "Provide a generated workflow path, for example: "
+            "nox -s estimate_workflow_memory -- workflows/templates/CustomPipelineText2Image.py"
+        )
+
+    execution_env = {
+        "UV_PROJECT_ENVIRONMENT": str(EXEC_TEST_VENV),
+        "VIRTUAL_ENV": str(EXEC_TEST_VENV),
+    }
+    session.run("uv", "sync", "--extra", "exec", "--all-groups", env=execution_env)
+    session.run("uv", "run", "estimate-workflow-memory", *session.posargs, env=execution_env)
+
+
+@nox.session(venv_backend="none")
 def workflow_single(session: nox.Session) -> None:
     """Run one workflow template by file name or path.
 
