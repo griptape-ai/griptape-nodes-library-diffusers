@@ -50,6 +50,7 @@ from modular_diffusion_nodes_library.standard_parameters.minimax_h3_parameters i
 from modular_diffusion_nodes_library.standard_parameters.qwen_edit_parameters import (
     QwenEditPipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.qwen_image21_parameters import QwenImage21PipelineParameters
 from modular_diffusion_nodes_library.standard_parameters.qwen_parameters import (
     QwenPipelineParameters,
 )
@@ -320,6 +321,9 @@ class LatentQwenPipelineTypeParameters(LatentPipelineTypeParameters):
     @property
     def pipeline_type_badge_message(self) -> str:
         return (
+            "- `QwenImage21Pipeline` — Text-to-image and image-conditioned generation with Qwen Image 2.1 or "
+            "Qwen Image 2.1 Turbo. Supports up to 10 reference images, alpha-channel latents, Image-to-Image, "
+            "partial denoising, and masked denoising; ControlNet and inpainting are not supported.\n"
             "- `QwenImagePipeline` — Text-to-image generation. "
             "Supports ***ControlNet***, ***inpainting***, and ***ControlNet + inpainting*** via the "
             "Apply ControlNet and VAE Mask Encode nodes.\n"
@@ -331,6 +335,7 @@ class LatentQwenPipelineTypeParameters(LatentPipelineTypeParameters):
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
+            "QwenImage21Pipeline": QwenImage21PipelineParameters,
             "QwenImagePipeline": QwenPipelineParameters,
             "QwenImageEditPipeline": QwenEditPipelineParameters,
         }

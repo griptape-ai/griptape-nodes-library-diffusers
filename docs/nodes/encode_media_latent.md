@@ -39,6 +39,7 @@ Load Image → [Encode Media] → Generate Latent → Decode Media
 
 | Provider | Behavior |
 | --- | --- |
+| Qwen Image 2.1 / Turbo | Image-only. The VAE reads four channels: an RGBA image keeps its alpha and an RGB image gets a solid (opaque) alpha. Image width and height must be multiples of 32; when auto-resize is disabled, the node reports the aligned dimensions it requires. |
 | WAN Animate 2 (and Distilled) | **Video only.** `input_video` is encoded to a normalized WAN video latent at its aligned size (width and height multiples of 16, `num_frames` of the form 4N + 1), usable with the latent math nodes and Decode Media. Images raise an error: the character image is conditioning, not a latent, so connect it to `image` on [Generate Latent](generate_media_latents.md). An encoded latent cannot be re-noised for Video-to-Video, because WAN Animate 2 does not support `add_noise`. |
 | MiniMax-H3 | **Not supported.** MiniMax-H3 has no general VAE-encode path — its only encoder is keyframe-specific and produces conditioning rows rather than a reusable latent. This node raises an error. For keyframe conditioning, connect a [Reference Media](media_gen_conditioning.md) node to `conditioning_images` on [Generate Latent](generate_media_latents.md) instead. |
 | Flux3 | Image-only. The encoder pads a single reference to the 16-pixel grid and may downscale it to fit the 4-megapixel limit. Crop metadata is carried with the latent so Decode Media can restore the reference image bounds. |

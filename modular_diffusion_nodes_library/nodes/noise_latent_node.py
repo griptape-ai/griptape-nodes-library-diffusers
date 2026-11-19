@@ -24,7 +24,7 @@ from modular_diffusion_nodes_library.parameters.pipeline_parameters import (
     ModularDiffusionPipelineParameters,
 )
 from modular_diffusion_nodes_library.utils.config_utils import get_config_value
-from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
+from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentStatus, snap_dimensions
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -177,7 +177,12 @@ class NoiseLatentNode(ParameterConnectionPreservationMixin, ControlNode):
         """
         dimension_result = self._update_compatibility_message(build_if_needed=True)
         auto_resize = get_config_value("modular_diffusion_library.enable_auto_resize")
-        if dimension_result is not None and not auto_resize and dimension_result.message:
+        if (
+            dimension_result is not None
+            and not auto_resize
+            and dimension_result.status is DimensionAlignmentStatus.INVALID
+            and dimension_result.message
+        ):
             return [ValueError(dimension_result.message)]
         return None
 

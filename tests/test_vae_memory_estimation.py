@@ -26,6 +26,7 @@ from diffusers.models.autoencoders.autoencoder_kl_ltx import AutoencoderKLLTXVid
 from diffusers.models.autoencoders.autoencoder_kl_ltx2 import AutoencoderKLLTX2Video  # noqa: E402
 from diffusers.models.autoencoders.autoencoder_kl_minimax_h3 import AutoencoderKLMiniMaxH3  # noqa: E402
 from diffusers.models.autoencoders.autoencoder_kl_qwenimage import AutoencoderKLQwenImage  # noqa: E402
+from diffusers.models.autoencoders.autoencoder_kl_qwenimage21 import AutoencoderKLQwenImage21  # noqa: E402
 from diffusers.models.autoencoders.autoencoder_kl_wan import AutoencoderKLWan  # noqa: E402
 from diffusers.modular_pipelines.flux2.decoders import Flux2DecodeStep  # noqa: E402
 
@@ -90,6 +91,7 @@ _VAE_CASES: list[tuple[str, type[Any], dict[str, Any], tuple[int, ...], tuple[in
         (1, 24, 7, 4, 4),
     ),
     ("AutoencoderKLQwenImage", AutoencoderKLQwenImage, {}, (1, 3, 17, 32, 32), (1, 16, 5, 4, 4)),
+    ("AutoencoderKLQwenImage21", AutoencoderKLQwenImage21, {}, (1, 4, 32, 32), (1, 64, 2, 2)),
     ("AutoencoderKLWan", AutoencoderKLWan, {}, (1, 3, 17, 32, 32), (1, 16, 5, 4, 4)),
 ]
 
@@ -129,6 +131,7 @@ _TILED_CASES: dict[str, tuple[dict[str, Any], tuple[int, ...], tuple[int, ...]]]
     ),
     "AutoencoderKLMiniMaxH3": ({}, (1, 3, 34, 320, 320), (1, 24, 7, 20, 20)),
     "AutoencoderKLQwenImage": ({}, (1, 3, 17, 320, 320), (1, 16, 5, 40, 40)),
+    "AutoencoderKLQwenImage21": ({}, (1, 4, 576, 576), (1, 64, 36, 36)),
     "AutoencoderKLWan": ({}, (1, 3, 17, 320, 320), (1, 16, 5, 40, 40)),
 }
 
@@ -160,6 +163,21 @@ def test_public_encode_decode_paths_trace_on_meta(family: str) -> None:
     assert trace.decode_bytes > 0
     assert trace.estimated_bytes == max(trace.encode_bytes, trace.decode_bytes)
     assert all(parameter.device.type == "meta" for parameter in vae.parameters())
+
+
+@pytest.mark.parametrize(
+    ("family", "loaded_channels"),
+    [("AutoencoderKL", 4), ("AutoencoderKLQwenImage", 4), ("AutoencoderKLQwenImage21", 3)],
+)
+def test_trace_encodes_the_vae_input_channels_whatever_the_source_shape_says(family: str, loaded_channels: int) -> None:
+    vae_class, config, source_shape, latent_shape = _case(family)
+    vae = _meta_vae(vae_class, config)
+    expected = trace_vae_activation_memory(vae, _latent(source_shape, latent_shape), BF16)
+    loaded_source_shape = (source_shape[0], loaded_channels, *source_shape[2:])
+
+    actual = trace_vae_activation_memory(vae, _latent(loaded_source_shape, latent_shape), BF16)
+
+    assert actual == expected
 
 
 def test_qwen_image_trace_promotes_public_image_shapes_to_single_frame() -> None:

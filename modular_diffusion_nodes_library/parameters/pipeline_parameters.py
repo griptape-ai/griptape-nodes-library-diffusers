@@ -12,6 +12,9 @@ from modular_diffusion_nodes_library.runtime_parameters.ltx2_runtime_parameters 
     LTX2PipelineRuntimeParameters,
 )
 from modular_diffusion_nodes_library.runtime_parameters.null_runtime_parameters import NullRuntimeParameters
+from modular_diffusion_nodes_library.runtime_parameters.qwen_image21_runtime_parameters import (
+    QwenImage21PipelineRuntimeParameters,
+)
 from modular_diffusion_nodes_library.runtime_parameters.runtime_parameters import (
     DiffusionPipelineRuntimeParameters,
 )
@@ -56,6 +59,9 @@ class ModularDiffusionPipelineParameters:
         # Same for WAN Animate 2: its defaults depend on `is_distilled` in the build data.
         if runtime_cls is WanAnimate2PipelineRuntimeParameters:
             self._runtime_parameters = WanAnimate2PipelineRuntimeParameters(self._node, pipeline_artifact.metadata)
+            return
+        if runtime_cls is QwenImage21PipelineRuntimeParameters:
+            self._runtime_parameters = QwenImage21PipelineRuntimeParameters(self._node, pipeline_artifact.metadata)
             return
         self._runtime_parameters = runtime_cls(self._node)
 
