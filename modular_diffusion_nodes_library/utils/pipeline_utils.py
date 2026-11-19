@@ -195,6 +195,7 @@ def _automatic_optimize_diffusion_pipeline(  # noqa: C901 PLR0911 PLR0912 PLR091
     is_prequantized: bool = False,
     supports_layerwise_casting: bool = True,
     requires_device_map: bool = False,
+    manages_runtime_optimisation: bool = False,
 ) -> None:
     """Optimize pipeline memory footprint with incremental VRAM checking."""
     import torch  # type: ignore[reportMissingImports]
@@ -210,7 +211,7 @@ def _automatic_optimize_diffusion_pipeline(  # noqa: C901 PLR0911 PLR0912 PLR091
 
         # Pipelines loaded with device_map already have device placement handled.
         # Skip .to(device) and CPU offload strategies as they're incompatible.
-        if requires_device_map:
+        if requires_device_map or manages_runtime_optimisation:
             logger.info("Pipeline loaded with device_map, skipping device placement optimizations")
             return
 
@@ -273,7 +274,7 @@ def _automatic_optimize_diffusion_pipeline(  # noqa: C901 PLR0911 PLR0912 PLR091
         _log_memory_info(pipe, device)
 
         # Pipelines loaded with device_map already have device placement handled.
-        if requires_device_map:
+        if requires_device_map or manages_runtime_optimisation:
             logger.info("Pipeline loaded with device_map, skipping device placement optimizations")
             return
 
@@ -308,11 +309,14 @@ def _manual_optimize_diffusion_pipeline(  # noqa: C901 PLR0912 PLR0913
     is_prequantized: bool = False,
     supports_layerwise_casting: bool = True,
     requires_device_map: bool = False,
+    manages_runtime_optimisation: bool = False,
 ) -> None:
     import torch  # type: ignore[reportMissingImports]
 
     if quantization_mode != "None":
-        if is_prequantized:
+        if manages_runtime_optimisation:
+            logger.info("Pipeline loader owns weights; skipping post-load quantisation")
+        elif is_prequantized:
             logger.info("Pipeline is pre-quantized; skipping quantization step")
         else:
             _quantize_diffusion_pipeline(pipe, quantization_mode, device)
@@ -321,7 +325,9 @@ def _manual_optimize_diffusion_pipeline(  # noqa: C901 PLR0912 PLR0913
         pipe.enable_attention_slicing()
     apply_vae_memory_options(getattr(pipe, "vae", None), slicing=vae_slicing, tiling=vae_tiling)
     if transformer_layerwise_casting and hasattr(pipe, "transformer"):
-        if is_prequantized:
+        if manages_runtime_optimisation:
+            logger.info("Pipeline loader owns weights; skipping fp8 layerwise casting")
+        elif is_prequantized:
             logger.info("Pipeline is pre-quantized; skipping fp8 layerwise casting for transformer")
         elif not supports_layerwise_casting:
             logger.info("Pipeline does not support layerwise casting; skipping fp8 layerwise casting for transformer")
@@ -334,7 +340,7 @@ def _manual_optimize_diffusion_pipeline(  # noqa: C901 PLR0912 PLR0913
 
     # Pipelines loaded with device_map already have device placement handled.
     # Skip .to(device) and CPU offload strategies as they're incompatible.
-    if requires_device_map:
+    if requires_device_map or manages_runtime_optimisation:
         logger.info("Pipeline loaded with device_map, skipping device placement optimizations")
         return
 
@@ -372,6 +378,7 @@ def optimize_diffusion_pipeline(  # noqa: PLR0913
     import torch  # type: ignore[reportMissingImports]
 
     device = get_best_device()
+    manages_runtime_optimisation = getattr(pipe, "_manages_runtime_optimisation", False) is True
 
     if memory_optimization_strategy == "Automatic":
         _automatic_optimize_diffusion_pipeline(
@@ -380,6 +387,7 @@ def optimize_diffusion_pipeline(  # noqa: PLR0913
             is_prequantized=is_prequantized,
             supports_layerwise_casting=supports_layerwise_casting,
             requires_device_map=requires_device_map,
+            manages_runtime_optimisation=manages_runtime_optimisation,
         )
     else:
         _manual_optimize_diffusion_pipeline(
@@ -394,6 +402,7 @@ def optimize_diffusion_pipeline(  # noqa: PLR0913
             is_prequantized=is_prequantized,
             supports_layerwise_casting=supports_layerwise_casting,
             requires_device_map=requires_device_map,
+            manages_runtime_optimisation=manages_runtime_optimisation,
         )
 
     try:
