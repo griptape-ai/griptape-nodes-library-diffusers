@@ -97,6 +97,45 @@ Optional overrides on the base class:
 - `supports_layerwise_casting()` → False if the transformer checks weight dtype before forward
 - `requires_device_map()` → True for pipelines like GLM-Image that need `accelerate` device_map
 
+#### Modular pipeline loading
+
+For a Diffusers `ModularPipeline`, subclass
+[`DiffusersModularPipelineParameters`](../modular_diffusion_nodes_library/parameters/diffusers_modular_pipeline_parameters.py)
+and implement `get_modular_load_options(build_data)`, returning `ModularPipelineLoadOptions`.
+Keep the classic parameter base unchanged. Declare `_component_slots` for the editor and
+`supported_workflows` for the runtime block graph. Build data must contain `base_repo_id` and
+the selected `revision` or `base_revision`.
+
+The composed
+[`ModularPipelineLoader`](../modular_diffusion_nodes_library/component_loading/modular_pipeline_loader.py)
+resolves pending components, completes preflight validation before any weights load, registers
+overrides, loads custom components and missing defaults, checks completeness, then applies placement.
+An explicit override skips its default loader and validator. Components from the base repository
+use the selected base revision; components from another repository keep their own revision unless
+explicitly replaced. Changing the source does not carry over an unrelated repository's revision.
+
+Choose these options according to what your model needs:
+
+- `component_options`: kwargs forwarded through `load_components(...)` to the component's
+    `from_pretrained(...)`, e.g. `{"vae": {"dtype": torch.float32}}`. Custom loaders receive them in
+    `context.options` instead.
+- `component_validators`: checks before loading weights, e.g. whether the GPU supports FP8.
+- `component_loaders`: custom loading functions when `from_pretrained(...)` is not enough,
+    e.g. Flux3's quantised transformer needs `from_single_file(...)`.
+- `prepare_pipeline`: adjust optional processing steps before choosing components,
+    e.g. remove Flux3's prompt-expansion step when disabled.
+
+Validators and loaders receive a `ComponentLoadContext` containing the component's name, source,
+subfolder, revision and loading arguments. `prepare_pipeline` receives the pipeline itself.
+
+Do not put `names`, `workflow`, `components_manager` or `local_files_only` in `component_options`.
+
+Select workflows through `ModularPipelineLoadOptions.workflows`.
+
+The loader sets `_manages_runtime_optimisation = True` so the optimiser does not move models,
+replace CPU offloading or quantise/cast weights again. Attention/VAE slicing, VAE tiling and CUDA
+settings still follow the normal optimisation settings where supported.
+
 ### Step 3 — Runtime Parameters (UI on the generate node)
 
 Create `runtime_parameters/<model>_runtime_parameters.py`. Subclass `DiffusionPipelineRuntimeParameters` from [`runtime_parameters/runtime_parameters.py`](../modular_diffusion_nodes_library/runtime_parameters/runtime_parameters.py). Model after [`flux_runtime_parameters.py`](../modular_diffusion_nodes_library/runtime_parameters/flux_runtime_parameters.py).

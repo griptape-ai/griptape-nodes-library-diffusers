@@ -24,6 +24,7 @@ Category: `ModularDiffusion/Pipeline`
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `loras` | `loras` | No | Connect one or more [Load LoRA](load_lora.md) nodes. Stacked in connection order. |
+| `component_*` | `ComponentArtifact` | No | Dynamic override ports for components supported by the selected pipeline. |
 
 ## Outputs
 

@@ -1,6 +1,6 @@
 # Load Component
 
-**Load a single pipeline component (transformer / unet / vae / tokenizer / text encoder) from disk or the local HuggingFace cache.**
+**Load a single pipeline component (transformer / unet / vae / audio vae / tokenizer / text encoder) from disk or the local HuggingFace cache.**
 
 Category: `ModularDiffusion/Pipeline`
 
@@ -8,7 +8,7 @@ Category: `ModularDiffusion/Pipeline`
 - Emits a `ComponentArtifact` describing where the weights live; the weights themselves are loaded lazily by the pipeline builder at build time.
 - Three source modes: a single-file checkpoint (`.gguf` / `.safetensors` / …), a diffusers-format component folder, or a HuggingFace repo id already in your local cache.
 - All modes run with local files in the cache only, nothing is downloaded. Use the model manager UI to download models & repo you might need.
-- Connect this output to the component override port on the Build Pipeline node that matches your selection (Transformer / UNet / VAE / Tokenizer / Text Encoder).
+- Connect this output to the component override port on the Build Pipeline node that matches your selection (Transformer / UNet / VAE / Audio VAE / Tokenizer / Text Encoder).
 
 ## Typical workflow position
 ```text
@@ -35,7 +35,7 @@ _None. All fields are node properties._
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `component` | `Transformer \| UNet \| VAE \| Tokenizer \| Text Encoder` | `Transformer` | Which pipeline slot this loader targets. Changing this updates the output artifact type and drops any outgoing connections. |
+| `component` | `Transformer \| UNet \| VAE \| Audio VAE \| Tokenizer \| Text Encoder` | `Transformer` | Which pipeline slot this loader targets. Changing this updates the output artifact type and drops any outgoing connections. |
 | `source_type` | `Single File \| Local Folder \| HuggingFace Repo` | `Single File` | Selects which of the parameter groups below is active. The other groups are hidden. **Note:** Single File is not supported for Tokenizer — use Local Folder or HuggingFace Repo instead. |
 
 ### Single File
@@ -57,7 +57,7 @@ _None. All fields are node properties._
 | --- | --- | --- | --- |
 | `repo_id` | `str` | `""` | HuggingFace repo id in `repo/id` form, e.g. `black-forest-labs/FLUX.1-dev`. Must already be in the local HF cache; no downloads are triggered from here. A refresh (↺) button next to the field re-checks the local cache. If the repo is not cached, an **Open Model Manager to Download** button appears below the field — clicking it opens Model Management pre-filtered to that repo. Run-time validation fails if the repo is not cached. |
 | `revision` | `str` | `"main"` | Repo revision i.e. branch, tag, or commit hash. |
-| `subfolder` | `str` | `""` | Subfolder inside the repo containing the component. Blank means auto-derived from the selected `component` (`transformer`, `unet`, `vae`, `tokenizer`, `text_encoder`). Note that, in some cases you might want a numbered variant (e.g. `transformer_2`, `tokenizer_2`), you will have to specify this manually. |
+| `subfolder` | `str` | `""` | Subfolder inside the repo containing the component. Blank means auto-derived from the selected `component` (`transformer`, `unet`, `vae`, `audio_vae`, `tokenizer`, `text_encoder`). Note that, in some cases you might want a numbered variant (e.g. `transformer_2`, `tokenizer_2`), you will have to specify this manually. |
 
 ## Tips & pitfalls
 
