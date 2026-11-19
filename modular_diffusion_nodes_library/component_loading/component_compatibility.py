@@ -43,6 +43,7 @@ from typing import Any, ClassVar
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ComponentArtifact,
+    ComponentSourceType,
     ModelComponentArtifact,
 )
 from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact import SchedulerComponentArtifact
@@ -134,7 +135,7 @@ class _ConfigResolver:
         if slot not in self._override_cache:
             artifact = self._overrides.get(slot)
             if isinstance(artifact, ModelComponentArtifact):
-                self._override_cache[slot] = artifact.try_read_config()
+                self._override_cache[slot] = artifact.try_read_config(slot=slot)
             elif isinstance(artifact, SchedulerComponentArtifact):
                 self._override_cache[slot] = self._try_read_scheduler_config(artifact)
             else:
@@ -158,10 +159,24 @@ class _ConfigResolver:
         return self._base_cache[slot]
 
     def resolved_config(self, slot: str) -> dict[str, Any] | None:
-        """Effective config for ``slot`` — the override if present, else the base repo's."""
-        if slot in self._overrides:
-            return self.override_config(slot)
-        return self.base_config(slot)
+        """Resolve an override, borrowing the base config for implicit single-file configs.
+
+        Single files without an explicit config source load with their model type's canonical
+        config. The selected base repo supplies the config-only comparison in that case; this
+        matches MiniMax-H3's canonical repo. Explicit or directory configs are never replaced.
+        """
+        if slot not in self._overrides:
+            return self.base_config(slot)
+        config = self.override_config(slot)
+        if config is None and self._uses_base_config(self._overrides[slot]):
+            config = self.base_config(slot)
+        return config
+
+    @staticmethod
+    def _uses_base_config(artifact: ComponentArtifact) -> bool:
+        if not isinstance(artifact, ModelComponentArtifact):
+            return False
+        return artifact.source_type == ComponentSourceType.SINGLE_FILE and artifact.config_source is None
 
 
 class FindingCategory(StrEnum):

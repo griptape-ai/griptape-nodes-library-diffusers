@@ -53,6 +53,8 @@ MODEL_TYPE_TO_PIPELINE_TYPE: dict[str, str] = {
     "wan-animate-14B": "WanAnimatePipeline",
     "wan-vace-1.3B": "WanVACEPipeline",
     "wan-vace-14B": "WanVACEPipeline",
+    # MiniMax-H3 transformer checkpoints use Diffusers' canonical component config.
+    "minimax-h3": "MiniMaxH3ModularPipeline",
 }
 
 

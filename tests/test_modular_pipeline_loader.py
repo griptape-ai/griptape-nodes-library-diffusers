@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -191,6 +194,95 @@ def test_loader_owned_placement_preserves_memory_options(
     assert events == ["slicing", "tiling", "backend"]
 
 
+@pytest.fixture
+def flux3_vae_override(loader_environment: SimpleNamespace, monkeypatch: pytest.MonkeyPatch) -> Any:
+    torch = pytest.importorskip("torch")
+    diffusers = pytest.importorskip("diffusers")
+    from modular_diffusion_nodes_library.utils import pipeline_utils
+
+    vae = diffusers.AutoencoderKLFlux2(
+        block_out_channels=(8, 8, 8, 8),
+        norm_num_groups=4,
+        layers_per_block=1,
+        latent_channels=32,
+        sample_size=64,
+        mid_block_add_attention=False,
+    )
+    pipe = loader_environment.make_loader(workflows=("active",), device="cpu").from_pretrained(
+        "org/base", overrides={"transformer": object(), "vae": vae}
+    )
+    assert pipe.vae is vae
+    monkeypatch.setattr(pipeline_utils, "get_best_device", lambda: torch.device("cpu"))
+    monkeypatch.setattr(torch.backends.cuda.matmul, "allow_tf32", False)
+    monkeypatch.setattr(torch.backends.cuda, "sdp_kernel", lambda **kwargs: None)
+    return pipe
+
+
+@pytest.mark.parametrize("enabled", [False, True], ids=["disabled", "enabled"])
+@pytest.mark.parametrize("batch_size", [1, 2])
+def test_vae_override_slicing_splits_actual_decoder_batches(
+    flux3_vae_override: Any, monkeypatch: pytest.MonkeyPatch, enabled: bool, batch_size: int
+) -> None:
+    torch = pytest.importorskip("torch")
+    from modular_diffusion_nodes_library.utils.pipeline_utils import optimize_diffusion_pipeline
+
+    pipe = flux3_vae_override
+    vae = pipe.vae
+    batches: list[int] = []
+    scale = 2 ** (len(vae.config.block_out_channels) - 1)
+
+    def decode(latents: Any) -> Any:
+        batches.append(latents.shape[0])
+        return latents.new_zeros((latents.shape[0], 3, latents.shape[-2] * scale, latents.shape[-1] * scale))
+
+    monkeypatch.setattr(vae.decoder, "forward", decode)
+    optimize_diffusion_pipeline(pipe, vae_slicing=enabled)
+
+    output = vae.decode(torch.zeros((batch_size, 32, 8, 8)), return_dict=False)[0]
+
+    expected_batches = [batch_size]
+    if enabled and batch_size > 1:
+        expected_batches = [1] * batch_size
+    assert vae.use_slicing is enabled
+    assert batches == expected_batches
+    assert output.shape == (batch_size, 3, 8 * scale, 8 * scale)
+
+
+@pytest.mark.parametrize("enabled", [False, True], ids=["disabled", "enabled"])
+@pytest.mark.parametrize("offset", [-1, 0, 1], ids=["below", "at", "above"])
+@pytest.mark.parametrize("axis", [-2, -1], ids=["height", "width"])
+def test_vae_override_tiling_splits_actual_decoder_inputs(
+    flux3_vae_override: Any, monkeypatch: pytest.MonkeyPatch, enabled: bool, offset: int, axis: int
+) -> None:
+    torch = pytest.importorskip("torch")
+    from modular_diffusion_nodes_library.utils.pipeline_utils import optimize_diffusion_pipeline
+
+    pipe = flux3_vae_override
+    vae = pipe.vae
+    decoded_shapes: list[tuple[int, ...]] = []
+    scale = 2 ** (len(vae.config.block_out_channels) - 1)
+
+    def decode(latents: Any) -> Any:
+        decoded_shapes.append(tuple(latents.shape))
+        return latents.new_zeros((latents.shape[0], 3, latents.shape[-2] * scale, latents.shape[-1] * scale))
+
+    monkeypatch.setattr(vae.decoder, "forward", decode)
+    optimize_diffusion_pipeline(pipe, vae_tiling=enabled)
+    threshold = vae.tile_latent_min_size
+    shape = [1, 32, threshold, threshold]
+    shape[axis] += offset
+
+    output = vae.decode(torch.zeros(shape), return_dict=False)[0]
+
+    assert vae.use_tiling is enabled
+    assert output.shape == (1, 3, shape[-2] * scale, shape[-1] * scale)
+    if enabled and offset > 0:
+        assert len(decoded_shapes) > 1
+        assert all(height <= threshold and width <= threshold for _, _, height, width in decoded_shapes)
+    else:
+        assert decoded_shapes == [tuple(shape)]
+
+
 @pytest.mark.parametrize("pipeline_name", ["Flux3ModularPipeline", "MiniMaxH3ModularPipeline"])
 def test_modular_component_lookup_uses_real_block_metadata(pipeline_name: str) -> None:
     diffusers = pytest.importorskip("diffusers")
@@ -305,3 +397,269 @@ def test_modular_override_compatibility_uses_architecture_metadata(family: str, 
         assert findings == []
     else:
         assert len(findings) == 1
+
+
+@pytest.mark.parametrize("subfolder", [None, "vae"], ids=["target-slot", "explicit-subfolder"])
+def test_audio_override_validation_reads_the_same_config_as_materialisation(
+    monkeypatch: pytest.MonkeyPatch, subfolder: str | None
+) -> None:
+    diffusers = pytest.importorskip("diffusers")
+    from modular_diffusion_nodes_library.artifact_utils import component_artifact as artifacts
+    from modular_diffusion_nodes_library.component_loading import component_compatibility as compatibility
+    from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import get_component_class
+
+    configs = {"vae": {"latent_channels": 64}, "audio_vae": {"latent_channels": 32}}
+    loaded: dict[str, Any] = {}
+
+    def cached(repo_id: str, filename: str, revision: str | None = None) -> str:
+        return str(Path("/virtual") / filename)
+
+    def load(**kwargs: Any) -> object:
+        loaded.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("huggingface_hub.try_to_load_from_cache", cached)
+    monkeypatch.setattr(artifacts, "try_load_json_dict", lambda path: configs[Path(path).parent.name])
+    pipeline_cls = diffusers.MiniMaxH3ModularPipeline
+    monkeypatch.setattr(get_component_class(pipeline_cls, "audio_vae"), "from_pretrained", load)
+    artifact = artifacts.ModelComponentArtifact(
+        load_id="test-audio-slot",
+        source_type=artifacts.ComponentSourceType.HF_REPO,
+        component="vae",
+        repo_ref=artifacts.HFRepoRef("org/h3", subfolder=subfolder),
+    )
+    resolver = compatibility._ConfigResolver({"audio_vae": artifact}, "org/base")
+
+    config = resolver.resolved_config("audio_vae")
+    artifact.materialize(pipeline_cls=pipeline_cls, slot="audio_vae")
+
+    expected_folder = "audio_vae"
+    if subfolder is not None:
+        expected_folder = subfolder
+    assert loaded["subfolder"] == expected_folder
+    assert config == configs[expected_folder]
+
+
+def test_h3_single_file_override_resolves_its_canonical_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    diffusers = pytest.importorskip("diffusers")
+    from modular_diffusion_nodes_library.artifact_utils import component_artifact as artifacts
+    from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import get_component_class
+
+    pipeline_cls = diffusers.MiniMaxH3ModularPipeline
+    component_cls = get_component_class(pipeline_cls, "transformer")
+    checkpoint = {"test-weight": object()}
+    component = object()
+
+    def resolve(model_type: str, model_cls: type, config_source: str | None, **kwargs: Any) -> Path:
+        assert model_type == "minimax-h3"
+        assert model_cls is component_cls
+        assert config_source is None
+        assert kwargs["pipeline_slot"] == "transformer"
+        return Path("/virtual/transformer")
+
+    def load(**kwargs: Any) -> object:
+        assert kwargs["config"] == "/virtual/transformer"
+        assert kwargs["pretrained_model_link_or_path_or_dict"] is checkpoint
+        assert kwargs["local_files_only"] is True
+        return component
+
+    monkeypatch.setattr("diffusers.loaders.single_file_utils.load_single_file_checkpoint", lambda path: checkpoint)
+    monkeypatch.setattr("diffusers.loaders.single_file_utils.infer_diffusers_model_type", lambda weights: "minimax-h3")
+    monkeypatch.setattr(artifacts, "resolve_config_path", resolve)
+    monkeypatch.setattr(component_cls, "from_single_file", load)
+    artifact = artifacts.ModelComponentArtifact(
+        load_id="test-h3-single-file",
+        source_type=artifacts.ComponentSourceType.SINGLE_FILE,
+        component="transformer",
+        file_path="/virtual/h3.safetensors",
+    )
+
+    assert artifact.materialize(pipeline_cls=pipeline_cls, slot="transformer") is component
+
+
+@pytest.mark.parametrize("initial_setup", [False, True], ids=["normal-edit", "restoration"])
+@pytest.mark.parametrize("nested", [False, True], ids=["direct", "nested"])
+def test_flux3_restoration_does_not_query_connections(
+    monkeypatch: pytest.MonkeyPatch, initial_setup: bool, nested: bool
+) -> None:
+    from griptape_nodes.exe_types.node_types import BaseNode
+
+    from modular_diffusion_nodes_library.nodes.latent_diffusion_pipeline_builder_node import (
+        LatentDiffusionPipelineBuilderNode,
+    )
+    from modular_diffusion_nodes_library.standard_parameters.flux3_parameters import (
+        Flux3ModelRepoParameter,
+        Flux3PipelineParameters,
+    )
+
+    node: Any = LatentDiffusionPipelineBuilderNode.__new__(LatentDiffusionPipelineBuilderNode)
+    node._restoring_parameters = False
+    values = {"model": "org/model/fp8r", "provider": "Flux3", "component_transformer": None}
+    queries: list[str] = []
+    setup_flags: list[bool] = []
+    node.get_parameter_value = values.get
+    node.get_parameter_by_name = lambda name: SimpleNamespace(name=name)
+    node._param_has_incoming_connection = lambda name: bool(queries.append(name))
+
+    def store(self: Any, name: str, value: Any, **kwargs: Any) -> None:
+        values[name] = value
+        setup_flags.append(kwargs["initial_setup"])
+
+    def after_value_set(parameter: Any, value: Any, **kwargs: Any) -> None:
+        if parameter.name == "provider":
+            node.set_parameter_value("model", values["model"])
+
+    monkeypatch.setattr(BaseNode, "set_parameter_value", store)
+    node.params = SimpleNamespace(before_value_set=lambda *args, **kwargs: None, after_value_set=after_value_set)
+    node.huggingface_pipeline_params = SimpleNamespace(after_value_set=lambda *args: None)
+    repo_parameter = Flux3ModelRepoParameter.__new__(Flux3ModelRepoParameter)
+    repo_parameter._node = node
+    repo_parameter._parameter_name = "model"
+    params = Flux3PipelineParameters.__new__(Flux3PipelineParameters)
+    params._node = node
+    params._model_repo_parameter = repo_parameter
+    node.set_pipeline_artifact = params.is_prequantized
+    parameter_name = "model"
+    expected_setters = 1
+    if nested:
+        parameter_name = "provider"
+        expected_setters = 2
+
+    node.set_parameter_value(parameter_name, values[parameter_name], initial_setup=initial_setup)
+
+    assert setup_flags == [initial_setup] * expected_setters
+    assert node._restoring_parameters is False
+    if initial_setup:
+        assert queries == []
+    else:
+        assert queries == ["component_transformer"] * expected_setters
+
+
+def test_parameter_restoration_scope_resets_after_nested_failure() -> None:
+    from modular_diffusion_nodes_library.nodes.latent_diffusion_pipeline_builder_node import (
+        LatentDiffusionPipelineBuilderNode,
+    )
+
+    node = LatentDiffusionPipelineBuilderNode.__new__(LatentDiffusionPipelineBuilderNode)
+    node._restoring_parameters = False
+
+    with pytest.raises(RuntimeError, match="test restoration failure"):
+        with node._parameter_restoration_scope(True) as restoring:
+            assert restoring is True
+            with node._parameter_restoration_scope(False) as nested_restoring:
+                assert nested_restoring is True
+                raise RuntimeError("test restoration failure")
+
+    assert node._restoring_parameters is False
+
+
+@pytest.fixture
+def h3_implicit_gguf_config(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    from modular_diffusion_nodes_library.artifact_utils import component_artifact as artifacts
+    from modular_diffusion_nodes_library.component_loading import component_compatibility as compatibility
+    from modular_diffusion_nodes_library.standard_parameters.minimax_h3_parameters import MiniMaxH3PipelineParameters
+
+    configs = {
+        "transformer": {"in_channels": 24, "audio_in_channels": 32, "text_dim": 5120},
+        "vae": {"latent_channels": 24},
+        "audio_vae": {"latent_channels": 32},
+        "text_encoder": {"text_config": {"hidden_size": 5120}},
+    }
+    overrides: dict[str, Any] = {
+        "transformer": artifacts.ModelComponentArtifact(
+            load_id="test-h3-config-only",
+            source_type=artifacts.ComponentSourceType.SINGLE_FILE,
+            component="transformer",
+            file_path="/unused/h3.gguf",
+        )
+    }
+    monkeypatch.setattr(compatibility, "_read_base_repo_config", lambda repo, slot, revision: configs.get(slot))
+    params = MiniMaxH3PipelineParameters.__new__(MiniMaxH3PipelineParameters)
+    params.get_build_data = lambda: params.build_data("MiniMaxAI/MiniMax-H3", "selected")
+    params.validate_before_node_run = lambda: None
+    return SimpleNamespace(configs=configs, overrides=overrides, params=params)
+
+
+@pytest.mark.parametrize(
+    ("slot", "config", "message"),
+    [
+        ("vae", {"latent_channels": 16}, "VAE latent_channels"),
+        ("audio_vae", {"latent_channels": 16}, "Audio VAE latent_channels"),
+        ("text_encoder", {"text_config": {"hidden_size": 4096}}, "Text encoder output dimension"),
+    ],
+)
+def test_implicit_gguf_config_still_blocks_incompatible_overrides_before_loading(
+    h3_implicit_gguf_config: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    slot: str,
+    config: dict[str, Any],
+    message: str,
+) -> None:
+    from modular_diffusion_nodes_library.artifact_utils import component_artifact as artifacts
+    from modular_diffusion_nodes_library.nodes.latent_diffusion_pipeline_builder_node import (
+        LatentDiffusionPipelineBuilderNode,
+    )
+
+    (tmp_path / "config.json").write_text(json.dumps(config))
+    state = h3_implicit_gguf_config
+    state.overrides[slot] = artifacts.ModelComponentArtifact(
+        load_id=f"test-incompatible-{slot}",
+        source_type=artifacts.ComponentSourceType.LOCAL_DIR,
+        component=slot,
+        file_path=str(tmp_path),
+    )
+
+    def forbidden(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("Compatibility validation must block before artifact construction or weight loading")
+
+    monkeypatch.setattr(artifacts.ModelComponentArtifact, "materialize", forbidden)
+    node: Any = LatentDiffusionPipelineBuilderNode.__new__(LatentDiffusionPipelineBuilderNode)
+    node.params = SimpleNamespace(
+        pipeline_type_parameters=SimpleNamespace(pipeline_type_pipeline_params=state.params),
+        component_override_params=SimpleNamespace(get_component_overrides=lambda: state.overrides),
+    )
+    node.get_pipeline_artifact_or_raise = forbidden
+
+    errors = node.validate_before_node_run()
+
+    assert errors is not None
+    assert len(errors) == 1
+    assert message in str(errors[0])
+    assert list(tmp_path.iterdir()) == [tmp_path / "config.json"]
+
+
+def test_implicit_gguf_config_keeps_explicit_config_authoritative(
+    h3_implicit_gguf_config: SimpleNamespace, tmp_path: Path
+) -> None:
+    from modular_diffusion_nodes_library.component_loading.component_compatibility import _ConfigResolver
+
+    config = {"in_channels": 16, "audio_in_channels": 16, "text_dim": 4096}
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps(config))
+    state = h3_implicit_gguf_config
+    state.overrides["transformer"] = replace(state.overrides["transformer"], config_source=str(config_file))
+    resolver = _ConfigResolver(state.overrides, "MiniMaxAI/MiniMax-H3", "selected")
+
+    assert resolver.resolved_config("transformer") == config
+
+
+@pytest.mark.parametrize("source", ["single-file", "directory"])
+def test_missing_explicit_or_directory_config_is_not_replaced_by_base_config(
+    h3_implicit_gguf_config: SimpleNamespace, source: str
+) -> None:
+    from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentSourceType
+    from modular_diffusion_nodes_library.component_loading.component_compatibility import _ConfigResolver
+
+    source_type = ComponentSourceType.SINGLE_FILE
+    config_source = "/missing/explicit/config.json"
+    if source == "directory":
+        source_type = ComponentSourceType.LOCAL_DIR
+        config_source = None
+    state = h3_implicit_gguf_config
+    state.overrides["transformer"] = replace(
+        state.overrides["transformer"], source_type=source_type, config_source=config_source
+    )
+    resolver = _ConfigResolver(state.overrides, "MiniMaxAI/MiniMax-H3", "selected")
+
+    assert resolver.resolved_config("transformer") is None

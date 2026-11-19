@@ -1,5 +1,7 @@
 import logging
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage
@@ -59,6 +61,7 @@ class LatentDiffusionPipelineBuilderNode(
 
     def __init__(self, **kwargs) -> None:
         self._initializing = True
+        self._restoring_parameters = False
         super().__init__(**kwargs)
         self.params = LatentDiffusionPipelineBuilderParameters(self)
         self.huggingface_pipeline_params = HuggingFacePipelineParameter(self)
@@ -244,6 +247,15 @@ class LatentDiffusionPipelineBuilderNode(
         parent_group = self.get_group_by_name_or_element_id(param.parent_element_name)
         return parent_group is not None and not parent_group.user_defined
 
+    @contextmanager
+    def _parameter_restoration_scope(self, initial_setup: bool) -> Iterator[bool]:
+        was_restoring = self._restoring_parameters
+        self._restoring_parameters = initial_setup or was_restoring
+        try:
+            yield self._restoring_parameters
+        finally:
+            self._restoring_parameters = was_restoring
+
     def set_parameter_value(
         self,
         param_name: str,
@@ -253,29 +265,32 @@ class LatentDiffusionPipelineBuilderNode(
         emit_change: bool = True,
         skip_before_value_set: bool = False,
     ) -> None:
-        parameter = self.get_parameter_by_name(param_name)
-        if parameter is None:
-            return
+        with self._parameter_restoration_scope(initial_setup) as effective_initial_setup:
+            parameter = self.get_parameter_by_name(param_name)
+            if parameter is None:
+                return
 
-        if parameter.name == "pipeline":
-            value = normalize_diffusion_pipeline_value(value, node_name=self.name)
+            if parameter.name == "pipeline":
+                value = normalize_diffusion_pipeline_value(value, node_name=self.name)
 
-        self.params.before_value_set(parameter, value, initial_setup=initial_setup)
+            self.params.before_value_set(parameter, value, initial_setup=effective_initial_setup)
 
-        super().set_parameter_value(
-            param_name,
-            value,
-            initial_setup=initial_setup,
-            emit_change=emit_change,
-            skip_before_value_set=skip_before_value_set,
-        )
+            super().set_parameter_value(
+                param_name,
+                value,
+                initial_setup=effective_initial_setup,
+                emit_change=emit_change,
+                skip_before_value_set=skip_before_value_set,
+            )
 
-        self.params.after_value_set(parameter, value, initial_setup=initial_setup)
-        self.huggingface_pipeline_params.after_value_set(parameter, value)
-        if parameter.name != "pipeline":
-            self.set_pipeline_artifact()
-        if parameter.name.startswith("component_"):
-            self._run_compatibility_checks()
+            self.params.after_value_set(parameter, value, initial_setup=effective_initial_setup)
+            self.huggingface_pipeline_params.after_value_set(parameter, value)
+            if effective_initial_setup:
+                return
+            if parameter.name != "pipeline":
+                self.set_pipeline_artifact()
+            if parameter.name.startswith("component_"):
+                self._run_compatibility_checks()
 
     def after_incoming_connection_removed(
         self,

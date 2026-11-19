@@ -16,6 +16,7 @@ from modular_diffusion_nodes_library.component_loading.config_resolver import (
     resolve_hf_repo_config_subfolder,
     try_load_json_dict,
 )
+from modular_diffusion_nodes_library.component_loading.gguf_bf16 import restore_bf16_gguf_tensors
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import (
     MODEL_TYPE_TO_PIPELINE_TYPE,
     get_component_class,
@@ -192,7 +193,7 @@ class ModelComponentArtifact(ComponentArtifact):
             return f"local directory '{self.file_path}'"
         return f"{self.source_type} (details unavailable)"
 
-    def try_read_config(self) -> dict[str, Any] | None:
+    def try_read_config(self, *, slot: str | None = None) -> dict[str, Any] | None:
         """Read this artifact's config file without materializing weights.
 
         Reads only what is already on disk. Deriving a config path from a component class, which is what
@@ -201,7 +202,10 @@ class ModelComponentArtifact(ComponentArtifact):
         """
         from huggingface_hub import try_to_load_from_cache
 
-        config_name = component_config_filename(self.component)
+        effective_slot = self.component
+        if slot is not None:
+            effective_slot = slot
+        config_name = component_config_filename(effective_slot)
         if self.source_type == ComponentSourceType.HF_REPO:
             if self.repo_ref is None:
                 return None
@@ -210,7 +214,7 @@ class ModelComponentArtifact(ComponentArtifact):
                 subfolder = (
                     resolve_hf_repo_config_subfolder(
                         self.repo_ref.repo_id,
-                        self.component,
+                        effective_slot,
                         self.component,
                         revision=self.repo_ref.revision,
                         config_filename=config_name,
@@ -229,7 +233,7 @@ class ModelComponentArtifact(ComponentArtifact):
             return try_load_json_dict(Path(self.file_path) / config_name)
 
         if self.source_type == ComponentSourceType.SINGLE_FILE:
-            return self._try_read_single_file_config()
+            return self._try_read_single_file_config(slot=effective_slot)
 
         return None
 
@@ -246,7 +250,7 @@ class ModelComponentArtifact(ComponentArtifact):
             model_type = _pipeline_default_model_type(pipeline_cls) or inferred_model_type
         return inferred_model_type, model_type
 
-    def _try_read_single_file_config(self) -> dict[str, Any] | None:
+    def _try_read_single_file_config(self, *, slot: str | None = None) -> dict[str, Any] | None:
         """Read config for a single-file artifact from an explicit config source, if provided.
 
         A `config_source` naming an HF repo rather than a local path reads as no config: resolving it
@@ -255,7 +259,10 @@ class ModelComponentArtifact(ComponentArtifact):
         if self.config_source is None:
             return None
 
-        config_name = component_config_filename(self.component)
+        effective_slot = self.component
+        if slot is not None:
+            effective_slot = slot
+        config_name = component_config_filename(effective_slot)
         config_path = Path(self.config_source)
         if config_path.is_file():
             return try_load_json_dict(config_path)
@@ -379,6 +386,10 @@ class ModelComponentArtifact(ComponentArtifact):
             component = component_cls.from_single_file(config=str(config_path), **kwargs)
             kwargs.pop("pretrained_model_link_or_path_or_dict", None)
             del checkpoint
+            if self.is_quantized:
+                restored = restore_bf16_gguf_tensors(component)
+                if restored:
+                    logger.info("Restored %d BF16-stored GGUF tensors in %s", restored, component_cls.__name__)
             return component
 
         # No explicit config provided.

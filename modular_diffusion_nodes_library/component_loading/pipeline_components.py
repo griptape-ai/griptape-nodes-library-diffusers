@@ -12,6 +12,10 @@ def pipeline_component_types(pipeline_cls: type, workflows: Sequence[str] = ()) 
 
     if issubclass(pipeline_cls, ModularPipeline):
         return dict(_modular_component_types(pipeline_cls, tuple(workflows)))
+    return _classic_component_types(pipeline_cls)
+
+
+def _classic_component_types(pipeline_cls: type) -> dict[str, type]:
     component_types: dict[str, type] = {}
     for name, candidates in pipeline_cls._get_signature_types().items():
         component_cls = next(
