@@ -261,6 +261,35 @@ class TextEncoderDenoiserDimMismatch(ComponentCompatibilityFinding):
 
 
 @dataclass(frozen=True)
+class AudioVaeDenoiserChannelMismatch(ComponentCompatibilityFinding):
+    category: ClassVar[FindingCategory] = FindingCategory.VAE_DENOISER_CHANNELS
+
+    vae_latent_channels: int = 0
+    denoiser_key: str = "audio_in_channels"
+    denoiser_channels: int = 0
+
+    def __str__(self) -> str:
+        return (
+            f"Audio VAE latent_channels ({self.vae_latent_channels}) does not match "
+            f"denoiser {self.denoiser_key} ({self.denoiser_channels})."
+        )
+
+
+@dataclass(frozen=True)
+class TextEncoderHiddenLayerMismatch(ComponentCompatibilityFinding):
+    category: ClassVar[FindingCategory] = FindingCategory.TEXT_ENCODER_DENOISER_DIM
+
+    num_hidden_layers: int = 0
+    required_hidden_state: int = 0
+
+    def __str__(self) -> str:
+        return (
+            f"Text encoder declares {self.num_hidden_layers} layers, but the pipeline "
+            f"requires hidden state {self.required_hidden_state}."
+        )
+
+
+@dataclass(frozen=True)
 class VaeScalingMismatch(ComponentCompatibilityFinding):
     """One VAE normalization key differs from the base VAE."""
 
@@ -386,6 +415,35 @@ def _find_denoiser_slot(pipeline_params_cls: type | None) -> str | None:
     return None
 
 
+def _check_audio_vae_denoiser(
+    config: dict[str, Any] | None, denoiser_config: dict[str, Any], target_key: str | None
+) -> AudioVaeDenoiserChannelMismatch | None:
+    if config is None or target_key is None:
+        return None
+    channels = _get_vae_latent_channels(config)
+    target_channels = denoiser_config.get(target_key)
+    if channels is None or not isinstance(target_channels, int) or channels == target_channels:
+        return None
+    return AudioVaeDenoiserChannelMismatch(
+        slot="audio_vae", vae_latent_channels=channels, denoiser_key=target_key, denoiser_channels=target_channels
+    )
+
+
+def _check_text_encoder_hidden_layers(
+    config: dict[str, Any] | None, indices: tuple[int, ...]
+) -> TextEncoderHiddenLayerMismatch | None:
+    if config is None or not indices:
+        return None
+    language_config = config.get("text_config")
+    if not isinstance(language_config, dict):
+        language_config = config
+    layers = language_config.get("num_hidden_layers")
+    required = max(indices)
+    if not isinstance(layers, int) or layers >= required:
+        return None
+    return TextEncoderHiddenLayerMismatch(slot="text_encoder", num_hidden_layers=layers, required_hidden_state=required)
+
+
 def _run_dimensional_checks(
     resolver: _ConfigResolver,
     pipeline_params_cls: type | None,
@@ -410,6 +468,16 @@ def _run_dimensional_checks(
             findings.append(finding)
 
     if pipeline_params_cls is not None:
+        audio_key = getattr(pipeline_params_cls, "audio_latent_target_dim_key", None)
+        if audio_key is not None:
+            finding = _check_audio_vae_denoiser(resolver.resolved_config("audio_vae"), denoiser_config, audio_key)
+            if finding is not None:
+                findings.append(finding)
+        indices = getattr(pipeline_params_cls, "text_encoder_hidden_state_indices", ())
+        if indices:
+            finding = _check_text_encoder_hidden_layers(resolver.resolved_config("text_encoder"), indices)
+            if finding is not None:
+                findings.append(finding)
         target_dim_key = pipeline_params_cls.text_conditioning_target_dim_key
         text_conditioning_dim = pipeline_params_cls.text_conditioning_width(resolver.resolved_config)
         finding = _check_text_conditioning_denoiser(

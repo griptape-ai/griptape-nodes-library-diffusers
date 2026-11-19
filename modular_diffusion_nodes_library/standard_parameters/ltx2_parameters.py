@@ -26,6 +26,7 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
         "text_encoder",
         "tokenizer",
         "scheduler",
+        "audio_vae",
     ]
     _repo_ids: ClassVar[list[str]] = [
         "dg845/LTX-2.3-Diffusers",
@@ -35,7 +36,7 @@ class LTX2PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
 
     @classmethod
     def supports_build_from_overrides_only(cls) -> bool:
-        "We don't have support for overriding vocoder and audio vae, so we don't support building from overrides only."
+        """The vocoder is still supplied by the base repository."""
         return False
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):  # noqa: ARG002

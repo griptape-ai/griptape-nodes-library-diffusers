@@ -23,6 +23,8 @@ ALLOWED_COMPONENT_SLOTS: list[str] = [
     "tokenizer_3",
     "transformer_2",
     "scheduler",
+    "audio_vae",
+    "audio_scheduler",
 ]
 
 # Human-readable display name for each slot. Covers all entries in
@@ -39,6 +41,8 @@ SLOT_DISPLAY_NAMES: dict[str, str] = {
     "tokenizer_3": "Tokenizer 3",
     "transformer_2": "Transformer 2",
     "scheduler": "Scheduler",
+    "audio_vae": "Audio VAE",
+    "audio_scheduler": "Audio Scheduler",
 }
 
 # Import-time invariant: every ALLOWED_COMPONENT_SLOTS entry must have a
@@ -63,7 +67,12 @@ def slot_component_kind(slot: str) -> str:
         "transformer_2" → "transformer"
         "vae" → "vae"
     """
-    return re.sub(r"_\d+$", "", slot)
+    kind = re.sub(r"_\d+$", "", slot)
+    if kind == "audio_vae":
+        kind = "vae"
+    elif kind == "audio_scheduler":
+        kind = "scheduler"
+    return kind
 
 
 def component_config_filename(component: str) -> str:

@@ -1,20 +1,22 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, ClassVar
+from pathlib import Path
+from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
 
+from modular_diffusion_nodes_library.component_loading.modular_pipeline_loader import (
+    ComponentLoadContext,
+    ModularPipelineLoadOptions,
+)
 from modular_diffusion_nodes_library.parameters.connectable_huggingface_repo_parameter import (
     ConnectableHuggingFaceRepoParameter,
 )
-from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
-    ModularDiffusionPipelineTypePipelineParameters,
+from modular_diffusion_nodes_library.parameters.diffusers_modular_pipeline_parameters import (
+    DiffusersModularPipelineParameters,
 )
 from modular_diffusion_nodes_library.utils.torch_utils import get_best_device
-
-if TYPE_CHECKING:
-    from diffusers import ModularPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -24,13 +26,28 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN = "12GB"
 
 
-class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
+class MiniMaxH3PipelineParameters(DiffusersModularPipelineParameters):
     _pipeline_cls_path = "diffusers.modular_pipelines.minimax_h3.modular_pipeline:MiniMaxH3ModularPipeline"
-    _component_slots: ClassVar[list[str]] = []
+    _component_slots: ClassVar[list[str]] = [
+        "transformer",
+        "vae",
+        "text_encoder",
+        "tokenizer",
+        "scheduler",
+        "audio_vae",
+        "audio_scheduler",
+    ]
+    supported_workflows: ClassVar[tuple[str, ...]] = ("t2va", "fl2va")
+    text_conditioning_target_dim_key = "text_dim"
+    audio_latent_target_dim_key = "audio_in_channels"
+
+    @classmethod
+    def text_conditioning_width(cls, resolve_config) -> int | None:
+        return cls._extract_text_conditioning_width(resolve_config("text_encoder"))
 
     @classmethod
     def supports_build_from_overrides_only(cls) -> bool:
-        """MiniMaxH3ModularPipeline does not support overrides."""
+        """MiniMax-H3 still needs its base repository when components are overridden."""
         return False
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
@@ -60,65 +77,43 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
         return self.build_data(repo_id, revision)
 
     @classmethod
-    def requires_device_map(cls) -> bool:
-        # Used here as an opt-out from post-hoc pipeline optimization, not literally to request an
-        # accelerate device_map. MiniMax-H3 is a ModularPipeline, on which
-        # `optimize_diffusion_pipeline` would call `.to(device)` (a guaranteed OOM at ~124 GB) while
-        # both `enable_*_cpu_offload` calls are hasattr-gated and silently skipped. Placement is
-        # instead owned by `build_pipeline_from_build_data` via the ComponentsManager below.
-        return True
-
-    @classmethod
     def build_data(cls, repo_id: str, revision: str) -> dict[str, Any]:
-        return {"repo_id": repo_id, "revision": revision}
+        return {"base_repo_id": repo_id, "revision": revision}
 
     @classmethod
-    def is_prequantized_repo(cls, repo_id: str) -> bool:
-        return True
-
-    def is_prequantized(self) -> bool:
-        # Suppresses quantization and layerwise casting, which fire before the requires_device_map
-        # short-circuit. Neither is safe to apply on top of the ComponentsManager offload hooks.
-        return True
-
-    @classmethod
-    def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> ModularPipeline:  # type: ignore[reportAttributeAccessIssue]
-        # `from_pretrained` resolves the component specs but loads no weights; `load_components`
-        # fetches them. Only the `t2va` / `fl2va` half is touched, never `transformer_ref/`.
+    def get_modular_load_options(cls, build_data: dict[str, Any]) -> ModularPipelineLoadOptions:
         import torch  # type: ignore[reportMissingImports]
-        from diffusers import ComponentsManager, ModularPipeline  # type: ignore[reportMissingImports]
 
-        manager = ComponentsManager()
-        pipe = ModularPipeline.from_pretrained(
-            build_data["repo_id"],
-            revision=build_data["revision"],
-            components_manager=manager,
-            local_files_only=True,
-        )
-        pipe.load_components(workflow="fl2va", dtype=torch.bfloat16)
-        manager.enable_auto_cpu_offload(
+        def load_processor(context: ComponentLoadContext) -> Any:
+            if not isinstance(context.source, str):
+                raise ValueError(
+                    f"Attempted to load the MiniMax processor. Failed with invalid source {context.source!r}."
+                )
+            return cls._load_processor(context.source, context.revision)
+
+        return ModularPipelineLoadOptions(
+            workflows=cls.supported_workflows,
+            dtype=torch.bfloat16,
+            component_loaders={"processor": load_processor},
             device=get_best_device(),
             memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
         )
-        return pipe  # type: ignore[reportReturnType]
 
-    @classmethod
-    def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> ModularPipeline:
-        # `from_pretrained` resolves the component specs but loads no weights; `load_components`
-        # fetches them. Only the `t2va` / `fl2va` half is touched, never `transformer_ref/`.
-        import torch  # type: ignore[reportMissingImports]
-        from diffusers import ComponentsManager, ModularPipeline  # type: ignore[reportMissingImports]
+    @staticmethod
+    def _load_processor(source: str, revision: str | None) -> Any:
+        """Resolve the processor's local folder so Transformers can load it offline."""
+        from huggingface_hub import try_to_load_from_cache
+        from transformers import Qwen3VLProcessor
 
-        manager = ComponentsManager()
-        pipe = ModularPipeline.from_pretrained(
-            build_data["repo_id"],
-            revision=build_data["revision"],
-            components_manager=manager,
-            local_files_only=True,
-        )
-        pipe.load_components(workflow="fl2va", dtype=torch.bfloat16)
-        manager.enable_auto_cpu_offload(
-            device=get_best_device(),
-            memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
-        )
-        return pipe  # type: ignore[reportReturnType]
+        local_source = Path(source) / "processor"
+        if local_source.is_dir():
+            folder = local_source
+        else:
+            cached = try_to_load_from_cache(source, "processor/tokenizer_config.json", revision=revision)
+            if not isinstance(cached, str):
+                raise FileNotFoundError(
+                    f"Attempted to load the MiniMax-H3 processor from '{source}' at revision '{revision}'. "
+                    "Failed because processor/tokenizer_config.json is not in the local Hugging Face cache."
+                )
+            folder = Path(cached).parent
+        return Qwen3VLProcessor.from_pretrained(folder, local_files_only=True)

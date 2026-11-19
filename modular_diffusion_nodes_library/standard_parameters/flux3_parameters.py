@@ -1,22 +1,23 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from typing import Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
 
+from modular_diffusion_nodes_library.component_loading.modular_pipeline_loader import (
+    ComponentLoadContext,
+    ModularPipelineLoadOptions,
+)
 from modular_diffusion_nodes_library.misc.bfl_fp8 import require_fp8r_support
 from modular_diffusion_nodes_library.parameters.connectable_huggingface_repo_parameter import (
     ConnectableHuggingFaceRepoParameter,
     ConnectableHuggingFaceRepoVariantParameter,
 )
-from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
-    ModularDiffusionPipelineTypePipelineParameters,
+from modular_diffusion_nodes_library.parameters.diffusers_modular_pipeline_parameters import (
+    DiffusersModularPipelineParameters,
 )
 from modular_diffusion_nodes_library.utils.torch_utils import get_best_device
-
-if TYPE_CHECKING:
-    from diffusers import ModularPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 PROMPT_UPSAMPLER_NONE = "Disabled"
@@ -26,6 +27,18 @@ PROMPT_UPSAMPLER_COMPONENTS = ("prompt_upsampler", "prompt_upsampler_processor")
 VARIANTS_ROOT = "variants"
 TRANSFORMER_VARIANT_FOLDERS = {"fp8r": f"{VARIANTS_ROOT}/fp8r", "nvfp4": f"{VARIANTS_ROOT}/nvfp4"}
 TRANSFORMER_WEIGHTS_FILENAME = "model.safetensors"
+
+
+class Flux3ModelRepoParameter(ConnectableHuggingFaceRepoVariantParameter):
+    def get_repo_revision(self) -> tuple[str, str]:
+        if not self._has_transformer_override():
+            return super().get_repo_revision()
+        return self.resolve_base_repo_revision()
+
+    def _has_transformer_override(self) -> bool:
+        if self._node.get_parameter_value("component_transformer") is not None:
+            return True
+        return self._node._param_has_incoming_connection("component_transformer")
 
 
 class OptionalPromptUpsamplerRepoParameter(ConnectableHuggingFaceRepoParameter):
@@ -43,13 +56,24 @@ class OptionalPromptUpsamplerRepoParameter(ConnectableHuggingFaceRepoParameter):
         return super().validate_before_node_run()
 
 
-class _Flux3ModularPipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
-    _component_slots: ClassVar[list[str]] = []
+class _Flux3ModularPipelineParameters(DiffusersModularPipelineParameters):
+    _component_slots: ClassVar[list[str]] = ["transformer", "vae", "text_encoder", "tokenizer"]
+    supported_workflows: ClassVar[tuple[str, ...]] = ("text2image", "image_conditioned")
+    latent_packing_ratio = 4
+    text_conditioning_target_dim_key = "joint_attention_dim"
+    text_encoder_hidden_state_indices: ClassVar[tuple[int, ...]] = (4, 8, 12, 16, 20, 24, 28, 32)
     _repo_id: ClassVar[str]
+
+    @classmethod
+    def text_conditioning_width(cls, resolve_config) -> int | None:
+        hidden = cls._extract_text_conditioning_width(resolve_config("text_encoder"))
+        if hidden is None:
+            return None
+        return hidden * len(cls.text_encoder_hidden_state_indices)
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
-        self._model_repo_parameter = ConnectableHuggingFaceRepoVariantParameter(
+        self._model_repo_parameter = Flux3ModelRepoParameter(
             node,
             repo_id=self._repo_id,
             variant_folders=TRANSFORMER_VARIANT_FOLDERS,
@@ -96,7 +120,7 @@ class _Flux3ModularPipelineParameters(ModularDiffusionPipelineTypePipelineParame
         if variant:
             variant_weights_path = str(self._model_repo_parameter.variant_weights_path(variant, revision))
         build_data: dict[str, Any] = {
-            "repo_id": repo_id,
+            "base_repo_id": repo_id,
             "variant": variant,
             "variant_weights_path": variant_weights_path,
             "revision": revision,
@@ -109,111 +133,74 @@ class _Flux3ModularPipelineParameters(ModularDiffusionPipelineTypePipelineParame
             build_data["prompt_upsampler_revision"] = upsampler_revision
         return build_data
 
-    @classmethod
-    def requires_device_map(cls) -> bool:
-        # Used here as an opt-out from post-hoc pipeline optimization, not literally to request an
-        # accelerate device_map. Flux3 is a ModularPipeline, on which
-        # `optimize_diffusion_pipeline` would call `.to(device)` (a guaranteed OOM at ~124 GB) while
-        # both `enable_*_cpu_offload` calls are hasattr-gated and silently skipped. Placement is
-        # instead owned by `build_pipeline_from_build_data` via the ComponentsManager below.
-        return True
-
     def is_prequantized(self) -> bool:
-        # Suppresses quantization and layerwise casting, which fire before the requires_device_map
-        # short-circuit. Neither is safe to apply on top of the ComponentsManager offload hooks.
-        return True
+        variant = self._model_repo_parameter.get_selected_variant()
+        if not variant:
+            return False
+        return not self._model_repo_parameter._has_transformer_override()
 
     @classmethod
-    def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> ModularPipeline:
+    def get_modular_load_options(cls, build_data: dict[str, Any]) -> ModularPipelineLoadOptions:
         import torch  # type: ignore[reportMissingImports]
-        from diffusers import (  # type: ignore[reportMissingImports]
-            BFLQuantizationConfig,  # type: ignore[reportMissingImports]
-            ComponentsManager,  # type: ignore[reportMissingImports]
-            Flux3Transformer2DModel,  # type: ignore[reportMissingImports]
-            ModularPipeline,  # type: ignore[reportMissingImports]
-        )
 
-        if build_data["variant"] == "fp8r":
-            require_fp8r_support(get_best_device())
-
-        manager = ComponentsManager()
-        pipe = cast(
-            ModularPipeline,
-            ModularPipeline.from_pretrained(
-                build_data["repo_id"],
-                revision=build_data["revision"],
-                components_manager=manager,
-                local_files_only=True,
-            ),
-        )
-        component_names = cls._components_to_load(pipe, build_data)
-        load_kwargs: dict[str, Any] = {
-            "dtype": {"vae": torch.float32, "default": torch.bfloat16},
-            "local_files_only": True,
-            "fix_mistral_regex": {"tokenizer": True},
+        device = get_best_device()
+        upsampler_selected = build_data.get("prompt_upsampler_repo_id") is not None
+        component_options: dict[str, dict[str, Any]] = {
+            "vae": {"dtype": torch.float32},
+            "tokenizer": {"fix_mistral_regex": True},
         }
+        if upsampler_selected:
+            for name in PROMPT_UPSAMPLER_COMPONENTS:
+                component_options[name] = {
+                    "pretrained_model_name_or_path": build_data["prompt_upsampler_repo_id"],
+                    "subfolder": "",
+                    "revision": build_data.get("prompt_upsampler_revision"),
+                }
 
-        variant = build_data["variant"]
-        upsampler_repo_id = build_data["prompt_upsampler_repo_id"]
-        if upsampler_repo_id is None:
-            pipe.blocks.sub_blocks.pop("prompt_upsampler", None)
-        else:
-            upsampler_revision = build_data["prompt_upsampler_revision"]
-            load_kwargs["pretrained_model_name_or_path"] = dict.fromkeys(PROMPT_UPSAMPLER_COMPONENTS, upsampler_repo_id)
-            load_kwargs["subfolder"] = dict.fromkeys(PROMPT_UPSAMPLER_COMPONENTS, "")
-            load_kwargs["revision"] = dict.fromkeys(PROMPT_UPSAMPLER_COMPONENTS, upsampler_revision)
+        def prepare(pipe: Any) -> None:
+            if not upsampler_selected:
+                pipe._blocks.sub_blocks.pop("prompt_upsampler", None)
+            else:
+                missing = sorted(set(PROMPT_UPSAMPLER_COMPONENTS) - set(pipe.components))
+                if missing:
+                    raise ValueError(
+                        f"Attempted to load the {cls.pipeline_name()} prompt upsampler. Failed because "
+                        f"the pinned Diffusers component specs do not include {missing}."
+                    )
 
-        pipe.load_components(names=component_names, **load_kwargs)
-        if variant:
-            transformer = Flux3Transformer2DModel.from_single_file(
+        def validate_variant(_context: ComponentLoadContext) -> None:
+            require_fp8r_support(device)
+
+        def load_variant(context: ComponentLoadContext) -> Any:
+            from diffusers.models.transformers.transformer_flux3 import Flux3Transformer2DModel
+            from diffusers.quantizers.quantization_config import BFLQuantizationConfig
+
+            return Flux3Transformer2DModel.from_single_file(
                 build_data["variant_weights_path"],
-                config=build_data["repo_id"],
-                config_revision=build_data["revision"],
-                subfolder="transformer",
-                quantization_config=BFLQuantizationConfig(compute_dtype=torch.bfloat16),
-                dtype=torch.bfloat16,
+                config=context.source,
+                config_revision=context.revision,
+                subfolder=context.subfolder,
+                quantization_config=BFLQuantizationConfig(compute_dtype=context.options["dtype"]),
+                dtype=context.options["dtype"],
                 local_files_only=True,
             )
-            pipe.update_components(transformer=transformer)
-        manager.enable_auto_cpu_offload(device=get_best_device(), memory_reserve_margin="12GB")
-        return pipe
 
-    @classmethod
-    def _components_to_load(cls, pipe: ModularPipeline, build_data: dict[str, Any]) -> list[str]:
-        component_names = cls._unloaded_component_names(pipe)
-
-        upsampler_repo_id = build_data["prompt_upsampler_repo_id"]
-        if upsampler_repo_id is not None:
-            missing_components = [name for name in PROMPT_UPSAMPLER_COMPONENTS if name not in component_names]
-            if missing_components:
-                raise ValueError(
-                    f"Attempted to load FLUX.3 prompt upsampler from '{upsampler_repo_id}'. Failed because "
-                    f"the pinned Diffusers component specs do not include {missing_components}."
-                )
-
-        excluded: set[str] = set()
-        if build_data["variant"]:
-            # The quantized transformer is read from a BFL-native single file, so the default
-            # transformer weights are never loaded.
-            excluded.add("transformer")
-        if upsampler_repo_id is None:
-            excluded.update(PROMPT_UPSAMPLER_COMPONENTS)
-
-        return [name for name in component_names if name not in excluded]
-
-    @staticmethod
-    def _unloaded_component_names(pipe: ModularPipeline) -> list[str]:
-        names = []
-        for name in pipe.components:
-            spec = pipe.get_component_spec(name)
-            if spec.default_creation_method != "from_pretrained":
-                continue
-            if spec.pretrained_model_name_or_path is None:
-                continue
-            if getattr(pipe, name) is not None:
-                continue
-            names.append(name)
-        return names
+        component_validators = {}
+        if build_data.get("variant") == "fp8r":
+            component_validators["transformer"] = validate_variant
+        component_loaders = {}
+        if build_data.get("variant"):
+            component_loaders["transformer"] = load_variant
+        return ModularPipelineLoadOptions(
+            workflows=cls.supported_workflows,
+            dtype=torch.bfloat16,
+            component_options=component_options,
+            component_validators=component_validators,
+            component_loaders=component_loaders,
+            prepare_pipeline=prepare,
+            device=device,
+            memory_reserve_margin="12GB",
+        )
 
 
 class Flux3PipelineParameters(_Flux3ModularPipelineParameters):
