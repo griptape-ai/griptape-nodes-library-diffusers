@@ -179,6 +179,21 @@ class MediaGenConditioningRuntimeParameter:
             return [err]
         return self._validate_payload_modes(payloads)
 
+    def get_payloads(self) -> list[MediaGenConditioningPayload]:
+        """Return normalized payloads for the connected conditioning values."""
+        if self._multiple:
+            assert self._fixed_size_list is not None
+            values = self._fixed_size_list.get_values()
+            payloads = self._coerce_to_payloads(values)
+        else:
+            value = self._node.get_parameter_value(self._param_name)
+            payloads = self._coerce_to_payloads(value) if value is not None else []
+
+        mode_errors = self._validate_payload_modes(payloads)
+        if mode_errors:
+            raise mode_errors[0]
+        return payloads
+
     def _coerce_to_payloads(self, value: Any) -> list[MediaGenConditioningPayload]:
         items = value if isinstance(value, list) else [value]
         payloads: list[MediaGenConditioningPayload] = []

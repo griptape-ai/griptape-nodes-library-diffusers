@@ -25,7 +25,7 @@ from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimen
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
-from modular_diffusion_nodes_library.utils.video_utils import load_video_frames_from_url_artifact
+from modular_diffusion_nodes_library.utils.video_utils import load_video_media_from_url_artifact
 
 if TYPE_CHECKING:
     from PIL.Image import Image  # type: ignore[reportMissingImports]
@@ -263,26 +263,45 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
             msg = "Attempted to encode video. Failed with data input_video=None because input video was missing."
             raise ValueError(msg)
 
-        frames = load_video_frames_from_url_artifact(video_artifact)
-        if not frames:
+        media = load_video_media_from_url_artifact(video_artifact)
+        if not media.frames:
             msg = "Attempted to encode video. Failed because no frames could be loaded from the input video."
             raise ValueError(msg)
 
-        frames_rgb = [f.convert("RGB") for f in frames]
-        num_frames = len(frames_rgb)
+        # TODO: Video frames should be resampled to the model's fps (`latents_pipeline_driver.video_fps`) before
+        # validation and encoding, so the frame count and duration checks apply to the frames the model sees.
+        # Decide what happens to the audio when the video is resampled.
+        model_fps = latents_pipeline_driver.video_fps
+        if media.fps is not None and media.fps != model_fps:
+            logger.warning(
+                "%s: Attempted to encode video. Source frame rate does not match the model, so frames are encoded "
+                "without resampling. Source is %s fps and the model runs at %s fps.",
+                self.name,
+                media.fps,
+                model_fps,
+            )
+        frames_rgb = [frame.convert("RGB") for frame in media.frames]
         h, w = frames_rgb[0].height, frames_rgb[0].width
+        num_frames = len(frames_rgb)
 
         result = snap_dimensions(latents_pipeline_driver, h, w, num_frames)
         if result.message:
             logger.warning(result.message)
-            frames_rgb = [f.resize((result.width, result.height)) for f in frames_rgb]
+            frames_rgb = [frame.resize((result.width, result.height)) for frame in frames_rgb]
             h, w = result.height, result.width
 
         source_shape = (1, 3, num_frames, h, w)
 
         generator_state = GeneratorState.from_seed(42)
         latent_artifact = latents_pipeline_driver.encode_media(
-            VideoMedia(frames=frames_rgb, source_shape=source_shape), generator_state
+            VideoMedia(
+                frames=frames_rgb,
+                source_shape=source_shape,
+                audio=media.audio,
+                audio_sample_rate=media.audio_sample_rate,
+                fps=media.fps,
+            ),
+            generator_state,
         )
         self.set_parameter_value("latent_tensor", latent_artifact)
         self.parameter_output_values["latent_tensor"] = latent_artifact
@@ -327,17 +346,16 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
                 self._set_compatibility_message(None)
                 return None
 
-            frames = load_video_frames_from_url_artifact(video_artifact)
-            if not frames:
+            media = load_video_media_from_url_artifact(video_artifact)
+            if not media.frames:
                 self._set_compatibility_message(None)
                 return None
 
-            num_frames = len(frames)
-            height = frames[0].height
-            width = frames[0].width
+            height = media.frames[0].height
+            width = media.frames[0].width
             pipe = self.pipe_params.get_pipeline()
             driver = create_driver(pipe, pipeline_class)
-            result = snap_dimensions(driver, height, width, num_frames)
+            result = snap_dimensions(driver, height, width, len(media.frames))
             self._set_compatibility_message(result.message)
             return result
 

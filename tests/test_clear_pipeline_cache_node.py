@@ -8,7 +8,7 @@ the natural place to free VRAM before decoding, and it failed at the decode.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 from griptape_nodes.exe_types.local_objects import KeyVerdict, cache_outputs_for_egress
@@ -68,7 +68,7 @@ def _build(node: ClearPipelineCacheNode, config_hash: str) -> None:
 
 def test_clearing_releases_every_pipeline_this_library_built(monkeypatch: pytest.MonkeyPatch) -> None:
     released: list[str] = []
-    monkeypatch.setattr(pipeline_artifact, "clear_diffusion_pipeline", lambda pipe: released.append(pipe.label))
+    monkeypatch.setattr(pipeline_artifact, "clear_pipeline", lambda pipe: released.append(pipe.label))
     node = _clear_node()
     _build(node, "flux-cfg")
 
@@ -83,7 +83,7 @@ def test_clearing_releases_every_pipeline_this_library_built(monkeypatch: pytest
 def test_building_a_pipeline_releases_the_previous_one(monkeypatch: pytest.MonkeyPatch) -> None:
     """One pipeline resident at a time, so switching models does not need two models' worth of VRAM."""
     released: list[str] = []
-    monkeypatch.setattr(pipeline_artifact, "clear_diffusion_pipeline", lambda pipe: released.append(pipe.label))
+    monkeypatch.setattr(pipeline_artifact, "clear_pipeline", lambda pipe: released.append(pipe.label))
     node = _clear_node()
     _build(node, "flux-cfg")
     _build(node, "sdxl-cfg")
@@ -95,7 +95,7 @@ def test_building_a_pipeline_releases_the_previous_one(monkeypatch: pytest.Monke
 
 def test_clearing_leaves_a_parked_latent_alone(monkeypatch: pytest.MonkeyPatch) -> None:
     """The regression: a latent held for a downstream node shares the pipelines' group."""
-    monkeypatch.setattr(pipeline_artifact, "clear_diffusion_pipeline", lambda pipe: None)
+    monkeypatch.setattr(pipeline_artifact, "clear_pipeline", lambda pipe: None)
     encoder = VaeEncodeNode(name="VAE Encode", metadata=LIBRARY)
     encoder.parameter_output_values["latent_tensor"] = _Latent()
     reference = cache_outputs_for_egress(encoder.parameter_output_values, node=encoder)["latent_tensor"]
@@ -112,7 +112,7 @@ def test_clearing_leaves_a_parked_latent_alone(monkeypatch: pytest.MonkeyPatch) 
 
 def test_a_pipeline_released_elsewhere_is_not_counted(monkeypatch: pytest.MonkeyPatch) -> None:
     """An engine-side release leaves its key in the record, and a count of what went has to ignore it."""
-    monkeypatch.setattr(pipeline_artifact, "clear_diffusion_pipeline", lambda pipe: None)
+    monkeypatch.setattr(pipeline_artifact, "clear_pipeline", lambda pipe: None)
     node = _clear_node()
     _build(node, "flux-cfg")
     node.local_objects.drop(node.local_objects.key_for("flux-cfg"))
@@ -120,3 +120,69 @@ def test_a_pipeline_released_elsewhere_is_not_counted(monkeypatch: pytest.Monkey
     _run(node)
 
     assert "Cleared 0 pipeline(s)" in node.parameter_output_values["result_details"]
+
+
+def test_modular_pipeline_cleanup_disables_offload_before_unloading(monkeypatch: pytest.MonkeyPatch) -> None:
+    modular_pipeline = pytest.importorskip("diffusers.modular_pipelines.modular_pipeline")
+
+    from modular_diffusion_nodes_library.utils import pipeline_utils
+
+    class Manager:
+        def __init__(self, components: dict[str, object]) -> None:
+            self.components = dict(components)
+            self.offload_enabled = True
+
+        def disable_auto_cpu_offload(self) -> None:
+            self.offload_enabled = False
+
+    class ModularPipe(modular_pipeline.ModularPipeline):
+        def __init__(self) -> None:
+            self.transformer = object()
+            self._components_manager = Manager({"transformer": self.transformer})
+
+        @property
+        def components(self) -> dict[str, object]:
+            return {"transformer": self.transformer}
+
+        def unload_components(self, names: list[str]) -> None:
+            assert self._components_manager.offload_enabled is False
+            for name in names:
+                setattr(self, name, None)
+                self._components_manager.components.pop(name)
+
+    pipe = ModularPipe()
+    monkeypatch.setattr(pipeline_utils, "cleanup_memory_caches", lambda: None)
+
+    pipeline_utils.clear_pipeline(cast(Any, pipe))
+
+    assert pipe.transformer is None
+    assert pipe._components_manager.components == {}
+
+
+def test_modular_pipeline_cache_uses_dispatcher(monkeypatch: pytest.MonkeyPatch) -> None:
+    modular_pipeline = pytest.importorskip("diffusers.modular_pipelines.modular_pipeline")
+    released: list[object] = []
+
+    class ModularPipe(_Pipe, modular_pipeline.ModularPipeline):
+        def unload_components(self, names: list[str]) -> None:
+            del names
+
+    class ModularArtifact(_StubArtifact):
+        def _build_pipeline(self, log_params: Any | None = None) -> ModularPipe:
+            return ModularPipe("h3")
+
+    monkeypatch.setattr(pipeline_artifact, "clear_pipeline", released.append)
+    node = _clear_node()
+    pipe = ModularArtifact(pipeline_name="MiniMaxH3ModularPipeline", config_hash="h3-cfg").get_or_build_pipeline(node)
+
+    _run(node)
+
+    assert released == [pipe]
+
+
+def test_pipeline_cleanup_rejects_unknown_types() -> None:
+    pytest.importorskip("diffusers.modular_pipelines.modular_pipeline")
+    from modular_diffusion_nodes_library.utils.pipeline_utils import clear_pipeline
+
+    with pytest.raises(TypeError, match="only DiffusionPipeline and ModularPipeline instances are supported"):
+        clear_pipeline(cast(Any, object()))
