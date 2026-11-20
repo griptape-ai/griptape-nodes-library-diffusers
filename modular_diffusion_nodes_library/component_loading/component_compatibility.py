@@ -47,6 +47,7 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ModelComponentArtifact,
 )
 from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact import SchedulerComponentArtifact
+from modular_diffusion_nodes_library.artifact_utils.text_encoder_component_artifact import TextEncoderComponentArtifact
 from modular_diffusion_nodes_library.component_loading.component_slots import component_config_filename
 from modular_diffusion_nodes_library.component_loading.config_resolver import try_load_json_dict
 
@@ -161,9 +162,10 @@ class _ConfigResolver:
     def resolved_config(self, slot: str) -> dict[str, Any] | None:
         """Resolve an override, borrowing the base config for implicit single-file configs.
 
-        Single files without an explicit config source load with their model type's canonical
+        Diffusers single-file components without an explicit config source load with their model type's canonical
         config. The selected base repo supplies the config-only comparison in that case; this
         matches MiniMax-H3's canonical repo. Explicit or directory configs are never replaced.
+        Text-encoder GGUF files use their adjacent config instead.
         """
         if slot not in self._overrides:
             return self.base_config(slot)
@@ -174,6 +176,8 @@ class _ConfigResolver:
 
     @staticmethod
     def _uses_base_config(artifact: ComponentArtifact) -> bool:
+        if isinstance(artifact, TextEncoderComponentArtifact):
+            return False
         if not isinstance(artifact, ModelComponentArtifact):
             return False
         return artifact.source_type == ComponentSourceType.SINGLE_FILE and artifact.config_source is None

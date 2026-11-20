@@ -5,12 +5,19 @@ from pathlib import Path
 from typing import Any, override
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import ModelComponentArtifact
+from modular_diffusion_nodes_library.component_loading.config_resolver import try_load_json_dict
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import get_loadable_component_class
 
 
 @dataclass(frozen=True)
 class TextEncoderComponentArtifact(ModelComponentArtifact):
     """Descriptor for a text encoder component loaded via diffusers."""
+
+    @override
+    def _try_read_single_file_config(self, *, slot: str | None = None) -> dict[str, Any] | None:
+        if not self.file_path or not self.is_quantized:
+            return None
+        return try_load_json_dict(Path(self.file_path).parent / "config.json")
 
     @override
     def _materialize_single_file(self, *, pipeline_cls: type, effective_slot: str) -> Any:
