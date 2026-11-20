@@ -68,11 +68,24 @@ class LatentDiffusionPipelineBuilderParameters:
             )
         )
 
-    def set_pipeline_type_parameters(self, provider: str) -> None:
+    def raise_if_unsupported_value(self, parameter: Parameter, value: Any) -> None:
+        if parameter.name == "provider":
+            self.raise_if_unsupported_provider(value)
+        if parameter.name == "pipeline_type":
+            self.pipeline_type_parameters.raise_if_unsupported_pipeline_type(value)
+
+    def raise_if_unsupported_provider(self, provider: str) -> None:
         if provider not in MODULAR_PIPELINE_TYPE_PROVIDER_MAP:
-            msg = f"Unsupported pipeline provider: {provider}"
+            valid_providers = ", ".join(MODULAR_PIPELINE_TYPE_PROVIDER_MAP)
+            msg = (
+                f"Attempted to set provider on '{self._node.name}'. Failed with provider='{provider}' "
+                f"because it is not a supported provider. Valid providers: {valid_providers}."
+            )
             logger.error(msg)
             raise ValueError(msg)
+
+    def set_pipeline_type_parameters(self, provider: str) -> None:
+        self.raise_if_unsupported_provider(provider)
 
         provider_class = MODULAR_PIPELINE_TYPE_PROVIDER_MAP[provider]  # type: ignore[reportArgumentType]
         self._pipeline_type_parameters = provider_class(self._node)
