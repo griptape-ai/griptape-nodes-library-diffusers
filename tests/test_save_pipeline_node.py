@@ -201,3 +201,74 @@ def test_process_uses_request_backed_workspace_path(tmp_path: Path) -> None:
     get_workspace_path_mock.assert_called_once_with()
     config_manager_mock.assert_not_called()
     assert destination.read_text(encoding="utf-8") == "pipeline recipe\n"
+
+
+def test_full_pipeline_process_builds_with_the_node_and_checks_offload_even_when_the_save_fails(
+    tmp_path: Path,
+) -> None:
+    destination = tmp_path / "baked"
+    pipeline = MagicMock()
+    pipe = MagicMock()
+    pipeline.get_or_build_pipeline.return_value = pipe
+    node = MagicMock()
+    node.name = "Save Pipeline"
+    node.get_parameter_value.side_effect = {
+        "pipeline": pipeline,
+        "save_mode": SaveMode.FULL_PIPELINE,
+        "file_path": "baked",
+    }.get
+    node._run_with_status.side_effect = lambda operation, **_kwargs: operation()
+    module = "modular_diffusion_nodes_library.nodes.save_pipeline_node"
+
+    with (
+        patch(f"{module}.normalize_diffusion_pipeline_value", return_value=pipeline),
+        patch(f"{module}.get_workspace_path", return_value=tmp_path),
+        patch(f"{module}.resolve_workspace_path", return_value=destination),
+        patch(f"{module}.plan_runtime_lora_copies", return_value=[]),
+        patch(f"{module}.detect_offload_method", return_value="model"),
+        patch(f"{module}.save_baked_pipeline", side_effect=RuntimeError("disk full")) as save_mock,
+        pytest.raises(RuntimeError, match="disk full"),
+    ):
+        SavePipelineNode.process(node)
+
+    # The object store is reached through the node, so the build has to be given it.
+    pipeline.get_or_build_pipeline.assert_called_once_with(node)
+    save_mock.assert_called_once_with(pipe, pipeline, destination, runtime_lora_copies=[])
+    node._release_pipeline_if_offload_was_lost.assert_called_once_with(pipeline, pipe, "model")
+
+
+@pytest.mark.parametrize(
+    ("offload_after", "is_released"),
+    [("model", False), (None, True), ("sequential", True)],
+)
+def test_cached_pipeline_is_released_only_when_the_bake_lost_its_cpu_offload(
+    offload_after: str | None,
+    is_released: bool,
+) -> None:
+    pipeline = MagicMock()
+    pipe = MagicMock()
+    node = MagicMock()
+    node.name = "Save Pipeline"
+
+    with patch(
+        "modular_diffusion_nodes_library.nodes.save_pipeline_node.detect_offload_method",
+        return_value=offload_after,
+    ):
+        SavePipelineNode._release_pipeline_if_offload_was_lost(node, pipeline, pipe, "model")
+
+    if is_released:
+        pipeline.release_pipeline.assert_called_once_with(node)
+    else:
+        pipeline.release_pipeline.assert_not_called()
+
+
+def test_artifact_releases_its_own_pipeline_from_the_node_object_store() -> None:
+    artifact = DiffusionPipelineArtifact(pipeline_name="TestPipeline", config_hash="TestPipeline-abc-0")
+    node = MagicMock()
+    node.local_objects.key_for.return_value = "library/TestPipeline-abc-0"
+    node.local_objects.drop.return_value = True
+
+    assert artifact.release_pipeline(node) is True
+
+    node.local_objects.key_for.assert_called_once_with("TestPipeline-abc-0")
+    node.local_objects.drop.assert_called_once_with("library/TestPipeline-abc-0")

@@ -173,7 +173,7 @@ def _write_baked_pipeline_contents(
 ) -> None:
     skip_slots = skip_official_save_slots(pipe, artifact)
     assert_baked_save_feasible(pipe, artifact, skip_slots)
-    with prepare_pipeline_for_baked_save(pipe, artifact.config_hash):
+    with prepare_pipeline_for_baked_save(pipe):
         if skip_slots:
             logger.warning(
                 "Skipping official save_pretrained for %s (GGUF); copying .gguf files.",

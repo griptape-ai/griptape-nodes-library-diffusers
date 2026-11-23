@@ -13,6 +13,7 @@ from griptape_nodes.traits.options import Options
 from griptape_nodes.utils import resolve_workspace_path
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
+    DiffusionPipelineArtifact,
     normalize_diffusion_pipeline_value,
 )
 from modular_diffusion_nodes_library.artifact_utils.pipeline_baking import (
@@ -24,6 +25,7 @@ from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin impo
 from modular_diffusion_nodes_library.parameters.file_path_parameter import FilePathParameter
 from modular_diffusion_nodes_library.utils.config_utils import get_workspace_path
 from modular_diffusion_nodes_library.utils.path_macros import expand_path_macros
+from modular_diffusion_nodes_library.utils.pipeline_utils import detect_offload_method
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -151,6 +153,28 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         if reset_path:
             self.set_parameter_value("file_path", _RECIPE_DEFAULT_PATH, emit_change=False)
 
+    def _release_pipeline_if_offload_was_lost(
+        self, pipeline: DiffusionPipelineArtifact, pipe: Any, offload_before: str | None
+    ) -> None:
+        """Drop the cached pipeline when a bake left it without the CPU offload it had.
+
+        Baking lifts CPU offload to materialize the weights and reinstalls it afterwards. If it did
+        not come back, the cached pipeline would run without offload from then on, so release it
+        and let the next build install offload again.
+        """
+        if detect_offload_method(pipe) == offload_before:
+            return
+        logger.warning(
+            "%s: %s CPU offload was not restored after the bake. Releasing the cached pipeline so the "
+            "next build installs it again.",
+            self.name,
+            offload_before,
+        )
+        try:
+            pipeline.release_pipeline(self)
+        except Exception:
+            logger.exception("%s: Failed to release the cached pipeline after the bake.", self.name)
+
     def validate_before_node_run(self) -> list[Exception] | None:
         exceptions: list[Exception] = []
         pipeline = normalize_diffusion_pipeline_value(self.get_parameter_value("pipeline"))
@@ -200,13 +224,12 @@ class SavePipelineNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             if self.get_parameter_value("save_mode") == SaveMode.FULL_PIPELINE:
                 pipeline.check_full_pipeline_bake_policy()
                 runtime_lora_copies = plan_runtime_lora_copies(pipeline)
-                pipe = pipeline.get_or_build_pipeline()
-                save_baked_pipeline(
-                    pipe,
-                    pipeline,
-                    resolved_path,
-                    runtime_lora_copies=runtime_lora_copies,
-                )
+                pipe: Any = pipeline.get_or_build_pipeline(self)
+                offload_before = detect_offload_method(pipe)
+                try:
+                    save_baked_pipeline(pipe, pipeline, resolved_path, runtime_lora_copies=runtime_lora_copies)
+                finally:
+                    self._release_pipeline_if_offload_was_lost(pipeline, pipe, offload_before)
                 return resolved_path
 
             if resolved_path.suffix.lower() != ".yaml":

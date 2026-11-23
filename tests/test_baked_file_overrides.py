@@ -301,7 +301,7 @@ def test_text_encoder_single_file_loads_explicit_config_before_transformers(
             return sentinel
 
     monkeypatch.setattr(
-        "modular_diffusion_nodes_library.artifact_utils.text_encoder_component_artifact.get_component_class",
+        "modular_diffusion_nodes_library.artifact_utils.text_encoder_component_artifact.get_loadable_component_class",
         lambda pipeline_cls, slot: _TextEncoder,
     )
     override = TextEncoderComponentArtifact(
@@ -367,7 +367,7 @@ def test_text_encoder_fallback_loads_explicit_config_file(tmp_path: Path, monkey
         return {"weight": aligned_weight}
 
     monkeypatch.setattr(
-        "modular_diffusion_nodes_library.artifact_utils.text_encoder_component_artifact.get_component_class",
+        "modular_diffusion_nodes_library.artifact_utils.text_encoder_component_artifact.get_loadable_component_class",
         lambda pipeline_cls, slot: _TextEncoder,
     )
     monkeypatch.setattr(AutoConfig, "from_pretrained", _load_config)

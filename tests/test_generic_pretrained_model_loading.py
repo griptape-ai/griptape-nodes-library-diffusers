@@ -44,7 +44,6 @@ def test_z_image_text_encoder_loads_from_local_dir(tmp_path: Path) -> None:
     )
     Qwen3Model(config).save_pretrained(tmp_path)
     artifact = TextEncoderComponentArtifact(
-        load_id="z-image-text-encoder",
         source_type=ComponentSourceType.LOCAL_DIR,
         component="text_encoder",
         file_path=str(tmp_path),

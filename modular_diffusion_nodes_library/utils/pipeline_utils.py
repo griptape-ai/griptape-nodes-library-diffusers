@@ -75,22 +75,6 @@ def apply_vae_memory_options(vae: Any | None, *, slicing: bool, tiling: bool) ->
         vae.use_framewise_encoding = True
 
 
-def _drop_baked_pipeline_from_cache(config_hash: str | None) -> None:
-    """Drop a pipeline whose CPU offload could not be restored after a bake.
-
-    The next ``get_or_build_pipeline`` rebuilds it and installs offload again.
-    """
-    if not config_hash:
-        logger.error("Cannot drop the baked pipeline from the cache because it has no config hash.")
-        return
-    from modular_diffusion_nodes_library.utils.huggingface_utils import model_cache
-
-    try:
-        model_cache.remove_pipeline(config_hash)
-    except Exception:
-        logger.exception("Failed to drop pipeline %s from the cache after bake.", config_hash)
-
-
 def _apply_cpu_offload(pipe: DiffusionPipeline, offload_method: str | None, offload_device: Any = None) -> None:
     if offload_method is None:
         return
@@ -120,11 +104,14 @@ def find_meta_weight_slots(pipe: DiffusionPipeline) -> list[str]:
 
 
 @contextmanager
-def prepare_pipeline_for_baked_save(pipe: DiffusionPipeline, config_hash: str | None = None) -> Iterator[None]:
+def prepare_pipeline_for_baked_save(pipe: DiffusionPipeline) -> Iterator[None]:
     """Temporarily materialize weights for ``save_pretrained``, then restore CPU offload.
 
     Sequential offload stores real weights on the hook and leaves parameters on ``meta``.
     ``remove_all_hooks`` copies them back. Only sequential/model offload is touched.
+
+    A failed restore is logged, not raised, so a completed bake is still installed. The caller
+    owns the cached pipeline and can tell by comparing ``detect_offload_method`` before and after.
     """
     offload_method = detect_offload_method(pipe)
     if offload_method is None:
@@ -160,14 +147,8 @@ def prepare_pipeline_for_baked_save(pipe: DiffusionPipeline, config_hash: str | 
         try:
             _apply_cpu_offload(pipe, offload_method, offload_device)
         except Exception:
-            logger.exception(
-                "Failed to restore %s CPU offload after bake. Dropping the pipeline from the cache "
-                "so the next build installs it again.",
-                offload_method,
-            )
-            # Weights are back on the module, but the offload hook is gone. Drop the cached
-            # pipe so the next build installs offload again instead of reusing this one.
-            _drop_baked_pipeline_from_cache(config_hash)
+            # Weights are back on the module, but the offload hook is gone.
+            logger.exception("Failed to restore %s CPU offload after bake.", offload_method)
 
 
 def create_pipe_variant(

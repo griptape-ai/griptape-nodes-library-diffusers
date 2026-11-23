@@ -583,6 +583,15 @@ class DiffusionPipelineArtifact:
         _HELD_PIPELINE_KEYS.add(cache.put(pipe, key=self.config_hash, on_drop=clear_diffusion_pipeline))
         return pipe
 
+    def release_pipeline(self, node: BaseNode) -> bool:
+        """Drop this artifact's built pipeline from the worker's object store; True if one was held."""
+        if not self.config_hash:
+            return False
+        cache = node.local_objects
+        key = cache.key_for(self.config_hash)
+        _HELD_PIPELINE_KEYS.discard(key)
+        return cache.drop(key)
+
     # --- Crossing a process boundary ------------------------------------------------------------
     #
     # The built pipeline lives in the worker's object store; this artifact is only the description of
