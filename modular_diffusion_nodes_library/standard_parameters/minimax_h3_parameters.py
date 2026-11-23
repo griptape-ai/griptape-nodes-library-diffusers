@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
+from huggingface_hub import snapshot_download
 
 from modular_diffusion_nodes_library.parameters.connectable_huggingface_repo_parameter import (
     ConnectableHuggingFaceRepoParameter,
@@ -14,7 +15,7 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
 from modular_diffusion_nodes_library.utils.torch_utils import get_best_device
 
 if TYPE_CHECKING:
-    from diffusers import ModularPipeline  # type: ignore[reportMissingImports]
+    from diffusers import ComponentsManager, ModularPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -30,6 +31,11 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
     _workflow: ClassVar[str] = "fl2va"
     # fl2va loads `transformer`; `transformer_ref` is ref2va's partition.
     _unloaded_component_slots: ClassVar[frozenset[str]] = frozenset({"transformer_ref"})
+    # Reloaded from disk when needed, so the 62 GB conditioner isn't parked in RAM next to the transformer.
+    # A reload restores the checkpoint as saved, so later changes to the weights are lost (see
+    # TODO(disk-backed-optimisations)). Safe today only because nothing modifies `text_encoder` after loading:
+    # `is_prequantized` skips quantization and LoRAs are unsupported. Adding either means reapplying it per reload.
+    _disk_backed_component_names: ClassVar[frozenset[str]] = frozenset({"text_encoder"})
 
     @classmethod
     def supports_build_from_overrides_only(cls) -> bool:
@@ -88,7 +94,6 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
     def _build_pipeline_from_repo(cls, build_data: dict[str, Any], overrides: dict[str, Any]) -> ModularPipeline:  # type: ignore[reportAttributeAccessIssue]
         # `from_pretrained` resolves the component specs but loads no weights; `load_components`
         # fetches the components for the selected workflow.
-        import torch  # type: ignore[reportMissingImports]
         from diffusers import ComponentsManager, ModularPipeline  # type: ignore[reportMissingImports]
 
         manager = ComponentsManager()
@@ -98,30 +103,57 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
             components_manager=manager,
             local_files_only=True,
         )
-        pipe.load_components(workflow=cls._workflow, dtype=torch.bfloat16)
-        manager.enable_auto_cpu_offload(
-            device=get_best_device(),
-            memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
-        )
+        cls._load_components_with_disk_backed_offload(pipe, manager, build_data["repo_id"], build_data["revision"])  # type: ignore[reportArgumentType]
         return pipe  # type: ignore[reportReturnType]
 
     @classmethod
     def build_pipeline_from_build_data(cls, build_data: dict[str, Any]) -> ModularPipeline:
-        # `from_pretrained` resolves the component specs but loads no weights; `load_components`
-        # fetches the components for the selected workflow.
-        import torch  # type: ignore[reportMissingImports]
-        from diffusers import ComponentsManager, ModularPipeline  # type: ignore[reportMissingImports]
+        # Skips the base class's override routing; there are no overrides here.
+        return cls._build_pipeline_from_repo(build_data, {})
 
-        manager = ComponentsManager()
-        pipe = ModularPipeline.from_pretrained(
-            build_data["repo_id"],
-            revision=build_data["revision"],
-            components_manager=manager,
-            local_files_only=True,
+    @classmethod
+    def _load_components_with_disk_backed_offload(
+        cls, pipe: ModularPipeline, manager: ComponentsManager, repo_id: str, revision: str
+    ) -> None:
+        """Load the workflow's components, keeping `_disk_backed_component_names` on disk instead of in RAM."""
+        import torch  # type: ignore[reportMissingImports]
+
+        from modular_diffusion_nodes_library.utils.disk_backed_offload import (
+            DiskBackedComponent,
+            disk_backed_component_from_spec,
+            empty_component_from_spec,
+            enable_disk_backed_offload,
         )
-        pipe.load_components(workflow=cls._workflow, dtype=torch.bfloat16)
-        manager.enable_auto_cpu_offload(
-            device=get_best_device(),
+
+        dtype = torch.bfloat16  # shared by the disk-backed components and `load_components`
+        disk_backed_components: dict[str, DiskBackedComponent] = {}
+        for component_name in cls._disk_backed_component_names:
+            spec = pipe.get_component_spec(component_name)
+            spec.revision = revision
+            disk_backed_components[component_name] = disk_backed_component_from_spec(spec, dtype=dtype)
+            # Registered empty so `load_components` skips it; `update_components` would drop the spec's repo fields.
+            pipe.register_components(**{component_name: empty_component_from_spec(spec, dtype=dtype)})
+
+        # The processor reads from the cached folder: its folder has no config.json, which transformers
+        # cannot resolve offline by repo id. `allow_patterns` limits the offline completeness check to
+        # the processor, so a partial download of the other workflow's weights doesn't raise.
+        snapshot_dir = snapshot_download(
+            repo_id,
+            revision=revision,
+            local_files_only=True,
+            allow_patterns="processor/*",
+        )
+
+        pipe.load_components(
+            workflow=cls._workflow,
+            dtype=dtype,
+            revision=revision,
+            local_files_only=True,
+            pretrained_model_name_or_path={"processor": snapshot_dir},
+        )
+        enable_disk_backed_offload(
+            manager,
+            get_best_device(),
+            disk_backed_components,
             memory_reserve_margin=AUTO_CPU_OFFLOAD_MEMORY_RESERVE_MARGIN,
         )
-        return pipe  # type: ignore[reportReturnType]
