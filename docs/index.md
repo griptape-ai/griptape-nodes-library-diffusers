@@ -18,6 +18,8 @@ Node groups mirror the categories in [`griptape-nodes-library.json`](../griptape
 - [Load ControlNet](nodes/configure_controlnet.md)
 - [Apply ControlNet](nodes/controlnet_pipeline.md)
 - [Load LoRA](nodes/load_lora.md)
+- [Load Pipeline](nodes/load_pipeline.md)
+- [Save Pipeline](nodes/save_pipeline.md)
 - [Load Component](nodes/load_component.md)
 - [Load Scheduler](nodes/load_scheduler.md)
 - [Apply Runtime LoRA](nodes/lora_pipeline.md)

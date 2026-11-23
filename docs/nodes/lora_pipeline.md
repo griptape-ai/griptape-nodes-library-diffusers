@@ -41,6 +41,7 @@ Load LoRA ─────────┘
 - **The `lora_pipeline` output shares the cache with the input `pipeline`.** You can wire both to separate Generate Latent nodes (one with LoRAs, one without) without loading the model twice.
 - **Memory estimates include runtime adapter weights.** When the output of an Apply Runtime LoRA node is connected to Estimate Pipeline Memory, each distinct connected adapter contributes its header-derived weight bytes to the transformer estimate. Multiple adapters are aggregated in that visible transformer row; the detailed adapter list is shown separately in human-readable units in the widget and source-only CLI.
 - **LoRA weights are applied per run.** Unlike LoRAs fused into the model by the Build Pipeline node, runtime LoRA weights can change between runs without rebuilding the pipeline.
+- **The `lora_pipeline` output can be saved.** Save Pipeline records its LoRAs as runtime LoRAs, and Load Pipeline reattaches them, so they stay unfused. Chained Apply Runtime LoRA nodes cannot be saved; connect all LoRAs to one node.
 
 ## See also
 

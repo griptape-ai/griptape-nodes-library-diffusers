@@ -42,6 +42,7 @@ Load ControlNet ───┘
 - **Stack multiple ControlNets within a single node.** Use multiple `control_nets` entries on one Apply ControlNet node rather than chaining two Apply ControlNet nodes — the second node will error if the input is already a ControlNet artifact.
 - **Pipeline reuse.** ControlNet weights may be loaded for the selected control_nets; the base pipeline itself is reused from cache when available.
 - **Memory estimation.** Wire `controlnet_pipeline` into [Estimate Pipeline Memory](estimate_pipeline_memory.md) to see each stacked ControlNet's own weight/activation cost, before or after this node has actually built the pipeline.
+- **This pipeline cannot be saved.** Save Pipeline refuses a ControlNet wrapper. Save the base pipeline from Pipeline Builder, then reconnect this node after loading.
 
 ## See also
 

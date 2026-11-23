@@ -121,7 +121,6 @@ def test_a_component_override_keeps_its_subclass() -> None:
     the subclasses are indistinguishable by shape, every field of every one of them having a default.
     """
     override = ModelComponentArtifact(
-        load_id="gguf-1",
         source_type=ComponentSourceType.SINGLE_FILE,
         component="transformer",
         file_path="/models/flux-q8.gguf",

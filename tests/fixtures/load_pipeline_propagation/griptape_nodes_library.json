@@ -1,0 +1,44 @@
+{
+  "name": "Load Pipeline Propagation Test Library",
+  "library_schema_version": "0.7.0",
+  "metadata": {
+    "author": "Test Fixture",
+    "description": "Minimal nodes for Load Pipeline propagation tests",
+    "library_version": "0.1.0",
+    "engine_version": "0.0.0",
+    "tags": ["test"],
+    "dependencies": {
+      "pip_dependencies": []
+    }
+  },
+  "categories": [
+    {
+      "test": {
+        "title": "test",
+        "description": "Test nodes",
+        "color": "border-gray-500",
+        "icon": "Folder"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "class_name": "PropagationLoadPipelineNode",
+      "file_path": "propagation_nodes.py",
+      "metadata": {
+        "category": "test",
+        "description": "Load Pipeline node used for propagation tests",
+        "display_name": "Load Pipeline"
+      }
+    },
+    {
+      "class_name": "PipelineSinkNode",
+      "file_path": "propagation_nodes.py",
+      "metadata": {
+        "category": "test",
+        "description": "Records propagated pipeline artifacts",
+        "display_name": "Pipeline Sink"
+      }
+    }
+  ]
+}
