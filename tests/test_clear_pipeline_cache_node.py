@@ -130,6 +130,9 @@ def test_modular_pipeline_cleanup_disables_offload_before_unloading(monkeypatch:
     class Manager:
         def __init__(self, components: dict[str, object]) -> None:
             self.components = dict(components)
+            self.added_time = dict.fromkeys(components, 0.0)
+            self.collections: dict[str, set[str]] = {}
+            self.model_hooks = None
             self.offload_enabled = True
 
         def disable_auto_cpu_offload(self) -> None:
@@ -148,7 +151,7 @@ def test_modular_pipeline_cleanup_disables_offload_before_unloading(monkeypatch:
             assert self._components_manager.offload_enabled is False
             for name in names:
                 setattr(self, name, None)
-                self._components_manager.components.pop(name)
+                self._components_manager.components.pop(name, None)
 
     pipe = ModularPipe()
     monkeypatch.setattr(pipeline_utils, "cleanup_memory_caches", lambda: None)
