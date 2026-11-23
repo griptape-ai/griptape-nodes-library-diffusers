@@ -11,6 +11,7 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     is_encoded_component_artifact,
     structure_component_artifact,
 )
+from modular_diffusion_nodes_library.component_loading.component_config_badge import component_config_badge_message
 from modular_diffusion_nodes_library.component_loading.component_slots import (
     ALLOWED_COMPONENT_SLOTS,
     SLOT_DISPLAY_NAMES,
@@ -21,6 +22,19 @@ if TYPE_CHECKING:
     from modular_diffusion_nodes_library.nodes.latent_diffusion_pipeline_builder_node import (
         LatentDiffusionPipelineBuilderNode,
     )
+
+
+_GROUP_BADGE_MESSAGE = (
+    "**What is a component override?** \nA pipeline is built from parts called components, such as the Transformer, "
+    "VAE and Text Encoder. By default, **Build Pipeline** loads every component from the model you selected. "
+    "An override swaps one of those components for a different one, for example a GGUF or other single file you "
+    "downloaded, while the rest still come from the selected model.\n\n"
+    "**Why would you need one?**  \nTo run a smaller GGUF version of a component that fits in less GPU memory, or to "
+    "use a custom or fine-tuned component, without downloading a whole second model.\n\n"
+    "**How to use one:** \nAdd a **Load Component** node, choose your file, and connect its output to the matching "
+    "port below. To override the Scheduler, use a **Load Scheduler** node instead.\n\n"
+    "Leave a port empty to keep that component as it is."
+)
 
 
 class ComponentOverrideParameters:
@@ -103,13 +117,13 @@ class ComponentOverrideParameters:
     def _add_override_group(self, slots: list[str], *, kept_parameters: dict[str, Parameter]) -> None:
         """Create the override group (if missing) and add component params for all given slots."""
         if self._node.get_group_by_name_or_element_id(self.GROUP_NAME) is None:
-            self._node.add_node_element(
-                ParameterGroup(
-                    name=self.GROUP_NAME,
-                    ui_options={"display_name": "Component Overrides", "collapsed": False},
-                    user_defined=False,
-                )
+            group = ParameterGroup(
+                name=self.GROUP_NAME,
+                ui_options={"display_name": "Component Overrides", "collapsed": False},
+                user_defined=False,
             )
+            group.set_badge(variant="help", title="Component Overrides", message=_GROUP_BADGE_MESSAGE)
+            self._node.add_node_element(group)
 
         for slot in slots:
             if slot in kept_parameters:
@@ -155,6 +169,23 @@ class ComponentOverrideParameters:
             if isinstance(value, ComponentArtifact):
                 overrides[slot] = value
         return overrides
+
+    def refresh_config_badges(self, base_repo_id: str | None, base_revision: str | None = None) -> None:
+        """Show on every override port which config a single file loaded there would use."""
+        for slot in self.current_slots:
+            parameter = self._node.get_parameter_by_name(f"component_{slot}")
+            if parameter is None:
+                continue
+
+            badge = parameter.get_badge()
+            message = component_config_badge_message(slot, base_repo_id, base_revision)
+            if message is None:
+                if badge is not None:
+                    parameter.clear_badge()
+                continue
+
+            if badge is None or badge.message != message:
+                parameter.set_badge(variant="info", title=f"{SLOT_DISPLAY_NAMES[slot]} config file", message=message)
 
     @property
     def has_quantized_overrides(self) -> bool:

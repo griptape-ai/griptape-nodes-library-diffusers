@@ -105,7 +105,10 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         self._file_path_param = FilePathParameter(
             self,
             file_types=[".gguf", ".safetensors", ".ckpt", ".pt", ".pth", ".bin"],
-            tooltip="Absolute path to a single-file component weight (e.g. flux1-dev-Q8_0.gguf).",
+            tooltip=(
+                "Pick the model file you downloaded, for example flux1-dev-Q8_0.gguf. It also needs a matching "
+                "config file. See the help under Config (Optional)."
+            ),
         )
         self._file_path_param.add_input_parameters()
 
@@ -121,8 +124,9 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             type="str",
             default_value="",
             tooltip=(
-                "Local path to a config.json (or its parent directory), or a HuggingFace repo_id. "
-                "Leave blank to auto-resolve."
+                "Choose the matching config file (usually config.json) for a Transformer, UNet or VAE file. Text "
+                "Encoder files need none. Leave empty if the matching config is already in the local Hugging "
+                "Face cache."
             ),
             allowed_modes={ParameterMode.PROPERTY},
             traits={
@@ -139,14 +143,18 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         )
         config_source_param.set_badge(
             variant="help",
-            title="Config Source",
+            title="Config File",
             message=(
-                "Accepted values:\n"
-                "- **Local path** — a `config.json` file, or a directory containing one "
-                "(use the picker, or type directly)\n"
-                "- **HF repo_id** — e.g. `black-forest-labs/FLUX.1-dev` "
-                "(the HuggingFace cache is checked, no download triggered)\n\n"
-                "Leave blank to auto-resolve via the warm HF cache for the detected model type."
+                "**What is `config.json`?** \nIt is a small json file that tells Griptape how to read the weights "
+                "in your single file. It is not the model itself.\n\n"
+                "**Using a single file?** \nOn **Build Pipeline**, the Transformer, Transformer 2, UNet and "
+                "VAE ports each have a badge with a link to their config file. Open the badge on the port this node "
+                "connects to, follow the link, then click **Download** on that page. This downloads only the config "
+                "file, not the full model. Back here, click **Config** and select the downloaded file. "
+                "The config must come from the same model as your single file.\n\n"
+                "**Text Encoder file?** It needs no config. Leave **Config** empty.\n\n"
+                "Leave **Config** empty if the matching config is already in the local "
+                "Hugging Face cache."
             ),
         )
         self.add_parameter(config_source_param)

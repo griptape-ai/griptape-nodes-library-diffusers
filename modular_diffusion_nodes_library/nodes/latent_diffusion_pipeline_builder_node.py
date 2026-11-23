@@ -95,6 +95,7 @@ class LatentDiffusionPipelineBuilderNode(
         self._initializing = False
         self.params.refresh_component_override_ports(initial_setup=True)
         self.set_pipeline_artifact()
+        self._refresh_component_config_badges()
         self.reorder_parameters_by_groups()
 
     def set_pipeline_artifact(self) -> None:
@@ -274,6 +275,8 @@ class LatentDiffusionPipelineBuilderNode(
         self.huggingface_pipeline_params.after_value_set(parameter, value)
         if parameter.name != "pipeline":
             self.set_pipeline_artifact()
+        if parameter.name in {"provider", "pipeline_type", "model"}:
+            self._refresh_component_config_badges()
         if parameter.name.startswith("component_"):
             self._run_compatibility_checks()
 
@@ -302,6 +305,13 @@ class LatentDiffusionPipelineBuilderNode(
         blocking, advisory = self._compute_compatibility_findings()
         self._surface_component_findings(blocking, advisory)
         return blocking, advisory
+
+    def _refresh_component_config_badges(self) -> None:
+        repo_id = None
+        pipeline_params = self.params.pipeline_type_parameters.pipeline_type_pipeline_params
+        if pipeline_params is not None and not self._build_pipeline_from_component_overrides_only():
+            repo_id = pipeline_params.get_selected_model_repo_id()
+        self.params.component_override_params.refresh_config_badges(repo_id)
 
     def _evaluate_component_compatibility(self) -> list[ComponentCompatibilityFinding]:
         overrides = self.params.component_override_params.get_component_overrides()

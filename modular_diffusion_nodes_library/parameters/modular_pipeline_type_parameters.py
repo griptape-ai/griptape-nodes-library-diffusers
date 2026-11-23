@@ -92,6 +92,15 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     def get_config_kwargs(self) -> dict:
         return self.config_kwargs(self._node.get_parameter_value("model"))
 
+    def get_selected_model_repo_id(self) -> str | None:
+        """Return the selected repo id even when no revision is cached locally."""
+        selected_model = self._node.get_parameter_value("model")
+        if not isinstance(selected_model, str) or not selected_model:
+            return None
+
+        # Every subclass assigns `_model_repo_parameter` (the "model" dropdown) in __init__.
+        return self._model_repo_parameter.repo_id_for_choice(selected_model)  # type: ignore[reportAttributeAccessIssue]
+
     @staticmethod
     def _modular_pipeline_cls() -> type[ModularPipeline]:
         """Imported on demand for the same reason as `pipeline_cls`."""

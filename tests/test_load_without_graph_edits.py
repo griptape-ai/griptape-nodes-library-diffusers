@@ -19,6 +19,7 @@ from typing import Any, NamedTuple
 
 import pytest
 from griptape_nodes.exe_types.node_types import BaseNode
+from griptape_nodes.exe_types.param_components.huggingface.huggingface_model_parameter import HuggingFaceModelParameter
 from griptape_nodes.retained_mode.events.base_events import RequestPayload
 from griptape_nodes.retained_mode.events.connection_events import (
     CreateConnectionRequest,
@@ -48,6 +49,7 @@ from griptape_nodes.traits.options import Options
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import LatentFlux2PipelineTypeParameters
+from modular_diffusion_nodes_library.parameters.providers import Provider
 from modular_diffusion_nodes_library.standard_parameters.flux2_parameters import Flux2PipelineParameters
 
 LIBRARY_NAME = "Griptape Modular Diffusion Nodes Library"
@@ -536,3 +538,74 @@ def test_pipeline_builder_reopens_with_edited_parameter_order(
     loaded = _load(_serialize_and_delete(node))
 
     assert [element.name for element in loaded.root_ui_element.children] == edited_order
+
+
+def test_pipeline_builder_shows_config_badges_with_nothing_connected(
+    flow: None,  # noqa: ARG001
+    recorder: RequestRecorder,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node: Any = _create("LatentDiffusionPipelineBuilderNode", "builder")
+    _edit(node, {"provider": "Qwen"})
+
+    def no_cached_revision() -> tuple[str, str]:
+        msg = "Model is not downloaded."
+        raise RuntimeError(msg)
+
+    pipeline_params = node.params.pipeline_type_parameters.pipeline_type_pipeline_params
+    monkeypatch.setattr(pipeline_params._model_repo_parameter, "get_repo_revision", no_cached_revision)
+    node._refresh_component_config_badges()
+
+    transformer_badge = node.get_parameter_by_name("component_transformer").get_badge()
+    assert transformer_badge is not None
+    assert "**What is a config file?**" in transformer_badge.message
+    assert "[`config.json`](" in transformer_badge.message
+    assert "/transformer/config.json)" in transformer_badge.message
+    assert "click **Download**" in transformer_badge.message
+    assert "the file page; it does not download the model" in transformer_badge.message
+    assert "log in to Hugging Face" in transformer_badge.message
+    assert node.get_parameter_by_name("component_tokenizer").get_badge() is None
+
+
+def test_pipeline_builder_shows_config_badges_on_ports_added_by_a_provider_change(
+    flow: None,  # noqa: ARG001
+    recorder: RequestRecorder,  # noqa: ARG001
+) -> None:
+    node: Any = _create("LatentDiffusionPipelineBuilderNode", "builder")
+    _edit(node, {"provider": "Qwen"})
+    assert node.get_parameter_by_name("component_unet") is None
+
+    _edit(node, {"provider": "Stable Diffusion"})
+
+    unet_badge = node.get_parameter_by_name("component_unet").get_badge()
+    assert unet_badge is not None
+    assert "**What is a config file?**" in unet_badge.message
+
+
+@pytest.mark.parametrize("provider", [provider.value for provider in Provider])
+def test_every_provider_exposes_its_model_dropdown_for_the_config_badge(
+    flow: None,  # noqa: ARG001
+    recorder: RequestRecorder,  # noqa: ARG001
+    provider: str,
+) -> None:
+    node: Any = _create("LatentDiffusionPipelineBuilderNode", "builder")
+    _edit(node, {"provider": provider})
+
+    pipeline_params = node.params.pipeline_type_parameters.pipeline_type_pipeline_params
+
+    assert isinstance(pipeline_params._model_repo_parameter, HuggingFaceModelParameter)
+    repo_id = pipeline_params.get_selected_model_repo_id()
+    assert repo_id is None or isinstance(repo_id, str)
+
+
+def test_pipeline_builder_component_overrides_group_explains_overrides(
+    flow: None,  # noqa: ARG001
+    recorder: RequestRecorder,  # noqa: ARG001
+) -> None:
+    node: Any = _create("LatentDiffusionPipelineBuilderNode", "builder")
+
+    badge = node.get_group_by_name_or_element_id("component_overrides").get_badge()
+
+    assert badge is not None
+    assert "**Load Component**" in badge.message
+    assert "**Load Scheduler**" in badge.message

@@ -73,6 +73,7 @@ Enable only what you need — each option trades speed for memory.
 - **LoRAs not applying.** Check two things: (1) the LoRA was trained for the same model architecture as your chosen `pipeline_type` — a Flux LoRA will not work on a WAN pipeline; (2) the [Load LoRA](load_lora.md) node is wired to the `loras` input on this node.
 - **A model marked "Not permitted by your license" cannot be built.** It stays visible in the picker with a shield icon so you can see it exists, but selecting it badges the parameter and the run fails instead of downloading weights — pick a permitted model, or take it up with whoever administers your license.
 - **Set `provider` before configuring other parameters.** Changing `provider` regenerates all parameters for the new model — connections are carried over where parameter names match, but values return to their defaults. Choosing the right provider upfront avoids repeating your setup.
+- **Open the config page for a single-file override.** The Transformer, UNet, VAE, and Transformer 2 port badges link to the matching `config.json` page on Hugging Face. The link opens that page without downloading anything. Click **Download** on the page, then select the downloaded file under **Config (Optional)** in [Load Component](load_component.md). The config must match your single file; this downloads only the config, not the full model.
 
 ## See also
 

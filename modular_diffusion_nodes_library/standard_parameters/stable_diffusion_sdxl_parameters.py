@@ -41,7 +41,7 @@ class StableDiffusionXLPipelineParameters(ModularDiffusionPipelineTypePipelinePa
 
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
-        self._huggingface_repo_parameter = ConnectableHuggingFaceRepoParameter(
+        self._model_repo_parameter = ConnectableHuggingFaceRepoParameter(
             node,
             repo_ids=[
                 "stabilityai/stable-diffusion-xl-base-1.0",
@@ -52,21 +52,21 @@ class StableDiffusionXLPipelineParameters(ModularDiffusionPipelineTypePipelinePa
         )
 
     def add_input_parameters(self) -> None:
-        self._huggingface_repo_parameter.add_input_parameters()
+        self._model_repo_parameter.add_input_parameters()
 
     def remove_input_parameters(self) -> None:
-        self._huggingface_repo_parameter.remove_input_parameters()
+        self._model_repo_parameter.remove_input_parameters()
 
     @classmethod
     def pipeline_name(cls) -> str:
         return "StableDiffusionXLPipeline"
 
     def validate_before_node_run(self) -> list[Exception] | None:
-        errors = self._huggingface_repo_parameter.validate_before_node_run()
+        errors = self._model_repo_parameter.validate_before_node_run()
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        repo_id, revision = self._resolve_repo(self._huggingface_repo_parameter)
+        repo_id, revision = self._resolve_repo(self._model_repo_parameter)
         return self.build_data(repo_id, revision)
 
     @classmethod

@@ -65,7 +65,7 @@ class MiniMaxH3PipelineParameters(ModularDiffusionPipelineTypePipelineParameters
         return errors or None
 
     def get_build_data(self) -> dict[str, Any]:
-        repo_id, revision = self._model_repo_parameter.get_repo_revision()
+        repo_id, revision = self._resolve_repo(self._model_repo_parameter)
         return self.build_data(repo_id, revision)
 
     @classmethod
