@@ -10,7 +10,8 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
@@ -47,6 +48,43 @@ def isolate_user_config() -> Generator[Path, None, None]:
 
             # Drop it again so the next test does not inherit this one's object graph.
             reset_root_engine()
+
+
+@pytest.fixture
+def loader_environment(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """A `ModularPipelineLoader` factory over `tests/fake_modular_pipeline.py`.
+
+    The loader's pipeline class returns `env.pipeline`, by default `loader_test_pipeline()`. Replace it,
+    for example with `env.make_pipeline(...)`, before loading to change the components.
+    """
+    pytest.importorskip("diffusers")
+    from modular_diffusion_nodes_library.component_loading.modular_pipeline_loader import (
+        ModularPipelineLoader,
+        ModularPipelineLoadOptions,
+    )
+    from tests.fake_modular_pipeline import (
+        BASE_REPO,
+        FakeComponentsManager,
+        loader_test_pipeline,
+        patch_components_manager,
+    )
+
+    env = SimpleNamespace(pipeline=loader_test_pipeline(), make_pipeline=loader_test_pipeline)
+
+    class PipelineClass:
+        @classmethod
+        def from_pretrained(cls, source: str, **kwargs: Any) -> Any:
+            assert source == BASE_REPO
+            assert kwargs["local_files_only"] is True
+            return env.pipeline
+
+    def make_loader(**options: Any) -> ModularPipelineLoader:
+        return ModularPipelineLoader(pipeline_cls=PipelineClass, options=ModularPipelineLoadOptions(**options))
+
+    patch_components_manager(monkeypatch, lambda: FakeComponentsManager(env.pipeline.events))
+    env.make_loader = make_loader
+    env.pipeline_cls = PipelineClass
+    return env
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
