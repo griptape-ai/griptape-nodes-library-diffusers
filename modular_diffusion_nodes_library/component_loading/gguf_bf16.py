@@ -1,8 +1,13 @@
 """Restore BF16-stored GGUF tensors that Diffusers loads as raw uint8 parameters.
 
-H3 aligns inputs with projection parameter dtypes. A byte-backed BF16 projection therefore
-casts text embeddings to uint8 before a BF16 matmul. Norm weights and biases also need decoding.
-Only tensors stored as BF16 are restored; genuinely quantised weights remain quantised.
+Diffusers' GGUF loader turns F32 and F16 tensors into plain tensors but keeps BF16 tensors as
+byte-backed ``GGUFParameter``s. Only ``GGUFLinear`` decodes its weight in forward, so any other use,
+such as a norm weight, a bias, or code that reads a parameter's dtype, sees uint8 bytes.
+
+This applies to every GGUF model, so the restore runs on every quantised single-file component.
+It touches only tensors the file stores as BF16, which were never quantised, and leaves quantised
+weights alone. MiniMax-H3 is where it surfaced: H3 casts text embeddings to its projection weight's
+dtype, which turned them into uint8 before a BF16 matmul.
 """
 
 from __future__ import annotations

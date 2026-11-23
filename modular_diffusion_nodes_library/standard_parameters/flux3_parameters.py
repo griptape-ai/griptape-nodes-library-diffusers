@@ -88,10 +88,6 @@ class _Flux3ModularPipelineParameters(DiffusersModularPipelineParameters):
             list_all_models=list_all_models,
         )
 
-    @classmethod
-    def supports_build_from_overrides_only(cls) -> bool:
-        return False
-
     def add_input_parameters(self) -> None:
         self._model_repo_parameter.add_input_parameters()
         self._prompt_upsampler_repo_parameter.add_input_parameters()

@@ -45,11 +45,6 @@ class MiniMaxH3PipelineParameters(DiffusersModularPipelineParameters):
     def text_conditioning_width(cls, resolve_config) -> int | None:
         return cls._extract_text_conditioning_width(resolve_config("text_encoder"))
 
-    @classmethod
-    def supports_build_from_overrides_only(cls) -> bool:
-        """MiniMax-H3 still needs its base repository when components are overridden."""
-        return False
-
     def __init__(self, node: BaseNode, *, list_all_models: bool = False):
         super().__init__(node)
         self._model_repo_parameter = ConnectableHuggingFaceRepoParameter(

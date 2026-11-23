@@ -121,6 +121,13 @@ class ComponentArtifact(ABC):
         """True if the underlying weights use an embedded quantization format."""
         return False
 
+    def borrows_base_config(self) -> bool:
+        """True if config-only checks may use the base repo's config when this artifact carries none.
+
+        Only an artifact that loads with a config it does not carry itself should say so.
+        """
+        return False
+
     @abstractmethod
     def materialize(self, *, pipeline_cls: type, slot: str | None = None) -> Any:
         raise NotImplementedError
@@ -142,6 +149,15 @@ class ModelComponentArtifact(ComponentArtifact):
     def is_quantized(self) -> bool:
         """True if the weights use an embedded quantization format (e.g. GGUF)."""
         return self.file_path is not None and self.file_path.lower().endswith(".gguf")
+
+    @override
+    def borrows_base_config(self) -> bool:
+        """A single file with no config source loads with its model type's canonical config.
+
+        Config-only checks use the base repo's config for the slot in its place. The two match when the
+        checkpoint is a variant of the selected model.
+        """
+        return self.source_type == ComponentSourceType.SINGLE_FILE and self.config_source is None
 
     @override
     def materialize(self, *, pipeline_cls: type, slot: str | None = None) -> Any:

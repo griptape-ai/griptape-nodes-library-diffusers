@@ -14,6 +14,11 @@ class TextEncoderComponentArtifact(ModelComponentArtifact):
     """Descriptor for a text encoder component loaded via diffusers."""
 
     @override
+    def borrows_base_config(self) -> bool:
+        """A GGUF text encoder loads with the config.json beside the file, never the base repo's."""
+        return False
+
+    @override
     def _try_read_single_file_config(self, *, slot: str | None = None) -> dict[str, Any] | None:
         if not self.file_path or not self.is_quantized:
             return None

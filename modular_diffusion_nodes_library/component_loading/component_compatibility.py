@@ -43,11 +43,9 @@ from typing import Any, ClassVar
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ComponentArtifact,
-    ComponentSourceType,
     ModelComponentArtifact,
 )
 from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact import SchedulerComponentArtifact
-from modular_diffusion_nodes_library.artifact_utils.text_encoder_component_artifact import TextEncoderComponentArtifact
 from modular_diffusion_nodes_library.component_loading.component_slots import component_config_filename
 from modular_diffusion_nodes_library.component_loading.config_resolver import try_load_json_dict
 
@@ -160,27 +158,17 @@ class _ConfigResolver:
         return self._base_cache[slot]
 
     def resolved_config(self, slot: str) -> dict[str, Any] | None:
-        """Resolve an override, borrowing the base config for implicit single-file configs.
+        """Effective config for ``slot``: the override's if overridden, else the base repo's.
 
-        Diffusers single-file components without an explicit config source load with their model type's canonical
-        config. The selected base repo supplies the config-only comparison in that case; this
-        matches MiniMax-H3's canonical repo. Explicit or directory configs are never replaced.
-        Text-encoder GGUF files use their adjacent config instead.
+        An override with no config of its own falls back to the base repo's only when its artifact
+        borrows one (see ``ComponentArtifact.borrows_base_config``).
         """
         if slot not in self._overrides:
             return self.base_config(slot)
         config = self.override_config(slot)
-        if config is None and self._uses_base_config(self._overrides[slot]):
+        if config is None and self._overrides[slot].borrows_base_config():
             config = self.base_config(slot)
         return config
-
-    @staticmethod
-    def _uses_base_config(artifact: ComponentArtifact) -> bool:
-        if isinstance(artifact, TextEncoderComponentArtifact):
-            return False
-        if not isinstance(artifact, ModelComponentArtifact):
-            return False
-        return artifact.source_type == ComponentSourceType.SINGLE_FILE and artifact.config_source is None
 
 
 class FindingCategory(StrEnum):
@@ -487,12 +475,12 @@ def _run_dimensional_checks(
             findings.append(finding)
 
     if pipeline_params_cls is not None:
-        audio_key = getattr(pipeline_params_cls, "audio_latent_target_dim_key", None)
+        audio_key = pipeline_params_cls.audio_latent_target_dim_key
         if audio_key is not None:
             finding = _check_audio_vae_denoiser(resolver.resolved_config("audio_vae"), denoiser_config, audio_key)
             if finding is not None:
                 findings.append(finding)
-        indices = getattr(pipeline_params_cls, "text_encoder_hidden_state_indices", ())
+        indices = pipeline_params_cls.text_encoder_hidden_state_indices
         if indices:
             finding = _check_text_encoder_hidden_layers(resolver.resolved_config("text_encoder"), indices)
             if finding is not None:

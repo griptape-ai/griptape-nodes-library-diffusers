@@ -21,6 +21,11 @@ class DiffusersModularPipelineParameters(ModularDiffusionPipelineTypePipelinePar
     supported_workflows: ClassVar[tuple[str, ...]] = ()
 
     @classmethod
+    def supports_build_from_overrides_only(cls) -> bool:
+        """The loader always starts from the base repository's blocks, so overrides alone cannot build one."""
+        return False
+
+    @classmethod
     @abstractmethod
     def get_modular_load_options(cls, build_data: dict[str, Any]) -> ModularPipelineLoadOptions:
         raise NotImplementedError
