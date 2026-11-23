@@ -130,8 +130,8 @@ class PipelineMemoryEstimateNode(SuccessFailureNode):
                 name="pipeline",
                 type="Pipeline Config",
                 tooltip=(
-                    "Diffusion pipeline to estimate. Connect from Pipeline Builder. "
-                    "This node estimates memory usage from the connected pipeline and latent shape."
+                    "Connect the output of the Build Pipeline node. Memory use is estimated from "
+                    "the pipeline configuration and latent shape."
                 ),
                 allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
             )
@@ -139,6 +139,7 @@ class PipelineMemoryEstimateNode(SuccessFailureNode):
         self.add_parameter(
             Parameter(
                 name="latent",
+                display_name="input_latent",
                 input_types=["LatentArtifact"],
                 tooltip="Latent whose shape determines the token count / resolution used in the estimate.",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},

@@ -162,6 +162,7 @@ class DiffusionPipelineGenerateLatentParameters:
                 output_type="ImageUrlArtifact",
                 tooltip="Live preview of intermediate denoising steps. Updated periodically during generation.",
                 allowed_modes={ParameterMode.PROPERTY},
+                settable=False,
             )
         )
 

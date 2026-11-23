@@ -37,7 +37,7 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class _WanEncodeVideoStep(ModularPipelineBlocks):
-    """Encode a list of PIL frames into a normalised WAN video latent ``[B, C, T, H/vsf, W/vsf]``."""
+    """Encode a list of PIL frames into a normalized WAN video latent ``[B, C, T, H/vsf, W/vsf]``."""
 
     model_name = "wan"
 
@@ -60,7 +60,7 @@ class _WanEncodeVideoStep(ModularPipelineBlocks):
             OutputParam(
                 "video_latents",
                 type_hint=torch.Tensor,
-                description="Normalised video latent in the WAN scheduler's input space.",
+                description="Normalized video latent in the WAN scheduler's input space.",
             ),
         ]
 
@@ -175,7 +175,7 @@ class WanTextToVideoLatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
-        """Encode WAN video frames as a normalised video latent (5-D ``[B, C, T, H/vsf, W/vsf]``)."""
+        """Encode WAN video frames as a normalized video latent (5-D ``[B, C, T, H/vsf, W/vsf]``)."""
         import torch  # type: ignore[reportMissingImports]
 
         if isinstance(media, ImageMedia):

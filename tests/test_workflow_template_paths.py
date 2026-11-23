@@ -23,6 +23,7 @@ MACRO_PATH_PATTERN = re.compile(r"\{(?:workspace|project|workflow)_dir\}/[A-Za-z
 # `{workspace_dir}` is the outer GriptapeNodes workspace, so repo assets live under libraries/<repo>.
 ASSETS_PREFIXES = (
     f"{{workspace_dir}}/libraries/{LIBRARY_ROOT.name}/workflows/assets/",
+    f"{{workspace_dir}}/libraries/{LIBRARY_ROOT.name}/workflows/templates/",
     "{workflow_dir}/assets/",
     "{project_dir}/../workflows/assets/",
 )

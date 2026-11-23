@@ -1,6 +1,6 @@
-# Modular Diffusion Nodes — Documentation
+# Griptape Nodes Diffusion Library — Documentation
 
-Per-node reference for the Modular Diffusion Nodes Library. See the [README](../README.md) for an overview of the library, supported models, and workflow templates.
+Per-node reference for the Diffusion Library. See the [README](../README.md) for an overview of the library, supported models, and workflow templates.
 
 ## Node reference
 
@@ -15,6 +15,7 @@ Node groups mirror the categories in [`griptape-nodes-library.json`](../griptape
 
 ### Pipeline
 - [Build Pipeline](nodes/pipeline_builder.md)
+- [Load ControlNet](nodes/configure_controlnet.md)
 - [Apply ControlNet](nodes/controlnet_pipeline.md)
 - [Load LoRA](nodes/load_lora.md)
 - [Load Component](nodes/load_component.md)
@@ -39,7 +40,6 @@ Node groups mirror the categories in [`griptape-nodes-library.json`](../griptape
 - [Set Latent Mask](nodes/set_latent_mask.md)
 
 ### Conditioning
-- [Load ControlNet](nodes/configure_controlnet.md)
 - [Reference Media](nodes/media_gen_conditioning.md)
 
 ### Encode / Decode

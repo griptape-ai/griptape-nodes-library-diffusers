@@ -2,7 +2,7 @@
 
 **Evicts all cached diffusion pipelines so the next build starts from a clean cache state.**
 
-Category: `ModularDiffusion/Pipeline`
+Category: `Diffusion/Pipeline`
 
 ## TL;DR
 - Clears every pipeline currently stored in the in-memory model cache.
@@ -35,7 +35,7 @@ Build Pipeline → [Clear Pipeline Cache] → Build Pipeline
 ## Tips & pitfalls
 
 - **Place it only where a full cache reset is intentional.** It clears every cached pipeline, not a single selected model.
-- **Expect the next generation to rebuild.** After you clear the cache, run Build Pipeline again to reload the model.
+- **The next generation rebuilds the pipeline.** Clearing the cache removes the loaded model. The Build Pipeline node reloads it the next time the workflow runs.
 
 ## See also
 

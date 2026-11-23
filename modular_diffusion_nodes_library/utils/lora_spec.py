@@ -1,7 +1,7 @@
 """LoraSpec — a single LoRA adapter's identity + weight + trigger phrase.
 
 Wire format on the node graph stays as `list[dict]`; `LoraSpec.from_raw`
-normalises legacy `{path: weight}` payloads and new `{path, weight,
+normalizes legacy `{path: weight}` payloads and new `{path, weight,
 trigger_phrase}` payloads into a typed object.
 """
 
@@ -42,7 +42,7 @@ class LoraSpec:
 
 
 def normalize_loras(raw_list: list[Any]) -> dict[str, LoraSpec]:
-    """Normalise a list of raw LoRA payloads into `{path: LoraSpec}`.
+    """Normalize a list of raw LoRA payloads into `{path: LoraSpec}`.
 
     Last writer wins on duplicate paths.
     """
@@ -53,6 +53,6 @@ def normalize_loras(raw_list: list[Any]) -> dict[str, LoraSpec]:
             continue
         spec = LoraSpec.from_raw(raw)
         if not spec.path:
-            raise ValueError(f"Attempted to normalise LoRAs. Failed with raw={raw!r} because path is empty.")
+            raise ValueError(f"Attempted to normalize LoRAs. Failed with raw={raw!r} because path is empty.")
         out[spec.path] = spec
     return out

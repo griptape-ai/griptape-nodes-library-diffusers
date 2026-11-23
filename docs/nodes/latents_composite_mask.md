@@ -2,7 +2,7 @@
 
 **Pastes a source latent onto a destination latent at a given pixel offset, blended through an optional image mask.**
 
-Category: `ModularDiffusion/Transform`
+Category: `Diffusion/Transform`
 
 ## TL;DR
 - Drop a source latent into a destination latent at `(x_offset, y_offset)`. White mask pixels → source; black → destination.

@@ -1,9 +1,9 @@
 ---
 name: document-node
-description: 'Author or update the user-facing documentation page for a node in modular_diffusion_nodes_library. Use whenever a new node is added, an existing node gains/loses/renames a parameter, its category or display name changes, its inputs/outputs change shape, or a provider/pipeline-type-specific behavior is added or removed. Also use when a docs page is missing a screenshot or has drifted from the node implementation. Produces or edits a page under docs/nodes/<name>.md following docs/node-doc-format.md, updates docs/index.md if the page is new, and flags missing screenshots. DO NOT use for code changes to the node itself — pair this with add-modular-pipeline or add-pipeline-variants when shipping a feature.'
+description: 'Author or update the user-facing documentation page for a node in modular_diffusion_nodes_library. Use whenever a new node is added, an existing node gains/loses/renames a parameter, its category or display name changes, its inputs/outputs change shape, or a provider/pipeline-type-specific behavior is added or removed. Also use when a docs page is missing a screenshot or has drifted from the node implementation. Produces or edits a page under docs/nodes/<name>.md following docs/node-doc-format.md, updates docs/index.md if the page is new, and flags missing screenshots. DO NOT use for code changes to the node itself — pair this with add-modular-diffusion-pipeline or add-pipeline-variants when shipping a feature.'
 ---
 
-# Document a Modular Diffusion Node
+# Document a Diffusion Node
 
 This skill creates or updates a single node reference page under [docs/nodes/](../../../docs/nodes/) so it stays consistent with the rest of the library docs and accurate to the node implementation.
 

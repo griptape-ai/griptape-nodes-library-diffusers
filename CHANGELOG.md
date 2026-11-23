@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Griptape Modular Diffusion Nodes Library will be documented in this file.
+All notable changes to the Diffusion Library will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/2.0.0/), and each version is
 the `library_version` in `griptape-nodes-library.json`.

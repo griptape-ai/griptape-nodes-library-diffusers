@@ -1,4 +1,4 @@
-# Adding a New Model to the Modular Diffusion Library
+# Adding a New Model to the Diffusion Library
 
 This guide walks through adding support for a new diffusion model (e.g., Stable Diffusion 3.5, HunyuanVideo 1.5) to `modular_diffusion_nodes_library/`.
 
@@ -39,8 +39,8 @@ When the three blockers above are resolved, drivers will be able to swap their d
 This library's nodes execute in a worker, and `diffusers`, `torch`, `transformers` and friends are
 installed only there. The orchestrator imports every module under `nodes/` and constructs every node
 class to draw the editor, without those packages. So a new model has to answer two questions on the
-orchestrator -- which parameters to show, and is this configuration valid -- without reaching the
-execution environment.
+orchestrator — which parameters to show, and whether the configuration is valid — without reaching
+the execution environment.
 
 That is why the declarations above exist: `_pipeline_cls_path` instead of the class, `_component_slots`
 instead of the `__init__` signature, `DriverSpec` instead of the driver. Each is paired with a test that
@@ -164,7 +164,7 @@ Create `latent_pipeline_drivers/<model>.py`. Subclass `LatentPipelineDriver` fro
 
 **Read the `LatentPipelineDriver` docstring before writing a line.** It defines the binding contract for every public driver method:
 
-> Public latents are **unpacked** (4-D image `[B, C, H/vae, W/vae]`, 5-D video `[B, C, T_lat, H/vae, W/vae]`) and **normalised** (~N(0,1)). Per-VAE whitening `(z - mean) / std` is applied inside `encode_media`; the inverse runs inside `decode_latent`. Model-specific packing (Flux, Qwen) is applied transiently in `_prepare_input_latent` / `prepare_output_latent` and never appears on the public surface. Public methods exchange `LatentArtifact` (with `source_shape` carried on the artifact / on the input `ImageMedia` / `VideoMedia` / `MaskMedia` dataclass), never raw tensors.
+> Public latents are **unpacked** (4-D image `[B, C, H/vae, W/vae]`, 5-D video `[B, C, T_lat, H/vae, W/vae]`) and **normalized** (~N(0,1)). Per-VAE whitening `(z - mean) / std` is applied inside `encode_media`; the inverse runs inside `decode_latent`. Model-specific packing (Flux, Qwen) is applied transiently in `_prepare_input_latent` / `prepare_output_latent` and never appears on the public surface. Public methods exchange `LatentArtifact` (with `source_shape` carried on the artifact / on the input `ImageMedia` / `VideoMedia` / `MaskMedia` dataclass), never raw tensors.
 
 **Forwardable-signature contract (enforced at subclass time).** Four methods — `encode_media`, `decode_latent`, `create_noise_latent`, `add_noise_to_latent` — must match [`FORWARDABLE_METHOD_POSITIONAL`](../modular_diffusion_nodes_library/latent_pipeline_drivers/_base_driver_forwardable_signature.py) **exactly**: same parameter names, same order, no extra positional or kw-only parameters, no `*args`/`**kwargs`. Driver-specific tunables are NOT permitted on these methods — route them through the driver-namespaced sub-bag on `LatentArtifact.meta` via `_make_latent_artifact(..., meta=...)` and read them back with `read_driver_meta(...)`. See [`driver_types.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_types.py) (`META_DRIVER_KEY`, `read_driver_meta`, `GeneratorState`) and the SDXL `_KIND_META_KEY` pattern in [`stable_diffusion_xl.py`](../modular_diffusion_nodes_library/latent_pipeline_drivers/stable_diffusion_xl.py) for the canonical shape.
 
@@ -191,7 +191,7 @@ Optional overrides:
 - `_get_temporal_alignment()` — override in video drivers to return the temporal compression ratio; `(num_frames - 1)` must be divisible by this value. Typically `pipe.vae_scale_factor_temporal`. Return `None` (the base default) for image-only drivers. The base `validate_dimensions` and `align_dimensions` both call this automatically — most video drivers need only override this primitive.
 - `_get_spatial_alignment()` — return the pixel-space divisor for height and width. Typically `pipe.vae_scale_factor_spatial * pipe.transformer.config.patch_size[1]`. **This applies to image pipelines too** — `VaeEncodeNode` and `VaeMaskEncodeNode` validate spatial alignment for all media types.
 - `validate_dimensions(height, width, num_frames)` — override **only** when the alignment constraint cannot be expressed as a single divisor (e.g., HunyuanVideo I2V uses aspect-ratio bucketing via `video_processor.calculate_default_height_width` rather than a modulo check). If `_get_temporal_alignment` and `_get_spatial_alignment` are sufficient, do not override this. Always override `align_dimensions` in the same change to keep the two consistent: dimensions that pass `validate_dimensions` must be exactly the dimensions `align_dimensions` produces.
-- `align_dimensions(height, width, num_frames)` — override alongside `validate_dimensions` when the same non-divisor alignment applies. Returns `(aligned_h, aligned_w, aligned_frames)`. Must be consistent with `validate_dimensions` — both methods are called by `CreateNoiseLatentsNode`, `VaeEncodeNode`, and `VaeMaskEncodeNode` under the `enable_auto_resize` config flag (see `griptape-nodes-library.json`).
+- `align_dimensions(height, width, num_frames)` — override alongside `validate_dimensions` when the same non-divisor alignment applies. Returns `(aligned_h, aligned_w, aligned_frames)`. Must be consistent with `validate_dimensions` — both methods are called by `NoiseLatentNode`, `VaeEncodeNode`, and `VaeMaskEncodeNode` under the `enable_auto_resize` config flag (see `griptape-nodes-library.json`).
 
 ### Step 5 — Register in three places
 
@@ -257,7 +257,7 @@ Add your model under the provider that holds its **licensing authority**. Our St
 Add a new provider block only when no existing one holds the licensing authority.
 
 - `provider_model_id` is the exact HuggingFace `owner/name` — it must match the literal in your parameters module character-for-character, since that string is what a dropdown value reduces to.
-- The catalog key (`md_*`) is the stable handle; add it to the `model_usage` `model_ids` list on whichever node offers it (pipeline builder, ControlNet, or upsampler).
+- The catalog key (`md_*`) is the stable handle; add it to the `model_usage` `model_ids` list on the node that offers the model. This may be the Build Pipeline, Load ControlNet, Upsample Latent, or Convert Latent to Media node.
 - `key_support` is `REQUIRES_CUSTOMER_KEY` for gated repos or `NO_KEY_REQUIRED` for open ones.
 - **Provider id keys licensing authority, not the hosting org.** A derivative that inherits a base model's terms is keyed to the base authority — e.g. `InstantX/FLUX.1-dev-Controlnet-Union` keys to `black_forest_labs`, not `instantx`, or a provider-scoped policy rule would miss it. `test_flux_derivatives_key_to_black_forest_labs` guards this.
 
@@ -268,8 +268,8 @@ Add a new provider block only when no existing one holds the licensing authority
 ## Verification
 
 1. Run `make check` to catch type/lint errors, plus the catalog-consistency tests from Step 6.
-2. Open Griptape Nodes, drop a `LatentDiffusionPipelineBuilderNode`, select your new provider, then your new pipeline type, fill in the repo, and resolve the node.
-3. Wire it to a `DiffusionPipelineGenerateLatentNode` and a VAE decoder; verify an image (or video) is produced.
+2. In Griptape Nodes, add a Build Pipeline node to a workflow. Select a provider and pipeline type, enter the repo ID, and resolve the node.
+3. Connect the Build Pipeline node's output to Generate Latent, then connect Generate Latent to Decode Media. Verify that the workflow produces an image or video.
 4. Test partial denoise by chaining two generate nodes (e.g., 0–10 then 10–20 steps).
 5. Test cancellation mid-run.
 

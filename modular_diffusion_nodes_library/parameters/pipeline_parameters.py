@@ -36,7 +36,7 @@ class ModularDiffusionPipelineParameters:
             Parameter(
                 name="pipeline",
                 type="Pipeline Config",
-                tooltip="🤗 Diffusion pipeline produced by a Pipeline Builder.",
+                tooltip="🤗 Diffusion pipeline produced by the Build Pipeline node.",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
             )
         )

@@ -82,7 +82,7 @@ State whether this pipeline class gets a NEW runtime-parameters class or reuses 
 | <other> | <value> | <citation> | <citation> |
 
 ## Open questions for the user
-- <model-specific decisions, e.g. quantisation, default repo>
+- <model-specific decisions, e.g. quantization, default repo>
 ```
 
 If any variant capability is in scope, load the `/add-pipeline-variants` skill for that portion of the implementation. The base 5-step process still owns Provider/StandardParams/RuntimeParams/Driver-skeleton/Registration; the variant skill owns ControlNet/inpaint/pipe-swap specifics.

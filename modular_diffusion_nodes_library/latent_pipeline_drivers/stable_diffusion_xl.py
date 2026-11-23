@@ -180,7 +180,7 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
         2. ``start_step == 0`` — delegate to ``create_noise_latent``; output
            tagged ``"noise"``.
         3. Input is degenerate (``kind in {"", "noise"}``) with partial strength —
-           run the block on the (zero-or-noise) input, normalise by
+           run the block on the (zero-or-noise) input, normalize by
            ``init_noise_sigma`` & tag as ``"noise"``. This is an unexpected call
            shape; the output is consistent but not statistically meaningful.
         4. Input is image latents (``kind in {"image_latents",
@@ -301,7 +301,7 @@ class StableDiffusionXLLatentPipelineDriver(LatentPipelineDriver):
         return_fully_denoised: bool,
         kwargs: dict[str, Any],
     ) -> PreparedMaskedDenoising:
-        """Scale noise latents by ``init_noise_sigma``, as SDXL stores them normalised."""
+        """Scale noise latents by ``init_noise_sigma``, as SDXL stores them normalized."""
         prepared = super()._prepare_masked_denoising(
             latent=latent,
             masked_latent=masked_latent,

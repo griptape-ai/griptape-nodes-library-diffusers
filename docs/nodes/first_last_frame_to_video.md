@@ -2,7 +2,7 @@
 
 **A preconfigured, self-contained workflow that generates a video conditioned on a first and a last frame plus a text prompt — dropped in as a single node.**
 
-Category: `ModularDiffusion/Preconfigured`
+Category: `Diffusion/Preconfigured`
 
 ## TL;DR
 - Ships configured with default strengths at `1.0`; `pipeline_type` also offers various supported pipeline types.
@@ -28,7 +28,7 @@ Load Image (last)  ───┘
 | `image_1` (display name "Last") | `ImageUrlArtifact` | Yes | Last-frame conditioning image, forwarded to the internal Reference Media node. |
 | `prompt` | str | Yes | Positive text prompt, forwarded to the internal Generate Latent node. |
 | `seed` | int | No | Forwarded to the internal Create Noise Latent node. |
-| `width` | int |Yes | Forwarded to the internal Create Noise Latent node. |
+| `width` | int | Yes | Forwarded to the internal Create Noise Latent node. |
 | `height` | int | Yes | Forwarded to the internal Create Noise Latent node. |
 | `num_frames` | int | No | Forwarded to the internal Create Noise Latent node. |
 
@@ -49,7 +49,7 @@ The internal Generate Latent node ships with `guidance_scale=3.0` and `num_infer
 
 ## Tips & pitfalls
 
-- **This is a complete sub-flow, not a single primitive.** Double-click the node to inspect and edit its Reference Media, Build Pipeline, Create Noise Latent, Generate Latent, and Decode Media nodes.
+- **This is a complete sub-flow, not a single primitive.** Double-click the node to inspect and edit the Reference Media, Build Pipeline, Create Noise Latent, Generate Latent, and Decode Media nodes it contains.
 - **Fixed model selection.** You cannot change the model selection or other internal parameters directly from the top-level node; you must open the sub-flow to make changes.
 - **No download status visibility.** There is no visual indication within the node itself whether the required model has been downloaded or if it needs to be installed via the Model Manager.
 - **Model Installation**: Use the Model Manager (via the internal builder's `model_download` button) to install the model before running.

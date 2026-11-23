@@ -17,7 +17,7 @@ Copy this skeleton verbatim. Section headings, ordering, and casing are fixed; t
 
 **<One-line role, ending in a period. Bolded. No blockquote.>**
 
-Category: `<ModularDiffusion/<Group>>`
+Category: `<Diffusion/<Group>>`
 
 ## TL;DR
 - 2–4 bullets. Each bullet is a complete sentence. Lead with the most actionable fact.
@@ -107,7 +107,7 @@ Upstream Node → [<Display Name>] → Downstream Node
 
 ### Tips & pitfalls
 
-- 2–6 bullets. Each begins with a **bold imperative** summarising the takeaway, followed by one sentence of explanation.
+- 2–6 bullets. Each begins with a **bold imperative** summarizing the takeaway, followed by one sentence of explanation.
 - Cover real failure modes users actually hit (shape mismatches, silent dropping, encoding-only-applies-to-image-pipelines, etc.). Do not fill with platitudes.
 
 ### See also

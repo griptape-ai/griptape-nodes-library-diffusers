@@ -480,7 +480,7 @@ def _extract_new_workflow(path: Path, tree: ast.Module) -> WorkflowMemoryInput:
 
     if not builders:
         raise WorkflowExtractionError(
-            f"Workflow '{path}' has no supported pipeline builder connected to a NoiseLatentNode or EmptyLatentNode."
+            f"Workflow '{path}' does not contain a supported Build Pipeline node connected to a NoiseLatentNode or EmptyLatentNode."
         )
     return WorkflowMemoryInput(path, _deduplicate_builders(builders))
 

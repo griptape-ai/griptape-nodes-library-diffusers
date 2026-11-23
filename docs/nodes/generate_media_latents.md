@@ -2,7 +2,7 @@
 
 **Runs the denoising loop. Takes a noise / encoded / partially-denoised latent in, returns a denoised latent out.**
 
-Category: `ModularDiffusion/Processing`
+Category: `Diffusion/Processing`
 
 ## TL;DR
 - The workhorse node. Connect a `pipeline` and an `input_latent`; configure the prompt and steps; run.
@@ -23,8 +23,8 @@ Category: `ModularDiffusion/Processing`
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `pipeline` | `Pipeline Config` | Yes | From the [Build Pipeline](pipeline_builder.md) or [Apply ControlNet](controlnet_pipeline.md) node. |
-| `input_latent` | `LatentArtifact`, `InpaintMaskArtifact`, or `MaskedLatentArtifact` | Yes | Starting latent. Create Noise, Encode Media, or a prior Generate Latent output for standard denoising; [Encode Masked Media Latent](encode_masked_media_latent.md) for inpainting; or [Set Latent Mask](set_latent_mask.md) for masked denoising. |
+| `pipeline` | `Pipeline Config` | Yes | Connect the output of the [Build Pipeline](pipeline_builder.md) or [Apply ControlNet](controlnet_pipeline.md) node. |
+| `input_latent` | `LatentArtifact`, `InpaintMaskArtifact`, or `MaskedLatentArtifact` | Yes | Starting latent. Create Noise Latent, Encode Media, or a prior Generate Latent output for standard denoising; [Encode Masked Media](encode_masked_media_latent.md) for inpainting; or [Set Latent Mask](set_latent_mask.md) for masked denoising. |
 | `controlnet_parameters` | `control_parameters` | Only if `pipeline` is a ControlNet pipeline | From the Apply ControlNet node's `control_parameters` output. |
 | `additional_parameters` | list[dict] | No | Generic provider-specific kwargs forwarded to the pipeline call. |
 
@@ -33,7 +33,7 @@ Category: `ModularDiffusion/Processing`
 | Name | Type | Notes |
 | --- | --- | --- |
 | `output_latent` | `LatentArtifact` | The denoised latent. |
-| `preview_image` | `ImageUrlArtifact` | Live intermediate previews — only populated when **Settings → Modular Diffusion Library → Enable Image Preview Intermediates** is on. |
+| `preview_image` | `ImageUrlArtifact` | Live intermediate previews — only populated when **Settings → Diffusion Library → Enable Image Preview Intermediates** is on. |
 | `progress` | progress bar | Step counter. |
 | `logs` | str | Per-step timing log. |
 
@@ -66,7 +66,7 @@ The exact list depends on the connected pipeline. Common parameters:
 | --- | --- |
 | ControlNet | When `pipeline` is a `ControlNetDiffusionPipelineArtifact`, the `controlnet_parameters` input is added automatically. |
 | Inpainting | When `input_latent` is an `InpaintMaskArtifact` (from [Encode Masked Media](encode_masked_media_latent.md)), the node automatically routes through the inpaint pipeline class and uses the artifact's `strength`. |
-| Masked denoising | When `input_latent` is a `MaskedLatentArtifact` (from [Set Latent Mask](set_latent_mask.md)), the node applies the mask at every denoising step using the [Differential Diffusion](https://arxiv.org/abs/2306.00950) technique, without switching pipeline class. White areas are redone, black areas stay close to the original, and grey areas are given less time to change. **Turn `add_noise` on**, and use `start_step` to choose how much of the original survives. Supported by many image generation pipelines; other pipelines fail validation. Image latents only, with schedulers that make one model call per step. Custom `timesteps` / `sigmas` are not supported. |
+| Masked denoising | When `input_latent` is a `MaskedLatentArtifact` (from [Set Latent Mask](set_latent_mask.md)), the node applies the mask at every denoising step using the [Differential Diffusion](https://arxiv.org/abs/2306.00950) technique, without switching pipeline class. White areas are redone, black areas stay close to the original, and gray areas are given less time to change. **Turn `add_noise` on**, and use `start_step` to choose how much of the original survives. Supported by many image generation pipelines; other pipelines fail validation. Image latents only, with schedulers that make one model call per step. Custom `timesteps` / `sigmas` are not supported. |
 | LTX2 | The base, video-conditioning, and IC-LoRA pipelines generate video and audio jointly in one denoising loop. The output latent carries the audio in its metadata, which is muxed by [Decode Media](decode_media_latent.md). `reference_conditions` accepts `Reference Media`, `ImageUrlArtifact`, and `VideoUrlArtifact`; images are passed to Diffusers as still-image references. The HDR IC-LoRA path does not produce audio. `motion_speed` (float, default `1.0`) sets the speed of the motion relative to real time: the model is conditioned on the frame rate divided by this value, so values below `1.0` slow the motion down (for example `0.2` for the LTX-2.5 slow-motion control LoRA's 5x slow motion) while the playback frame rate stays the same. It must be greater than 0, and is hidden on the HDR IC-LoRA path, whose pipeline does not accept it. |
 | MiniMax-H3 | Generates the video **and its soundtrack** in one denoising loop. Only `prompt` and `conditioning_images` are exposed — there is no `guidance_scale` and no `negative_prompt` (the checkpoint is guidance-distilled, so guidance is baked into the weights and every step runs a single forward pass), and no dimensions (they come from the input latent, so set them on [Create Noise Latent](create-noise-latents.md)). Keyframes are optional: leave `conditioning_images` unconnected for text-only generation, or connect a [Reference Media](media_gen_conditioning.md) node for a first and/or last frame. The output latent carries the audio in its metadata, so wire this node **directly** to [Decode Media](decode_media_latent.md). Partial denoise must chain from another MiniMax-H3 generate — a `start_step` above 0 on a latent with no audio is rejected, since the soundtrack would restart from noise mid-schedule. `return_fully_denoised` is not supported. Inpainting, ControlNet, image-to-video and video-to-video are unavailable. |
 | Flux3 | When `prompt_upsampler_model` is selected on the Build Pipeline node, the prompt is expanded before generation; choose `Disabled` to pass it through unchanged. The base type exposes `negative_prompt` and `guidance_scale` (default `3.5`) and defaults to `50` steps; the distilled type exposes neither and defaults to `16` steps. `reference_images` accepts up to 10 image-mode references from Reference Media (or a directly connected image for single-image conditioning); video payloads are not supported, and strength and frame-index controls are not exposed. Dimensions come from the input latent. Partial denoise, preview and cancellation are supported.<br><br>**Layout control:**<br>Appends a JSON list of regions after the caption, with each `<id>` cited in the caption needing a row. Boxes are `[y_min, x_min, y_max, x_max]` on a 0–1000 canvas. Layout only takes effect when `prompt_upsampler_model` is selected; with `Disabled`, the JSON stays plain prompt text.<br>• **Text-to-Image** (no reference images): each row has `id`, `bbox`, and `desc`.<br>• **Edit** (reference images connected): each row has `id`, `from`, `src_bbox`, `tgt_bbox`, and `desc`.<br>&nbsp;&nbsp;&nbsp;&nbsp;– `from`: `ref_image_N` (counted from `0` in supplied order) or `target`.<br>&nbsp;&nbsp;&nbsp;&nbsp;– `src_bbox`: where the item sits in its reference (`null` for `target`).<br>&nbsp;&nbsp;&nbsp;&nbsp;– `tgt_bbox`: where it goes in the output (`null` for removed items). |
@@ -76,7 +76,7 @@ The exact list depends on the connected pipeline. Common parameters:
 ## Tips & pitfalls
 
 - **Switching pipelines preserves matching connections.** Any connection whose parameter name exists in the new pipeline is kept automatically; the UI reorders to reflect the new layout.
-- **Live previews slow inference.** Off by default. Toggle in **Settings → Modular Diffusion Library → Enable Image Preview Intermediates**.
+- **Live previews slow inference.** Off by default. Toggle in **Settings → Diffusion Library → Enable Image Preview Intermediates**.
 - **`start_step` / `end_step` are sliced from the scheduler.** Combine two Generate nodes (e.g. `0–10` then `10–20`) for multi-stage refinement.
 - **Turn `add_noise` on for masked denoising.** With a `MaskedLatentArtifact` connected, `add_noise` starts denoising from a noised copy of the source image, which is what lets the masked areas be redone. Set `start_step` to `0` to redo the white areas fully, or raise it to keep more of the original.
 - **Cancellation works mid-step.** Hitting cancel sets the pipeline's `_interrupt` flag; the run stops after the current step.

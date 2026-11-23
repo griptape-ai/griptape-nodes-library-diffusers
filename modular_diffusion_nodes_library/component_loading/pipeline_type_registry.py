@@ -17,7 +17,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory impo
 # ``model_type`` -> pipeline class name owning the component. Every value here
 # must also be a registered driver in
 # ``latent_pipeline_drivers.driver_factory._DRIVER_REGISTRY``, otherwise the
-# resulting artifact cannot be wired into a pipeline builder. The invariant
+# resulting artifact cannot be wired into the Build Pipeline node. The invariant
 # is enforced by the import-time guard below.
 #
 # Entries are sourced from ``diffusers.loaders.single_file_utils`` -

@@ -2,7 +2,7 @@
 
 `get_component_slots()` returns a declared list rather than reading the pipeline's `__init__`
 signature, because reading it imports the pipeline class and the orchestrator builds these parameters
-for every Pipeline Builder it shows without the execution environment installed. That trade only holds
+for every Build Pipeline node it shows without the execution environment installed. That trade only holds
 while the declarations are true, so this recomputes them the way the library used to and fails on
 drift -- which is what a diffusers bump that renames or adds a component looks like.
 """
