@@ -1,19 +1,19 @@
 """A stand-in for Diffusers' `ModularPipeline`, shared by the modular loader tests.
 
 Each loader test used to carry its own stub, and the stubs drifted from Diffusers in ways that hid
-bugs: a spec mutated through `get_component_spec` stayed mutated, and `load_components` loaded a
-component Diffusers would skip. Where this fake does more than record calls, it copies Diffusers 0.42:
+bugs: a spec mutated through `get_component_spec` stayed mutated. Where this fake does more than
+record calls, it copies Diffusers 0.42:
 
 - `get_component_spec` and `blocks` return copies, so mutating what they return changes nothing.
-- `load_components` skips a component whose stored spec has no `pretrained_model_name_or_path`,
-  whatever the kwargs say.
 - `blocks.get_workflow` keeps only the sub-blocks still present, so popping a sub-block from
   `_blocks.sub_blocks` drops its components from every workflow.
 - `from_config` components exist as soon as the pipeline does, as `ModularPipeline.from_pretrained`
   creates them.
 - `update_components` ignores a name the pipeline has no spec for.
 
-Specs are real `ComponentSpec` objects, so callers need the execution environment.
+Specs are real `ComponentSpec` objects for a `FakeComponent`, so loading through a spec runs Diffusers'
+own `ComponentSpec.load` and ends in `FakeComponent.from_pretrained`. Callers need the execution
+environment. `tests/test_fake_modular_pipeline_matches_diffusers.py` holds the fake to all of this.
 """
 
 from __future__ import annotations
@@ -30,10 +30,23 @@ if TYPE_CHECKING:
 BASE_REPO = "org/base"
 
 
+class FakeComponent:
+    """What a fake spec loads: it records the repo and the kwargs its `from_pretrained` was given."""
+
+    def __init__(self, source: Any, load_kwargs: dict[str, Any]) -> None:
+        self.source = source
+        self.load_kwargs = load_kwargs
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path: Any, **kwargs: Any) -> FakeComponent:
+        return cls(pretrained_model_name_or_path, kwargs)
+
+
 def component_spec(name: str, **fields: Any) -> ComponentSpec:
-    """Build a spec loaded from `BASE_REPO`, in a subfolder named after the component, unless overridden."""
+    """Build a spec for a `FakeComponent` in `BASE_REPO`, in a subfolder named after it, unless overridden."""
     from diffusers.modular_pipelines.modular_pipeline_utils import ComponentSpec
 
+    fields.setdefault("type_hint", FakeComponent)
     fields.setdefault("pretrained_model_name_or_path", BASE_REPO)
     fields.setdefault("subfolder", name)
     return ComponentSpec(name=name, **fields)
@@ -64,7 +77,7 @@ class FakeBlocks:
 
 
 class FakeModularPipeline:
-    """Records what the loader registers and loads, in `events`, `loaded_names` and `updated_components`."""
+    """Records what the loader registers, in order, in `events`."""
 
     def __init__(
         self,
@@ -87,9 +100,6 @@ class FakeModularPipeline:
                 component = object()
             setattr(self, name, component)
         self.events: list[str] = []
-        self.loaded_names: list[str] = []
-        self.load_kwargs: dict[str, Any] = {}
-        self.updated_components: dict[str, Any] = {}
 
     def __getattr__(self, name: str) -> Any:
         # Only reached for a name never set, so lookups stay as strict as Diffusers'. Declaring it lets
@@ -112,32 +122,7 @@ class FakeModularPipeline:
             if name not in self._component_specs:
                 continue
             self.events.append(f"register:{name}")
-            self.updated_components[name] = component
             setattr(self, name, component)
-
-    def load_components(self, names: list[str] | None = None, workflow: str | None = None, **kwargs: Any) -> None:
-        if names is not None and workflow is not None:
-            msg = "Pass either `names` or `workflow`, not both."
-            raise ValueError(msg)
-        if names is None:
-            names = [
-                name
-                for name, spec in self._component_specs.items()
-                if spec.default_creation_method == "from_pretrained"
-                and spec.pretrained_model_name_or_path is not None
-                and getattr(self, name) is None
-            ]
-        if workflow is not None:
-            workflow_names = {spec.name for spec in self.blocks.get_workflow(workflow).expected_components}
-            names = [name for name in names if name in workflow_names]
-        self.load_kwargs = kwargs
-        for name in names:
-            spec = self._component_specs.get(name)
-            if spec is None or not spec.pretrained_model_name_or_path:
-                continue
-            self.events.append(f"load:{name}")
-            self.loaded_names.append(name)
-            setattr(self, name, object())
 
 
 def loader_test_pipeline(**specs: ComponentSpec) -> FakeModularPipeline:

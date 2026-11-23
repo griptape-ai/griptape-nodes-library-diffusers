@@ -110,15 +110,26 @@ The composed
 [`ModularPipelineLoader`](../modular_diffusion_nodes_library/component_loading/modular_pipeline_loader.py)
 resolves pending components, completes preflight validation before any weights load, registers
 overrides, loads custom components and missing defaults, checks completeness, then applies placement.
-An explicit override skips its default loader and validator. Components from the base repository
-use the selected base revision; components from another repository keep their own revision unless
-explicitly replaced. Changing the source does not carry over an unrelated repository's revision.
+An explicit override skips its default loader and validator.
+
+Where a default component loads from:
+
+- If the pipeline's index names no repository for it, it loads from the base repository.
+- A component in the base repository uses the base revision selected on the node.
+- A component in another repository uses the revision from its index entry.
+- The variant from the index entry is kept while the repository is unchanged.
+- If `component_options` points a component at a different repository, the index entry's
+    revision and variant are dropped, because they belong to the old repository. Pass new
+    ones in `component_options` if you need them.
+
+If a default component fails to load, the build stops with the original error.
 
 Choose these options according to what your model needs:
 
-- `component_options`: kwargs forwarded through `load_components(...)` to the component's
+- `component_options`: kwargs forwarded through `ComponentSpec.load(...)` to the component's
     `from_pretrained(...)`, e.g. `{"vae": {"dtype": torch.float32}}`. Custom loaders receive them in
-    `context.options` instead.
+    `context.options` instead. `pretrained_model_name_or_path`, `subfolder`, `revision` and `variant`
+    here replace where the component loads from.
 - `component_validators`: checks before loading weights, e.g. whether the GPU supports FP8.
 - `component_loaders`: custom loading functions when `from_pretrained(...)` is not enough,
     e.g. Flux3's quantised transformer needs `from_single_file(...)`.
@@ -126,7 +137,7 @@ Choose these options according to what your model needs:
     e.g. remove Flux3's prompt-expansion step when disabled.
 
 Validators and loaders receive a `ComponentLoadContext` containing the component's name, source,
-subfolder, revision and loading arguments. `prepare_pipeline` receives the pipeline itself.
+subfolder, revision, variant and loading arguments. `prepare_pipeline` receives the pipeline itself.
 
 Do not put `names`, `workflow`, `components_manager` or `local_files_only` in `component_options`.
 

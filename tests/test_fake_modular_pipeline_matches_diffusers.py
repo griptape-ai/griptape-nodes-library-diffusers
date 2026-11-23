@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from tests.fake_modular_pipeline import FakeModularPipeline, component_spec
+from tests.fake_modular_pipeline import FakeComponent, FakeModularPipeline, component_spec
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -57,9 +57,22 @@ def blocks_is_a_copy(pipeline: Any) -> bool:
     return pipeline.blocks is not pipeline._blocks
 
 
-def loads_a_component_whose_stored_spec_has_no_path(pipeline: Any) -> bool:
-    pipeline.load_components(names=["vae"], pretrained_model_name_or_path={"vae": "/not/a/repo"}, local_files_only=True)
-    return pipeline.vae is not None
+def registers_a_component_loaded_through_its_spec(pipeline: Any) -> list[Any]:
+    """What the loader does per default component: load the pipeline's own spec from a repo, then register it.
+
+    The spec stores no repo here, so this also covers a component the pipeline's index names no repo for.
+    """
+    spec = pipeline.get_component_spec("vae")
+    spec.type_hint = FakeComponent
+    component = spec.load(
+        pretrained_model_name_or_path="org/elsewhere",
+        subfolder="vae",
+        revision=None,
+        variant=None,
+        local_files_only=True,
+    )
+    pipeline.update_components(vae=component)
+    return [pipeline.vae is component, component.source, component.load_kwargs]
 
 
 def components_created_at_init(pipeline: Any) -> dict[str, bool]:
@@ -83,7 +96,7 @@ def update_components_sets_an_undeclared_name(pipeline: Any) -> bool:
 PROBES: list[Callable[[Any], Any]] = [
     spec_mutation_persists,
     blocks_is_a_copy,
-    loads_a_component_whose_stored_spec_has_no_path,
+    registers_a_component_loaded_through_its_spec,
     components_created_at_init,
     workflow_components,
     workflow_components_after_popping_a_sub_block,
@@ -100,9 +113,3 @@ def test_unknown_workflow_is_a_value_error_in_both(real: Any, fake: FakeModularP
     for pipeline in (real, fake):
         with pytest.raises(ValueError, match="not found"):
             pipeline.blocks.get_workflow("no-such-workflow")
-
-
-def test_names_and_workflow_together_is_a_value_error_in_both(real: Any, fake: FakeModularPipeline) -> None:
-    for pipeline in (real, fake):
-        with pytest.raises(ValueError, match="not both"):
-            pipeline.load_components(names=["vae"], workflow="text2image")

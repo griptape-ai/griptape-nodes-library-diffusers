@@ -21,6 +21,7 @@ class ComponentLoadContext:
     source: str | list[str]
     subfolder: str | None
     revision: str | None
+    variant: str | None
     options: Mapping[str, Any]
 
 
@@ -136,16 +137,18 @@ class ModularPipelineLoader:
     def _repo_component_context(
         cls, name: str, spec: ComponentSpec, base_source: str, base_revision: str | None, options: dict[str, Any]
     ) -> ComponentLoadContext:
-        """Assemble the context after resolving its source and revision policies."""
+        """Assemble the context after resolving its source, revision and variant policies."""
         component_source = cls._resolve_component_source(spec, base_source, options)
         component_revision = cls._resolve_component_revision(
             spec, component_source, base_source, base_revision, options
         )
+        component_variant = cls._resolve_component_variant(spec, component_source, base_source, options)
         return ComponentLoadContext(
             name=name,
             source=component_source,
             subfolder=options.pop("subfolder", spec.subfolder),
             revision=component_revision,
+            variant=component_variant,
             options=options,
         )
 
@@ -176,6 +179,19 @@ class ModularPipelineLoader:
             inherited_revision = base_revision
         return options.pop("revision", inherited_revision)
 
+    @staticmethod
+    def _resolve_component_variant(
+        spec: ComponentSpec, component_source: str | list[str], base_source: str, options: dict[str, Any]
+    ) -> str | None:
+        """Prefer an explicit variant, including None, then the spec's while its source is unchanged."""
+        spec_source = spec.pretrained_model_name_or_path
+        if spec_source is None:
+            spec_source = base_source
+        inherited_variant = None
+        if component_source == spec_source:
+            inherited_variant = spec.variant
+        return options.pop("variant", inherited_variant)
+
     def _load_custom_components(self, pipe: ModularPipeline, pending_components: list[ComponentLoadContext]) -> None:
         for context in pending_components:
             loader = self.options.component_loaders.get(context.name)
@@ -187,23 +203,24 @@ class ModularPipelineLoader:
             pipe.update_components(**{context.name: component})
 
     def _load_defaults(self, pipe: ModularPipeline, pending_components: list[ComponentLoadContext]) -> None:
-        names = []
-        load_kwargs: dict[str, Any] = {"local_files_only": True}
+        """Load each remaining component from its resolved location, then register it.
+
+        Each spec is loaded directly rather than through `pipe.load_components`, which skips a component
+        whose stored spec names no repo, whatever the kwargs say, and logs a failed load instead of
+        raising. Every loading field is passed, so the spec supplies none of them by default.
+        """
         for context in pending_components:
             if self.options.component_loaders.get(context.name) is not None:
                 continue
-            names.append(context.name)
-            pipe.get_component_spec(context.name).pretrained_model_name_or_path = context.source
-            options = {
-                "pretrained_model_name_or_path": context.source,
-                "subfolder": context.subfolder,
-                "revision": context.revision,
+            component = pipe.get_component_spec(context.name).load(
+                pretrained_model_name_or_path=context.source,
+                subfolder=context.subfolder,
+                revision=context.revision,
+                variant=context.variant,
+                local_files_only=True,
                 **context.options,
-            }
-            for key, value in options.items():
-                load_kwargs.setdefault(key, {})[context.name] = value
-        if names:
-            pipe.load_components(names=names, **load_kwargs)
+            )
+            pipe.update_components(**{context.name: component})
 
     def _validate_component_names(self, required: Iterable[str], overrides: Mapping[str, Any]) -> None:
         required_names = set(required)

@@ -5,7 +5,12 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from tests.fake_modular_pipeline import FakeModularPipeline, component_spec, install_components_manager
+from tests.fake_modular_pipeline import (
+    FakeComponent,
+    FakeModularPipeline,
+    component_spec,
+    install_components_manager,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -87,14 +92,17 @@ def test_loader_loads_or_omits_prompt_upsampler_and_quantized_transformer(
     result = Flux3PipelineParameters._build_pipeline_from_repo(build_data, overrides)
 
     assert result is pipeline
-    assert pipeline.load_kwargs["local_files_only"] is True
+    # Components the loader fetched from a repo, as opposed to overrides and the single-file transformer.
+    loaded = {name: c for name, c in pipeline.components.items() if isinstance(c, FakeComponent)}
+    assert all(component.load_kwargs["local_files_only"] is True for component in loaded.values())
+    with_mistral_fix = [name for name, component in loaded.items() if "fix_mistral_regex" in component.load_kwargs]
     if override_slot == "tokenizer":
-        assert "fix_mistral_regex" not in pipeline.load_kwargs
+        assert with_mistral_fix == []
     else:
-        assert pipeline.load_kwargs["fix_mistral_regex"] == {"tokenizer": True}
-    expected_updates = dict(overrides)
+        assert with_mistral_fix == ["tokenizer"]
+        assert loaded["tokenizer"].load_kwargs["fix_mistral_regex"] is True
     if variant and override_slot != "transformer":
-        assert "transformer" not in pipeline.loaded_names
+        assert pipeline.transformer is transformer
         assert len(single_file_calls) == 1
         path, kwargs = single_file_calls[0]
         assert path == weights_path
@@ -103,30 +111,28 @@ def test_loader_loads_or_omits_prompt_upsampler_and_quantized_transformer(
         assert kwargs["subfolder"] == "transformer"
         assert kwargs["local_files_only"] is True
         assert isinstance(kwargs["quantization_config"], diffusers_module.BFLQuantizationConfig)
-        expected_updates["transformer"] = transformer
         assert fp8r_checks == (["cpu"] if variant == "fp8r" else [])
     else:
         if override_slot == "transformer":
-            assert "transformer" not in pipeline.loaded_names
+            assert "transformer" not in loaded
         else:
-            assert "transformer" in pipeline.loaded_names
+            assert "transformer" in loaded
         assert single_file_calls == []
         assert fp8r_checks == []
-    assert pipeline.updated_components == expected_updates
     if override_slot is not None:
-        assert override_slot not in pipeline.loaded_names
+        assert override_slot not in loaded
         assert getattr(pipeline, override_slot) is overrides[override_slot]
     if upsampler_selected:
-        assert all(name in pipeline.loaded_names for name in PROMPT_UPSAMPLER_COMPONENTS)
         for name in PROMPT_UPSAMPLER_COMPONENTS:
-            assert pipeline.load_kwargs["pretrained_model_name_or_path"][name] == PROMPT_UPSAMPLER_REPO_ID
-            assert pipeline.load_kwargs["subfolder"][name] == ""
-            assert pipeline.load_kwargs["revision"][name] == "pup-revision"
+            assert loaded[name].source == PROMPT_UPSAMPLER_REPO_ID
+            assert loaded[name].load_kwargs["subfolder"] == ""
+            assert loaded[name].load_kwargs["revision"] == "pup-revision"
+        base_components = [c for name, c in loaded.items() if name not in PROMPT_UPSAMPLER_COMPONENTS]
     else:
-        assert all(name not in pipeline.loaded_names for name in PROMPT_UPSAMPLER_COMPONENTS)
-        assert all(
-            source == FLUX3_BASE_REPO for source in pipeline.load_kwargs["pretrained_model_name_or_path"].values()
-        )
+        assert all(name not in loaded for name in PROMPT_UPSAMPLER_COMPONENTS)
+        base_components = list(loaded.values())
+    assert all(component.source == FLUX3_BASE_REPO for component in base_components)
+    assert all(component.load_kwargs["revision"] == "base-revision" for component in base_components)
     assert ("prompt_upsampler" in pipeline.blocks.sub_blocks) is upsampler_selected
 
 
