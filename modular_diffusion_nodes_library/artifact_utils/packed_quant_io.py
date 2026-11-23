@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable, Collection, Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -22,8 +23,8 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 QUANT_MAP_FILENAME = "quantization_map.json"
 
 
-def _state_has_packed_weights(state: dict[str, Any]) -> bool:
-    return any(key.endswith("weight._data") for key in state)
+def _state_has_packed_weights(keys: Iterable[str]) -> bool:
+    return any(key.endswith("weight._data") for key in keys)
 
 
 def _module_has_packed_weights(component: Any) -> bool:
@@ -188,11 +189,81 @@ def requantize_component(
         _cast_unpacked_floats(component, unpacked_dtype)
 
 
+def _checkpoint_has_packed_weights(slot_dir: Path) -> bool:
+    """Whether a slot's safetensors hold packed quanto tensors. Reads file headers only."""
+    from safetensors import safe_open
+
+    for path in sorted(slot_dir.glob("*.safetensors")):
+        with safe_open(str(path), framework="pt") as checkpoint:
+            if _state_has_packed_weights(checkpoint.keys()):
+                return True
+    return False
+
+
+def packed_quant_slot_names(folder: Path) -> list[str]:
+    """Slots of a baked folder that have both a quantization map and packed weights to restore.
+
+    A map beside ordinary weights is not a packed slot: it loads like any other component, and
+    `apply_packed_quant_from_folder` warns about it and leaves it alone.
+    """
+    return sorted(
+        path.parent.name
+        for path in Path(folder).glob(f"*/{QUANT_MAP_FILENAME}")
+        if _checkpoint_has_packed_weights(path.parent)
+    )
+
+
+def load_packed_quant_component(component_cls: type, slot_dir: Path, *, dtype: torch.dtype) -> nn.Module:
+    """Load one packed slot on CPU and restore its quantized weights there.
+
+    Used when the pipeline itself loads with a device map: a packed checkpoint has no plain
+    `weight` for its quantized layers, so those parameters stay on `meta` and cannot be dispatched.
+    """
+    component = component_cls.from_pretrained(str(slot_dir), torch_dtype=dtype, local_files_only=True)
+    requantize_component(component, slot_dir, unpacked_dtype=dtype)
+    return component
+
+
+def load_packed_quant_components(
+    folder: Path,
+    component_class_for: Callable[[str], type],
+    *,
+    dtype: torch.dtype,
+    exclude: Collection[str] = (),
+) -> dict[str, nn.Module]:
+    """Restore every packed slot of a baked folder on CPU, keyed by slot name.
+
+    The result is passed to a device-mapped pipeline load as ready-made components: diffusers still
+    counts their size when balancing devices, but neither loads nor moves them.
+    """
+    folder = Path(folder)
+    return {
+        slot: load_packed_quant_component(component_class_for(slot), folder / slot, dtype=dtype)
+        for slot in packed_quant_slot_names(folder)
+        if slot not in exclude
+    }
+
+
+def place_on_assigned_devices(pipe: Any, components: dict[str, nn.Module]) -> None:
+    """Move ready-made components to the devices the pipeline's balanced map assigned them.
+
+    Diffusers places the components it loads itself the same way: each goes whole to one device.
+    """
+    assigned = getattr(pipe, "hf_device_map", None)
+    if not isinstance(assigned, dict):
+        return
+    for slot, component in components.items():
+        device = assigned.get(slot)
+        if device is not None:
+            component.to(device)
+
+
 def apply_packed_quant_from_folder(
     pipe: Any,
     folder: Path,
     *,
     unpacked_dtype: torch.dtype | None = None,
+    skip: Collection[str] = (),
 ) -> list[str]:
     """Requantize every slot that has a map. Mutates `pipe` components in place."""
     from torch import nn
@@ -200,7 +271,7 @@ def apply_packed_quant_from_folder(
     folder = Path(folder)
     applied: list[str] = []
     for name, component in _iter_components(pipe):
-        if not isinstance(component, nn.Module):
+        if not isinstance(component, nn.Module) or name in skip:
             continue
         slot_dir = folder / name
         if not (slot_dir / QUANT_MAP_FILENAME).is_file():

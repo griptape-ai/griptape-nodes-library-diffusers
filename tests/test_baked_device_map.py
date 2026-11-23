@@ -14,7 +14,10 @@ torch = pytest.importorskip("torch", reason="Requires execution dependencies; ru
 diffusers = pytest.importorskip("diffusers", reason="Requires execution dependencies; run `make test/exec`.")
 quanto = pytest.importorskip("optimum.quanto", reason="Requires execution dependencies; run `make test/exec`.")
 
-from modular_diffusion_nodes_library.artifact_utils.packed_quant_io import write_packed_quant_maps  # noqa: E402
+from modular_diffusion_nodes_library.artifact_utils.packed_quant_io import (  # noqa: E402
+    write_packed_quant_maps,
+    write_quantization_map,
+)
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (  # noqa: E402
     DiffusionPipelineArtifact,
 )
@@ -188,13 +191,33 @@ def test_standard_baked_loader_loads_tiny_local_pipeline_offline(
     assert sum(path.stat().st_size for path in folder.rglob("*") if path.is_file()) < 4096
 
 
+def _linear_output(model: _TinyModel) -> Any:
+    """What the model computes for a fixed input, on CPU, so two copies can be compared."""
+    sample = torch.linspace(-1.0, 1.0, 8).reshape(4, 2)
+    device = next(model.parameters()).device
+    with torch.no_grad():
+        return model.linear(sample.to(device)).float().cpu()
+
+
+def _assert_on_assigned_device(built: _TinyPipeline) -> None:
+    """The restored component sits where the pipeline's balanced map says it does."""
+    assigned = getattr(built, "hf_device_map", None)
+    if not assigned:
+        return
+    assert next(built.model.parameters()).device.type == torch.device(assigned["model"]).type
+
+
+@pytest.mark.parametrize("requires_device_map", [True, False])
 def test_standard_baked_loader_restores_tiny_packed_quanto_pipeline_offline(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    requires_device_map: bool,
 ) -> None:
     folder = tmp_path / "tiny-packed-pipeline"
     model = _TinyModel()
     quantize(model, weights=qint8)
     freeze(model)
+    expected = _linear_output(model)
     source = _TinyPipeline(model)
     source.save_pretrained(folder, safe_serialization=True)
     assert write_packed_quant_maps(source, folder) == ["model"]
@@ -202,11 +225,49 @@ def test_standard_baked_loader_restores_tiny_packed_quanto_pipeline_offline(
     _disable_network(monkeypatch)
 
     built = ModularDiffusionPipelineTypePipelineParameters._build_pipeline_from_baked(
-        _baked_build_data(folder, requires_device_map=True),
+        _baked_build_data(folder, requires_device_map=requires_device_map),
         pipeline_cls=_TinyPipeline,
     )
 
     assert isinstance(built, _TinyPipeline)
     assert _TinyPipeline.last_load_kwargs is not None
-    assert _TinyPipeline.last_load_kwargs["device_map"] == "balanced"
+    if requires_device_map:
+        assert _TinyPipeline.last_load_kwargs["device_map"] == "balanced"
+        # Restored before the device-mapped load and handed over ready-made.
+        assert _TinyPipeline.last_load_kwargs["model"] is built.model
+        _assert_on_assigned_device(built)
+    else:
+        assert "device_map" not in _TinyPipeline.last_load_kwargs
+        assert "model" not in _TinyPipeline.last_load_kwargs
     assert any(key.endswith("weight._data") for key in built.model.state_dict())
+    # Key presence alone would also pass with randomly initialized weights.
+    assert torch.allclose(_linear_output(built.model), expected, atol=1e-6)
+
+
+def test_standard_baked_loader_leaves_slot_with_map_but_plain_weights_alone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    folder = tmp_path / "tiny-plain-pipeline-with-map"
+    model = _TinyModel()
+    expected = _linear_output(model)
+    _TinyPipeline(model).save_pretrained(folder, safe_serialization=True)
+    write_quantization_map(folder / "model", {"linear": {"weights": "qint8", "activations": "none"}})
+    _TinyPipeline.last_load_kwargs = None
+    _disable_network(monkeypatch)
+
+    with caplog.at_level("WARNING", logger="modular_diffusers_nodes_library"):
+        built = ModularDiffusionPipelineTypePipelineParameters._build_pipeline_from_baked(
+            _baked_build_data(folder, requires_device_map=True),
+            pipeline_cls=_TinyPipeline,
+        )
+
+    assert isinstance(built, _TinyPipeline)
+    assert _TinyPipeline.last_load_kwargs is not None
+    assert _TinyPipeline.last_load_kwargs["device_map"] == "balanced"
+    # Not a packed slot, so it goes through the ordinary device-mapped load.
+    assert "model" not in _TinyPipeline.last_load_kwargs
+    assert not any(key.endswith("weight._data") for key in built.model.state_dict())
+    assert "Skipping requantize for model" in caplog.text
+    assert torch.allclose(_linear_output(built.model), expected, atol=1e-6)
