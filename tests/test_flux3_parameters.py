@@ -1,10 +1,21 @@
 from __future__ import annotations
 
-from copy import deepcopy
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
+
+from tests.fake_modular_pipeline import (
+    FakeComponent,
+    FakeModularPipeline,
+    component_spec,
+    install_components_manager,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+FLUX3_BASE_REPO = "black-forest-labs/flux-3-image-klein-base"
 
 
 @pytest.fixture
@@ -12,58 +23,29 @@ def diffusers_module() -> Any:
     return pytest.importorskip("diffusers", reason="Reads real Diffusers APIs; run `make test/exec`.")
 
 
-class FakePipeline:
-    def __init__(self, prompt_upsampler_components: tuple[str, ...]) -> None:
-        self._blocks = SimpleNamespace(sub_blocks={"prompt_upsampler": object()})
-        self.components = dict.fromkeys(
-            (
-                "transformer",
-                "vae",
-                "text_encoder",
-                "tokenizer",
-                "image_processor",
-                "scheduler",
-                "guider",
-                *prompt_upsampler_components,
-            )
-        )
-        for name in self.components:
-            setattr(self, name, None)
-        self._specs = {
-            name: SimpleNamespace(
-                default_creation_method="from_pretrained",
-                pretrained_model_name_or_path="black-forest-labs/flux-3-image-klein-base",
-            )
-            for name in self.components
-        }
-        self.loaded_names: list[str] | None = None
-        self.load_kwargs: dict[str, Any] | None = None
-        self.updated_components: dict[str, Any] = {}
-
-    @property
-    def blocks(self) -> Any:
-        return deepcopy(self._blocks)
-
-    def get_component_spec(self, name: str) -> SimpleNamespace:
-        return self._specs[name]
-
-    def load_components(self, *, names: list[str], **kwargs: Any) -> None:
-        self.loaded_names = names
-        self.load_kwargs = kwargs
-
-    def update_components(self, **components: Any) -> None:
-        self.updated_components = components
-
-
-class FakeComponentsManager:
-    def enable_auto_cpu_offload(self, **kwargs: Any) -> None:
-        self.offload_kwargs = kwargs
+def flux3_pipeline(prompt_upsampler_components: Sequence[str]) -> FakeModularPipeline:
+    """Flux3's components, with the prompt upsampler's in their own sub-block as in Diffusers."""
+    core = ["transformer", "vae", "text_encoder", "tokenizer", "image_processor", "scheduler", "guider"]
+    upsampler = list(prompt_upsampler_components)
+    return FakeModularPipeline(
+        [component_spec(name, pretrained_model_name_or_path=FLUX3_BASE_REPO) for name in [*core, *upsampler]],
+        sub_blocks={"core": core, "prompt_upsampler": upsampler},
+        workflows={
+            "text2image": ["core", "prompt_upsampler"],
+            "image_conditioned": ["core", "prompt_upsampler"],
+        },
+    )
 
 
 @pytest.mark.parametrize("upsampler_selected", [True, False], ids=["upsampler", "none"])
 @pytest.mark.parametrize("variant", ["", "fp8r", "nvfp4"], ids=["default", "fp8r", "nvfp4"])
+@pytest.mark.parametrize("override_slot", [None, "transformer", "vae", "text_encoder", "tokenizer"])
 def test_loader_loads_or_omits_prompt_upsampler_and_quantized_transformer(
-    monkeypatch: pytest.MonkeyPatch, diffusers_module: Any, upsampler_selected: bool, variant: str
+    monkeypatch: pytest.MonkeyPatch,
+    diffusers_module: Any,
+    upsampler_selected: bool,
+    variant: str,
+    override_slot: str | None,
 ) -> None:
     from modular_diffusion_nodes_library.standard_parameters.flux3_parameters import (
         PROMPT_UPSAMPLER_COMPONENTS,
@@ -71,8 +53,8 @@ def test_loader_loads_or_omits_prompt_upsampler_and_quantized_transformer(
         Flux3PipelineParameters,
     )
 
-    pipeline = FakePipeline(PROMPT_UPSAMPLER_COMPONENTS)
-    manager = FakeComponentsManager()
+    pipeline = flux3_pipeline(PROMPT_UPSAMPLER_COMPONENTS)
+    install_components_manager(monkeypatch, pipeline)
     transformer = object()
     single_file_calls: list[tuple[Any, dict[str, Any]]] = []
 
@@ -83,7 +65,6 @@ def test_loader_loads_or_omits_prompt_upsampler_and_quantized_transformer(
     monkeypatch.setattr(
         diffusers_module.ModularPipeline, "from_pretrained", classmethod(lambda cls, *args, **kwargs: pipeline)
     )
-    monkeypatch.setattr(diffusers_module, "ComponentsManager", lambda: manager)
     monkeypatch.setattr(
         diffusers_module.Flux3Transformer2DModel, "from_single_file", classmethod(fake_from_single_file)
     )
@@ -97,7 +78,7 @@ def test_loader_loads_or_omits_prompt_upsampler_and_quantized_transformer(
     )
     weights_path = f"/cache/snapshots/base-revision/variants/{variant}/model.safetensors"
     build_data = {
-        "repo_id": "black-forest-labs/flux-3-image-klein-base",
+        "base_repo_id": FLUX3_BASE_REPO,
         "variant": variant,
         "variant_weights_path": weights_path if variant else None,
         "revision": "base-revision",
@@ -105,41 +86,54 @@ def test_loader_loads_or_omits_prompt_upsampler_and_quantized_transformer(
         "prompt_upsampler_revision": "pup-revision" if upsampler_selected else None,
     }
 
-    result = Flux3PipelineParameters._build_pipeline_from_repo(build_data, {})
+    overrides: dict[str, Any] = {}
+    if override_slot is not None:
+        overrides[override_slot] = object()
+    result = Flux3PipelineParameters._build_pipeline_from_repo(build_data, overrides)
 
     assert result is pipeline
-    assert pipeline.loaded_names is not None
-    assert pipeline.load_kwargs is not None
-    assert pipeline.load_kwargs["local_files_only"] is True
-    assert pipeline.load_kwargs["fix_mistral_regex"] == {"tokenizer": True}
-    if variant:
-        assert "transformer" not in pipeline.loaded_names
+    # Components the loader fetched from a repo, as opposed to overrides and the single-file transformer.
+    loaded = {name: c for name, c in pipeline.components.items() if isinstance(c, FakeComponent)}
+    assert all(component.load_kwargs["local_files_only"] is True for component in loaded.values())
+    with_mistral_fix = [name for name, component in loaded.items() if "fix_mistral_regex" in component.load_kwargs]
+    if override_slot == "tokenizer":
+        assert with_mistral_fix == []
+    else:
+        assert with_mistral_fix == ["tokenizer"]
+        assert loaded["tokenizer"].load_kwargs["fix_mistral_regex"] is True
+    if variant and override_slot != "transformer":
+        assert pipeline.transformer is transformer
         assert len(single_file_calls) == 1
         path, kwargs = single_file_calls[0]
         assert path == weights_path
-        assert kwargs["config"] == "black-forest-labs/flux-3-image-klein-base"
+        assert kwargs["config"] == FLUX3_BASE_REPO
         assert kwargs["config_revision"] == "base-revision"
         assert kwargs["subfolder"] == "transformer"
         assert kwargs["local_files_only"] is True
         assert isinstance(kwargs["quantization_config"], diffusers_module.BFLQuantizationConfig)
-        assert pipeline.updated_components == {"transformer": transformer}
         assert fp8r_checks == (["cpu"] if variant == "fp8r" else [])
     else:
-        assert "transformer" in pipeline.loaded_names
+        if override_slot == "transformer":
+            assert "transformer" not in loaded
+        else:
+            assert "transformer" in loaded
         assert single_file_calls == []
-        assert pipeline.updated_components == {}
         assert fp8r_checks == []
+    if override_slot is not None:
+        assert override_slot not in loaded
+        assert getattr(pipeline, override_slot) is overrides[override_slot]
     if upsampler_selected:
-        assert all(name in pipeline.loaded_names for name in PROMPT_UPSAMPLER_COMPONENTS)
-        assert pipeline.load_kwargs["pretrained_model_name_or_path"] == dict.fromkeys(
-            PROMPT_UPSAMPLER_COMPONENTS, PROMPT_UPSAMPLER_REPO_ID
-        )
-        assert pipeline.load_kwargs["subfolder"] == dict.fromkeys(PROMPT_UPSAMPLER_COMPONENTS, "")
-        assert pipeline.load_kwargs["revision"] == dict.fromkeys(PROMPT_UPSAMPLER_COMPONENTS, "pup-revision")
+        for name in PROMPT_UPSAMPLER_COMPONENTS:
+            assert loaded[name].source == PROMPT_UPSAMPLER_REPO_ID
+            assert loaded[name].load_kwargs["subfolder"] == ""
+            assert loaded[name].load_kwargs["revision"] == "pup-revision"
+        base_components = [c for name, c in loaded.items() if name not in PROMPT_UPSAMPLER_COMPONENTS]
     else:
-        assert all(name not in pipeline.loaded_names for name in PROMPT_UPSAMPLER_COMPONENTS)
-        assert "pretrained_model_name_or_path" not in pipeline.load_kwargs
-    assert "prompt_upsampler" in pipeline.blocks.sub_blocks
+        assert all(name not in loaded for name in PROMPT_UPSAMPLER_COMPONENTS)
+        base_components = list(loaded.values())
+    assert all(component.source == FLUX3_BASE_REPO for component in base_components)
+    assert all(component.load_kwargs["revision"] == "base-revision" for component in base_components)
+    assert ("prompt_upsampler" in pipeline.blocks.sub_blocks) is upsampler_selected
 
 
 def test_prompt_upsampler_picker_offers_none_and_downloadable_repo(

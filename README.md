@@ -150,6 +150,7 @@ Enable only what you need — each option trades some speed for memory. Each par
 - **Flux3LayoutControlImageBasedEditing** — Edit an existing image by listing the elements you want changed and where they sit.
 - **LatentCompositionWithMaskedDenoising** — Pastes a subject into a new scene, then blends it in two ways so you can compare which looks more natural.
 - **FirstAndLastFrameImage2Video** — Give it a starting image and an ending image, and it creates the video that moves between them.
+- **[MiniMaxH3Text2Video](workflows/templates/MiniMaxH3Text2Video.py)** — Generates video with audio using a GGUF transformer override and the base model's text encoder. Includes setup notes for the separately supplied checkpoint.
 - **LTX23-IC-LoRA** — Creates a video from text that follows the structure or motion of a reference clip.
 - **LTX23-HDR-Text2Video-Upsample-Two-Stage** — Creates an HDR video (wider range of brightness and color) from text, then enlarges it for a sharper result.
 - **Multi-ViewPromptBatcher** — Runs a list of prompts against one reference image to produce many different angles of the same subject in one go.

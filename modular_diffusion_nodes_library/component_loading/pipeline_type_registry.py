@@ -11,8 +11,7 @@ single-file loader belong here.
 
 from __future__ import annotations
 
-import inspect
-
+from modular_diffusion_nodes_library.component_loading.pipeline_components import pipeline_component_types
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory import _DRIVER_REGISTRY
 
 # ``model_type`` -> pipeline class name owning the component. Every value here
@@ -54,6 +53,8 @@ MODEL_TYPE_TO_PIPELINE_TYPE: dict[str, str] = {
     "wan-animate-14B": "WanAnimatePipeline",
     "wan-vace-1.3B": "WanVACEPipeline",
     "wan-vace-14B": "WanVACEPipeline",
+    # MiniMax-H3 transformer checkpoints use Diffusers' canonical component config.
+    "minimax-h3": "MiniMaxH3ModularPipeline",
 }
 
 
@@ -81,28 +82,14 @@ def get_component_class(pipeline_cls: type, component: str) -> type:
 
     Example: ``get_component_class(FluxPipeline, "transformer")`` returns ``FluxTransformer2DModel``.
     """
-    sig_types = pipeline_cls._get_signature_types()
-    type_tuple = sig_types.get(component)
-    if type_tuple is None:
-        msg = (
-            f"Attempted to look up component class. Failed with pipeline_cls='{pipeline_cls.__name__}' "
-            f"component='{component}' because '{component}' is not a typed __init__ parameter "
-            f"on {pipeline_cls.__name__}."
-        )
-        raise ValueError(msg)
-
-    component_cls = next(
-        (t for t in type_tuple if t is not type(None) and t is not inspect.Parameter.empty),
-        None,
-    )
+    component_cls = pipeline_component_types(pipeline_cls).get(component)
     if component_cls is None:
         msg = (
             f"Attempted to look up component class. Failed with pipeline_cls='{pipeline_cls.__name__}' "
-            f"component='{component}' because no concrete type could be resolved from "
-            f"the annotation on {pipeline_cls.__name__}."
+            f"component='{component}' because '{component}' is not a typed component "
+            f"on {pipeline_cls.__name__}."
         )
         raise ValueError(msg)
-
     return component_cls
 
 

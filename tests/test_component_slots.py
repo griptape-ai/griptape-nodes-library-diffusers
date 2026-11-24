@@ -12,6 +12,10 @@ from __future__ import annotations
 import pytest
 
 from modular_diffusion_nodes_library.component_loading.component_slots import ALLOWED_COMPONENT_SLOTS
+from modular_diffusion_nodes_library.component_loading.pipeline_components import pipeline_component_types
+from modular_diffusion_nodes_library.parameters.diffusers_modular_pipeline_parameters import (
+    DiffusersModularPipelineParameters,
+)
 from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import (
     MODULAR_PIPELINE_TYPE_PROVIDER_MAP,
 )
@@ -33,11 +37,11 @@ def _pipeline_type_classes() -> list[tuple[str, type]]:
 def _slots_from_diffusers(pipeline_type_cls: type) -> list[str]:
     """What `get_component_slots()` computed before the slots were declared."""
     pipeline_cls = pipeline_type_cls.pipeline_cls()
-    modular_cls = pipeline_type_cls._modular_pipeline_cls()  # noqa: SLF001
-    if issubclass(pipeline_cls, modular_cls):
+    modular_cls = pipeline_type_cls._modular_pipeline_cls()
+    if issubclass(pipeline_cls, modular_cls) and not issubclass(pipeline_type_cls, DiffusersModularPipelineParameters):
         return []
-    all_slots, _ = pipeline_cls._get_signature_keys(pipeline_cls)  # noqa: SLF001
-    return [slot for slot in ALLOWED_COMPONENT_SLOTS if slot in set(all_slots)]
+    component_types = pipeline_component_types(pipeline_cls, getattr(pipeline_type_cls, "supported_workflows", ()))
+    return [slot for slot in ALLOWED_COMPONENT_SLOTS if slot in component_types]
 
 
 CASES = _pipeline_type_classes()

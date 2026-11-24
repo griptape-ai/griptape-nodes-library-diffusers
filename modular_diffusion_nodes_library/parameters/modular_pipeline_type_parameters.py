@@ -49,6 +49,10 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     _component_slots: ClassVar[list[str]]
     # Denoiser config key to compare text-conditioning width against (None = skip).
     text_conditioning_target_dim_key: str | None = None
+    # Denoiser config key to compare the audio VAE's latent channels against (None = skip).
+    audio_latent_target_dim_key: str | None = None
+    # Text-encoder hidden states the pipeline reads; the encoder needs at least the highest (empty = skip).
+    text_encoder_hidden_state_indices: ClassVar[tuple[int, ...]] = ()
     # Channel multiplier from packing latents into spatial patches (1 = no packing).
     latent_packing_ratio: int = 1
 

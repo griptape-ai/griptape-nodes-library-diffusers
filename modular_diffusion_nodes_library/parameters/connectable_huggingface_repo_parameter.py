@@ -95,6 +95,32 @@ class ConnectableHuggingFaceRepoVariantParameter(HuggingFaceRepoVariantParameter
         """Return the weights file for ``variant`` inside the cached snapshot at ``revision``."""
         return self._snapshot_path(revision) / self._variant_folders[variant] / self._weights_filename
 
+    def get_selected_variant(self) -> str:
+        """Return the selected variant without resolving cache entries or weights."""
+        selection = self._node.get_parameter_value(self._parameter_name)
+        if not selection or selection == NO_MODELS_PLACEHOLDER:
+            return ""
+        key, _ = self._key_to_repo_revision(selection)
+        _, variant = self._key_to_repo_variant(key)
+        return variant
+
+    def resolve_base_repo_revision(self) -> tuple[str, str]:
+        """Resolve the selected base repo and revision without requiring variant weights."""
+        selection = self._node.get_parameter_value(self._parameter_name)
+        if selection is None:
+            return super().get_repo_revision()
+        key, revision = self._key_to_repo_revision(selection)
+        repo_id, _ = self._key_to_repo_variant(key)
+        if not revision:
+            for cached_key, cached_revision in self.list_repo_revisions():
+                cached_repo_id, _ = self._key_to_repo_variant(cached_key)
+                if cached_repo_id == repo_id:
+                    revision = cached_revision
+                    break
+        if not revision:
+            raise RuntimeError(f"Model '{repo_id}' not found in available models!")
+        return repo_id, revision
+
     @override
     def fetch_repo_revisions(self) -> list[tuple[str, str]]:
         revisions: list[tuple[str, str]] = []
