@@ -88,7 +88,6 @@ class MiniMaxH3Ref2VALatentPipelineDriver(MiniMaxH3LatentPipelineDriver):
             if kept_seconds is None:
                 continue
             fps = loaded_video.reference.fps
-            assert fps is not None
             frame_count = round(kept_seconds * fps)
             references.append(
                 MiniMaxH3VideoReference(frames=loaded_video.reference.frames[:frame_count], fps=fps, audio=None)

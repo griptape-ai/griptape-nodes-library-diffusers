@@ -68,13 +68,15 @@ def plan_reference_video_trim(durations: list[float]) -> VideoTrimPlan:
 def _video_stream_duration_seconds(stream: Any, video_artifact: VideoUrlArtifact) -> float:
     frame_rate = stream.average_rate or stream.guessed_rate
     if stream.frames > 0 and frame_rate is not None and float(frame_rate) > 0:
-        return stream.frames / float(frame_rate)
-    if stream.duration is not None and stream.time_base is not None:
-        return float(stream.duration * stream.time_base)
-    raise ValueError(
-        f"Attempted to read MiniMax-H3 reference video duration. Failed because "
-        f"'{video_artifact.value}' has no usable duration metadata."
-    )
+        duration = stream.frames / float(frame_rate)
+    elif stream.duration is not None and stream.time_base is not None:
+        duration = float(stream.duration * stream.time_base)
+    else:
+        raise ValueError(
+            f"Attempted to read MiniMax-H3 reference video duration. Failed because "
+            f"'{video_artifact.value}' has no usable duration metadata."
+        )
+    return duration
 
 
 def get_reference_video_duration_seconds(video_artifact: VideoUrlArtifact) -> float:
