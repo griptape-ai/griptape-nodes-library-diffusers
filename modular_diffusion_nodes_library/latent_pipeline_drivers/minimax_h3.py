@@ -693,7 +693,7 @@ class MiniMaxH3LatentPipelineDriver(LatentPipelineDriver):
         )
         output = self._call_block(MiniMaxH3Ref2VAReferenceEncoderStep(), normalized_references=[reference])
         video_latents = output["condition_latents"][0].to(dtype=torch.float32)
-        meta: dict[str, Any] = generator_state.as_meta()
+        meta: dict[str, Any] = {}
         if audio is not None:
             # The block returns channel-major rows of shape (2 * N, C); the driver stores (2, C, N).
             rows = output["audio_condition_latents"][0]
