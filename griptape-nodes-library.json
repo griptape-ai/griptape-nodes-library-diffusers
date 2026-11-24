@@ -1316,6 +1316,7 @@
     "workflows/templates/ControlnetText2Image.py",
     "workflows/templates/LoRAText2Image.py",
     "workflows/templates/FirstAndLastFrameImage2Video.py",
+    "workflows/templates/MiniMaxH3Text2Video.py",
     "workflows/templates/LTX23-HDR-Text2Video-Upsample-Two-Stage.py",
     "workflows/templates/LTX23-IC-LoRA.py",
     "workflows/templates/Inpainting.py",
