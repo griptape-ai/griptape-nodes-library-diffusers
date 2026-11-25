@@ -17,8 +17,10 @@ from diffusers.image_processor import VaeImageProcessor  # noqa: E402
 from diffusers.modular_pipelines.qwenimage21.decoders import unpack_latents  # noqa: E402
 from diffusers.modular_pipelines.qwenimage21.inputs import pack_latents  # noqa: E402
 from griptape.artifacts import ImageArtifact  # noqa: E402
+from griptape_nodes.exe_types.core_types import ParameterMode  # noqa: E402
 from PIL import Image  # noqa: E402
 
+from modular_diffusion_nodes_library.latent_pipeline_drivers.base_driver import LatentPipelineDriver  # noqa: E402
 from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import (  # noqa: E402
     GeneratorState,
     ImageMedia,
@@ -164,7 +166,9 @@ class _RuntimeParameterNode:
 
 def _runtime_parameters_for(repo_id: str, node: _RuntimeParameterNode) -> Any:
     runtime_parameters = cast(Any, QwenImage21PipelineRuntimeParameters.__new__(QwenImage21PipelineRuntimeParameters))
-    runtime_parameters._pipeline_metadata = {"build_data": {"base_repo_id": repo_id}}
+    runtime_parameters._pipeline_metadata = {
+        "build_data": {"base_repo_id": repo_id, "is_turbo": "turbo" in repo_id.lower()}
+    }
     runtime_parameters._node = node
     runtime_parameters._seed_parameter = SimpleNamespace(
         add_input_parameters=lambda: None,
@@ -177,6 +181,18 @@ def _runtime_parameters_for(repo_id: str, node: _RuntimeParameterNode) -> Any:
         get_pipe_kwargs=lambda: {},
     )
     return runtime_parameters
+
+
+def test_num_inference_steps_is_settable_and_connectable_only_for_base() -> None:
+    base_node = _RuntimeParameterNode()
+    _runtime_parameters_for("Qwen/Qwen-Image-2.1", base_node).add_input_parameters()
+    assert base_node.parameters["num_inference_steps"].settable
+    assert ParameterMode.INPUT in base_node.parameters["num_inference_steps"].allowed_modes
+
+    turbo_node = _RuntimeParameterNode()
+    _runtime_parameters_for("Qwen/Qwen-Image-2.1-Turbo", turbo_node).add_input_parameters()
+    assert not turbo_node.parameters["num_inference_steps"].settable
+    assert ParameterMode.INPUT not in turbo_node.parameters["num_inference_steps"].allowed_modes
 
 
 def test_base_turbo_switch_resets_stale_steps_and_restores_base_default() -> None:
@@ -199,12 +215,13 @@ def test_base_turbo_switch_resets_stale_steps_and_restores_base_default() -> Non
     base_again.add_input_parameters()
     assert node.get_parameter_value("num_inference_steps") == 40
 
-    # A user-edited base value can survive the switch, but Turbo must replace it with its fixed schedule length.
+    # A user-edited base value survives removal, but Turbo replaces it with its fixed schedule length as soon as
+    # its parameters are added, before any validation runs.
     node.set_parameter_value("num_inference_steps", 20)
     base_again.remove_input_parameters()
     turbo_again = _runtime_parameters_for("Qwen/Qwen-Image-2.1-Turbo", node)
     turbo_again.add_input_parameters()
-    assert node.get_parameter_value("num_inference_steps") == 20
+    assert node.get_parameter_value("num_inference_steps") == 8
     turbo_again.preprocess()
     assert node.get_parameter_value("num_inference_steps") == 8
     turbo_again.remove_input_parameters()
@@ -212,3 +229,54 @@ def test_base_turbo_switch_resets_stale_steps_and_restores_base_default() -> Non
     base_restored = _runtime_parameters_for("Qwen/Qwen-Image-2.1", node)
     base_restored.add_input_parameters()
     assert node.get_parameter_value("num_inference_steps") == 40
+
+
+_MISMATCHED_GRID = [1.0, 0.8, 0.6, 0.4]
+_MATCHING_GRID = [1.0, 0.95, 0.9, 0.85, 0.8, 0.7, 0.5, 0.4]
+
+
+def _driver_with_grid(sample_sigmas: list[float] | None) -> QwenImage21LatentPipelineDriver:
+    return QwenImage21LatentPipelineDriver(
+        cast(Any, SimpleNamespace(config=SimpleNamespace(sample_sigmas=sample_sigmas)))
+    )
+
+
+@pytest.mark.parametrize(("start_step", "end_step"), [(2, -1), (0, 4), (3, 6)])
+def test_partial_denoise_rejects_a_sigma_grid_that_does_not_match_the_step_count(
+    start_step: int, end_step: int
+) -> None:
+    driver = _driver_with_grid(_MISMATCHED_GRID)
+
+    with pytest.raises(ValueError, match=r"num_inference_steps=8 and len\(sample_sigmas\)=4"):
+        driver.denoise_latent(
+            cast(Any, object()), 8, GeneratorState.from_seed(1), start_step=start_step, end_step=end_step
+        )
+
+
+def test_add_noise_rejects_a_sigma_grid_that_does_not_match_the_step_count() -> None:
+    driver = _driver_with_grid(_MISMATCHED_GRID)
+
+    with pytest.raises(ValueError, match=r"num_inference_steps=8 and len\(sample_sigmas\)=4"):
+        driver.add_noise_to_latent(cast(Any, object()), GeneratorState.from_seed(1), 8, 2)
+
+
+@pytest.mark.parametrize(
+    ("sample_sigmas", "start_step", "end_step"),
+    [
+        pytest.param(_MATCHING_GRID, 2, -1, id="matching-grid-partial"),
+        pytest.param(_MISMATCHED_GRID, 0, -1, id="mismatched-grid-full-run"),
+        pytest.param(None, 2, -1, id="base-checkpoint-without-grid"),
+    ],
+)
+def test_denoise_proceeds_when_the_grid_cannot_misalign_the_window(
+    sample_sigmas: list[float] | None, start_step: int, end_step: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sentinel = object()
+    monkeypatch.setattr(LatentPipelineDriver, "denoise_latent", lambda *_args, **_kwargs: sentinel)
+    driver = _driver_with_grid(sample_sigmas)
+
+    result = driver.denoise_latent(
+        cast(Any, object()), 8, GeneratorState.from_seed(1), start_step=start_step, end_step=end_step
+    )
+
+    assert result is sentinel

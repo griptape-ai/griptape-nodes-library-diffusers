@@ -212,6 +212,7 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         result = snap_dimensions(driver, image_pil.height, image_pil.width)
         if result.message:
             logger.warning(result.message)
+        if result.status is DimensionAlignmentStatus.INVALID:
             image_pil = image_pil.resize((result.width, result.height), PILImage.Resampling.LANCZOS)
             mask_pil = mask_pil.resize((result.width, result.height), PILImage.Resampling.NEAREST)
 

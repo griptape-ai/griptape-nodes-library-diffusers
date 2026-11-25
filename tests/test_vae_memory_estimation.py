@@ -600,3 +600,23 @@ def test_unsupported_trace_becomes_weights_only_warning(monkeypatch: pytest.Monk
     assert vae_estimate.is_estimated
     assert vae_estimate.warning is not None
     assert "unsupported meta op" in vae_estimate.warning
+
+
+def test_trace_undoes_wan_patchify_when_reading_the_vae_input_channels() -> None:
+    # Wan 2.2 TI2V-5B ships in_channels=12 with patch_size=2: the encoder sees the patchified image,
+    # so the image itself has 3 channels.
+    config = {"in_channels": 12, "out_channels": 12, "patch_size": 2, "z_dim": 48}
+    vae = _meta_vae(AutoencoderKLWan, config)
+
+    trace = trace_vae_activation_memory(vae, _latent((1, 3, 17, 64, 64), (1, 48, 5, 4, 4)), BF16)
+
+    assert trace.encode_bytes > 0
+
+
+def test_trace_keeps_ltx_in_channels_whatever_its_patch_size() -> None:
+    # LTX multiplies in_channels by patch_size**2 itself, so its config already counts image channels.
+    vae = _meta_vae(AutoencoderKLLTXVideo, {"in_channels": 3, "patch_size": 4})
+
+    shapes = _trace_input_shapes(vae, (1, 3, 17, 32, 32), (1, 128, 3, 1, 1))
+
+    assert shapes[0][1] == 3

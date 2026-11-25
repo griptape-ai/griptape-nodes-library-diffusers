@@ -36,6 +36,7 @@ from diffusers.models.autoencoders.autoencoder_kl_hunyuanvideo15 import HunyuanV
 from diffusers.models.autoencoders.autoencoder_kl_ltx import AutoencoderKLLTXVideo
 from diffusers.models.autoencoders.autoencoder_kl_qwenimage import AutoencoderKLQwenImage
 from diffusers.models.autoencoders.autoencoder_kl_qwenimage21 import AutoencoderKLQwenImage21
+from diffusers.models.autoencoders.autoencoder_kl_wan import AutoencoderKLWan
 from diffusers.modular_pipelines.flux2.decoders import Flux2DecodeStep
 from diffusers.modular_pipelines.qwenimage.modular_pipeline import QwenImagePachifier
 
@@ -115,6 +116,10 @@ def _vae_input_channels(vae: torch.nn.Module) -> int | None:
     channels = config.get("in_channels")
     if channels is None:
         channels = config.get("input_channels")
+    # Some models patchify the image before encoding
+    patch_size = config.get("patch_size")
+    if channels is not None and patch_size is not None and isinstance(vae, AutoencoderKLWan):
+        channels = channels // patch_size**2
     return channels
 
 

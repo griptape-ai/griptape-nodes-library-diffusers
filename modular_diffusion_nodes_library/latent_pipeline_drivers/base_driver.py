@@ -411,6 +411,10 @@ class LatentPipelineDriver(ABC):
         Image-only drivers should raise :class:`NotImplementedError` for
         :class:`VideoMedia` and vice versa. See class docstring for the output
         latent shape contract.
+
+        Color mode is the driver's responsibility. The encode nodes pass images through unchanged
+        (they may carry alpha), so each driver must convert a PIL image to the mode its VAE expects
+        before encoding it.
         """
         ...
 

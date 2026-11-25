@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from griptape_nodes.exe_types.node_types import BaseNode
@@ -14,8 +13,6 @@ from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters
 
 if TYPE_CHECKING:
     import diffusers  # type: ignore[reportMissingImports]
-
-logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class QwenImage21PipelineParameters(ModularDiffusionPipelineTypePipelineParameters):
@@ -56,7 +53,9 @@ class QwenImage21PipelineParameters(ModularDiffusionPipelineTypePipelineParamete
 
     def get_build_data(self) -> dict[str, Any]:
         base_repo_id, base_revision = self._resolve_repo(self._model_repo_parameter)
-        return self.build_data(base_repo_id, base_revision)
+        build_data = self.build_data(base_repo_id, base_revision)
+        build_data["is_turbo"] = "turbo" in base_repo_id.lower()
+        return build_data
 
     @classmethod
     def _build_pipeline_from_repo(

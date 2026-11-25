@@ -244,6 +244,7 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
         result = snap_dimensions(latents_pipeline_driver, image.height, image.width)
         if result.message:
             logger.warning(result.message)
+        if result.status is DimensionAlignmentStatus.INVALID:
             image = image.resize((result.width, result.height), Resampling.LANCZOS)
 
         image_tensor = pipe.image_processor.preprocess(image)
@@ -292,6 +293,7 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
         result = snap_dimensions(latents_pipeline_driver, h, w, num_frames)
         if result.message:
             logger.warning(result.message)
+        if result.status is DimensionAlignmentStatus.INVALID:
             frames_rgb = [frame.resize((result.width, result.height)) for frame in frames_rgb]
             h, w = result.height, result.width
 
