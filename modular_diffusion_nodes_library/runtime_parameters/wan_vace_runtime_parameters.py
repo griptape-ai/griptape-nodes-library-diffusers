@@ -20,19 +20,22 @@ from modular_diffusion_nodes_library.runtime_parameters.runtime_parameters impor
     DiffusionPipelineRuntimeParameters,
 )
 from modular_diffusion_nodes_library.utils.conditioning_utils import ConditioningMode
+from modular_diffusion_nodes_library.wan_vace_constants import (
+    GRAY_MASKED_SOURCE_KEY,
+    MASK_KEY,
+    MAX_REFERENCE_IMAGES,
+    REFERENCE_IMAGES_KEY,
+    SOURCE_VIDEO_KEY,
+)
 
 logger = logging.getLogger("diffusers_nodes_library")
-
-_SOURCE_VIDEO_KEY = "vace_source_video"
-_MASK_KEY = "vace_mask"
-_REFERENCE_IMAGES_KEY = "vace_reference_images"
 
 
 class WanVacePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
     CONDITIONING_CONFIG: ClassVar[MediaGenConditioningConfig | None] = MediaGenConditioningConfig(
         image=HybridImageConfig(
             presets=(PRESET_FIRST_MIDDLE_LAST, PRESET_FIRST_LAST, PRESET_FIRST),
-            flexible=FlexibleImageConfig(expose_strength=False),
+            flexible=FlexibleImageConfig(max_count=MAX_REFERENCE_IMAGES, expose_strength=False),
             default_choice=PRESET_FIRST_MIDDLE_LAST.display_name,
         ),
         video=VideoConditioningConfig(expose_strength=False),
@@ -44,7 +47,7 @@ class WanVacePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         self._source_media_param = MediaGenConditioningRuntimeParameter(
             node,
             param_name="source_media",
-            output_key=_SOURCE_VIDEO_KEY,
+            output_key=SOURCE_VIDEO_KEY,
             accepted_modes=(ConditioningMode.IMAGE, ConditioningMode.VIDEO),
             tooltip="Source media for VACE conditioning. Black areas in the mask will be conditioned on this source; white areas will be generated from the prompt.",
             badge_title="Source media",
@@ -67,7 +70,7 @@ class WanVacePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         self._mask_param = MediaGenConditioningRuntimeParameter(
             node,
             param_name="mask",
-            output_key=_MASK_KEY,
+            output_key=MASK_KEY,
             accepted_modes=(ConditioningMode.IMAGE, ConditioningMode.VIDEO),
             tooltip="Per-frame binary mask. Black (0) = condition on source media (preserve); white (255) = generate from prompt (edit). If omitted, the mask is derived automatically from source_media. Requires source_media.",
             badge_title="Mask",
@@ -77,7 +80,8 @@ class WanVacePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 "**White (255)** = generate freely from the prompt (edit / inpaint).\n\n"
                 "**IMAGE payload** — individual mask images are placed at their frame positions; unspecified frames "
                 "are filled with white (255 = generate). Common with a VIDEO source: place black mask images at the "
-                "specific frames you want to preserve from the video, leave the rest white.\n\n"
+                "specific frames you want to preserve from the video, leave the rest white. With `gray_masked_source` on, "
+                "the white frames are fully grayed, so only the black frames carry the source video.\n\n"
                 "**VIDEO payload** — frames are placed starting at the payload's `frame_index` (default 0) and "
                 "converted to grayscale; unspecified frames are filled with white (255 = generate). Unusual when "
                 "combined with an IMAGE source, but valid.\n\n"
@@ -96,7 +100,7 @@ class WanVacePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         self._reference_images_param = MediaGenConditioningRuntimeParameter(
             node,
             param_name="reference_images",
-            output_key=_REFERENCE_IMAGES_KEY,
+            output_key=REFERENCE_IMAGES_KEY,
             accepted_modes=(ConditioningMode.IMAGE, ConditioningMode.VIDEO),
             tooltip="Optional reference images for VACE. VIDEO payloads are automatically split into individual frames. Requires source_media.",
             badge_title="Reference images",
@@ -157,12 +161,28 @@ class WanVacePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
         )
         self._source_media_param.add_input_parameters()
         self._mask_param.add_input_parameters()
+        self._node.add_parameter(
+            Parameter(
+                name="gray_masked_source",
+                default_value=True,
+                type="bool",
+                tooltip=(
+                    "If True, source_media pixels under the white (generate) part of a connected mask are replaced "
+                    "with gray before generation, so the model doesn't see the content it is replacing. Best for "
+                    "object removal. Turn off for edits that should follow the original content, such as "
+                    "recoloring or keeping an object's shape and motion. Frames with no source content are always "
+                    "gray. Has no effect without a mask. Mask frames left unspecified are white, so their source frames "
+                    "are grayed entirely."
+                ),
+            )
+        )
         self._reference_images_param.add_input_parameters()
 
     def _remove_input_parameters(self) -> None:
         self._source_media_param.remove_input_parameters()
         self._mask_param.remove_input_parameters()
         self._reference_images_param.remove_input_parameters()
+        self._node.remove_parameter_element_by_name("gray_masked_source")
         self._node.remove_parameter_element_by_name("prompt")
         self._node.remove_parameter_element_by_name("negative_prompt")
         self._node.remove_parameter_element_by_name("guidance_scale")
@@ -176,6 +196,7 @@ class WanVacePipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             "conditioning_scale": self._node.get_parameter_value("conditioning_scale"),
             **self._source_media_param.get_pipe_kwargs(),
             **self._mask_param.get_pipe_kwargs(),
+            GRAY_MASKED_SOURCE_KEY: self._node.get_parameter_value("gray_masked_source"),
             **self._reference_images_param.get_pipe_kwargs(),
         }
 
