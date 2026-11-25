@@ -154,7 +154,6 @@ class LoraPipelineRuntimeAdapterStep(PipelineRuntimeAdapterStep):
             cleanup_memory_caches()
             _load_missing_lora_adapters(pipe, lora_by_name)
             pipe.set_adapters(adapter_names=adapter_names, adapter_weights=adapter_weights)
-            yield pipe
         except Exception as err:
             release_lora_adapters(pipe, loaded_adapter_names)
             cleanup_memory_caches()
@@ -163,7 +162,10 @@ class LoraPipelineRuntimeAdapterStep(PipelineRuntimeAdapterStep):
                 f"{prefix}Attempted to activate LoRAs. "
                 f"Failed with adapter_names={loaded_adapter_names} because of {err!r}."
             ) from err
-        else:
+
+        try:
+            yield pipe
+        finally:
             release_lora_adapters(pipe, loaded_adapter_names)
             cleanup_memory_caches()
 
