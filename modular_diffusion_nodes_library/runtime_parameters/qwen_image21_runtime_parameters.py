@@ -44,8 +44,7 @@ class QwenImage21PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
     @property
     def _is_turbo(self) -> bool:
         build_data = self._pipeline_metadata.get("build_data", {})
-        repo_id = build_data.get("base_repo_id", "")
-        return isinstance(repo_id, str) and repo_id.endswith("-Turbo")
+        return build_data.get("is_turbo", False)
 
     def preprocess(self) -> None:
         if self._is_turbo:
@@ -60,9 +59,13 @@ class QwenImage21PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
                 default_value=self._TURBO_NUM_INFERENCE_STEPS if self._is_turbo else 40,
                 type="int",
                 hide=self._is_turbo,
+                settable=not self._is_turbo,
+                allow_input=not self._is_turbo,
                 tooltip="The number of denoising steps. The base checkpoint recommends 40; Turbo uses its saved 8-step sigma schedule.",
             )
         )
+        if self._is_turbo:
+            self._node.set_parameter_value("num_inference_steps", self._TURBO_NUM_INFERENCE_STEPS, emit_change=False)
         self._seed_parameter.add_input_parameters()
 
     def _add_input_parameters(self) -> None:
@@ -107,7 +110,11 @@ class QwenImage21PipelineRuntimeParameters(DiffusionPipelineRuntimeParameters):
             **self._reference_images.get_pipe_kwargs(),
         }
         if not self._is_turbo:
-            kwargs["negative_prompt"] = self._node.get_parameter_value("negative_prompt")
+            negative_prompt = self._node.get_parameter_value("negative_prompt")
+            if negative_prompt:
+                kwargs["negative_prompt"] = negative_prompt
+            else:
+                kwargs["negative_prompt"] = None
             kwargs["true_cfg_scale"] = self._node.get_parameter_value("true_cfg_scale")
         return kwargs
 

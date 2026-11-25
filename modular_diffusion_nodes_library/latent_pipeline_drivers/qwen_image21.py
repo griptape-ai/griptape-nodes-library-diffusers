@@ -66,6 +66,8 @@ _SUPPORTED_SIZES: dict[str, tuple[int, int]] = {
     "9:16": (1536, 2752),
 }
 
+_MAX_REFERENCE_IMAGES = 10
+
 
 class _QwenImage21EncodeImageStep(SequentialPipelineBlocks):
     """RGBA preprocessing followed by VAE encode for a PIL condition image."""
@@ -130,7 +132,6 @@ class _QwenImage21AddNoiseStep(ModularPipelineBlocks):
 
 class QwenImage21LatentPipelineDriver(LatentPipelineDriver):
     memory_family: ClassVar[MemoryFamily | None] = MemoryFamily.IMAGE_DIT_SDPA
-    _DEFAULT_NUM_INFERENCE_STEPS: ClassVar[int] = 40
 
     @classmethod
     @override
@@ -175,6 +176,16 @@ class QwenImage21LatentPipelineDriver(LatentPipelineDriver):
     @override
     def _prepare_input_latent(self, latents: torch.Tensor, latents_source_shape: tuple[int, ...]) -> torch.Tensor:
         return pack_latents(latents.unsqueeze(2))
+
+    def _validate_sigma_grid_matches_steps(self, num_inference_steps: int) -> None:
+        sample_sigmas = getattr(self.pipe.config, "sample_sigmas", None)
+        if sample_sigmas is not None and len(sample_sigmas) != num_inference_steps:
+            raise ValueError(
+                f"Attempted to run a partial denoise with {self.driver_namespace}. Failed with "
+                f"num_inference_steps={num_inference_steps} and len(sample_sigmas)={len(sample_sigmas)} because "
+                "start_step and end_step index the checkpoint's sampling grid, so the two must match. "
+                "Run the full schedule (start_step=0, end_step=-1) instead."
+            )
 
     @override
     def prepare_output_latent(
@@ -230,6 +241,9 @@ class QwenImage21LatentPipelineDriver(LatentPipelineDriver):
         start_step: int,
     ) -> LatentArtifact:
         import torch  # type: ignore[reportMissingImports]
+
+        if start_step > 0:
+            self._validate_sigma_grid_matches_steps(num_inference_steps)
 
         device, dtype = self._get_device_and_type()
         source_shape = latent.source_shape
@@ -300,10 +314,10 @@ class QwenImage21LatentPipelineDriver(LatentPipelineDriver):
                     "because only image conditioning is supported."
                 )
             images.extend(resolve_conditioning_image(entry.artifact, preserve_alpha=True) for entry in item.entries)
-        if len(images) > 10:
+        if len(images) > _MAX_REFERENCE_IMAGES:
             raise ValueError(
                 f"Attempted to resolve Qwen Image 2.1 conditioning. Failed with image_count={len(images)} "
-                "because the pipeline accepts at most 10 reference images."
+                f"because the pipeline accepts at most {_MAX_REFERENCE_IMAGES} reference images."
             )
         return images
 
@@ -319,6 +333,9 @@ class QwenImage21LatentPipelineDriver(LatentPipelineDriver):
         return_fully_denoised: bool = False,
         **kwargs: Any,
     ) -> LatentArtifact:
+        if start_step > 0 or end_step >= 0:
+            self._validate_sigma_grid_matches_steps(num_inference_steps)
+
         payload = kwargs.pop(MediaGenConditioningKey.OUTPUT, None)
         if payload is not None:
             images = self._images_from_conditioning(payload)
