@@ -89,6 +89,10 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     def remove_input_parameters(self) -> None:
         raise NotImplementedError
 
+    @property
+    def model_pickers(self) -> list[HuggingFaceModelParameter]:
+        return [value for value in vars(self).values() if isinstance(value, HuggingFaceModelParameter)]
+
     def get_config_kwargs(self) -> dict:
         return self.config_kwargs(self._node.get_parameter_value("model"))
 

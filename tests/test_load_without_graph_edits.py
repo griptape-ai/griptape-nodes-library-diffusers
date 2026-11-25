@@ -44,6 +44,7 @@ from griptape_nodes.retained_mode.events.parameter_events import (
 from griptape_nodes.retained_mode.events.resource_events import CreateResourceInstanceRequest
 from griptape_nodes.retained_mode.griptape_nodes import GriptapeNodes
 from griptape_nodes.retained_mode.managers.event_manager import EventManager
+from griptape_nodes.traits.button import Button
 from griptape_nodes.traits.options import Options
 
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
@@ -536,3 +537,65 @@ def test_pipeline_builder_reopens_with_edited_parameter_order(
     loaded = _load(_serialize_and_delete(node))
 
     assert [element.name for element in loaded.root_ui_element.children] == edited_order
+
+
+@pytest.mark.parametrize(
+    ("provider", "pipeline_type", "picker_attribute", "parameter_name"),
+    [
+        ("Flux", "FluxPipeline", "_model_repo_parameter", "model"),
+        ("Flux2", "Flux2KleinPipeline", "_model_repo_parameter", "model"),
+        ("Flux3", "Flux3Pipeline", "_model_repo_parameter", "model"),
+        ("Flux3", "Flux3Pipeline", "_prompt_upsampler_repo_parameter", "prompt_upsampler_model"),
+    ],
+)
+def test_pipeline_builder_model_pickers_work_after_load(
+    flow: None,  # noqa: ARG001
+    provider: str,
+    pipeline_type: str,
+    picker_attribute: str,
+    parameter_name: str,
+) -> None:
+    node = _create("LatentDiffusionPipelineBuilderNode", "builder")
+    _edit(node, {"provider": provider, "pipeline_type": pipeline_type})
+    saved_value = node.get_parameter_value(parameter_name)
+
+    loaded: Any = _load(_serialize_and_delete(node))
+    assert loaded.get_parameter_value(parameter_name) == saved_value
+    picker = getattr(loaded.params.pipeline_type_parameters.pipeline_type_pipeline_params, picker_attribute)
+
+    for element_name in (parameter_name, f"{parameter_name}_download"):
+        result = loaded.on_node_message_received(element_name, "on_click", None)
+        assert result.success, result.details
+        (button,) = loaded.get_parameter_by_name(element_name).find_elements_by_type(Button)
+        assert button.on_click_callback.__self__ is picker
+    (selection_converter,) = [
+        converter
+        for converter in loaded.get_parameter_by_name(parameter_name).converters
+        if getattr(converter, "__name__", None) == "_on_selection_changed"
+    ]
+    assert selection_converter.__self__ is picker
+
+
+def _all_provider_pipeline_types() -> list[tuple[str, str]]:
+    from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import MODULAR_PIPELINE_TYPE_PROVIDER_MAP
+
+    return [
+        (provider.value, pipeline_type)
+        for provider, type_parameters in MODULAR_PIPELINE_TYPE_PROVIDER_MAP.items()
+        for pipeline_type in type_parameters.get_pipeline_type_dict()
+    ]
+
+
+@pytest.mark.parametrize(("provider", "pipeline_type"), _all_provider_pipeline_types())
+def test_pipeline_builder_model_pickers_cover_every_model_download_button(
+    flow: None,  # noqa: ARG001
+    provider: str,
+    pipeline_type: str,
+) -> None:
+    node: Any = _create("LatentDiffusionPipelineBuilderNode", "builder")
+    _edit(node, {"provider": provider, "pipeline_type": pipeline_type})
+
+    download_buttons = [name for name in (p.name for p in node.parameters) if name.endswith("_download")]
+    pickers = node.params.pipeline_type_parameters.pipeline_type_pipeline_params.model_pickers
+
+    assert len(pickers) == len(download_buttons), (provider, pipeline_type, download_buttons)

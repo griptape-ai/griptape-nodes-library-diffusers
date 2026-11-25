@@ -181,10 +181,30 @@ class LatentPipelineTypeParameters(ABC):
         if parameter.name != "pipeline_type" or not self.did_pipeline_type_change:
             return
         if initial_setup:
-            # The loaded parameters already belong to this pipeline type; only the helper that reads them is rebound.
             self.set_pipeline_type_pipeline_params(value)
+            self._rebuild_parameters_after_load()
             return
         self.regenerate_elements_for_pipeline_type(value)
+
+    def _rebuild_parameters_after_load(self) -> None:
+        """Rebuild, in place after a load, the parameters that a saved workflow can't restore faithfully
+
+        Today this covers the model pickers, until the engine keeps their callbacks itself
+        (https://github.com/griptape-ai/griptape-nodes-engine/issues/6468).
+        """
+        root = self._node.root_ui_element
+        order = [element.name for element in root.children]
+
+        for picker in self.pipeline_type_pipeline_params.model_pickers:
+            picker_names = [picker._parameter_name, picker._download_param_name]  # noqa: SLF001
+            values = {name: self._node.get_parameter_value(name) for name in picker_names}
+            picker.remove_input_parameters()
+            picker.add_input_parameters()
+            for name, value in values.items():
+                if value is not None:
+                    self._node.set_parameter_value(name, value, initial_setup=True)
+
+        self._node.reorder_elements(order)
 
     def regenerate_elements_for_pipeline_type(self, pipeline_type: str) -> None:
         self._node.save_parameter_properties()
