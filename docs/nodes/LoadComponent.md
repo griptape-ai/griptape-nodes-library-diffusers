@@ -5,7 +5,7 @@ when_to_use: Use it when you want Build Pipeline to use a specific checkpoint, s
 
 ## When to use it
 
-You have a particular model file or folder, such as a GGUF transformer or a fine-tuned VAE, and want Build Pipeline to use it for one slot. This node describes where the weights are. [Build Pipeline](LatentDiffusionPipelineBuilderNode.md) loads them when it builds the pipeline.
+You have a particular model file or folder, such as a GGUF transformer or a fine-tuned [VAE](../guides/what-is-a-vae.md#why-swap-the-vae), and want Build Pipeline to use it for one slot. This node describes where the weights are. [Build Pipeline](LatentDiffusionPipelineBuilderNode.md) loads them when it builds the pipeline.
 
 ## What it needs
 

@@ -17,7 +17,7 @@ Generate Latent → [Decode Media] → Save Image / Save Video
 
 ## What it needs
 
-- The pipeline that made the latent. Each pipeline decodes with its own VAE.
+- The pipeline that made the latent. Each pipeline decodes with its own [VAE](../guides/what-is-a-vae.md).
 - A latent that carries its picture size, which every latent made by the nodes in this library does. A missing latent, or one without a size, stops the run with a message.
 - Enough memory for large latents. High resolutions and long clips need more. Turn on `vae_tiling` on Build Pipeline to lower the peak.
 
