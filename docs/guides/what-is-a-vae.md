@@ -25,7 +25,7 @@ A text-to-image run uses only the decoder. It starts from random noise, so there
 - [Decode Media](../nodes/VaeDecodeNode.md) runs the decoder on a finished latent. [Convert Latent to Media](../nodes/LatentToMediaNode.md) does the same without a pipeline, and [Decode HDR Media](../nodes/DecodeHdrNode.md) gives float frames for EXR export.
 - [Encode Media](../nodes/VaeEncodeNode.md) runs the encoder on an image or a video. [Encode Masked Media](../nodes/VaeMaskEncodeNode.md) does the same for an image and a mask, for inpainting (repainting only the masked area).
 - [Build Pipeline](../nodes/LatentDiffusionPipelineBuilderNode.md) loads the VAE with the rest of the model. Use [Load Component](../nodes/LoadComponent.md) with `component` set to `VAE` to swap in a different one.
-- `vae_slicing` and `vae_tiling` in the [Memory settings](build-pipeline-by-model.md#memory-settings) make the decoder use less memory.
+- `vae_slicing` and `vae_tiling` in the [Memory settings](how-pipelines-work.md#memory-settings) make the decoder use less memory.
 
 ## Why swap the VAE
 

@@ -22,7 +22,7 @@ The transformer works on the latent, never on pixels.
 - [Build Pipeline](../nodes/LatentDiffusionPipelineBuilderNode.md) loads the transformer or UNet with the rest of the model. Its Component Overrides group shows a Transformer port or a UNet port, depending on the pipeline type.
 - [Load Component](../nodes/LoadComponent.md) with `component` set to `Transformer` or `UNet` swaps in your own. Some pipeline types also have a Transformer 2 port, which a `Transformer` loader can feed.
 - [Generate Latent](../nodes/DiffusionPipelineGenerateLatentNode.md) is where the denoising steps run.
-- The `quantization_mode`, `transformer_layerwise_casting` and CPU offload settings in [Memory settings](build-pipeline-by-model.md#memory-settings) reduce the memory the transformer needs without replacing it. Layerwise casting keeps the transformer in fp8, a compact number format, and expands one layer at a time as it runs. CPU offload keeps idle parts in the computer's main memory instead of on the graphics card.
+- The `quantization_mode`, `transformer_layerwise_casting` and CPU offload settings in [Memory settings](how-pipelines-work.md#memory-settings) reduce the memory the transformer needs without replacing it. Layerwise casting keeps the transformer in fp8, a compact number format, and expands one layer at a time as it runs. CPU offload keeps idle parts in the computer's main memory instead of on the graphics card.
 
 ## Why swap it
 

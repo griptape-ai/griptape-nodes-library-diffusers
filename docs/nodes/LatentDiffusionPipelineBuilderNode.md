@@ -5,21 +5,21 @@ when_to_use: Use it to start any diffusion workflow, to choose the model family 
 
 ## When to use it
 
-This node loads the image or video model you want to use and keeps it ready. The loaded model, together with its supporting parts, is called a pipeline. Diffusion models make a picture or clip by cleaning noise out of a starting point.
+This node loads the image or video model you want to use and keeps it ready. The loaded model, together with its supporting parts, is called a pipeline. [How pipelines work](../guides/how-pipelines-work.md) gives the overview. Diffusion models make a picture or clip by cleaning noise out of a starting point.
 
 Every diffusion workflow starts here. Pick the `provider` (the model family) and the checkpoint, set how memory is used, and connect `pipeline` to each node that needs the model.
 
 The pipeline is built once and kept in memory. Changing a load-time setting, such as the checkpoint, the memory settings or the LoRAs (small add-on files that change a model's style), rebuilds it. Prompts and step counts are set on other nodes and never trigger a rebuild.
 
-MiniMax-H3, Flux3 and WAN Animate 2 manage their own memory, so they ignore the memory settings: quantization (storing the model at lower precision to save memory), layerwise casting (storing the main part of the model in a compact format and converting it layer by layer as it runs) and CPU offload (keeping idle parts in your computer's main memory instead of on the graphics card). These settings are explained in [Memory settings](../guides/build-pipeline-by-model.md#memory-settings).
+MiniMax-H3, Flux3 and WAN Animate 2 manage their own memory, so they ignore the memory settings below: quantization (storing the model at lower precision to save memory), layerwise casting (storing the main part of the model in a compact format and converting it layer by layer as it runs) and CPU offload (keeping idle parts in your computer's main memory instead of on the graphics card). These settings are explained in [Memory settings](../guides/how-pipelines-work.md#memory-settings). The WAN, WAN I2V, WAN Animate, WAN VACE and HunyuanVideo 1.5 pipelines also ignore CPU offload.
 
-LTX2 adds its own pipeline types, `LTX-2.5 Distilled` and `LTX-2.5 Full (SFT)`, and its `model` menu lists several LTX-2.x checkpoints. See [Build Pipeline by model](../guides/build-pipeline-by-model.md).
+LTX2 has three pipeline types. `LTX2Pipeline` lists the LTX-2.3, LTX-2.3 Distilled and LTX-2 checkpoints in `model`. `LTX-2.5 Distilled` and `LTX-2.5 Full (SFT)` are both built from one LTX-2.5 repo. See [Build Pipeline by model](../guides/build-pipeline-by-model.md).
 
 ## What it needs
 
 - A model downloaded in Model Manager. See [Hugging Face and Diffusers](../guides/hugging-face-and-diffusers.md) for gated models and the cache. Nothing is downloaded when the pipeline is built.
 - The same model family for any LoRA, ControlNet or component override you connect.
-- Enough GPU memory for the model. See the memory settings in [the guide](../guides/build-pipeline-by-model.md#memory-settings).
+- Enough GPU memory for the model. See the memory settings in [the guide](../guides/how-pipelines-work.md#memory-settings).
 
 ## Where it fits
 
@@ -51,7 +51,7 @@ The checkpoint, chosen from the models downloaded for this pipeline type. A stan
 
 ### memory_optimization_strategy
 
-`Manual` (default) shows the memory settings. `Automatic` hides them, including `quantization_mode`, and chooses settings from the GPU memory available. The individual settings are described in [Memory settings](../guides/build-pipeline-by-model.md#memory-settings).
+`Manual` (default) shows the memory settings. `Automatic` hides them, including `quantization_mode`, and chooses settings from the GPU memory available. The individual settings are described in [Memory settings](../guides/how-pipelines-work.md#memory-settings).
 
 ### quantization_mode
 
@@ -63,7 +63,7 @@ Connect one or more [Load LoRA](LoadLora.md) nodes. They are fused into the mode
 
 ### component_overrides
 
-A group of ports, one per part of the model, such as [Transformer or UNet](../guides/what-is-a-transformer.md), [VAE](../guides/what-is-a-vae.md), [Text Encoder or Tokenizer](../guides/what-is-a-text-encoder.md) or [Scheduler](../guides/what-is-a-scheduler.md). Connect a [Load Component](LoadComponent.md) node to a port to replace that part of the model with your own weights. MiniMax-H3, Flux3 and WAN Animate 2 have no ports. Messages for replacements that do not fit are in [Component overrides](../guides/build-pipeline-by-model.md#component-overrides).
+A group of ports, one per part of the model, such as [Transformer or UNet](../guides/what-is-a-transformer.md), [VAE](../guides/what-is-a-vae.md), [Text Encoder or Tokenizer](../guides/what-is-a-text-encoder.md) or [Scheduler](../guides/what-is-a-scheduler.md). Connect a [Load Component](LoadComponent.md) node to a port to replace that part of the model with your own weights. MiniMax-H3, Flux3 and WAN Animate 2 have no ports. Messages for replacements that do not fit are in [Component overrides](../guides/how-pipelines-work.md#component-overrides).
 
 ### pipeline
 
@@ -84,5 +84,6 @@ Build messages, including the pipeline's configuration hash.
 - [Load ControlNet](ControlNetNode.md) and [Apply ControlNet](ControlNetDiffusionPipelineBuilderNode.md)
 - [Load LoRA](LoadLora.md)
 - [Load Component](LoadComponent.md)
+- [How pipelines work](../guides/how-pipelines-work.md)
 - [Build Pipeline by model](../guides/build-pipeline-by-model.md)
 - [Generate Latent](DiffusionPipelineGenerateLatentNode.md)

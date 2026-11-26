@@ -14,6 +14,7 @@ Download each model in Model Manager before you run a workflow. Build Pipeline s
 
 Learn the ideas:
 
+- [How pipelines work](guides/how-pipelines-work.md) explains what a loaded model is, how Build Pipeline makes one, and the settings that control memory.
 - [What is a latent?](guides/what-is-a-latent.md) explains the start, clean-up and decode pattern behind every workflow, and the working format the model uses in between.
 - [What is a VAE?](guides/what-is-a-vae.md) explains the encoder and decoder that move pictures into latents and back.
 - [What are a text encoder and a tokenizer?](guides/what-is-a-text-encoder.md), [What are a transformer and a UNet?](guides/what-is-a-transformer.md) and [What is a scheduler?](guides/what-is-a-scheduler.md) explain the parts you can swap with Load Component and Load Scheduler.

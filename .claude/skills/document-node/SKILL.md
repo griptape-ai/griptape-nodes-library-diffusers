@@ -13,7 +13,7 @@ The docs under `docs/` are shown to artists in the editor's Docs panel. The form
 |---|---|
 | A node was added to `modular_diffusion_nodes_library/nodes/` and registered in `griptape-nodes-library.json`. | **Create** `docs/nodes/<ClassName>.md`. |
 | A node's parameters, inputs, outputs, defaults, category or display name changed. | **Update** its page. |
-| Provider-specific or pipeline-type-specific behavior was added or removed. | **Update** the affected `###` entries under `## Parameters`, and the matching section in `docs/guides/build-pipeline-by-model.md` or `docs/guides/generate-latent-by-model.md`. |
+| Provider-specific or pipeline-type-specific behavior was added or removed. | **Update** the affected `###` entries under `## Parameters`, and the matching section in `docs/guides/how-pipelines-work.md`, `docs/guides/build-pipeline-by-model.md` or `docs/guides/generate-latent-by-model.md`. |
 | A workflow template was added, changed or removed. | **Create, update or delete** `docs/workflows/<TemplateName>.md` (template file name without `.py`). |
 | A node was renamed or removed. | **Rename or delete** its page, and fix links to it. |
 

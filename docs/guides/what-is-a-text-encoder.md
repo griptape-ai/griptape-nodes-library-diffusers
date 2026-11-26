@@ -29,7 +29,7 @@ The tokenizer and the text encoder are a pair. The tokenizer's list of pieces is
 
 - **Wording and length.** Each model has its own tokenizer, so the same prompt can be split differently from one model to the next. A model also has its own limit on how much of a prompt it reads. Prompts that behave well in one model can lose their ending or read differently in another.
 - **A second encoder.** Some models use more than one text encoder, each with its own tokenizer. They read the same prompt in different ways, and the model combines the results.
-- **Memory.** Text encoders can be large. Together with the diffusion model they take part of the memory a run needs. See the [Memory settings](build-pipeline-by-model.md#memory-settings).
+- **Memory.** Text encoders can be large. Together with the diffusion model they take part of the memory a run needs. See the [Memory settings](how-pipelines-work.md#memory-settings).
 
 ## Why swap it
 
