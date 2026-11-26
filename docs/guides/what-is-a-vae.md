@@ -27,6 +27,18 @@ A text-to-image run uses only the decoder. It starts from noise, so there is not
 - [Build Pipeline](../nodes/LatentDiffusionPipelineBuilderNode.md) loads the VAE with the rest of the model. Use [Load Component](../nodes/LoadComponent.md) with the slot set to `VAE` to swap in a different one.
 - `vae_slicing` and `vae_tiling` in the [Memory settings](build-pipeline-by-model.md#memory-settings) make the decoder use less memory.
 
+## Why swap the VAE
+
+Most workflows should keep the VAE that comes with the model. People swap it for a few reasons:
+
+- **Color and contrast.** Some base VAEs give washed-out color, banding or odd saturation. A fixed VAE can correct that.
+- **Fine detail.** A VAE tuned on faces, text or texture can hold small detail better than the stock one.
+- **Memory.** A lighter VAE decodes with less memory, which helps with long video or large images.
+- **Speed.** A small or distilled VAE decodes faster, at some cost in quality. This suits quick previews.
+- **Matching a fine-tune.** A checkpoint that was trained with its own VAE should be decoded with that VAE.
+
+To swap it, connect a [Load Component](../nodes/LoadComponent.md) node with the slot set to `VAE` to the VAE port in Build Pipeline's Component Overrides. The replacement has to match the model's latent format, as described below. If the result looks washed out or too contrasty after a swap, the scaling is the first thing to check.
+
 ## Things to know
 
 - The VAE is matched to its model. A latent made for one model is decoded by that model's VAE. A replacement VAE has to produce the same channel count, or the run stops. A different scaling shows as a warning only, and the colours or contrast of the result may be off.
