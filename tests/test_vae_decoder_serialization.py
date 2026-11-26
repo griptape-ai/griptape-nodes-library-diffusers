@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 from griptape.artifacts import ImageUrlArtifact
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
+from griptape_nodes.exe_types.core_types import Parameter
 from griptape_nodes.retained_mode.events.node_events import CreateNodeRequest, SerializedParameterValueTracker
 from griptape_nodes.retained_mode.managers.node_manager import NodeManager
 
@@ -68,3 +69,19 @@ def test_output_image_is_saved_after_switching_back_from_video(monkeypatch: pyte
 
     assert node.get_parameter_by_name("output_video") is None
     assert _saves_output_value(node, "output_image")
+
+
+@pytest.mark.parametrize("saved_order", [("fps", "output_video"), ("output_video", "fps")])
+def test_loading_saved_video_outputs_without_pipeline_keeps_one_ordered_output(saved_order: tuple[str, str]) -> None:
+    """A saved video workflow whose ``pipeline`` is not restored re-adds only the video parameters."""
+    node = VaeDecodeNode(name="decode")
+    saved_parameters = {
+        "fps": Parameter(name="fps", type="int", default_value=16, user_defined=True),
+        "output_video": Parameter(name="output_video", output_type="VideoUrlArtifact", user_defined=True),
+    }
+    for name in saved_order:
+        node.add_parameter(saved_parameters[name])
+
+    names = [element.name for element in node.root_ui_element.children]
+    assert "output_image" not in names
+    assert names[-3:] == ["fps", "output_video", "Status"]
