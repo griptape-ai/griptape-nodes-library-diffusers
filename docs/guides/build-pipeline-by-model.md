@@ -3,19 +3,23 @@ title: Build Pipeline by model
 description: Model-specific and memory notes for the Build Pipeline node.
 ---
 
-Build Pipeline loads a diffusion model and its settings so the other nodes can use it. The loaded model and its settings are called the pipeline. The sections follow the order of the node. First come the notes for MiniMax-H3, Flux3, WAN Animate 2 and LTX2, which cover what is different for those models. Then come the memory settings, which help a large model fit on your graphics card, and the component overrides, which swap one part of a model for your own. The last two apply to every model.
+Build Pipeline loads a diffusion model and its settings so the other nodes can use it. The loaded model and its settings are called the pipeline. The sections follow the order of the node.
+
+First come notes for MiniMax-H3, Flux3, WAN Animate 2 and LTX2, which cover what is different for those models. Then come the memory settings, which help a large model fit on your graphics card, and the component overrides, which swap one part of a model for your own.
+
+`quantization_mode` and `transformer_layerwise_casting` do nothing for MiniMax-H3, Flux3 and WAN Animate 2. Those three manage their own memory. `cpu_offload_strategy` is ignored for those three too. The component overrides also skip those three. They do not expose any parts for replacement.
 
 ## MiniMax-H3
 
 MiniMax-H3 makes video together with a soundtrack. Pick the pipeline type for the job:
 
 - `MiniMaxH3ModularPipeline` makes a video from a text prompt, or from keyframes (pictures that set what the video should look like at chosen points). The soundtrack is generated with the video.
-- `MiniMaxH3Ref2VAModularPipeline` makes a video from reference material: up to 9 images and 3 video clips. It uses a separate transformer from the same repo.
+- `MiniMaxH3Ref2VAModularPipeline` makes a video from reference material: up to 9 images and 3 video clips. It loads its own transformer, which is stored in the same Hugging Face repo as the base model. A repo is a named folder of files on Hugging Face.
 
-This model manages its own memory, so the node's memory settings (`quantization_mode`, `transformer_layerwise_casting` and `cpu_offload_strategy`) do nothing for it. The model is stored in your computer's main memory, and each part moves onto the graphics card only while it works. It stores its numbers in 16 bits (bfloat16).
+This model manages its own memory, so the node's memory settings (`quantization_mode`, `transformer_layerwise_casting` and `cpu_offload_strategy`) do nothing for it. The transformer is held in your computer's main memory and moves onto the graphics card only while it works. The text encoder stays on disk and is loaded each time it is needed.
 
-- **Hardware:** it needs one accelerator, meaning a graphics card, with 80 GB of memory, and plenty of main memory as well.
-- **Downloads:** the text encoder is loaded from disk each time it is needed, so keep the model files downloaded.
+- **Hardware:** the model card recommends one graphics card with 80 GB of memory, and a large amount of main memory as well. The transformer and the text encoder are each about 62 GB.
+- **Downloads:** the text encoder stays on disk, so keep the model files downloaded.
 - **LoRAs:** not supported. A LoRA is a small add-on file that gives a model a style or subject.
 
 ## Flux3
@@ -29,15 +33,17 @@ Like MiniMax-H3, Flux3 manages its own memory. The node's memory settings (`quan
 
 `prompt_upsampler_model` is for Flux3 only. A prompt upsampler rewrites your prompt in more detail before the image is made. The option is `black-forest-labs/flux-3-image-klein-pup`. Choose `Disabled` to use your prompt as written.
 
-The model list shows the full-precision model. After you download them, it also shows `fp8r` and `nvfp4` rows. These swap in a transformer that is stored at lower precision to use less memory. Only the transformer changes. The `fp8r` row stops the run with a message if your GPU or your torch install cannot run it. In that case pick the default row or `nvfp4`.
+The model list first shows the standard Flux3 model. Once the compact versions are downloaded, two more rows appear: `fp8r` and `nvfp4`. Each uses a smaller transformer that needs less graphics-card memory. Only the transformer changes.
+
+`fp8r` runs on any device. On an NVIDIA card with CUDA compute capability 8.9 or higher (RTX 40-series and newer, including RTX 50-series) it uses fast fp8 math. Elsewhere, including a Mac, the weights are converted to a larger number format as they are used, so it saves disk space but gains no speed. The run stops with a message only on a card of 8.9 or higher whose PyTorch install cannot do the fp8 matrix multiply. Then pick the default row or `nvfp4`.
 
 ## WAN Animate 2
 
 WAN Animate 2 (`WanAnimate2Pipeline`) animates a character image with the motion from a driving video, the clip that supplies the movement. `model` offers the standard and the distilled checkpoint. A distilled checkpoint is a version trained to run in fewer steps. With it, Generate Latent defaults to 10 steps and `guidance_scale` 1.0.
 
-The node's memory settings (`quantization_mode`, `transformer_layerwise_casting` and `cpu_offload_strategy`) do nothing for this model. It manages its own memory: the model is stored in your computer's main memory, and each part moves onto the graphics card only while it works. It stores its numbers in 16 bits (bfloat16).
+The node's memory settings (`quantization_mode`, `transformer_layerwise_casting` and `cpu_offload_strategy`) do nothing for this model. It manages its own memory: the model is stored in your computer's main memory, and each part moves onto the graphics card only while it works.
 
-The first Generate run is slower than later ones, because the transformer is optimised on that first run.
+The first Generate run compiles the transformer, a one-time setup that makes it slower than later runs.
 
 ## LTX2
 
@@ -47,27 +53,33 @@ For the settings every model shares, see [Build Pipeline](../nodes/LatentDiffusi
 
 ## Memory settings
 
-These appear, together with `quantization_mode` (which stores weights at lower precision to save memory), when `memory_optimization_strategy` is `Manual`. The `Manual` setting is the default. `Automatic` hides them and chooses settings from the GPU memory available.
+These settings help a large model fit on your graphics card. They appear when `memory_optimization_strategy` is `Manual`, which is the default. `Automatic` hides them and chooses settings from the GPU memory available.
+
+A model's weights are the numbers it learned in training. Some settings below store them in a more compact form to save memory.
 
 ### attention_slicing
 
-Off by default. Attention is one of the model's main calculation steps. This setting works through it in slices. This lowers peak memory with a small loss of speed.
+Off by default. Attention is one of the heavy calculations the model repeats at every step. This setting does it in pieces, which lowers peak memory and runs slightly slower.
 
 ### vae_slicing
 
-Off by default. Decodes one slice at a time. The decoder is the part of the [VAE](what-is-a-vae.md) that turns the model's working format, the latent, back into pixels. This lowers peak memory for large images or batches.
+Off by default. The decoder is the part of the [VAE](what-is-a-vae.md) that turns the model's working format, the latent, back into pixels. This setting makes it decode one slice at a time, which lowers peak memory for large images or batches.
 
 ### vae_tiling
 
-Off by default. Decodes in tiles, which lowers memory for large images and long videos.
+Off by default. This setting makes the decoder work on one tile of the picture at a time, which lowers memory for large images and long videos.
 
 ### transformer_layerwise_casting
 
-Off by default. Stores the transformer, the part that makes the picture, in fp8 (a compact number format) and converts each layer as it runs. This saves memory and can slow runs slightly. It has no effect on models that ship quantized weights.
+Off by default. This setting stores the transformer, the part that makes the picture, in fp8, a compact number format, and converts each layer as it runs. It saves memory and can slow runs slightly. It has no effect on models that already ship in a compact format. It is also ignored for Z-Image and whenever a quantized component override is connected.
 
 ### cpu_offload_strategy
 
-`None` (default), `Model` or `Sequential`. Moves idle weights to the CPU (system memory) to free GPU memory. `Model` moves whole parts and `Sequential` moves smaller pieces at a larger cost in speed.
+`None` (default), `Model` or `Sequential`. This setting moves idle weights to the CPU (system memory) to free GPU memory. `Model` moves whole parts. `Sequential` moves smaller pieces and costs more speed. It is ignored for MiniMax-H3, Flux3, WAN Animate 2 and the WAN, WAN I2V, WAN Animate, WAN VACE and HunyuanVideo 1.5 pipelines, which place their own parts on the card. Attention slicing and VAE slicing and tiling still run before that.
+
+### quantization_mode
+
+`None` (default), `fp8`, `int8` or `int4`. This setting converts the weights of every part of the model to a more compact format before the run, using the optimum-quanto library. `fp8` and `int8` both store weights in 8 bits and `int4` stores them in 4 bits, so `int4` saves the most memory. More savings cost more quality and speed.
 
 ### Example settings by hardware
 
@@ -79,14 +91,14 @@ These are starting points. Watch the first run and adjust.
 - If a run still fails, switch to `Manual` and turn on `vae_slicing` and `vae_tiling`. These lower the memory used when the image or video is decoded.
 - Close other heavy apps before a long video run.
 - LTX2 decodes its audio on the CPU on a Mac. This is automatic.
-- `fp8r` Flux3 rows need an NVIDIA GPU. Use the default row on a Mac.
+- Flux3 `fp8r` gives no speed benefit on a Mac.
 
-**NVIDIA Blackwell (RTX 50 series and data centre B-series).**
+**NVIDIA RTX 50-series (Blackwell), such as an RTX 5090.**
 
 - Start with `Automatic`. It moves the whole pipeline to the GPU when it fits with 20% spare. If not, it tries fp8 layerwise casting on the transformer, then model CPU offload, then sequential CPU offload. It also turns on VAE slicing and tiling.
-- On a card with plenty of memory, `Manual` with every option off is the fastest setting, because nothing is converted or moved.
+- If the model fits in your card's memory, `Manual` with every option off is the fastest setting, because nothing is converted or moved.
 - On a smaller card, turn on `transformer_layerwise_casting` first, then `cpu_offload_strategy` `Model`. Use `Sequential` only as a last resort because it is the slowest.
-- Flux3 `fp8r` rows run on cards with CUDA compute capability 8.9 or higher, which includes Blackwell. `nvfp4` is the other quantized row.
+- Flux3 `fp8r` uses fast fp8 math on RTX 40-series and newer cards, which includes the RTX 50-series. `nvfp4` is the other compact row.
 
 ## Component overrides
 

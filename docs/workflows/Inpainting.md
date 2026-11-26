@@ -22,17 +22,17 @@ This workflow repaints only the masked area of an image to match a text descript
 
 ## The mask
 
-White areas are repainted and black areas are kept. Gray is treated as white from 50% up, and as black below that. The mask is resized to match the picture.
+White areas are repainted and black areas are kept. Gray is treated as white from 50% up, and as black below that. The mask is resized to the picture's size, so it can be a different size, but it is stretched, not cropped. Paint it at the same aspect ratio as the picture so it lines up with the area you meant.
 
 ## Defaults
 
 - Model: Flux2 Klein 4B (`black-forest-labs/FLUX.2-klein-4B`).
-- Strength: 1.0, which fully replaces the masked area. The Encode Masked Media node starts at 0.95 when you add it yourself. Lower the strength to blend with the original.
+- Strength: 1.0. Strength is how much of the masked area is replaced. At 1.0 it is fully replaced, and a lower value keeps more of the original.
 - Guidance: 4.0, how closely the model follows the prompt.
 - Seed: 42, the number that fixes the random noise.
 
 ## Tips
 
 - Describe what belongs in the masked area, not the whole picture.
-- Generate Latent hides Add Noise while Encode Masked Media is connected. The inpainting step handles the noise itself, so there is nothing to set.
+- Generate Latent hides Add Noise while Encode Masked Media is connected. Encode Masked Media prepares the noise itself, so there is nothing to set. See [When noise is added](../guides/what-is-a-latent.md#when-noise-is-added).
 - Make the mask a little larger than the object you are replacing so the edges blend in.

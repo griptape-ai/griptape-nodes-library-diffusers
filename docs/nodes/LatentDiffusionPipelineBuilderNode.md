@@ -1,17 +1,19 @@
 ---
 description: Loads a model once and keeps it ready, so Generate Latent, Encode Media, Decode Media and the other nodes in the flow can reuse it.
-when_to_use: Use it to start any diffusion workflow, to choose the model family, the pipeline type, the checkpoint and the memory settings.
+when_to_use: Use it to start any diffusion workflow, to choose the model family (`provider`), the variant (`pipeline_type`), the checkpoint and the memory settings.
 ---
 
 ## When to use it
 
 This node loads the image or video model you want to use and keeps it ready. The loaded model, together with its supporting parts, is called a pipeline. Diffusion models make a picture or clip by cleaning noise out of a starting point.
 
-Every diffusion workflow starts here. Pick the model family and checkpoint, set how memory is used, and connect `pipeline` to each node that needs the model.
+Every diffusion workflow starts here. Pick the `provider` (the model family) and the checkpoint, set how memory is used, and connect `pipeline` to each node that needs the model.
 
 The pipeline is built once and kept in memory. Changing a load-time setting, such as the checkpoint, the memory settings or the LoRAs (small add-on files that change a model's style), rebuilds it. Prompts and step counts are set on other nodes and never trigger a rebuild.
 
-MiniMax-H3, Flux3 and WAN Animate 2 do not use the quantization (storing the model at lower precision to save memory), layerwise casting and CPU offload settings, and LTX2 offers its own checkpoint entries. See [Build Pipeline by model](../guides/build-pipeline-by-model.md).
+MiniMax-H3, Flux3 and WAN Animate 2 manage their own memory, so they ignore the memory settings: quantization (storing the model at lower precision to save memory), layerwise casting (storing the main part of the model in a compact format and converting it layer by layer as it runs) and CPU offload (keeping idle parts in your computer's main memory instead of on the graphics card). These settings are explained in [Memory settings](../guides/build-pipeline-by-model.md#memory-settings).
+
+LTX2 adds its own pipeline types, `LTX-2.5 Distilled` and `LTX-2.5 Full (SFT)`, and its `model` menu lists several LTX-2.x checkpoints. See [Build Pipeline by model](../guides/build-pipeline-by-model.md).
 
 ## What it needs
 
@@ -74,7 +76,7 @@ Build messages, including the pipeline's configuration hash.
 ## Tips
 
 - If the model does not fit in GPU memory, try these in order: set `quantization_mode` to `int8` or `int4`, set `cpu_offload_strategy` to `Model`, turn on `vae_slicing`. Each trades some speed for memory.
-- If a LoRA has no effect, check that it was trained for the same model family as `pipeline_type`, and that it is connected to `loras`.
+- If a LoRA has no effect, check that it was trained for the same model family as `provider`, and that it is connected to `loras`.
 - The cache is held in memory. After a restart, the next run builds the pipeline again.
 
 ## See also

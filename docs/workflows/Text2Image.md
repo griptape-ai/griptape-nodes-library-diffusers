@@ -14,7 +14,7 @@ This workflow turns a text description into an image. The description is called 
 
 ## Steps
 
-1. Open the template. If Build Pipeline shows an **Open Model Manager to Download** button, click it and wait for the download to finish. The workflow does not run until the model is downloaded.
+1. Open the **Text2Image** template from the workflow templates that ship with the library. If Build Pipeline shows an **Open Model Manager to Download** button, click it and wait for the download to finish. The workflow does not run until the model is downloaded.
 1. Type your prompt in the Text Input node.
 1. Run the workflow.
 
@@ -27,6 +27,6 @@ This workflow turns a text description into an image. The description is called 
 
 ## Tips
 
-- Change the seed on Create Noise Latent to get a different image from the same prompt. Add Noise is off on Generate Latent, so the seed on that node has no effect here. The starting noise comes from Create Noise Latent.
+- Change the seed on Create Noise Latent to get a different image from the same prompt. Add Noise is off on Generate Latent in this template, because the starting noise already exists. Only the seed on Create Noise Latent matters. See [When noise is added](../guides/what-is-a-latent.md#when-noise-is-added).
 - Change only the prompt and run again. The loaded model is reused, so the second run is much faster.
-- To try another model, set the provider on Build Pipeline first, because changing it resets the other settings. Then pick the pipeline type, which is the model family, and the model.
+- To try another model, set `provider` on Build Pipeline first. The provider is the model family, such as Flux or WAN, and changing it resets the other settings. Then pick `pipeline_type`, the variant within that family, and then the `model`. This template uses provider `Z-Image` and pipeline type `ZImagePipeline`.
