@@ -187,7 +187,7 @@ Adding a new diffusers pipeline requires touching all three:
 2. `parameters/pipeline_parameters.py` → `set_runtime_parameters()` `match` (pipeline class name → runtime parameters class)
 3. `parameters/pipelinetype_parameters.py` → a `LatentPipelineTypeParameters` subclass plus an entry in `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` (`Provider` enum → type-parameters class)
 
-A miss in any of the three surfaces as a confusing UI failure rather than an import error. See [docs/adding-new-model.md](docs/adding-new-model.md) for the full 6-step walkthrough.
+A miss in any of the three surfaces as a confusing UI failure rather than an import error. See [dev/docs/adding-new-model.md](dev/docs/adding-new-model.md) for the full 6-step walkthrough.
 
 **Every offered repo id must also be declared in the `model_catalog`** in `griptape-nodes-library.json`, and its catalog key added to the owning node's `model_usage` list. The HuggingFace dropdowns refuse an undeclared repo rather than allowing it, so a repo id added in Python alone is unusable at runtime. `tests/test_model_catalog_consistency.py` fails on the omission. This requires engine 0.97.0+ — see Step 6 of the walkthrough.
 
@@ -202,7 +202,7 @@ The Build Pipeline node caches the loaded pipeline in memory and reuses it acros
 1. Add the implementation under `modular_diffusion_nodes_library/nodes/<your_node>.py`, extending `BaseNode` from the engine.
 2. Register it in `griptape-nodes-library.json` (category, metadata, file path). Give it its own `lifecycle_stage` (`ALPHA` for nodes, `LABS` for preconfigured workflows) and lowercase `tags`, per [`.claude/rules/new-node-metadata.md`](.claude/rules/new-node-metadata.md).
 3. Restart the engine — the node appears under the **Diffusion** categories in the node picker.
-4. **Document the node.** Add a page under `docs/nodes/<your_node>.md` following [docs/node-doc-format.md](docs/node-doc-format.md) and link it from `docs/index.md`. Use the `document-node` skill.
+4. **Document the node.** Add a page named after the node's class, `docs/nodes/<ClassName>.md`, following [dev/docs/node-doc-format.md](dev/docs/node-doc-format.md). Use the `document-node` skill.
 
 **Naming a node:** read [`.claude/rules/node-naming.md`](.claude/rules/node-naming.md) before adding or renaming a node or parameter.
 
@@ -212,14 +212,14 @@ The Build Pipeline node caches the loaded pipeline in memory and reuses it acros
 - Runtime parameters (prompt, guidance, etc.) go in `runtime_parameters/`.
 - All pipeline I/O goes through the driver — never call `DiffusionPipeline.__call__()` from a node directly.
 
-**Modifying a node:** any change to a node's parameters, inputs, outputs, defaults, category, display name, or provider-specific behavior MUST be accompanied by an update to its `docs/nodes/<name>.md` page in the same change. Invoke the `document-node` skill for the workflow.
+**Modifying a node:** any change to a node's parameters, inputs, outputs, defaults, category, display name, or provider-specific behavior MUST be accompanied by an update to its `docs/nodes/<ClassName>.md` page in the same change. Invoke the `document-node` skill for the workflow.
 
 ## Verification
 
 When adding a model or driver:
 
 1. `uv run ruff format --check` + `uv run ruff check .` — clears lint/format.
-2. The relevant `docs/nodes/<name>.md` pages exist and match the changed code (per the `document-node` skill).
+2. The relevant `docs/nodes/<ClassName>.md` pages exist and match the changed code (per the `document-node` skill).
 3. Open Griptape Nodes, drop a `LatentDiffusionPipelineBuilderNode`, select your provider + pipeline type, fill the repo, resolve.
 4. Wire to a `DiffusionPipelineGenerateLatentNode` + VAE decoder; confirm an image/video is produced.
 5. Test partial denoise by chaining two generate nodes (e.g. 0–10 then 10–20 steps).
@@ -246,4 +246,4 @@ When adding a model or driver:
 - **Existing drivers are the source of truth.** Pick the closest match and copy its structure.
 - **Read the diffusers source** under `.venv/Lib/site-packages/diffusers` before assuming a modular block exists.
 - **Don't bypass `LatentPipelineDriver.denoise_latent()`** for callback / partial-denoise / cancellation concerns — those are framework-level open problems.
-- Check the feature docs in `docs/` (see `docs/adding-new-model.md`) and the path-scoped rules in `.claude/rules/` before re-deriving a subsystem's behavior. Verify against current source, since docs can drift.
+- Check the developer docs in `dev/docs/` (see `dev/docs/adding-new-model.md`) and the path-scoped rules in `.claude/rules/` before re-deriving a subsystem's behavior. Verify against current source, since docs can drift.

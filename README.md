@@ -12,7 +12,7 @@ The Diffusion Library is a node library for creators who want more control over 
 
 A typical flow looks like this:
 
-1. **Build a pipeline** with the [Build Pipeline](docs/nodes/pipeline_builder.md) node, then reuse its output across generations.
+1. **Build a pipeline** with the [Build Pipeline](docs/nodes/LatentDiffusionPipelineBuilderNode.md) node, then reuse its output across generations.
 1. **Prepare your starting latents** by creating noise or an empty latent, or by encoding an image or video.
 1. **Run diffusion** to produce new latents — optionally multiple times for multi-stage or rediffusion workflows.
 1. **Transform latents** with math, masked compositing, or upsampling between stages.

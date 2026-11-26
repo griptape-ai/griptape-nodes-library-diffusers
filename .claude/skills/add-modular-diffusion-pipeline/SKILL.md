@@ -22,7 +22,7 @@ Read these rules before doing anything. Violating them invalidates the work.
 
 ### Rule 0 — Update affected node docs in the same change
 
-Adding a new pipeline type rarely creates new nodes, but it almost always changes what existing nodes expose for the new provider. Before finishing, update the `Provider / model behavior` section of every node whose dynamic parameters now branch on the new pipeline type — typically Build Pipeline, Generate Latent, and any encode/decode/conditioning node involved. Follow [docs/node-doc-format.md](../../../docs/node-doc-format.md); for any doc work beyond a one-line tweak, use the `document-node` skill. Report doc changes alongside code in your final summary.
+Adding a new pipeline type rarely creates new nodes, but it almost always changes what existing nodes expose for the new provider. Before finishing, update the `Provider / model behavior` section of every node whose dynamic parameters now branch on the new pipeline type — typically Build Pipeline, Generate Latent, and any encode/decode/conditioning node involved. Follow [dev/docs/node-doc-format.md](../../../dev/docs/node-doc-format.md); for any doc work beyond a one-line tweak, use the `document-node` skill. Report doc changes alongside code in your final summary.
 
 ### Rule 1 — Classify the change, then get approval before coding
 
@@ -147,7 +147,7 @@ Load [`./references/memory-estimation.md`](./references/memory-estimation.md) be
 
 ## Modular-Blocks-First Philosophy
 
-Prefer modular blocks wherever they exist. The denoise loop is the exception: three blockers (partial denoise, callback/preview, cancellation) force it through `DiffusionPipeline.__call__()`. They are explained in [CLAUDE.md](../../../CLAUDE.md) and [docs/adding-new-model.md](../../../docs/adding-new-model.md#three-blockers-preventing-full-migration-today).
+Prefer modular blocks wherever they exist. The denoise loop is the exception: three blockers (partial denoise, callback/preview, cancellation) force it through `DiffusionPipeline.__call__()`. They are explained in [CLAUDE.md](../../../CLAUDE.md) and [dev/docs/adding-new-model.md](../../../dev/docs/adding-new-model.md#three-blockers-preventing-full-migration-today).
 
 When planning the driver:
 - Modular blocks for: `_create_modular_pipe`, `encode_media`, `decode_latent`, `create_noise_latent`, `add_noise_to_latent`, `encode_prompt`.
@@ -181,7 +181,7 @@ Modular block input contracts are NOT consistent across pipelines, and they are 
 
 ### Phase A — Investigation (no code written, version bump possible)
 
-0. Read [`docs/adding-new-model.md`](../../../docs/adding-new-model.md) for the full walkthrough and the modular-blocks-first background.
+0. Read [`dev/docs/adding-new-model.md`](../../../dev/docs/adding-new-model.md) for the full walkthrough and the modular-blocks-first background.
 1. Read [`base_driver.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py) end-to-end. Internalise the latent shape/space contract.
 2. Read [`driver_factory.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py), [`parameters/pipelinetype_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipelinetype_parameters.py), [`parameters/pipeline_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipeline_parameters.py), and [`memory_estimation/family_registry.py`](../../../modular_diffusion_nodes_library/memory_estimation/family_registry.py) to understand the four registries the new pipeline class name must appear in (see Rule 9 for the family-registry entry).
 3. Identify the closest existing model/driver to the one being added:
@@ -262,8 +262,8 @@ All `uv run ...` commands below must be executed from the repo root. `make check
 
    **Surgical-edits check**: diff each shared file — including `family_registry.py` — and confirm only added lines / one inserted block are present — no reformatted neighbors, no reordered entries, no touched sibling cases.
 6. **Smoke test in UI** → verify with the user: add a Build Pipeline node, select the new provider/type, build, connect it to Generate Latent + Decode Media, confirm an image/video comes out.
-7. **Node docs updated** (Rule 0) → verify: every node whose dynamic parameters now branch on the new pipeline type (typically Build Pipeline, Generate Latent, and affected encode/decode/conditioning nodes) has its `docs/nodes/<name>.md` updated and passes the `/document-node` skill's drift check.
-8. **Model catalog** → declare every repo id the new standard parameters offer in `model_catalog` in [`griptape-nodes-library.json`](../../../griptape-nodes-library.json), and add each catalog key to the owning node's `model_usage` list (see Step 6 of [docs/adding-new-model.md](../../../docs/adding-new-model.md)) → verify: `uv run pytest tests/test_model_catalog_consistency.py` passes.
+7. **Node docs updated** (Rule 0) → verify: every node whose dynamic parameters now branch on the new pipeline type (typically Build Pipeline, Generate Latent, and affected encode/decode/conditioning nodes) has its `docs/nodes/<ClassName>.md` updated and passes the `/document-node` skill's drift check.
+8. **Model catalog** → declare every repo id the new standard parameters offer in `model_catalog` in [`griptape-nodes-library.json`](../../../griptape-nodes-library.json), and add each catalog key to the owning node's `model_usage` list (see Step 6 of [dev/docs/adding-new-model.md](../../../dev/docs/adding-new-model.md)) → verify: `uv run pytest tests/test_model_catalog_consistency.py` passes.
 9. **Single-file loader metadata** → if the new pipeline supports single-file component loading (GGUF / safetensors), add entries for every relevant `model_type` string to [`component_loading/pipeline_type_registry.py`](../../../modular_diffusion_nodes_library/component_loading/pipeline_type_registry.py) `MODEL_TYPE_TO_PIPELINE_TYPE`.
 
 ---
@@ -274,4 +274,4 @@ All `uv run ...` commands below must be executed from the repo root. `make check
 - [`./references/new-pipeline-plan-template.md`](./references/new-pipeline-plan-template.md) — the Phase B plan template.
 - [`./references/memory-estimation.md`](./references/memory-estimation.md) — Rule 9's `MemoryFamily` / denoiser-config-adapter selection guide.
 - [`../add-pipeline-variants/SKILL.md`](../add-pipeline-variants/SKILL.md) — load this for ControlNet / inpaint / runtime pipe-swap on the new driver.
-- [`../../../docs/adding-new-model.md`](../../../docs/adding-new-model.md) — the human-readable contributor doc covering the same process.
+- [`../../../dev/docs/adding-new-model.md`](../../../dev/docs/adding-new-model.md) — the human-readable contributor doc covering the same process.

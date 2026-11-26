@@ -38,7 +38,8 @@ Top-level layout of this repository:
     - `utils/` — general utilities (pipeline, torch, memory helpers)
     - `misc/` — miscellaneous helpers
 - `workflows/` — workflow templates shipped with the library (plus `assets/`)
-- `docs/` — documentation sources (`assets/`, `index.md`)
+- `docs/` — documentation shown in the editor's Docs panel (`index.md`, `nodes/`, `workflows/`, `tools/`, `assets/`)
+- `dev/docs/` — contributor documentation
 - `tests/` — unit and workflow tests
 - `griptape-nodes-library.json` — library manifest (node registry, settings, dependencies, workflows)
 - `pyproject.toml` / `pytest.ini` — project and test configuration

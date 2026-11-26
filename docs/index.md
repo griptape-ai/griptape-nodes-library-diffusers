@@ -1,57 +1,38 @@
-# Griptape Nodes Diffusion Library — Documentation
+---
+title: Diffusion Library
+---
 
-Per-node reference for the Diffusion Library. See the [README](../README.md) for an overview of the library, supported models, and workflow templates.
+The Diffusion Library lets you build images and video with Diffusers models, one step at a time. Instead of a single "generate" node, each stage is its own node: load a model, make or encode a starting point, run the diffusion, adjust the result, and decode it into a picture or a clip. You can see, reuse and change every stage.
 
-## Node reference
+Because the stages are separate, you can do things a single node can't: refine an image over several passes, stack ControlNets, paste one image into another in latent space, condition a video on its first and last frames, or enlarge a result before decoding it. The model is loaded once and reused across runs, so changing only a prompt is fast.
 
-Node groups mirror the categories in [`griptape-nodes-library.json`](../griptape-nodes-library.json):
+Download each model in Model Manager before you run a workflow. Build Pipeline shows an **Open Model Manager to Download** button when the selected model is missing. Some models, such as FLUX.1 dev, are gated on Hugging Face and need an `HF_TOKEN` access token in your API keys.
 
-### Preconfigured
-- [Text to Image](nodes/text_to_image.md)
-- [Image to Image](nodes/image_to_image.md)
-- [Inpaint Image](nodes/inpainting.md)
-- [Text to Video](nodes/text_to_video.md)
-- [First/Last Frame to Video](nodes/first_last_frame_to_video.md)
+![A workflow built from Diffusion Library nodes](assets/hero.png)
 
-### Pipeline
-- [Build Pipeline](nodes/pipeline_builder.md)
-- [Load ControlNet](nodes/configure_controlnet.md)
-- [Apply ControlNet](nodes/controlnet_pipeline.md)
-- [Load LoRA](nodes/load_lora.md)
-- [Load Component](nodes/load_component.md)
-- [Load Scheduler](nodes/load_scheduler.md)
-- [Apply Runtime LoRA](nodes/lora_pipeline.md)
-- [Clear Pipeline Cache](nodes/clear_pipeline_cache.md)
-- [Estimate Pipeline Memory](nodes/estimate_pipeline_memory.md)
+## Where to start
 
-### Create
-- [Create Noise Latent](nodes/create-noise-latents.md)
-- [Create Empty Latent](nodes/empty_latents.md)
+- **Make your first image.** Open [Text2Image](workflows/Text2Image.md). It already has a prompt, a size and a model set.
+- **Rework a picture you already have.** [Image2Image](workflows/Image2Image.md) repaints your image to match a prompt.
+- **Change one part of an image.** [Inpainting](workflows/Inpainting.md) repaints only the area you mask.
+- **Make a video between two images.** [FirstAndLastFrameImage2Video](workflows/FirstAndLastFrameImage2Video.md) fills in the motion from a first frame to a last frame.
+- **Understand the pieces.** [Build Pipeline](nodes/LatentDiffusionPipelineBuilderNode.md) loads the model. [Generate Latent](nodes/DiffusionPipelineGenerateLatentNode.md) runs the diffusion. [Decode Media](nodes/VaeDecodeNode.md) turns the result into an image or video.
+- **Guide the layout.** [Load ControlNet](nodes/ControlNetNode.md) and [Apply ControlNet](nodes/ControlNetDiffusionPipelineBuilderNode.md) steer a result with edges, depth or a pose.
+- **Add a style or subject.** [Load LoRA](nodes/LoadLora.md) adds a LoRA to the model.
+- **Check memory.** [Estimate Pipeline Memory](nodes/PipelineMemoryEstimateNode.md) shows how much a run needs. The [command-line version](tools/estimate_workflow_memory.md) does the same for a saved workflow.
 
-### Processing
-- [Generate Latent](nodes/generate_media_latents.md)
-- [Upsample Latent](nodes/latent_upsampler.md)
+## Node categories
 
-### Transform
-- [Add Latents](nodes/add_latents.md)
-- [Subtract Latents](nodes/subtract_latents.md)
-- [Multiply Latents](nodes/multiply_latents.md)
-- [Composite Latents with Mask](nodes/latents_composite_mask.md)
-- [Set Latent Mask](nodes/set_latent_mask.md)
+The editor groups the nodes under Diffusion.
 
-### Conditioning
-- [Reference Media](nodes/media_gen_conditioning.md)
+| Category | What it holds |
+| --- | --- |
+| Pipeline | Loading models, ControlNets, LoRAs, components and schedulers, and clearing or estimating the loaded pipeline. |
+| Create | Starting points: noise or an empty latent. |
+| Processing | Running the diffusion and upsampling a latent. |
+| Transform | Adding, subtracting, multiplying and compositing latents, and setting a latent mask. |
+| Conditioning | Reference images and video that guide a generation. |
+| Encode & Decode | Moving between images or video and latents. |
+| IO | Saving latents and EXR sequences. |
 
-### Encode / Decode
-- [Encode Media](nodes/encode_media_latent.md)
-- [Encode Masked Media](nodes/encode_masked_media_latent.md)
-- [Decode Media](nodes/decode_media_latent.md)
-- [Decode HDR Media](nodes/decode_hdr_latents.md)
-- [Convert Latent to Media](nodes/latent_to_media.md)
-
-### IO
-- [Save EXR Sequence](nodes/save_exr_sequence.md)
-- [Save Latent](nodes/save_latent_tensor.md)
-
-## Command-line tools
-- [Estimate Workflow Memory (CLI)](tools/estimate_workflow_memory.md)
+Models that this library supports include Flux, Qwen-Image, Stable Diffusion, Z-Image, LTX, WAN and HunyuanVideo. Models your license does not permit are marked in the model picker.

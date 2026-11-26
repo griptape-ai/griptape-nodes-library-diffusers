@@ -20,7 +20,7 @@ Follow the Working Principles in [CLAUDE.md](../../../CLAUDE.md). Specific to th
 
 ### Rule −1 — Update affected node docs in the same change
 
-Variants don't add nodes, but they change runtime branches on existing ones. Update the `Provider / model behavior` section of every node whose dynamic parameters or runtime path changed — usually Generate Latent, the affected encode/decode node, and the conditioning node that triggers the variant. Document the trigger plainly (e.g. "supplying `control_net_model_lists` swaps in `<X>ControlNetPipeline`"). Follow [docs/node-doc-format.md](../../../docs/node-doc-format.md); for anything beyond a one-line tweak, use the `document-node` skill. Report doc changes alongside code in your final summary.
+Variants don't add nodes, but they change runtime branches on existing ones. Update the `Provider / model behavior` section of every node whose dynamic parameters or runtime path changed — usually Generate Latent, the affected encode/decode node, and the conditioning node that triggers the variant. Document the trigger plainly (e.g. "supplying `control_net_model_lists` swaps in `<X>ControlNetPipeline`"). Follow [dev/docs/node-doc-format.md](../../../dev/docs/node-doc-format.md); for anything beyond a one-line tweak, use the `document-node` skill. Report doc changes alongside code in your final summary.
 
 ### Rule 0 — Variant vs new pipeline type (FIRST CHECK)
 
@@ -169,4 +169,4 @@ State the verification check **before** making each change.
 
 - [`./references/variant-patterns.md`](./references/variant-patterns.md) — detailed templates for each pattern, including kwargs handling and pitfalls.
 - [`../add-modular-diffusion-pipeline/SKILL.md`](../add-modular-diffusion-pipeline/SKILL.md) — use this instead when adding a new pipeline type with different weights.
-- [`../../../docs/adding-new-model.md`](../../../docs/adding-new-model.md) — the broader contributor doc covering full new-model integration.
+- [`../../../dev/docs/adding-new-model.md`](../../../dev/docs/adding-new-model.md) — the broader contributor doc covering full new-model integration.
