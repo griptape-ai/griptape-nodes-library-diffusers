@@ -3,7 +3,7 @@ title: Build Pipeline by model
 description: Model-specific and memory notes for the Build Pipeline node.
 ---
 
-The memory settings and the component override messages apply to every model. The sections for MiniMax-H3, Flux3, WAN Animate 2 and LTX2 cover what is different for those models.
+Build Pipeline loads a diffusion model, with your settings, into the pipeline that the other nodes use. Its memory settings and component overrides apply to every model. The sections for MiniMax-H3, Flux3, WAN Animate 2 and LTX2 cover what is different for those models.
 
 ## Memory settings
 

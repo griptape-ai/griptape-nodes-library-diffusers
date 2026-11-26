@@ -3,7 +3,7 @@ title: Generate Latent by model
 description: Model-specific behavior of the Generate Latent node.
 ---
 
-Generate Latent behaves differently for masked denoising and for some model families. Find the heading for the one you are using.
+Generate Latent is the node that makes the picture or the clip. It runs the denoising loop on a starting latent and returns a denoised latent. Most of its settings work the same for every model. This page covers the exceptions: masked denoising, and the model families that behave differently.
 
 ## Masked denoising
 
