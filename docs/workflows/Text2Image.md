@@ -29,7 +29,7 @@ This workflow turns a text description into an image. The description is called 
 
 - Change the seed on Create Noise Latent to get a different image from the same prompt. Add Noise is off on Generate Latent in this template, because the starting noise already exists. The seed that matters is the one on Create Noise Latent. See [When noise is added](../guides/what-is-a-latent.md#when-noise-is-added).
 - Change only the prompt and run again. The loaded model is reused, so the second run is much faster.
-- To try another model, set these on Build Pipeline in this order. Changing `provider` resets the other settings.
+- To try another model, set these on Build Pipeline in this order. Changing `provider` resets `pipeline_type` and the model settings. Memory settings and LoRAs keep their values.
   1. `provider` is the model family. This template uses `Z-Image`.
   1. `pipeline_type` is the variant within the family. This template uses `ZImagePipeline`.
   1. `model` is the model itself.

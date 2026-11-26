@@ -61,7 +61,7 @@ Off by default. Swaps the source and destination areas.
 
 ### grow_shrink
 
-Slider from -100 to 100, default 0. Positive values grow the mask edge and negative values shrink it.
+Slider from -100 to 100, default 0. Positive values shrink the mask edge and negative values grow it.
 
 ### blur_mask
 
