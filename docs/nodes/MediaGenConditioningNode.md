@@ -40,6 +40,7 @@ Load Image (last)  ───┴→ [Reference Media] ───┘
 | Flux2 Klein, Flux2 Dev | Images only, 1 to 8 images, with no strength or frame position. |
 | Flux3, Flux3 Distilled | Images only, 1 to 10 images, with no strength or frame position. |
 | Qwen Edit | Images only, 1 to 8 images, with no strength or frame position. |
+| Qwen Image 2.1 | Images only, 0 to 10 images, with no strength or frame position. |
 | HunyuanVideo 1.5 Image-to-Video | First frame only, with no strength. |
 
 For MiniMax-H3 ref2va, a video node holds one clip. Use one node per clip, up to three, and connect them all to `references`. Each clip must be at least 2 seconds, or the run stops with a message. All clips together should stay within 15 seconds: when they run longer, the last clip is shortened, or dropped if it cannot stay at 2 seconds, and a warning is shown. Clip audio is dropped.
@@ -62,7 +63,7 @@ A named arrangement of image slots. The choices and the default depend on the pi
 
 ### num_images
 
-How many image inputs to show. It is shown for **Custom**, and for pipelines that take any number of images (Flux2, Flux3, Qwen Edit, MiniMax-H3 ref2va). Presets fix the count. The range is 0 to 8 with no pipeline connected, and differs for some pipelines (see the table). The default is the lowest number in the range.
+How many image inputs to show. It is shown for **Custom**, and for pipelines that take any number of images (Flux2, Flux3, Qwen Edit, Qwen Image 2.1, MiniMax-H3 ref2va). Presets fix the count. The range is 0 to 8 with no pipeline connected, and differs for some pipelines (see the table). The default is the lowest number in the range.
 
 ### image_0
 
