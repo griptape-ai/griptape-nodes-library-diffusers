@@ -29,6 +29,25 @@ Off by default. Stores the transformer in fp8 and converts each layer as it runs
 
 `None` (default), `Model` or `Sequential`. Moves idle weights to the CPU to free GPU memory. `Model` moves whole parts and `Sequential` moves smaller pieces at a larger cost in speed.
 
+### Example settings by hardware
+
+These are starting points. Watch the first run and adjust.
+
+**Mac with Apple Silicon.** The GPU shares memory with the rest of the computer, so the model competes with the OS and your other apps.
+
+- Start with `Automatic`. If the whole pipeline fits in the memory macOS recommends for the GPU, it runs there. If it does not fit, `Automatic` turns on VAE slicing and still tries the run. It does not use fp8 casting or CPU offload on a Mac.
+- If a run still fails, switch to `Manual` and turn on `vae_slicing` and `vae_tiling`. These lower the memory used when the image or video is decoded.
+- Close other heavy apps before a long video run.
+- LTX2 decodes its audio on the CPU on a Mac. This is automatic.
+- `fp8r` Flux3 rows need an NVIDIA GPU. Use the default row on a Mac.
+
+**NVIDIA Blackwell (RTX 50 series and data centre B-series).**
+
+- Start with `Automatic`. It moves the whole pipeline to the GPU when it fits with 20% spare. If not, it tries fp8 layerwise casting on the transformer, then model CPU offload, then sequential CPU offload. It also turns on VAE slicing and tiling.
+- On a card with plenty of memory, `Manual` with every option off is the fastest setting, because nothing is converted or moved.
+- On a smaller card, turn on `transformer_layerwise_casting` first, then `cpu_offload_strategy` `Model`. Use `Sequential` only as a last resort because it is the slowest.
+- Flux3 `fp8r` rows run on cards with CUDA compute capability 8.9 or higher, which includes Blackwell. `nvfp4` is the other quantized row.
+
 ## Component overrides
 
 The Component Overrides group has one port for each part this pipeline type has, such as Transformer or VAE. MiniMax-H3, Flux3 and WAN Animate 2 have none. Connect a [Load Component](../nodes/LoadComponent.md) node to replace that part of the model with your own weights.
