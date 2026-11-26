@@ -1,9 +1,11 @@
 ---
-description: Packages reference images or a video, with a frame position and strength for each, so a pipeline can use them as conditioning.
+description: Bundles reference images or a video, with a frame position and strength for each, so the model can use them as guidance.
 when_to_use: Use it when a generation should start from, end on, or be guided by existing frames, such as a plate's first and last frame or a set of reference stills.
 ---
 
 ## When to use it
+
+This node bundles footage you already have, as images or a video, so the model can use it as guidance. This guidance is called conditioning. Each item gets a frame position and a strength.
 
 You want a generated clip or edited image to follow footage you already have. Feed it the first and last frame of a shot to bridge the gap between them, or a few reference stills to steer the look. Connect the result to the matching conditioning input on [Generate Latent](DiffusionPipelineGenerateLatentNode.md).
 

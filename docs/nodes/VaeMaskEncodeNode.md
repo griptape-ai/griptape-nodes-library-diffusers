@@ -1,9 +1,11 @@
 ---
-description: Encodes an image and a mask into an inpainting package that switches Generate Latent into inpainting mode.
+description: Bundles an image and a mask so Generate Latent redraws only the masked area (inpainting).
 when_to_use: Use it when you want to replace a region of an image, such as removing a wire or swapping a prop, and keep everything else.
 ---
 
 ## When to use it
+
+This node prepares an image for inpainting, which means redrawing only a marked area. It encodes the image into a [latent](../guides/what-is-a-latent.md) with the pipeline's [VAE](../guides/what-is-a-vae.md) and packages it with a mask. A latent is the compressed form of a picture or clip that the model works on.
 
 You have an image and a mask that marks the area to regenerate. Connect the result to `input_latent` on [Generate Latent](DiffusionPipelineGenerateLatentNode.md). It sees the inpainting package and runs the model's inpainting mode by itself, so only the masked area changes.
 

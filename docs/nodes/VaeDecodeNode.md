@@ -1,11 +1,13 @@
 ---
-description: Decodes a latent with the pipeline's VAE into an image or a video, usually the last step before saving.
+description: Turns a latent back into an image or video you can view, using the pipeline's VAE. Usually the last step before saving.
 when_to_use: Use it when a generation is finished and you want a viewable image or clip, such as a plate, a render or a pass.
 ---
 
 ## When to use it
 
-You have a latent from [Generate Latent](DiffusionPipelineGenerateLatentNode.md) and want the picture or the clip. Connect the result to a Save Image or Save Video node. The output changes with the pipeline: image models give an image, video models give a video.
+This node turns the model's result back into something you can look at. The model works on a [latent](../guides/what-is-a-latent.md), the compressed form of a picture or clip. The [VAE](../guides/what-is-a-vae.md) is the part of the model that converts between pictures and latents, and here it decodes the latent into a picture or clip.
+
+You have a latent from [Generate Latent](DiffusionPipelineGenerateLatentNode.md) and want the picture or the clip. Connect the result to a Save Image or Save Video node. The output changes with the pipeline. Image models give an image, video models give a video.
 
 For a standalone decode that needs no pipeline, see [Convert Latent to Media](LatentToMediaNode.md). For float HDR frames, see [Decode HDR Media](DecodeHdrNode.md).
 

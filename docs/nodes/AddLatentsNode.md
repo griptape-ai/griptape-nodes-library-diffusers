@@ -1,11 +1,13 @@
 ---
-description: Adds two latents together, value by value, and outputs the sum.
-when_to_use: Use it when you want to combine two latents of the same size, such as blending two denoised results or adding a noise latent to another.
+description: Adds two latents, the model's compressed working form of a picture or clip, together value by value and outputs the sum.
+when_to_use: Use it when you want to combine two latents of the same size, such as blending two results or adding noise to another latent.
 ---
 
 ## When to use it
 
-You have two latents and want their sum as a new latent. Common cases are blending two results or adding noise to a latent.
+This node adds two [latent](../guides/what-is-a-latent.md) together and gives you the sum as a new latent. A latent is the compressed form of a picture or clip that the model works on. You can't view one directly. Each number in one latent is added to the matching number in the other.
+
+Use it to blend two results or to add noise to a latent.
 
 Both latents must be connected and must be the same size. Latents from different model families, such as Flux and SDXL, normally differ in size. If the sizes happen to match, the sum is still meaningless.
 

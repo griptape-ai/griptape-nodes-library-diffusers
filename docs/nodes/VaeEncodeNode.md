@@ -1,11 +1,13 @@
 ---
-description: Encodes an image or a video into a latent with the pipeline's VAE, ready to feed into denoising.
+description: Turns an image or video into a latent with the pipeline's VAE, ready for Generate Latent to rework.
 when_to_use: Use it when you want to start a generation from an existing frame or clip, such as restyling a plate or reworking a shot.
 ---
 
 ## When to use it
 
-You have a picture or a clip and want the model to rework it instead of starting from noise. Encode it here, then connect the latent to [Generate Latent](DiffusionPipelineGenerateLatentNode.md) with `add_noise` on. The input changes with the pipeline: image models take an image, video models take a video.
+This node converts a picture or clip into the form the model works on, a [latent](../guides/what-is-a-latent.md). It does this with the pipeline's [VAE](../guides/what-is-a-vae.md), the part of the model that converts between pictures and latents.
+
+You have a picture or a clip and want the model to rework it instead of starting from noise. Encode it here, then connect the latent to [Generate Latent](DiffusionPipelineGenerateLatentNode.md) with `add_noise` on. The input changes with the pipeline. Image models take an image, video models take a video.
 
 To start from nothing, use [Create Noise Latent](NoiseLatentNode.md). To repaint only part of a frame, use [Encode Masked Media](VaeMaskEncodeNode.md).
 

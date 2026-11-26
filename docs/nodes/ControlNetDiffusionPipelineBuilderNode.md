@@ -1,9 +1,11 @@
 ---
-description: Adds one or more ControlNets to a built pipeline so it can follow control images.
-when_to_use: Use it when you want Generate Latent to follow edge, depth, pose or similar control images.
+description: Attaches one or more ControlNets to a loaded model so generation follows your guide images, such as edge, depth or pose maps.
+when_to_use: Use it when you want Generate Latent to follow edge, depth, pose or similar guide images.
 ---
 
 ## When to use it
+
+This node makes a generated image follow guide images you supply. A ControlNet is an add-on model that reads a guide image, such as an edge map, a depth pass or a pose, and steers the result to match it. This node attaches one or more ControlNets to a pipeline, which is the loaded model.
 
 You have a pipeline from [Build Pipeline](LatentDiffusionPipelineBuilderNode.md) and one or more [Load ControlNet](ControlNetNode.md) nodes. Put this node between them and [Generate Latent](DiffusionPipelineGenerateLatentNode.md).
 

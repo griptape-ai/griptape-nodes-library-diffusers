@@ -1,9 +1,11 @@
 ---
-description: Multiplies two latents together value by value.
+description: Multiplies two latents, the model's compressed working form of a picture or clip, together value by value.
 when_to_use: Use it when you want to scale one latent by another, such as dimming a latent with a constant-valued one.
 ---
 
 ## When to use it
+
+This node multiplies two [latent](../guides/what-is-a-latent.md) together, number by number. A latent is the compressed form of a picture or clip that the model works on.
 
 You have two latents of the same shape and want their product. Scaling a latent by a near-constant latent is the most predictable use. Multiplying two unrelated latents tends to give unexpected results.
 

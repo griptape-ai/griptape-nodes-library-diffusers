@@ -1,11 +1,13 @@
 ---
-description: Creates a latent filled with zeros, sized for the connected pipeline.
+description: Creates a blank latent, the model's compressed working form of a picture, filled with zeros and sized for the connected pipeline.
 when_to_use: Use it when you need a blank latent to composite into or to add controlled noise to, rather than a random starting point.
 ---
 
 ## When to use it
 
-You want a blank latent of the right size. It works well as the base that [Composite Latents with Mask](LatentCompositeMaskNode.md) pastes other latents onto. For ordinary text-to-image or text-to-video, use [Create Noise Latent](NoiseLatentNode.md) instead.
+This node makes a blank [latent](../guides/what-is-a-latent.md). A latent is the compressed form of a picture or clip that the model works on. Here every value is zero, and the size fits the connected pipeline.
+
+Use it when you want a blank base. It works well as the base that [Composite Latents with Mask](LatentCompositeMaskNode.md) pastes other latents onto. For ordinary text-to-image or text-to-video, use [Create Noise Latent](NoiseLatentNode.md) instead.
 
 ## What it needs
 

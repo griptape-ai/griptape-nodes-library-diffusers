@@ -1,9 +1,11 @@
 ---
-description: Subtracts one latent from another value by value.
-when_to_use: Use it when you want the difference between two latents, such as isolating what changed between a noisy and a denoised version.
+description: Subtracts one latent, the model's compressed working form of a picture or clip, from another value by value.
+when_to_use: Use it when you want the difference between two latents, such as isolating what changed between a noisy and a cleaned-up version.
 ---
 
 ## When to use it
+
+This node subtracts one [latent](../guides/what-is-a-latent.md) from another, number by number. A latent is the compressed form of a picture or clip that the model works on.
 
 You have two latents of the same shape and want the difference. Typical uses are isolating noise (denoised minus noisy) and comparing two results in latent space. Both latents should come from the same kind of model so their shapes match.
 

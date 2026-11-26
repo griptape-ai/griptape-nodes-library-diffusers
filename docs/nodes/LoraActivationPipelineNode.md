@@ -1,11 +1,13 @@
 ---
-description: Adds LoRA adapters on top of an existing pipeline for each generation, without changing the cached model.
+description: Adds LoRAs, small add-on files that change a model's style, on top of a loaded model for each generation, without changing the cached model.
 when_to_use: Use it when you want to swap LoRAs between runs, or run one branch with LoRAs and another without from the same loaded model.
 ---
 
 ## When to use it
 
-You have a built pipeline and one or more LoRAs, and you want the LoRAs applied only while generating. The base model stays as it was, so another branch can use it with no LoRAs. This suits in-context LoRAs, distillation or acceleration LoRAs, and slider LoRAs.
+This node switches LoRAs on for a generation without changing the loaded model. A LoRA is a small add-on file that gives a model a style, character or effect.
+
+You have a built pipeline, which is the loaded model, and one or more LoRAs. You want the LoRAs applied only while generating. The base model stays as it was, so another branch can use it with no LoRAs. This suits in-context LoRAs, distillation or acceleration LoRAs, and slider LoRAs.
 
 ## Where it fits
 

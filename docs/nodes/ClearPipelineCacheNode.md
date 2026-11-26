@@ -1,11 +1,13 @@
 ---
-description: Removes every diffusion pipeline held in memory so the next generation starts clean.
-when_to_use: Use it when you hit out-of-memory errors or want a clean slate before loading a different model.
+description: Unloads every model held in memory so the next generation starts clean.
+when_to_use: Use it when a run fails with an out-of-memory error, or before you load a different model.
 ---
 
 ## When to use it
 
-A run fails with an out-of-memory error, or you are about to load a different model and want the old one gone. This node releases every pipeline the running engine still holds, not one chosen model. Building a pipeline that is not already in memory also releases the others first, so only one pipeline is normally held at a time.
+This node unloads the models the engine is holding in memory. A loaded model, together with its supporting parts, is called a pipeline.
+
+Use it when a run fails with an out-of-memory error, or when you are about to load a different model and want the old one gone. It releases every pipeline the running engine still holds, not one chosen model. Building a pipeline that is not already in memory also releases the others first, so only one pipeline is normally held at a time.
 
 The node needs no inputs.
 

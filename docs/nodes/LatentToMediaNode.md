@@ -1,11 +1,13 @@
 ---
 description: Turns a compatible latent into an image or video with its own decoder model, without a connected pipeline.
-when_to_use: Use it when you have an LTX-2 video latent and want to decode it with the LTX-2.5 diffusion decoder instead of the pipeline's own VAE.
+when_to_use: Use it when you have an LTX-2 video latent and want to decode it with the LTX-2.5 diffusion decoder instead of the pipeline's own built-in decoder.
 ---
 
 ## When to use it
 
-You have a video latent from an LTX-2 pipeline and want to decode it without connecting a pipeline. This node loads its own decoder model. For latents decoded with the pipeline's VAE, use [Decode Media](VaeDecodeNode.md).
+This node turns a [latent](../guides/what-is-a-latent.md) into a picture or video you can view. A latent is the compressed form of a picture or clip that the model works on. This node loads its own decoder model, so it needs no connected pipeline.
+
+Use it when you have a video latent from an LTX-2 pipeline and want to decode it without connecting a pipeline. For latents decoded with the pipeline's own decoder, the [VAE](../guides/what-is-a-vae.md), use [Decode Media](VaeDecodeNode.md).
 
 The LTX-2.5 diffusion decoder is the only model family available.
 

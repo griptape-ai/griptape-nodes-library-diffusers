@@ -1,15 +1,17 @@
 ---
-description: Decodes a latent into floating-point RGB frames you can export, plus a tone-mapped preview image or video.
+description: Turns a latent into floating-point RGB frames you can export, plus a tone-mapped preview image or video.
 when_to_use: Use it when the model produces HDR frames and you want the raw float values for EXR export along with a preview you can look at.
 ---
 
 ## When to use it
 
-You have a latent from an HDR-capable pipeline and want two things from it. One is the unclipped float frames, for [Save EXR Sequence](SaveExrNode.md). The other is a preview image or video you can check right away. For ordinary pipelines, use [Decode Media](VaeDecodeNode.md).
+This node turns a [latent](../guides/what-is-a-latent.md) back into frames you can look at. A latent is the compressed form of a picture or clip that the model works on. This node is for pipelines that can produce HDR. It gives you two things from the latent. One is the unclipped float frames, for [Save EXR Sequence](SaveExrNode.md). The other is a tone-mapped preview image or video you can check right away.
+
+Use it when you have a latent from an HDR-capable pipeline. For ordinary pipelines, use [Decode Media](VaeDecodeNode.md).
 
 ## What it needs
 
-- The same pipeline that produced the latent. Each pipeline uses its own VAE, and a different one gives corrupt output.
+- The same pipeline that produced the latent. Each pipeline uses its own [VAE](../guides/what-is-a-vae.md), and a different one gives corrupt output.
 - A latent with image dimensions set. A latent without them stops the run with a message.
 
 ## Where it fits

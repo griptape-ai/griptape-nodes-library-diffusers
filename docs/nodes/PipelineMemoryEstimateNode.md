@@ -1,11 +1,13 @@
 ---
-description: Estimates how much GPU memory each part of a pipeline needs for a given latent size.
+description: Estimates how much graphics card (GPU) memory each part of a model needs at a given size.
 when_to_use: Use it when you want to know whether a model and a resolution will fit on your GPU before you run a long generation.
 ---
 
 ## When to use it
 
-You have a pipeline, loaded or not, and a latent at the size you plan to generate, and want to know the memory cost. The node splits the estimate into weights and working memory for each part of the model, such as text encoders, the transformer or UNet, and the VAE. It also shows an estimated peak.
+This node estimates how much GPU memory a model needs, so you can check before a long run.
+
+You have a pipeline, which is the model loaded or not, and a [latent](../guides/what-is-a-latent.md) at the size you plan to generate. The node splits the estimate into weights and working memory for each part of the model, such as [text encoders](../guides/what-is-a-text-encoder.md), the [transformer](../guides/what-is-a-transformer.md) or UNet, and the [VAE](../guides/what-is-a-vae.md). It also shows an estimated peak.
 
 ## Where it fits
 

@@ -1,11 +1,13 @@
 ---
-description: Chooses a scheduler class and a config source, and outputs a scheduler that replaces the pipeline's default one.
+description: Picks a scheduler, which controls how the model cleans noise out step by step, and outputs it to replace the model's default one.
 when_to_use: Use it when you want a different sampler or noise schedule than the model's default, or want to tune scheduler settings such as shift.
 ---
 
 ## When to use it
 
-You want to change how a model steps through denoising without touching its weights. [What is a scheduler?](../guides/what-is-a-scheduler.md) explains what it controls. A scheduler is only a set of settings, so there is nothing large to load. Connect the result to the `scheduler` input of [Build Pipeline](LatentDiffusionPipelineBuilderNode.md).
+This node picks a different scheduler for a model. The scheduler controls how the model cleans noise out of the picture, step by step.
+
+Use it when you want to change how a model steps through that clean-up without touching its weights. [What is a scheduler?](../guides/what-is-a-scheduler.md) explains what it controls. A scheduler is only a set of settings, so there is nothing large to load. Connect the result to the `scheduler` input of [Build Pipeline](LatentDiffusionPipelineBuilderNode.md).
 
 ## Where it fits
 

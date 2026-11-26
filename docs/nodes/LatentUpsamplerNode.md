@@ -1,11 +1,13 @@
 ---
-description: Doubles the width and height of an LTX or LTX2 video latent without decoding it.
+description: Doubles the width and height of an LTX or LTX2 video latent without turning it back into a video first.
 when_to_use: Use it when you want a fast higher-resolution pass between two Generate Latent stages, instead of decoding, upscaling and re-encoding.
 ---
 
 ## When to use it
 
-You generated a low-resolution video latent and want it larger before a refinement pass. Upsampling in latent space skips the decode, upscale and re-encode round trip. The result is twice the width and twice the height.
+This node makes a video [latent](../guides/what-is-a-latent.md) twice as wide and twice as tall. A latent is the compressed form of a picture or clip that the model works on. The node enlarges the clip in that form, without turning it back into frames first.
+
+Use it when you generated a low-resolution video latent and want it larger before a refinement pass. Upsampling in latent space skips the decode, upscale and re-encode round trip. The result is twice the width and twice the height.
 
 ## What it needs
 

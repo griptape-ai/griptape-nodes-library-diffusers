@@ -1,9 +1,11 @@
 ---
-description: Points a pipeline slot such as the transformer, VAE or text encoder at your own weights, from a single file, a folder or a cached Hugging Face repo.
-when_to_use: Use it when you want Build Pipeline to use a specific checkpoint, such as a quantized GGUF transformer, in place of the one it would pick itself.
+description: Points one part of a model, such as the transformer, VAE or text encoder, at your own files, from a single file, a folder or a cached Hugging Face repo.
+when_to_use: Use it when you want Build Pipeline to use a specific model file, such as a quantized (reduced-size) GGUF transformer, in place of the one it would pick itself.
 ---
 
 ## When to use it
+
+This node swaps one part of a model for files you choose. A model is built from separate parts, and this node says where to find the replacement for one of them.
 
 You have a particular model file or folder, such as a GGUF [transformer](../guides/what-is-a-transformer.md#why-swap-it), a [text encoder](../guides/what-is-a-text-encoder.md#why-swap-it) or a fine-tuned [VAE](../guides/what-is-a-vae.md#why-swap-the-vae), and want Build Pipeline to use it for one slot. This node describes where the weights are. [Build Pipeline](LatentDiffusionPipelineBuilderNode.md) loads them when it builds the pipeline.
 

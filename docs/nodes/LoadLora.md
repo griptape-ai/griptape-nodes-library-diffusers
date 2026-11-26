@@ -1,9 +1,11 @@
 ---
-description: Loads a LoRA file from disk and sets its weight, for Build Pipeline to fuse or Apply Runtime LoRA to activate per generation.
+description: Loads a LoRA file from disk and sets its weight. A LoRA is a small add-on file that changes a model's style, character or effect.
 when_to_use: Use it when you want a trained style, character or effect LoRA applied to the model you generate with.
 ---
 
 ## When to use it
+
+This node loads a LoRA, a small add-on file that was trained separately to give a model a style, character or effect. It sets the LoRA's weight, which is how strongly it applies.
 
 You have a LoRA file and want to apply it to a model. The node holds one LoRA. To stack several, add one node for each and connect them all to the same consumer.
 

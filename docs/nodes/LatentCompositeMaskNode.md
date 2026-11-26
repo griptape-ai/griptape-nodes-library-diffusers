@@ -1,11 +1,13 @@
 ---
-description: Pastes a source latent onto a destination latent at a pixel offset, blended through an optional mask.
-when_to_use: Use it when you want to place one latent inside another before denoising, such as a character latent over a background.
+description: Pastes one latent onto another at a pixel offset, blended through an optional mask.
+when_to_use: Use it when you want to place one latent inside another before generating, such as a character over a background.
 ---
 
 ## When to use it
 
-You have two latents and want one placed inside the other, like laying a foreground element over a background plate. White areas of the mask show the source, black areas keep the destination. With no mask, the source replaces the destination wherever it lands.
+This node places one [latent](../guides/what-is-a-latent.md) inside another, like laying a foreground element over a background plate. A latent is the compressed form of a picture or clip that the model works on.
+
+You have two latents and want one placed inside the other. White areas of the mask show the source, black areas keep the destination. With no mask, the source replaces the destination wherever it lands.
 
 ## Where it fits
 

@@ -1,15 +1,17 @@
 ---
-description: Loads a diffusion model once and keeps it ready, so Generate Latent, Encode Media, Decode Media and the other nodes in the flow can reuse it.
-when_to_use: Use it when you start any diffusion workflow, to choose the model family, the pipeline type, the checkpoint and the memory settings.
+description: Loads a model once and keeps it ready, so Generate Latent, Encode Media, Decode Media and the other nodes in the flow can reuse it.
+when_to_use: Use it to start any diffusion workflow, to choose the model family, the pipeline type, the checkpoint and the memory settings.
 ---
 
 ## When to use it
 
+This node loads the image or video model you want to use and keeps it ready. The loaded model, together with its supporting parts, is called a pipeline. Diffusion models make a picture or clip by cleaning noise out of a starting point.
+
 Every diffusion workflow starts here. Pick the model family and checkpoint, set how memory is used, and connect `pipeline` to each node that needs the model.
 
-The pipeline is built once and kept in memory. Changing a load-time setting, such as the checkpoint, the memory settings or the LoRAs, rebuilds it. Prompts and step counts are set on other nodes and never trigger a rebuild.
+The pipeline is built once and kept in memory. Changing a load-time setting, such as the checkpoint, the memory settings or the LoRAs (small add-on files that change a model's style), rebuilds it. Prompts and step counts are set on other nodes and never trigger a rebuild.
 
-MiniMax-H3, Flux3 and WAN Animate 2 do not use the quantization, layerwise casting and CPU offload settings, and LTX2 offers its own checkpoint entries. See [Build Pipeline by model](../guides/build-pipeline-by-model.md).
+MiniMax-H3, Flux3 and WAN Animate 2 do not use the quantization (storing the model at lower precision to save memory), layerwise casting and CPU offload settings, and LTX2 offers its own checkpoint entries. See [Build Pipeline by model](../guides/build-pipeline-by-model.md).
 
 ## What it needs
 

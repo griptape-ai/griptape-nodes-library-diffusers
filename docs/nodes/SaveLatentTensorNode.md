@@ -1,11 +1,13 @@
 ---
-description: Saves a latent to disk as a torch .pt file.
+description: Saves a latent, the model's compressed working form of a picture or clip, to disk as a torch .pt file.
 when_to_use: Use it when you want to keep a raw latent for debugging, or to build a test file for later work outside the editor.
 ---
 
 ## When to use it
 
-You want the latent itself, not a decoded picture. It is useful for debugging a pipeline or keeping a test case. To get viewable frames, run the latent through [Decode Media](VaeDecodeNode.md) instead.
+This node saves a [latent](../guides/what-is-a-latent.md) to disk as a file. A latent is the compressed form of a picture or clip that the model works on. It is not a picture you can view.
+
+Use it when you want the latent itself, not a decoded picture. It is useful for debugging a pipeline or keeping a test case. To get viewable frames, run the latent through [Decode Media](VaeDecodeNode.md) instead.
 
 ## Where it fits
 

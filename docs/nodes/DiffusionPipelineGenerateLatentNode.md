@@ -1,11 +1,11 @@
 ---
-description: Runs the denoising loop on a starting latent and returns a denoised latent, for images or video depending on the pipeline.
-when_to_use: Use it when you need the main generation step of a diffusion workflow, including text-to-image, image-to-image, inpainting, masked denoising and multi-stage refinement.
+description: Makes the picture or clip by cleaning noise out of a starting latent step by step, and returns a latent, for images or video depending on the pipeline.
+when_to_use: Use it for the main generation step of a workflow, including text-to-image, image-to-image, inpainting (redrawing a masked area), masked denoising and multi-stage refinement.
 ---
 
 ## When to use it
 
-This is the node that makes the picture or the clip. Connect a pipeline and a starting latent, write the prompt, and run. The output is a latent, so pass it to [Decode Media](VaeDecodeNode.md) to get an image or video.
+This is the node that makes the picture or the clip. It starts from a [latent](../guides/what-is-a-latent.md), the compressed form of a picture or clip that the model works on, and cleans noise out of it over many steps until an image or video emerges. Connect a pipeline (the loaded model) and a starting latent, write the prompt, and run. The output is a latent, so pass it to [Decode Media](VaeDecodeNode.md) to get an image or video.
 
 The settings below the inputs depend on the connected pipeline. They appear when you connect it and change if you swap it for another one. Connections to settings with the same name are kept.
 

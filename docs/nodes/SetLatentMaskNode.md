@@ -1,11 +1,13 @@
 ---
-description: Bundles an encoded image latent with a mask so only the masked areas are redone when it is denoised.
+description: Bundles an encoded image with a mask so only the masked areas are redone when the model generates.
 when_to_use: Use it when you want to repaint part of an image, such as a clean-up patch or a replaced prop, and keep the rest close to the original.
 ---
 
 ## When to use it
 
-You have an encoded image and a mask that marks what to change. White is redone, black is kept, and gray is redone partially. Connect `output_latent` to [Generate Latent](DiffusionPipelineGenerateLatentNode.md) with `add_noise` on. Only the masked areas are regenerated. This is differential diffusion, and it does not switch the model to a separate inpaint pipeline.
+This node tells the model which parts of an image to redo and which to keep. It bundles an encoded image, which is a [latent](../guides/what-is-a-latent.md), with a mask. A latent is the compressed form of a picture or clip that the model works on.
+
+You have an encoded image and a mask that marks what to change. White is redone, black is kept, and gray is redone partially. Connect `output_latent` to [Generate Latent](DiffusionPipelineGenerateLatentNode.md) with `add_noise` on. Only the masked areas are regenerated. This is differential diffusion. It does not switch the model to a separate inpainting (redrawing part of an image) pipeline.
 
 ## Where it fits
 

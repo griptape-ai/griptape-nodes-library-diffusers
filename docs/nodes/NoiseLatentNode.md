@@ -1,11 +1,13 @@
 ---
-description: Creates a random-noise latent sized for the connected pipeline, the usual starting point for text-to-image and text-to-video.
-when_to_use: Use it when you want a repeatable noise start for a generation, or a model such as WAN Animate 2 or MiniMax-H3 needs its output size set here.
+description: Creates a starting latent of random noise, sized for the connected pipeline. It is the usual starting point for text-to-image and text-to-video.
+when_to_use: Use it when you want a repeatable starting point for a generation, or a model such as WAN Animate 2 or MiniMax-H3 needs its output size set here.
 ---
 
 ## When to use it
 
-You are generating from a prompt alone and want to control the size and the seed. The same seed, pipeline and size give the same noise every time, so you can repeat a result or vary only the prompt.
+This node makes the random starting point that a model generates from. It is a [latent](../guides/what-is-a-latent.md) full of noise, sized to fit the connected pipeline. A latent is the compressed form of a picture or clip that the model works on. The model cleans the noise up into a picture or clip.
+
+Use it when you are generating from a prompt alone and want to control the size and the seed. The seed is a number that fixes the random pattern. The same seed, pipeline and size give the same noise every time, so you can repeat a result or vary only the prompt.
 
 To start from an existing picture or clip, use [Encode Media](VaeEncodeNode.md). For an all-zero latent, use [Create Empty Latent](EmptyLatentNode.md).
 

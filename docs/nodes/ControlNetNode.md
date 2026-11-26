@@ -1,11 +1,13 @@
 ---
-description: Sets up one ControlNet, with its model, control image and strength, to feed into Apply ControlNet.
+description: Sets up one ControlNet, an add-on model that follows a guide image, with its model, control image and strength, to feed into Apply ControlNet.
 when_to_use: Use it when you want a reference image, such as an edge map, depth pass or pose, to steer the composition of a generated image.
 ---
 
 ## When to use it
 
-You have a control image, such as a canny edge map or a depth pass rendered from a plate, and want the generated image to follow it. Each node holds one ControlNet. To stack several, add one node for each and connect them all to [Apply ControlNet](ControlNetDiffusionPipelineBuilderNode.md).
+This node prepares one ControlNet. A ControlNet is an add-on model that makes a generated image follow a guide image you give it. You choose the model, the guide image (called the control image) and how strongly it steers.
+
+Use it when you have a control image, such as a canny edge map or a depth pass rendered from a plate, and want the generated image to follow it. Each node holds one ControlNet. To stack several, add one node for each and connect them all to [Apply ControlNet](ControlNetDiffusionPipelineBuilderNode.md).
 
 ## What it needs
 

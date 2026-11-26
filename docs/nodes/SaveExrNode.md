@@ -1,9 +1,11 @@
 ---
-description: Writes float RGB media as a numbered OpenEXR frame sequence, one file per frame.
+description: Writes float RGB frames as a numbered OpenEXR sequence, one file per frame.
 when_to_use: Use it when you need decoded HDR frames on disk as EXR files for a compositing package or a review.
 ---
 
 ## When to use it
+
+This node saves frames to disk as a numbered OpenEXR sequence, one file per frame.
 
 You have float RGB frames from [Decode HDR Media](DecodeHdrNode.md) and want an EXR sequence you can load into a comp. The node writes the float values exactly as they arrive. It does not convert color space, so prepare the values before saving if you need that.
 
