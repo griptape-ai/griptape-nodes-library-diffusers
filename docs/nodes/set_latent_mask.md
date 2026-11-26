@@ -8,6 +8,7 @@ Category: `Diffusion/Transform`
 - Connect an image or video `LatentArtifact` from Encode Media and a mask image.
 - Choose the mask channel and optionally invert, grow/shrink, or blur the mask.
 - `output_latent` carries the latent and the processed mask together.
+- `output_mask` shows the final mask, after the channel, invert, grow/shrink, and blur options are applied, and updates on every run.
 - Connect `output_latent` to [Generate Latent](generate_media_latents.md) with `add_noise` on, and only the masked areas are redone while the rest stays close to the original ([Differential Diffusion](https://arxiv.org/abs/2306.00950)).
 
 ## Typical workflow position
@@ -33,6 +34,7 @@ Paint Mask ───────────┘
 | Name | Type | Notes |
 | --- | --- | --- |
 | `output_latent` | `MaskedLatentArtifact` | The input latent bundled with the processed mask. |
+| `output_mask` | `ImageUrlArtifact` | The final mask after the channel, invert, grow/shrink, and blur options are applied. |
 
 ## Parameters
 

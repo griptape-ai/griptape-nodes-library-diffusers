@@ -19,7 +19,7 @@ from modular_diffusion_nodes_library.utils.image_utils import (
     extract_channel_from_image,
     load_image_from_url_artifact,
 )
-from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
+from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil, pil_to_image_artifact
 
 if TYPE_CHECKING:
     from PIL import Image as PILImage  # type: ignore[reportMissingImports]
@@ -82,6 +82,15 @@ class SetLatentMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
 
         self.add_node_element(mask_options)
 
+        self.add_parameter(
+            Parameter(
+                name="output_mask",
+                output_type="ImageUrlArtifact",
+                tooltip="The mask after channel selection, invert, grow/shrink, and blur have been applied.",
+                allowed_modes={ParameterMode.OUTPUT},
+            )
+        )
+
         latents_param = Parameter(
             name="output_latent",
             output_type="MaskedLatentArtifact",
@@ -125,6 +134,11 @@ class SetLatentMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
     def _encode(self) -> None:
         source_latent = self._get_input_latent()
         mask_pil = self._get_mask()
+
+        mask_artifact = pil_to_image_artifact(mask_pil, filename="set_latent_mask.png")
+        self.set_parameter_value("output_mask", mask_artifact)
+        self.parameter_output_values["output_mask"] = mask_artifact
+
         artifact = MaskedLatentArtifact(
             mask_image=mask_pil,
             source_latent=source_latent,
