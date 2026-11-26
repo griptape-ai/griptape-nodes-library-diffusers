@@ -7,27 +7,41 @@ Build Pipeline loads a diffusion model and its settings so the other nodes can u
 
 ## MiniMax-H3
 
-The quantization, layerwise casting and CPU offload settings are not used. The model is loaded in bfloat16 (a 16-bit number format) with automatic CPU offload instead. It needs a single 80 GB accelerator plus plenty of system memory. The text encoder is reloaded from disk each time it is needed, so the model files must stay downloaded. LoRAs, small add-on files for style or subject, are not supported.
+MiniMax-H3 makes video together with a soundtrack. Pick the pipeline type for the job:
 
-`MiniMaxH3ModularPipeline` does text-to-video and keyframe-to-video, with a soundtrack generated together with the video. `MiniMaxH3Ref2VAModularPipeline` does reference-to-video from up to 9 images and 3 video clips, and uses a separate transformer in the same repo.
+- `MiniMaxH3ModularPipeline` makes a video from a text prompt, or from keyframes (pictures that set what the video should look like at chosen points). The soundtrack is generated with the video.
+- `MiniMaxH3Ref2VAModularPipeline` makes a video from reference material: up to 9 images and 3 video clips. It uses a separate transformer from the same repo.
+
+This model manages its own memory, so the node's memory settings (`quantization_mode`, `transformer_layerwise_casting` and `cpu_offload_strategy`) do nothing for it. The model is stored in your computer's main memory, and each part moves onto the graphics card only while it works. It stores its numbers in 16 bits (bfloat16).
+
+- **Hardware:** it needs one accelerator, meaning a graphics card, with 80 GB of memory, and plenty of main memory as well.
+- **Downloads:** the text encoder is loaded from disk each time it is needed, so keep the model files downloaded.
+- **LoRAs:** not supported. A LoRA is a small add-on file that gives a model a style or subject.
 
 ## Flux3
 
-`prompt_upsampler_model` is for Flux3 only. It is an optional prompt upsampler, which expands your prompt before generation, `black-forest-labs/flux-3-image-klein-pup`. Choose `Disabled` to pass prompts through unchanged.
+Flux3 makes images. Pick the pipeline type for the speed you want:
 
-`Flux3Pipeline` is the base model. `Flux3DistilledPipeline` is the 16-step distilled model, a version made to run in fewer steps. The quantization, layerwise casting and CPU offload settings are not used. The model is loaded with automatic CPU offload instead.
+- `Flux3Pipeline` is the base model.
+- `Flux3DistilledPipeline` is a distilled version, trained to run in 16 steps.
 
-The model list offers the full-precision repo and, when downloaded, `fp8r` and `nvfp4` rows with quantized transformers. A quantized row replaces only the transformer. `fp8r` stops the run with a message on a GPU or torch build that cannot run per-row scaled matrix multiplication. Pick the default row or `nvfp4` there.
+Like MiniMax-H3, Flux3 manages its own memory. The node's memory settings (`quantization_mode`, `transformer_layerwise_casting` and `cpu_offload_strategy`) do nothing for it. Each part of the model moves onto the graphics card only while it works.
+
+`prompt_upsampler_model` is for Flux3 only. A prompt upsampler rewrites your prompt in more detail before the image is made. The option is `black-forest-labs/flux-3-image-klein-pup`. Choose `Disabled` to use your prompt as written.
+
+The model list shows the full-precision model. After you download them, it also shows `fp8r` and `nvfp4` rows. These swap in a transformer that is stored at lower precision to use less memory. Only the transformer changes. The `fp8r` row stops the run with a message if your GPU or your torch install cannot run it. In that case pick the default row or `nvfp4`.
 
 ## WAN Animate 2
 
-`WanAnimate2Pipeline` animates a character image with the motion of a driving video, the clip that supplies the movement. `model` offers the standard and the distilled checkpoint. With the distilled one, Generate Latent defaults to 10 steps and `guidance_scale` 1.0.
+WAN Animate 2 (`WanAnimate2Pipeline`) animates a character image with the motion from a driving video, the clip that supplies the movement. `model` offers the standard and the distilled checkpoint. A distilled checkpoint is a version trained to run in fewer steps. With it, Generate Latent defaults to 10 steps and `guidance_scale` 1.0.
 
-The quantization, layerwise casting and CPU offload settings are not used. The model is loaded in bfloat16 with automatic CPU offload instead. The transformer is compiled during the first Generate run, so that run takes noticeably longer.
+The node's memory settings (`quantization_mode`, `transformer_layerwise_casting` and `cpu_offload_strategy`) do nothing for this model. It manages its own memory: the model is stored in your computer's main memory, and each part moves onto the graphics card only while it works. It stores its numbers in 16 bits (bfloat16).
+
+The first Generate run is slower than later ones, because the transformer is optimised on that first run.
 
 ## LTX2
 
-The `LTX2Pipeline` type lists LTX-2.3, LTX-2.3 Distilled and LTX-2 checkpoints. `LTX-2.5 Distilled` and `LTX-2.5 Full (SFT)` both build an `LTX2Pipeline` from the `Lightricks/LTX-2.5-Diffusers` repo. They differ only in the transformer: distilled or full. Decoding always uses the plain VAE.
+LTX2 makes video. The `LTX2Pipeline` type lists the LTX-2.3, LTX-2.3 Distilled and LTX-2 checkpoints. `LTX-2.5 Distilled` and `LTX-2.5 Full (SFT)` are both built from the `Lightricks/LTX-2.5-Diffusers` repo. They differ only in the transformer: distilled, or full. The VAE used to decode the video is the same for all of them.
 
 For the settings every model shares, see [Build Pipeline](../nodes/LatentDiffusionPipelineBuilderNode.md).
 
