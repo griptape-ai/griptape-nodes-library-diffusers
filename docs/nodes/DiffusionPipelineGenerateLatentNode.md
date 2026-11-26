@@ -5,7 +5,7 @@ when_to_use: Use it for the main generation step of a workflow, including text-t
 
 ## When to use it
 
-This is the node that makes the picture or the clip. It starts from a [latent](../guides/what-is-a-latent.md), the compressed form of a picture or clip that the model works on, and cleans noise out of it over many steps until an image or video emerges. Connect a pipeline (the loaded model) and a starting latent, write the prompt, and run. The output is a latent, so pass it to [Decode Media](VaeDecodeNode.md) to get an image or video.
+This is the node that makes the picture or the clip. It starts from a [latent](../guides/what-is-a-latent.md), the compressed form of a picture or clip that the model works on, and cleans noise out of it over many steps until an image or video emerges. Connect a pipeline (the loaded model) and a starting latent, write your prompt, and run. Masked denoising repaints only part of a picture. A mask works like a matte and limits where the model may change pixels. The output is a latent, so pass it to [Decode Media](VaeDecodeNode.md) to get an image or video.
 
 The settings below the inputs depend on the connected pipeline. They appear when you connect it and change if you swap it for another one. If you swap the pipeline, wires to settings that still exist on the new pipeline stay connected.
 

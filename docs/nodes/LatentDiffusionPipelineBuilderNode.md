@@ -11,15 +11,15 @@ Every diffusion workflow starts here. Pick the `provider` (the model family) and
 
 The pipeline is built once and kept in memory. Changing a load-time setting, such as the checkpoint, the memory settings or the LoRAs (small add-on files that change a model's style), rebuilds it. Prompts and step counts are set on other nodes and never trigger a rebuild.
 
-MiniMax-H3, Flux3 and WAN Animate 2 manage their own memory, so they ignore the memory settings below: quantization (storing the model at lower precision to save memory), layerwise casting (storing the main part of the model in a compact format and converting it layer by layer as it runs) and CPU offload (keeping idle parts in your computer's main memory instead of on the graphics card). These settings are explained in [Memory settings](../guides/how-pipelines-work.md#memory-settings). The WAN, WAN I2V, WAN Animate, WAN VACE and HunyuanVideo 1.5 pipelines also ignore CPU offload.
+MiniMax-H3, Flux3 and WAN Animate 2 manage their own memory, so they ignore the memory settings below: quantization (storing the model at lower precision to save memory), layerwise casting (storing the main part of the model in a compact format and converting it layer by layer as it runs) and CPU offload (keeping idle parts in your computer's main memory instead of on the graphics card (GPU)). These settings are explained in [Memory settings](../guides/how-pipelines-work.md#memory-settings). The WAN, WAN I2V, WAN Animate, WAN VACE and HunyuanVideo 1.5 pipelines also ignore CPU offload.
 
-LTX2 has three pipeline types. `LTX2Pipeline` lists the LTX-2.3, LTX-2.3 Distilled and LTX-2 checkpoints in `model`. `LTX-2.5 Distilled` and `LTX-2.5 Full (SFT)` are both built from one LTX-2.5 repo. See [Build Pipeline by model](../guides/build-pipeline-by-model.md).
+LTX2 has three pipeline types. `LTX2Pipeline` lists the LTX-2.3, LTX-2.3 Distilled and LTX-2 checkpoints in `model`. `LTX-2.5 Distilled` and `LTX-2.5 Full (SFT)` are separate pipeline types in the list, both built from one LTX-2.5 repo. See [Build Pipeline by model](../guides/build-pipeline-by-model.md).
 
 ## What it needs
 
 - A model downloaded in Model Manager. See [Hugging Face and Diffusers](../guides/hugging-face-and-diffusers.md) for gated models and the cache. Nothing is downloaded when the pipeline is built.
 - The same model family for any LoRA, ControlNet or component override you connect.
-- Enough GPU memory for the model. See the memory settings in [the guide](../guides/how-pipelines-work.md#memory-settings).
+- Enough graphics card memory for the model. See the memory settings in [the guide](../guides/how-pipelines-work.md#memory-settings).
 
 ## Where it fits
 
@@ -51,7 +51,7 @@ The checkpoint, chosen from the models downloaded for this pipeline type. A stan
 
 ### memory_optimization_strategy
 
-`Manual` (default) shows the memory settings. `Automatic` hides them, including `quantization_mode`, and chooses settings from the GPU memory available. The individual settings are described in [Memory settings](../guides/how-pipelines-work.md#memory-settings).
+`Manual` (default) shows the memory settings. `Automatic` hides them, including `quantization_mode`, and chooses settings from the graphics card memory available. The individual settings are described in [Memory settings](../guides/how-pipelines-work.md#memory-settings).
 
 ### quantization_mode
 
@@ -75,7 +75,7 @@ Build messages, including the pipeline's configuration hash.
 
 ## Tips
 
-- If the model does not fit in GPU memory, try these in order: set `quantization_mode` to `int8` or `int4`, set `cpu_offload_strategy` to `Model`, turn on `vae_slicing`. Each trades some speed for memory.
+- If the model does not fit in graphics card memory, try these in order: set `quantization_mode` to `int8` or `int4`, set `cpu_offload_strategy` to `Model`, turn on `vae_slicing`. Each trades some speed for memory.
 - If a LoRA has no effect, check that it was trained for the same model family as `provider`, and that it is connected to `loras`.
 - The cache is held in memory. After a restart, the next run builds the pipeline again.
 

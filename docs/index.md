@@ -2,11 +2,13 @@
 title: Diffusion Library
 ---
 
-The Diffusion Library makes images and video from a text description or from a picture you supply. It uses diffusion models, which start from random noise and refine it step by step into a picture or clip that matches your prompt. Instead of one "generate" node, each stage is its own node: load a model, create or encode a starting point, run the diffusion, adjust the result, and decode it into a picture or a clip. You can see, reuse and change every stage.
+The Diffusion Library makes images and video from a text description or from a picture you supply. It uses diffusion models, which start from random noise and refine it step by step into a picture or clip. Instead of one "generate" node, each stage is its own node: load a model, create or encode a starting point, run the diffusion, adjust the result, and decode it into a picture or a clip. You can see, reuse and change every stage.
 
-Because each stage is its own node, you can refine an image over several passes, stack [ControlNets](nodes/ControlNetNode.md) (extra guides that steer the layout), paste one image into another before it is turned back into pixels, start a video from a chosen first and last frame, or enlarge a result before decoding it. The model is loaded once and reused across runs, so changing only a prompt is fast.
+The text description is called a prompt. A pipeline is a loaded model plus its settings. The model is loaded once and reused across runs, so changing only the prompt is fast.
 
-Download each model in Model Manager before you run a workflow. Build Pipeline shows an **Open Model Manager to Download** button when the selected model is missing. The models come from Hugging Face, a site that hosts shared models. Some, such as FLUX.1 dev, are gated and need an `HF_TOKEN` access token in your API keys. See [Hugging Face and Diffusers](guides/hugging-face-and-diffusers.md).
+Each model is a large download. Griptape Nodes has a Model Manager that downloads and stores them. If a model is missing, the [Build Pipeline](nodes/LatentDiffusionPipelineBuilderNode.md) node (the node that loads the model) shows an **Open Model Manager to Download** button. The models come from Hugging Face, a site that hosts shared models. Some, such as FLUX.1 dev, are gated and need an `HF_TOKEN` access token in your API keys. See [Hugging Face and Diffusers](guides/hugging-face-and-diffusers.md).
+
+Because each stage is its own node, you can refine an image over several passes, stack [ControlNets](nodes/ControlNetNode.md) (extra guides that steer the layout), paste one image into another before it is turned back into pixels, start a video from a chosen first and last frame, or enlarge a result before decoding it.
 
 ![A workflow built from Diffusion Library nodes](assets/hero.png)
 
@@ -14,10 +16,10 @@ Download each model in Model Manager before you run a workflow. Build Pipeline s
 
 Learn the ideas:
 
-- [How pipelines work](guides/how-pipelines-work.md) explains what a loaded model is, how Build Pipeline makes one, and the settings that control memory.
+- [How pipelines work](guides/how-pipelines-work.md) explains what a pipeline is, how Build Pipeline makes one, and the settings that control memory.
 - [What is a latent?](guides/what-is-a-latent.md) explains the start, clean-up and decode pattern behind every workflow, and the working format the model uses in between.
 - [What is a VAE?](guides/what-is-a-vae.md) explains the encoder and decoder that move pictures into latents and back.
-- [What are a text encoder and a tokenizer?](guides/what-is-a-text-encoder.md), [What are a transformer and a UNet?](guides/what-is-a-transformer.md) and [What is a scheduler?](guides/what-is-a-scheduler.md) explain the parts you can swap with Load Component and Load Scheduler.
+- [What are a text encoder and a tokenizer?](guides/what-is-a-text-encoder.md), [What are a transformer and a UNet?](guides/what-is-a-transformer.md) and [What is a scheduler?](guides/what-is-a-scheduler.md) explain the separate parts inside a model. Each part can be replaced with your own using the Load Component and Load Scheduler nodes.
 
 Try a workflow:
 
@@ -35,7 +37,7 @@ Learn the main nodes:
 Check memory:
 
 - [Estimate Pipeline Memory](nodes/PipelineMemoryEstimateNode.md) shows how much memory on your graphics card (GPU) a run needs.
-- The [command-line version](tools/estimate_workflow_memory.md) does the same for a saved workflow.
+- A [command-line version](tools/estimate_workflow_memory.md), for technical staff, checks saved workflows that start from noise rather than from a loaded image.
 
 ## Node categories
 
@@ -43,7 +45,7 @@ The editor groups the nodes under Diffusion.
 
 | Category | What it holds |
 | --- | --- |
-| Pipeline | Loading models (a pipeline is a loaded model plus its settings), ControlNets, LoRAs, components and schedulers, and clearing or estimating the loaded pipeline. |
+| Pipeline | Loading models, ControlNets, LoRAs, components and schedulers, and clearing or estimating the loaded pipeline. |
 | Create | Starting points: random noise or an empty latent (the model's working format). |
 | Processing | Running the diffusion and enlarging a latent. |
 | Transform | Adding, subtracting, multiplying and compositing latents, and setting a latent mask. |
@@ -51,4 +53,4 @@ The editor groups the nodes under Diffusion.
 | Encode & Decode | Moving between images or video and latents. |
 | IO | Saving latents and EXR sequences. |
 
-Models that this library supports include Flux, Qwen-Image, Stable Diffusion, Z-Image, LTX, WAN and HunyuanVideo. The model picker also lists models that your Griptape Nodes license does not allow. They are marked as not permitted and cannot be run.
+Models that this library supports include Flux, Qwen-Image, Stable Diffusion, Z-Image, LTX, WAN and HunyuanVideo. Some models in the list are marked "not permitted". Your license does not cover them, so they cannot be run.
