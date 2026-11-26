@@ -45,3 +45,5 @@ To swap it, connect a [Load Component](../nodes/LoadComponent.md) node with the 
 - Decoding can be where a run runs out of memory, because the decoder expands a small latent into full-size frames. Turn on `vae_slicing` or `vae_tiling` if it happens, most often with large images or long videos.
 - The VAE sets the limit on fine detail. Very small text, thin lines and fine texture can soften, even when the diffusion step got them right.
 - Encoding then decoding an image gives a very close copy, not an exact one.
+
+Related: [What are a transformer and a UNet?](what-is-a-transformer.md), [What are a text encoder and a tokenizer?](what-is-a-text-encoder.md), [What is a scheduler?](what-is-a-scheduler.md).

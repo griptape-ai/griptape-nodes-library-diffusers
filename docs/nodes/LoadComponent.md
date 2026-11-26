@@ -5,7 +5,7 @@ when_to_use: Use it when you want Build Pipeline to use a specific checkpoint, s
 
 ## When to use it
 
-You have a particular model file or folder, such as a GGUF transformer or a fine-tuned [VAE](../guides/what-is-a-vae.md#why-swap-the-vae), and want Build Pipeline to use it for one slot. This node describes where the weights are. [Build Pipeline](LatentDiffusionPipelineBuilderNode.md) loads them when it builds the pipeline.
+You have a particular model file or folder, such as a GGUF [transformer](../guides/what-is-a-transformer.md#why-swap-it), a [text encoder](../guides/what-is-a-text-encoder.md#why-swap-it) or a fine-tuned [VAE](../guides/what-is-a-vae.md#why-swap-the-vae), and want Build Pipeline to use it for one slot. This node describes where the weights are. [Build Pipeline](LatentDiffusionPipelineBuilderNode.md) loads them when it builds the pipeline.
 
 ## What it needs
 
@@ -26,7 +26,7 @@ You have a particular model file or folder, such as a GGUF transformer or a fine
 
 ### component
 
-Which pipeline slot this loader is for: `Transformer` (default), `UNet`, `VAE`, `Tokenizer` or `Text Encoder`. Changing it changes the output type and removes any connection from `component_output`, so reconnect it afterward.
+Which pipeline slot this loader is for: [`Transformer`](../guides/what-is-a-transformer.md) (default), [`UNet`](../guides/what-is-a-transformer.md), [`VAE`](../guides/what-is-a-vae.md), [`Tokenizer`](../guides/what-is-a-text-encoder.md) or [`Text Encoder`](../guides/what-is-a-text-encoder.md). Changing it changes the output type and removes any connection from `component_output`, so reconnect it afterward.
 
 ### source_type
 

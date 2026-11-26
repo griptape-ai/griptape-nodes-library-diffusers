@@ -1,0 +1,45 @@
+---
+title: What are a transformer and a UNet?
+description: The network that does the actual image and video making, and when to swap it in the nodes.
+---
+
+Read [What is a latent?](what-is-a-latent.md) first. The transformer is the part that does the denoising step from that guide.
+
+## The idea
+
+The transformer is the main network inside a diffusion model. It is the part that takes a noisy latent and your encoded prompt and produces a slightly cleaner latent. It does this once per step, for every step of a run. The [VAE](what-is-a-vae.md) and the [text encoder](what-is-a-text-encoder.md) only translate at either end. The transformer is the part that makes the picture or the clip.
+
+Older Stable Diffusion models use a different design for this network, called a **UNet**. It does the same job. In the nodes, a pipeline type has either a Transformer slot or a UNet slot, never both. In this library the Stable Diffusion XL pipeline type has a UNet slot, and the other pipeline types that have override ports use a Transformer slot.
+
+```text
+noisy latent + prompt numbers ──transformer (or UNet)──▶ cleaner latent   (repeated each step)
+```
+
+The transformer works on the latent, never on pixels. It runs once per step, so it is where most of a run's time goes.
+
+## Where it shows up in the nodes
+
+- [Build Pipeline](../nodes/LatentDiffusionPipelineBuilderNode.md) loads the transformer or UNet with the rest of the model. Its Component Overrides group shows a Transformer port or a UNet port, depending on the pipeline type.
+- [Load Component](../nodes/LoadComponent.md) with the slot set to `Transformer` or `UNet` swaps in your own. Some pipeline types also have a Transformer 2 port, which a `Transformer` loader can feed.
+- [Generate Latent](../nodes/DiffusionPipelineGenerateLatentNode.md) is where the denoising steps run.
+- The `quantization_mode`, `transformer_layerwise_casting` and CPU offload settings in [Memory settings](build-pipeline-by-model.md#memory-settings) reduce the memory the transformer needs without replacing it.
+
+## Why swap it
+
+Most workflows should keep the transformer that comes with the model. People swap it for a few reasons:
+
+- **A fine-tune or checkpoint.** A community checkpoint changes the look or the subject matter the model is good at, without changing the rest of the pipeline.
+- **A GGUF or other quantized file.** A quantized transformer is smaller, so a model that would not fit in memory can run. The quality loss depends on how hard it was quantized.
+- **A single file instead of the Diffusers format.** Many checkpoints are shared as one file. Build Pipeline's model list expects Diffusers format, so a single file goes in through Load Component.
+
+To swap it, connect a [Load Component](../nodes/LoadComponent.md) node with the slot set to `Transformer` or `UNet` to the matching port in Build Pipeline's Component Overrides. For GGUF weights, set `source_type` to `Single File` and point `config_source` at the component's folder or its `config.json`.
+
+## Things to know
+
+- The replacement has to belong to the same model family as the rest of the pipeline. A transformer from a different model does not fit.
+- The transformer has to agree with the VAE. If the VAE's latent channel count does not match what the transformer expects, the run stops with a message on the Build Pipeline node.
+- A quantized override switches off `transformer_layerwise_casting`, because the weights are already stored in a smaller form.
+- Load Component describes where the weights are. Build Pipeline loads them when it builds the pipeline, and it rebuilds the pipeline when you change the loader.
+- The weights have to be on your machine already. Nothing is downloaded.
+
+Related: [What is a text encoder?](what-is-a-text-encoder.md), [What is a scheduler?](what-is-a-scheduler.md).

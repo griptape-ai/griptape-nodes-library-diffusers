@@ -5,7 +5,7 @@ when_to_use: Use it when you want a different sampler or noise schedule than the
 
 ## When to use it
 
-You want to change how a model steps through denoising without touching its weights. A scheduler is only a set of settings, so there is nothing large to load. Connect the result to the `scheduler` input of [Build Pipeline](LatentDiffusionPipelineBuilderNode.md).
+You want to change how a model steps through denoising without touching its weights. [What is a scheduler?](../guides/what-is-a-scheduler.md) explains what it controls. A scheduler is only a set of settings, so there is nothing large to load. Connect the result to the `scheduler` input of [Build Pipeline](LatentDiffusionPipelineBuilderNode.md).
 
 ## Where it fits
 

@@ -59,7 +59,7 @@ Connect one or more [Load LoRA](LoadLora.md) nodes. They are fused into the mode
 
 ### component_overrides
 
-A group of ports, one per part of the model, such as Transformer or [VAE](../guides/what-is-a-vae.md). Connect a [Load Component](LoadComponent.md) node to a port to replace that part of the model with your own weights. MiniMax-H3, Flux3 and WAN Animate 2 have no ports. Messages for replacements that do not fit are in [Component overrides](../guides/build-pipeline-by-model.md#component-overrides).
+A group of ports, one per part of the model, such as [Transformer or UNet](../guides/what-is-a-transformer.md), [VAE](../guides/what-is-a-vae.md), [Text Encoder or Tokenizer](../guides/what-is-a-text-encoder.md) or [Scheduler](../guides/what-is-a-scheduler.md). Connect a [Load Component](LoadComponent.md) node to a port to replace that part of the model with your own weights. MiniMax-H3, Flux3 and WAN Animate 2 have no ports. Messages for replacements that do not fit are in [Component overrides](../guides/build-pipeline-by-model.md#component-overrides).
 
 ### pipeline
 
