@@ -3,7 +3,7 @@ title: What are a text encoder and a tokenizer?
 description: How your prompt becomes something a diffusion model can use, and where the text encoder and tokenizer show up in the nodes.
 ---
 
-Read [What is a latent?](what-is-a-latent.md) first. The text encoder and the tokenizer are the parts that read your prompt. The diffusion model never sees your words, only what these two make from them.
+The text encoder and the tokenizer are the parts that read your prompt, and they build on [What is a latent?](what-is-a-latent.md). The diffusion model never sees your words, only what these two make from them.
 
 ## The idea
 

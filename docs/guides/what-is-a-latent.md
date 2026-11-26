@@ -3,7 +3,7 @@ title: What is a latent?
 description: The pattern behind every Diffusion Library workflow, and what a latent is.
 ---
 
-Read this first if the words "latent", "noise" and "decode" in the node names are new to you.
+The words "latent", "noise" and "decode" appear in many node names. This page explains what they mean.
 
 ## The idea
 

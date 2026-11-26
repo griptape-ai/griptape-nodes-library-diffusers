@@ -3,7 +3,7 @@ title: What is a scheduler?
 description: What the scheduler controls during denoising, and when to change it in the nodes.
 ---
 
-Read [What is a latent?](what-is-a-latent.md) first. The scheduler decides how the denoising in that guide is carried out, step by step.
+The scheduler decides how the denoising described in [What is a latent?](what-is-a-latent.md) is carried out, step by step.
 
 ## The idea
 

@@ -3,7 +3,7 @@ title: What are a transformer and a UNet?
 description: The network that does the actual image and video making, and when to swap it in the nodes.
 ---
 
-Read [What is a latent?](what-is-a-latent.md) first. The transformer is the part that does the denoising step from that guide.
+The transformer is the part that does the denoising step described in [What is a latent?](what-is-a-latent.md).
 
 ## The idea
 

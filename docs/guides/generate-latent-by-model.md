@@ -3,7 +3,7 @@ title: Generate Latent by model
 description: Model-specific behavior of the Generate Latent node.
 ---
 
-Read this when you use Generate Latent with masked denoising, LTX2, MiniMax-H3, Flux3, WAN Animate 2 or WAN VACE and need to know what changes for that model.
+This page covers what changes in Generate Latent for masked denoising, LTX2, MiniMax-H3, Flux3, WAN Animate 2 and WAN VACE.
 
 ## Masked denoising
 

@@ -3,7 +3,7 @@ title: What is a VAE?
 description: What the VAE does in a diffusion workflow, and where it shows up in the nodes.
 ---
 
-Read [What is a latent?](what-is-a-latent.md) first. The VAE is the part that moves pictures into latents and back.
+The VAE is the part that moves pictures into latents and back. It builds on [What is a latent?](what-is-a-latent.md).
 
 ## The idea
 
