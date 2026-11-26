@@ -20,7 +20,7 @@ def image_artifact_to_pil(image_artifact: ImageArtifact) -> Image:
     return PIL.Image.open(io.BytesIO(image_artifact.value))
 
 
-def pil_to_image_artifact(pil_image: Image, directory_path: str = "") -> ImageUrlArtifact:
+def pil_to_image_artifact(pil_image: Image, directory_path: str = "", filename: str = "image.png") -> ImageUrlArtifact:
     """Converts Pillow Image to Griptape ImageArtifact."""
     image_io = io.BytesIO()
     pil_image.save(image_io, "PNG")
@@ -35,13 +35,13 @@ def pil_to_image_artifact(pil_image: Image, directory_path: str = "") -> ImageUr
         static_root = Path(
             ProjectFileDestination.from_situation(filename="image.png", situation="save_static_file").resolve()
         ).parent
-        target = static_root / directory_path / "image.png"
+        target = static_root / directory_path / filename
         cleanup_directory_if_enabled(target.parent)
 
         dest = ProjectFileDestination(str(target), existing_file_policy=ExistingFilePolicy.CREATE_NEW)
     else:
         # No directory prefix - direct storage
-        dest = ProjectFileDestination.from_situation(filename="image.png", situation="save_node_output")
+        dest = ProjectFileDestination.from_situation(filename=filename, situation="save_node_output")
 
     saved = dest.write_bytes(image_bytes)
     return ImageUrlArtifact(saved.location)
