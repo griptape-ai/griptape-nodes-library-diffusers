@@ -6,7 +6,7 @@ The Diffusion Library lets you build images and video with Diffusers models, one
 
 Because the stages are separate, you can do things a single node can't: refine an image over several passes, stack ControlNets, paste one image into another in latent space, condition a video on its first and last frames, or enlarge a result before decoding it. The model is loaded once and reused across runs, so changing only a prompt is fast.
 
-Download each model in Model Manager before you run a workflow. Build Pipeline shows an **Open Model Manager to Download** button when the selected model is missing. Some models, such as FLUX.1 dev, are gated on Hugging Face and need an `HF_TOKEN` access token in your API keys.
+Download each model in Model Manager before you run a workflow. Build Pipeline shows an **Open Model Manager to Download** button when the selected model is missing. The models come from Hugging Face. Some, such as FLUX.1 dev, are gated and need an `HF_TOKEN` access token in your API keys. See [Hugging Face and Diffusers](guides/hugging-face-and-diffusers.md).
 
 ![A workflow built from Diffusion Library nodes](assets/hero.png)
 

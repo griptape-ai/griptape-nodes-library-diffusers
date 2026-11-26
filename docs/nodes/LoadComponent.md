@@ -9,7 +9,7 @@ You have a particular model file or folder, such as a GGUF [transformer](../guid
 
 ## What it needs
 
-- Weights already on your machine. Nothing is downloaded. For a Hugging Face repo, download it first in Model Manager.
+- Weights already on your machine. Nothing is downloaded. For a Hugging Face repo, download it first in Model Manager. See [Hugging Face and Diffusers](../guides/hugging-face-and-diffusers.md).
 - A component override port on Build Pipeline that fits the chosen component. A loader for a kind of component can also feed the numbered ports of that kind, such as Text Encoder 2 or Transformer 2.
 
 ## Where it fits

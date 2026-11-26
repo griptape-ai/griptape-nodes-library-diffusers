@@ -13,7 +13,7 @@ MiniMax-H3, Flux3 and WAN Animate 2 do not use the quantization, layerwise casti
 
 ## What it needs
 
-- A model downloaded in Model Manager. Nothing is downloaded when the pipeline is built.
+- A model downloaded in Model Manager. See [Hugging Face and Diffusers](../guides/hugging-face-and-diffusers.md) for gated models and the cache. Nothing is downloaded when the pipeline is built.
 - The same model family for any LoRA, ControlNet or component override you connect.
 - Enough GPU memory for the model. See the memory settings in [the guide](../guides/build-pipeline-by-model.md#memory-settings).
 
