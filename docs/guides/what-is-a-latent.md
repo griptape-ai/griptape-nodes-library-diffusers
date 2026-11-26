@@ -17,6 +17,18 @@ Making an image takes three moves:
 
 Working in latent space is why the model can run on a normal GPU, and it is why the library splits the job into separate nodes.
 
+## What it looks like
+
+This run used Z-Image Turbo at 768 x 768 with 8 steps and seed 42. The prompt was "a lighthouse on a rocky coast at sunset, cinematic, detailed". After each step, the latent was decoded so you can see what the model has so far.
+
+![The noise latent turns into a lighthouse over eight denoising steps](../assets/latent-denoising.webp)
+
+The top row of the filmstrip shows the latent itself, with three of its channels drawn as colour. The bottom row shows the same latent decoded to pixels.
+
+![Latent and decoded image at steps 0, 2, 4, 6 and 8](../assets/latent-filmstrip.webp)
+
+Step 0 is pure noise. The large shapes appear first, the lighthouse and the horizon by step 4, and the fine detail and clean colour arrive in the last steps. In a workflow, Decode Media decodes only the final latent. The in-between pictures here are for illustration.
+
 ## The pattern in nodes
 
 ```text
