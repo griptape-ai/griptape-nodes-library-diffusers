@@ -3,14 +3,14 @@ description: Start from your own picture and rework it to match a prompt. Good f
 when_to_use: Use it when you have an image you want to change while keeping its overall layout. Use Text2Image when you are starting from nothing.
 ---
 
-This workflow loads an image, adds noise to it, and lets the model repaint it to match your prompt. It uses Z-Image Turbo. A Compare Images node shows the original and the result side by side.
+This workflow takes an image you already have and repaints it to match a text description, called a prompt. It keeps the overall layout. The model adds some noise to your picture, then cleans it up toward your prompt. It uses Z-Image Turbo. A Compare Images node shows the original and the result side by side.
 
 ## What it connects
 
 1. A Load Image node supplies your picture.
 1. [Build Pipeline](../nodes/LatentDiffusionPipelineBuilderNode.md) loads the model.
-1. [Encode Media](../nodes/VaeEncodeNode.md) converts the picture into the form the model works in.
-1. [Generate Latent](../nodes/DiffusionPipelineGenerateLatentNode.md) reads the prompt from a Text Input node and repaints the image, starting from step 5 of 20.
+1. [Encode Media](../nodes/VaeEncodeNode.md) converts the picture into a latent, the compressed form the model works in.
+1. [Generate Latent](../nodes/DiffusionPipelineGenerateLatentNode.md) reads the prompt from a Text Input node and repaints the image, starting from step 5 of 20. A step is one round of clean-up.
 1. [Decode Media](../nodes/VaeDecodeNode.md) turns the result back into an image.
 
 ## Steps
@@ -24,7 +24,7 @@ This workflow loads an image, adds noise to it, and lets the model repaint it to
 
 - Model: Z-Image Turbo (`Tongyi-MAI/Z-Image-Turbo`).
 - Steps: 20, starting from step 5.
-- Seed: 42.
+- Seed: 42, the number that fixes the random noise.
 
 ## Tips
 

@@ -3,13 +3,13 @@ description: Paint a mask over part of an image and describe what should appear 
 when_to_use: Use it to replace or fix one area of an image, such as removing an object or adding one. Use Image2Image to rework the whole picture.
 ---
 
-This workflow repaints only the masked area of an image from a prompt. It uses Flux2 Klein 4B. The template comes with a sample image, a sample mask and the prompt "Yellow cat sitting on the grass".
+This workflow repaints only the masked area of an image to match a text description, called a prompt. This is called inpainting. The mask works like a matte: it marks where the model may change pixels. Everything outside it is kept. It uses Flux2 Klein 4B. The template comes with a sample image, a sample mask and the prompt "Yellow cat sitting on the grass".
 
 ## What it connects
 
 1. Two Load Image nodes supply the picture and the mask.
 1. [Build Pipeline](../nodes/LatentDiffusionPipelineBuilderNode.md) loads the model.
-1. [Encode Masked Media](../nodes/VaeMaskEncodeNode.md) combines the picture and the mask.
+1. [Encode Masked Media](../nodes/VaeMaskEncodeNode.md) encodes the picture and the mask into a latent, the compressed form the model works in.
 1. [Generate Latent](../nodes/DiffusionPipelineGenerateLatentNode.md) reads the prompt from a Text Input node and repaints the masked area.
 1. [Decode Media](../nodes/VaeDecodeNode.md) turns the result into an image.
 
@@ -28,8 +28,8 @@ White areas are repainted and black areas are kept. Gray is treated as white fro
 
 - Model: Flux2 Klein 4B (`black-forest-labs/FLUX.2-klein-4B`).
 - Strength: 1.0, which fully replaces the masked area. The Encode Masked Media node starts at 0.95 when you add it yourself. Lower the strength to blend with the original.
-- Guidance: 4.0.
-- Seed: 42.
+- Guidance: 4.0, how closely the model follows the prompt.
+- Seed: 42, the number that fixes the random noise.
 
 ## Tips
 

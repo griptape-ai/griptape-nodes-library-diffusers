@@ -3,23 +3,21 @@ title: What is a latent?
 description: The pattern behind every Diffusion Library workflow, and what a latent is.
 ---
 
-The words "latent", "noise" and "decode" appear in many node names. This page explains what they mean.
+A latent is the compressed form of a picture or clip that a diffusion model works on. It is a block of numbers that stands for the image. You can't look at it. It has to be turned back into pixels first. The words "latent", "noise" and "decode" appear in many node names. This page explains what they mean.
 
 ## The idea
 
-A diffusion model does not paint pixels directly. It works on a compact, compressed form of the picture or clip called a **latent**. A latent is not something you can look at. It is the model's own working format, a block of numbers that stands for an image or a video.
+A diffusion model does not paint pixels directly. It works on the latent, which is its own working format. Working on this smaller form is why the model can run on a normal GPU, and it is why the library splits the job into separate nodes.
 
 Making an image takes three moves:
 
-1. **Start with a latent.** For a new image this is random noise. For an existing picture or clip, it is that picture encoded into a latent.
-1. **Denoise it.** The model changes the latent step by step, guided by your prompt, until the noise has turned into something that matches.
+1. **Start with a latent.** For a new image this is random noise, like static on a screen. For an existing picture or clip, it is that picture encoded into a latent.
+1. **Clean it up step by step.** The model changes the latent in a series of steps, guided by your prompt, removing noise a little at a time until what is left matches the prompt. This is called denoising.
 1. **Decode it.** The result is still a latent. Decoding turns it back into pixels you can view and save.
-
-Working in latent space is why the model can run on a normal GPU, and it is why the library splits the job into separate nodes.
 
 ## What it looks like
 
-This run used Z-Image Turbo at 768 x 768 with 8 steps and seed 42. The prompt was "a lighthouse on a rocky coast at sunset, cinematic, detailed". After each step, the latent was decoded so you can see what the model has so far.
+This run used Z-Image Turbo at 768 x 768 with 8 steps and seed 42. A step is one round of clean-up. The prompt was "a lighthouse on a rocky coast at sunset, cinematic, detailed". After each step, the latent was decoded so you can see what the model has so far.
 
 ![The noise latent turns into a lighthouse over eight denoising steps](../assets/latent-denoising.webp)
 
@@ -37,8 +35,8 @@ Build Pipeline → Create Noise Latent → Generate Latent → Decode Media
 ```
 
 - [Build Pipeline](../nodes/LatentDiffusionPipelineBuilderNode.md) loads the model.
-- [Create Noise Latent](../nodes/NoiseLatentNode.md) makes the starting latent. The seed sets which noise you get, so the same seed, size and model give the same start.
-- [Generate Latent](../nodes/DiffusionPipelineGenerateLatentNode.md) runs the denoising steps with your prompt.
+- [Create Noise Latent](../nodes/NoiseLatentNode.md) makes the starting latent. The seed is a number that sets which noise you get, so the same seed, size and model give the same start.
+- [Generate Latent](../nodes/DiffusionPipelineGenerateLatentNode.md) runs the denoising steps with your prompt, the text description of what you want.
 - [Decode Media](../nodes/VaeDecodeNode.md) turns the final latent into an image or video.
 
 To start from your own picture or clip instead of noise, put [Encode Media](../nodes/VaeEncodeNode.md) in place of Create Noise Latent. Turn `add_noise` on in Generate Latent so the model has something to rework.
@@ -56,4 +54,4 @@ Because the latent is a separate step you can see and change, you can:
 
 - A latent is shaped for one model. Create it from the pipeline you will run it through, and do not move a latent between different models.
 - A latent has no preview. To see what one holds, decode it.
-- Encoding and decoding go through the model's VAE. See [What is a VAE?](what-is-a-vae.md). An image that is encoded and decoded again can come back slightly different from the original.
+- Encoding and decoding go through the model's VAE, a small companion model that translates between pixels and latents. See [What is a VAE?](what-is-a-vae.md). An image that is encoded and decoded again can come back slightly different from the original.

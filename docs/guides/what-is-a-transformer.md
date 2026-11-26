@@ -3,11 +3,11 @@ title: What are a transformer and a UNet?
 description: The network that does the actual image and video making, and when to swap it in the nodes.
 ---
 
-The transformer is the part that does the denoising step described in [What is a latent?](what-is-a-latent.md).
+The transformer is the part of a diffusion model that actually makes the picture or clip. It is the engine, and the other parts feed it or translate its output. It works on a [latent](what-is-a-latent.md), the compressed block of numbers that stands for an image or video. Starting from noise, it cleans the latent up a little at a time (denoising), guided by your prompt.
 
 ## The idea
 
-The transformer is the main network inside a diffusion model. It is the part that takes a noisy latent and your encoded prompt and produces a slightly cleaner latent. It does this once per step, for every step of a run. The [VAE](what-is-a-vae.md) and the [text encoder](what-is-a-text-encoder.md) only translate at either end. The transformer is the part that makes the picture or the clip.
+The transformer is the main network inside a diffusion model. A network is the learned part of a model, the file of numbers it was trained into. The transformer takes a noisy latent and your encoded prompt and produces a slightly cleaner latent. It does this once per step, for every step of a run. The [VAE](what-is-a-vae.md) and the [text encoder](what-is-a-text-encoder.md) only translate at either end.
 
 Older Stable Diffusion models use a different design for this network, called a **UNet**. It does the same job. In the nodes, a pipeline type has either a Transformer slot or a UNet slot, never both. In this library the Stable Diffusion XL pipeline type has a UNet slot, and the other pipeline types that have override ports use a Transformer slot.
 
@@ -22,14 +22,14 @@ The transformer works on the latent, never on pixels. It runs once per step, so 
 - [Build Pipeline](../nodes/LatentDiffusionPipelineBuilderNode.md) loads the transformer or UNet with the rest of the model. Its Component Overrides group shows a Transformer port or a UNet port, depending on the pipeline type.
 - [Load Component](../nodes/LoadComponent.md) with the slot set to `Transformer` or `UNet` swaps in your own. Some pipeline types also have a Transformer 2 port, which a `Transformer` loader can feed.
 - [Generate Latent](../nodes/DiffusionPipelineGenerateLatentNode.md) is where the denoising steps run.
-- The `quantization_mode`, `transformer_layerwise_casting` and CPU offload settings in [Memory settings](build-pipeline-by-model.md#memory-settings) reduce the memory the transformer needs without replacing it.
+- The `quantization_mode`, `transformer_layerwise_casting` and CPU offload settings in [Memory settings](build-pipeline-by-model.md#memory-settings) reduce the memory the transformer needs without replacing it. Layerwise casting stores it at lower precision (fp8) and converts each layer as it runs. CPU offload parks idle weights in system memory.
 
 ## Why swap it
 
 Most workflows should keep the transformer that comes with the model. People swap it for a few reasons:
 
-- **A fine-tune or checkpoint.** A community checkpoint changes the look or the subject matter the model is good at, without changing the rest of the pipeline.
-- **A GGUF or other quantized file.** A quantized transformer is smaller, so a model that would not fit in memory can run. The quality loss depends on how hard it was quantized.
+- **A fine-tune or checkpoint.** A checkpoint is a saved set of model weights. A fine-tune is a base model retrained to favor a look or subject. A community checkpoint changes the look or the subject matter the model is good at, without changing the rest of the pipeline.
+- **A GGUF or other quantized file.** Quantizing stores the weights at lower precision, which makes the file smaller. GGUF is one such file format. A quantized transformer is smaller, so a model that would not fit in memory can run. The quality loss depends on how hard it was quantized.
 - **A single file instead of the Diffusers format.** Many checkpoints are shared as one file. Build Pipeline's model list expects Diffusers format, so a single file goes in through Load Component.
 
 To swap it, connect a [Load Component](../nodes/LoadComponent.md) node with the slot set to `Transformer` or `UNet` to the matching port in Build Pipeline's Component Overrides. For GGUF weights, set `source_type` to `Single File` and point `config_source` at the component's folder or its `config.json`.

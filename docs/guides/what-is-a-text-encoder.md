@@ -3,14 +3,14 @@ title: What are a text encoder and a tokenizer?
 description: How your prompt becomes something a diffusion model can use, and where the text encoder and tokenizer show up in the nodes.
 ---
 
-The text encoder and the tokenizer are the parts that read your prompt, and they build on [What is a latent?](what-is-a-latent.md). The diffusion model never sees your words, only what these two make from them.
+The text encoder and the tokenizer are the parts that read your prompt, the text description of what you want. The diffusion model never sees your words, only what these two make from them. They work like a translator that turns your sentence into a set of numbers the model can follow.
 
 ## The idea
 
 A prompt is plain text, and the diffusion model works on numbers. Two parts do the conversion, one after the other:
 
 - The **tokenizer** splits your prompt into small pieces called tokens. A token is often a whole word, but a long or unusual word can be split into several.
-- The **text encoder** turns those tokens into a block of numbers that describes what the prompt means. The diffusion model reads those numbers at every step, and they steer the latent toward your prompt.
+- The **text encoder** turns those tokens into a block of numbers that describes what the prompt means. The diffusion model reads those numbers at every step, and they steer the [latent](what-is-a-latent.md), the compressed block of numbers the model works on, toward your prompt.
 
 ```text
 prompt ──tokenizer──▶ tokens ──text encoder──▶ numbers ──(guide the diffusion)──▶ latent
@@ -35,8 +35,8 @@ The tokenizer and the text encoder are a pair. The tokenizer's list of pieces is
 
 Most workflows should keep the text encoder that comes with the model. People swap it for a few reasons:
 
-- **Memory.** A GGUF or otherwise quantized text encoder is smaller, so it leaves more room for the rest of the pipeline.
-- **A fine-tuned encoder.** Some checkpoints are shipped with a text encoder that was tuned to go with them.
+- **Memory.** A GGUF or otherwise quantized text encoder (stored at lower precision, which makes the file smaller) is smaller, so it leaves more room for the rest of the pipeline.
+- **A fine-tuned encoder.** A checkpoint is a saved set of model weights. Some checkpoints are shipped with a text encoder that was tuned to go with them.
 - **A different tokenizer.** This is rare. It only makes sense together with a text encoder that was trained for it.
 
 To swap one, connect a [Load Component](../nodes/LoadComponent.md) node with the slot set to `Text Encoder` or `Tokenizer` to the matching port in Build Pipeline's Component Overrides.
@@ -47,6 +47,6 @@ To swap one, connect a [Load Component](../nodes/LoadComponent.md) node with the
 - A tokenizer that does not pair with its text encoder, because they belong to different families or have different vocabulary sizes, shows a warning. The run is not stopped, but the prompt may be misread.
 - A text encoder loaded from a single file has to be a `.gguf` file. The file picker in Load Component offers only `.gguf` for `Text Encoder`. Other formats load from a folder or a downloaded Hugging Face repo.
 - A tokenizer is a set of vocabulary and config files, so it has no single-file choice. Load it from a folder or a Hugging Face repo.
-- Swapping the text encoder changes how a prompt is read, so the same prompt and seed can give a different image.
+- Swapping the text encoder changes how a prompt is read, so the same prompt and seed can give a different image. The seed is the number that fixes the starting noise.
 
 Related: [What is a transformer?](what-is-a-transformer.md), [What is a scheduler?](what-is-a-scheduler.md), [What is a VAE?](what-is-a-vae.md).

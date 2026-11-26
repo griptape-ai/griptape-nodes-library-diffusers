@@ -3,11 +3,11 @@ title: Hugging Face and Diffusers
 description: How the Diffusion Library gets its models from Hugging Face, and how to handle gated models, the cache and offline use.
 ---
 
-The Diffusion Library is built on [Diffusers](https://huggingface.co/docs/diffusers), the Hugging Face library for running diffusion models. Its models are hosted on [Hugging Face](https://huggingface.co), the main place diffusion models are shared.
+[Hugging Face](https://huggingface.co) is the main website where diffusion models are shared. The Diffusion Library downloads its models from there and runs them with [Diffusers](https://huggingface.co/docs/diffusers), the Hugging Face software library for diffusion models. This page covers downloads, access tokens, where models are stored on your disk, and offline use.
 
 ## How the two fit together
 
-- A model is a folder of files on Hugging Face, usually one for each part: the transformer, the VAE, the text encoder, the tokenizer and the scheduler settings. This is the Diffusers format, and it is why Build Pipeline can swap one part at a time. The guides for each part are [What is a transformer?](what-is-a-transformer.md), [What is a VAE?](what-is-a-vae.md), [What are a text encoder and a tokenizer?](what-is-a-text-encoder.md) and [What is a scheduler?](what-is-a-scheduler.md).
+- A model is a folder of files on Hugging Face, usually one for each part: the transformer (the part that makes the picture), the VAE (which translates between pixels and the model's working format, the latent), the text encoder and tokenizer (which read your prompt) and the scheduler settings (which set the pace of the steps). This is the Diffusers format, and it is why Build Pipeline can swap one part at a time. The guides for each part are [What is a transformer?](what-is-a-transformer.md), [What is a VAE?](what-is-a-vae.md), [What are a text encoder and a tokenizer?](what-is-a-text-encoder.md) and [What is a scheduler?](what-is-a-scheduler.md).
 - A model is named by its Hugging Face repo, such as `black-forest-labs/FLUX.1-dev`. That name is what you see in the node pickers and in the Load Component repo field.
 - Model Manager downloads a model from Hugging Face into your local Hugging Face cache. Build Pipeline loads from that cache and never downloads anything itself. If the model is missing, Build Pipeline shows an **Open Model Manager to Download** button.
 
@@ -36,4 +36,4 @@ Restart Griptape Nodes after changing them. The [Hugging Face integration guide]
 
 ## Models that are not on Hugging Face
 
-Weights that are already on your disk work too. [Load Component](../nodes/LoadComponent.md) accepts a single checkpoint file, a local folder in Diffusers format, or a repo that is already in the cache. [Load Scheduler Component](../nodes/LoadSchedulerComponent.md) reads scheduler settings from a `scheduler_config.json` file, a cached repo or JSON text.
+Model files already on your disk work too. [Load Component](../nodes/LoadComponent.md) accepts a single checkpoint file (a saved set of model weights), a local folder in Diffusers format, or a repo that is already in the cache. [Load Scheduler Component](../nodes/LoadSchedulerComponent.md) reads scheduler settings from a `scheduler_config.json` file, a cached repo or JSON text.

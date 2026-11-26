@@ -3,14 +3,14 @@ description: Give it a starting image and an ending image, and it creates the vi
 when_to_use: Use it when you know how a shot should begin and end and want the model to fill in the motion. Use Text2Image or Image2Image for stills.
 ---
 
-This workflow makes a video that starts on your first image and ends on your last image, guided by a prompt. It uses Wan 2.2 Image-to-Video. The template comes with two sample images and the prompt "A cup of green tea on a saucer, the camera pans over the top of it."
+This workflow makes a video that starts on your first image and ends on your last image. The model fills in the motion between them, guided by a text description called a prompt. It is like giving an animator the first and last keyframes. It uses Wan 2.2 Image-to-Video. The template comes with two sample images and the prompt "A cup of green tea on a saucer, the camera pans over the top of it."
 
 ## What it connects
 
 1. Two Load Image nodes supply the first and last frames. Two Resize Image nodes fit them to the video size.
 1. [Build Pipeline](../nodes/LatentDiffusionPipelineBuilderNode.md) loads the model.
 1. [Reference Media](../nodes/MediaGenConditioningNode.md) holds the two frames, set to First + Last.
-1. [Create Noise Latent](../nodes/NoiseLatentNode.md) sets the video size and length. Two number nodes, Width and Height, feed it and the Resize Image nodes, so the frames always match the video.
+1. [Create Noise Latent](../nodes/NoiseLatentNode.md) sets the video size and length. It makes the random noise the model starts from, as a latent, the compressed form the model works in. Two number nodes, Width and Height, feed it and the Resize Image nodes, so the frames always match the video.
 1. [Generate Latent](../nodes/DiffusionPipelineGenerateLatentNode.md) reads the prompt from a Text Input node and makes the video.
 1. [Decode Media](../nodes/VaeDecodeNode.md) turns the result into a video.
 
@@ -26,9 +26,9 @@ This workflow makes a video that starts on your first image and ends on your las
 - Model: Wan 2.2 Image-to-Video A14B (`Wan-AI/Wan2.2-I2V-A14B-Diffusers`).
 - Size: 1280 x 720, set with the Width and Height nodes.
 - Length: 81 frames, played at 25 frames per second.
-- Steps: 20.
-- Guidance: 5.0.
-- Seed: 42.
+- Steps: 20, the number of clean-up rounds.
+- Guidance: 5.0, how closely the model follows the prompt.
+- Seed: 42, the number that fixes the random noise.
 
 ## Tips
 

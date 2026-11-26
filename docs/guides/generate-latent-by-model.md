@@ -3,23 +3,23 @@ title: Generate Latent by model
 description: Model-specific behavior of the Generate Latent node.
 ---
 
-Generate Latent is the node that makes the picture or the clip. It runs the denoising loop on a starting latent and returns a denoised latent. Most of its settings work the same for every model. This page covers the exceptions: masked denoising, and the model families that behave differently.
+Generate Latent is the node that makes the picture or the clip. It takes a starting point, a [latent](what-is-a-latent.md) (the compressed block of numbers the model works on, usually random noise), and cleans it up step by step to match your prompt. This cleaning-up is called denoising. The result is another latent, which Decode Media turns into pixels. Most of its settings work the same for every model. This page covers the exceptions: masked denoising, and the model families that behave differently.
 
 ## Masked denoising
 
-With a latent from Set Latent Mask, the mask is applied at every step without switching pipelines. White areas are redone, black areas stay close to the original, and gray areas get less time to change. Set `add_noise` to on, and use `start_step` to choose how much of the original survives. Set `start_step` to 0 to redo the white areas fully, or raise it to keep more of the original.
+Masked denoising repaints only part of an image, like using a matte to limit a change. With a latent from Set Latent Mask, the mask is applied at every step without switching pipelines. White areas are redone, black areas stay close to the original, and gray areas get less time to change. Set `add_noise` to on, and use `start_step`, the step the run begins from, to choose how much of the original survives. Set `start_step` to 0 to redo the white areas fully, or raise it to keep more of the original.
 
-It works with `FluxPipeline`, Flux Kontext, `Flux2Pipeline`, Flux2 Klein, Flux3, Qwen Image, Qwen Image Edit, Stable Diffusion XL, Stable Diffusion 3 and Z-Image. Flux Fill and every video pipeline stop the run with a message. It works on image latents only, and Set Latent Mask must be given an encoded latent. Custom timesteps and sigmas are not supported, and neither are schedulers that are not first order.
+It works with `FluxPipeline`, Flux Kontext, `Flux2Pipeline`, Flux2 Klein, Flux3, Qwen Image, Qwen Image Edit, Stable Diffusion XL, Stable Diffusion 3 and Z-Image. Flux Fill and every video pipeline stop the run with a message. It works on image latents only, and Set Latent Mask must be given an encoded latent. Custom timesteps and sigmas (settings that set the noise levels step by step) are not supported, and neither are schedulers (the rule for how much noise each step removes) that are not first order.
 
 ## LTX2
 
-Full checkpoints default to 40 steps. Distilled checkpoints, including `LTX-2.5 Distilled`, hide `num_inference_steps` and follow a fixed schedule. They add `use_stage_2`, off by default, which switches from the initial generation schedule to the refinement schedule.
+A step is one round of clean-up. Full checkpoints (the complete versions of the model) default to 40 steps. Distilled checkpoints, versions made to run in fewer steps, including `LTX-2.5 Distilled`, hide `num_inference_steps` and follow a fixed schedule. They add `use_stage_2`, off by default, which switches from the initial generation schedule to the refinement schedule.
 
 The base, video-conditioning and IC-LoRA pipelines make video and audio together in one pass. The output latent carries the audio, and Decode Media adds it to the video. The HDR IC-LoRA path makes no audio.
 
-`media_conditions` takes Reference Media nodes, images or videos that set frames at chosen positions. It is hidden on the HDR IC-LoRA path.
+`media_conditions` takes Reference Media nodes, images or videos that set frames at chosen positions, like keyframes. It is hidden on the HDR IC-LoRA path.
 
-`reference_conditions` appears when a LoRA is connected through [Apply Runtime LoRA](../nodes/LoraActivationPipelineNode.md). It accepts Reference Media, image and video inputs. Images go to the pipeline as still references. A LoRA whose file name contains `ic-lora-hdr` selects the HDR IC-LoRA path, which also shows `text_embeddings_path`. On that path, a mix of image and video references is rejected, and if the reference videos differ in length, the shorter ones are padded by repeating their last frame. On other IC-LoRA runs, each reference video is rounded up to a length the model accepts by repeating its last frame, and cut to the output length if it is longer.
+`reference_conditions` appears when a LoRA (a small add-on file for style or subject) is connected through [Apply Runtime LoRA](../nodes/LoraActivationPipelineNode.md). It accepts Reference Media, image and video inputs. Images go to the pipeline as still references. A LoRA whose file name contains `ic-lora-hdr` selects the HDR IC-LoRA path, which also shows `text_embeddings_path`. On that path, a mix of image and video references is rejected, and if the reference videos differ in length, the shorter ones are padded by repeating their last frame. On other IC-LoRA runs, each reference video is rounded up to a length the model accepts by repeating its last frame, and cut to the output length if it is longer.
 
 `motion_speed` defaults to 1.0 and must be above 0. Values below 1.0 slow the motion down while playback speed stays the same. For example, 0.2 gives 5x slow motion with the LTX-2.5 slow-motion LoRA. It is hidden on the HDR IC-LoRA path.
 
@@ -27,11 +27,11 @@ The base, video-conditioning and IC-LoRA pipelines make video and audio together
 
 Turning on `return_fully_denoised` stops the run with a message.
 
-Makes the video and its soundtrack together. The model-specific inputs are `prompt` and `conditioning_images`. There is no `guidance_scale` or `negative_prompt`, and the size comes from the input latent. Connect a Reference Media node to `conditioning_images` for a first or last frame, or leave it empty for text-only generation.
+Makes the video and its soundtrack together. The model-specific inputs are `prompt` and `conditioning_images`. There is no `guidance_scale` (how closely the model follows the prompt) or `negative_prompt` (what to steer away from), and the size comes from the input latent. Connect a Reference Media node to `conditioning_images` for a first or last frame, or leave it empty for text-only generation.
 
 Connect this node straight to Decode Media. The audio travels in the latent's metadata.
 
-With `add_noise` on and a MiniMax-H3 encoded video latent as input, you get video-to-video. A `start_step` above 0 needs a latent that carries audio, otherwise the run stops with a message. Chain partial denoising from another MiniMax-H3 Generate Latent run. Inpainting and ControlNet are not available.
+With `add_noise` on and a MiniMax-H3 encoded video latent as input, you get video-to-video, which reworks an existing clip. A `start_step` above 0 needs a latent that carries audio, otherwise the run stops with a message. Chain partial denoising (starting part way through the steps) from another MiniMax-H3 Generate Latent run. Inpainting (repainting a masked area) and ControlNet (guides that steer the layout) are not available.
 
 ## MiniMax-H3 reference-to-video
 
@@ -45,7 +45,7 @@ If the clips add up to more than 15 seconds, they are trimmed from the end. The 
 
 ## Flux3
 
-`num_inference_steps` defaults to 50 or 16 for Flux3.
+`num_inference_steps` (the number of steps) defaults to 50 or 16 for Flux3.
 
 With a prompt upsampler selected on Build Pipeline, the prompt is expanded before generation. The base type shows `negative_prompt` and `guidance_scale` (default 3.5) and runs 50 steps. The distilled type shows neither and runs 16 steps.
 

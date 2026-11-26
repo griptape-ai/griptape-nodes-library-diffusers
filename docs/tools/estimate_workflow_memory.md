@@ -3,9 +3,9 @@ title: Estimate Workflow Memory (command line)
 description: A command that estimates how much GPU memory a saved workflow needs, without starting Griptape Nodes or running anything.
 ---
 
-The `estimate-workflow-memory` command reads a saved workflow file and reports the GPU memory each of its pipelines needs. It gives the same kind of estimate as the [Estimate Pipeline Memory](../nodes/PipelineMemoryEstimateNode.md) node. The workflow file is only read. It is never run, no model weights are loaded and no pipeline is built.
+The `estimate-workflow-memory` command tells you how much GPU memory a saved workflow needs before you run it. It lets you check whether a model fits on your graphics card without loading it. It reads a saved workflow file and reports the memory each of its pipelines needs. A pipeline is a loaded model together with its settings. The command gives the same kind of estimate as the [Estimate Pipeline Memory](../nodes/PipelineMemoryEstimateNode.md) node. The workflow file is only read. It is never run, no model weights (the files that hold what the model learned) are loaded and no pipeline is built.
 
-The model component configs must already be in your local Hugging Face cache. If one is missing, the command stops with an error. Add `--json` for output another tool can read.
+The model component configs, the small files that describe each part of a model, must already be in your local Hugging Face cache, the folder where Model Manager stores downloads. If one is missing, the command stops with an error. Add `--json` for output another tool can read.
 
 ## Usage
 
@@ -43,11 +43,11 @@ uv run estimate-workflow-memory workflow.py --width 832 --height 480 --num-frame
 
 ## How it works
 
-The command parses the workflow source, extracts pipeline configurations and dimensions from the Create Noise Latent and Create Empty Latent nodes, resolves the public latent shape through the cached Diffusers prepare-latents path, and calls the same memory estimator the node uses. It does not build the full diffusion pipeline, load model weights, or run inference.
+The command parses the workflow source, extracts pipeline configurations and dimensions from the Create Noise Latent and Create Empty Latent nodes (the nodes that make the starting latent, the compressed form the model works in), resolves the public latent shape through the cached Diffusers prepare-latents path, and calls the same memory estimator the node uses. It does not build the full diffusion pipeline, load model weights, or run inference.
 
-Because nothing is loaded, every estimate comes from the model configs. Weight sizes are computed on the meta device from each component's cached config, at the dtype and quantization the pipeline would load with. Offload topology comes from the workflow's requested `cpu_offload_strategy`.
+Because nothing is loaded, every estimate comes from the model configs. Weight sizes are computed on the meta device (a way to size weights without loading them) from each component's cached config, at the dtype (number precision) and quantization (storing weights at lower precision to save memory) the pipeline would load with. Offload topology, meaning which parts move to system memory, comes from the workflow's requested `cpu_offload_strategy`.
 
-The `Automatic` memory optimization strategy is not simulated. The real Automatic cascade depends on free VRAM at build time, which this command cannot predict, so the estimate reports a conservative upper bound with no offload assumed and includes a warning. Set the strategy to `Manual` to get an estimate with a fixed offload topology.
+The `Automatic` memory optimization strategy is not simulated. The real Automatic cascade depends on free VRAM (GPU memory) at build time, which this command cannot predict, so the estimate reports a conservative upper bound with no offload assumed and includes a warning. Set the strategy to `Manual` to get an estimate with a fixed offload topology.
 
 The [Estimate Pipeline Memory](../nodes/PipelineMemoryEstimateNode.md) page covers how the estimate is calculated once the pipeline is loaded.
 
@@ -63,7 +63,7 @@ If the width and height cannot be read from one of those nodes, the command fail
 
 ## Output
 
-The human-readable report starts with the workflow path and any warnings. For each builder it lists the pipeline name, the dimensions, the estimated peak in GB, and one line per component with its total, weights and activations in GB. LoRA adapters are listed with their sizes. Warnings for a builder follow it.
+The human-readable report starts with the workflow path and any warnings. For each builder it lists the pipeline name, the dimensions, the estimated peak in GB, and one line per component with its total, weights and activations in GB. LoRA adapters, the small add-on files that change a model's style or subject, are listed with their sizes. Warnings for a builder follow it.
 
 The estimated peak includes a 20% safety margin. The per-component figures do not.
 
