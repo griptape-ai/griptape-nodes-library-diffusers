@@ -37,6 +37,15 @@ The model list first shows the standard Flux3 model. Once the compact versions a
 
 `nvfp4` is faster only on NVIDIA Blackwell cards (compute capability 10 or higher, which includes the RTX 50-series) with the optional FlashInfer package installed. Elsewhere it still runs by converting the weights back to a larger format, which saves memory but not time.
 
+## Qwen Image 2.1
+
+Qwen Image 2.1 makes images. Set `provider` to `Qwen` and `pipeline_type` to `QwenImage21Pipeline`. `model` offers two checkpoints:
+
+- `Qwen/Qwen-Image-2.1` is the standard model.
+- `Qwen/Qwen-Image-2.1-Turbo` is a faster version that always runs 8 steps and has no guidance controls on Generate Latent.
+
+Both are released under the Qwen Research License Agreement. Read the model card and the license before you use them. For the settings these models add to Generate Latent, see [Qwen Image 2.1](generate-latent-by-model.md#qwen-image-21).
+
 ## WAN Animate 2
 
 WAN Animate 2 (`WanAnimate2Pipeline`) animates a character image with the motion from a driving video, the clip that supplies the movement. `model` offers the standard and the distilled checkpoint. With the distilled checkpoint, Generate Latent defaults to 10 steps and `guidance_scale` 1.0, which controls how closely the model follows the prompt.

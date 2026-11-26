@@ -33,7 +33,7 @@ Load Image (last)  ───┴→ [Reference Media] ───┘
 | None connected | Image or video. Image presets: Custom (default), First + Middle + Last, First + Last, First frame. |
 | LTX, LTX2 | Same as none connected, but First + Middle + Last is the default preset. |
 | WAN Image-to-Video | Images only. Presets: First + Last (default), First frame. No strength. |
-| WAN VACE | Image or video, image by default. Presets as for LTX. Custom allows up to 8 images with no strength. Video has a frame index and no strength. |
+| WAN VACE | Image or video, image by default. The same presets as LTX, with no strength. Custom allows up to 8 images with no strength. Video has a frame index and no strength. |
 | WAN Animate | Video only, with no strength or frame index. |
 | MiniMax-H3 | Images only. Presets: First + Last (default), First frame. No strength. |
 | MiniMax-H3 ref2va | Image or video, image by default. Up to 9 images, with no strength or frame position. |

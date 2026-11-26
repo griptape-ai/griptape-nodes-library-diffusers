@@ -15,6 +15,8 @@ MiniMax-H3, Flux3 and WAN Animate 2 manage their own memory, so they ignore the 
 
 LTX2 has three pipeline types. `LTX2Pipeline` lists the LTX-2.3, LTX-2.3 Distilled and LTX-2 checkpoints in `model`. `LTX-2.5 Distilled` and `LTX-2.5 Full (SFT)` are separate pipeline types in the list, both built from one LTX-2.5 repo. See [Build Pipeline by model](../guides/build-pipeline-by-model.md).
 
+Qwen Image 2.1 is the `QwenImage21Pipeline` type under the `Qwen` provider, with a standard and a Turbo checkpoint. See [Qwen Image 2.1](../guides/build-pipeline-by-model.md#qwen-image-21).
+
 ## What it needs
 
 - A model downloaded in Model Manager. See [Hugging Face and Diffusers](../guides/hugging-face-and-diffusers.md) for gated models and the cache. Nothing is downloaded when the pipeline is built.

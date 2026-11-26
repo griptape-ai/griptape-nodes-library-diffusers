@@ -137,6 +137,13 @@ _DRIVER_REGISTRY: dict[str, DriverSpec] = {
         supports_inpainting=True,
         supports_masked_denoising=True,
     ),
+    "QwenImage21Pipeline": DriverSpec(
+        "qwen_image21:QwenImage21LatentPipelineDriver",
+        produces_video=False,
+        video_fps=16,
+        supports_inpainting=False,
+        supports_masked_denoising=True,
+    ),
     "StableDiffusion3Pipeline": DriverSpec(
         "stable_diffusion_3:StableDiffusion3LatentPipelineDriver",
         produces_video=False,

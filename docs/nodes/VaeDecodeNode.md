@@ -62,6 +62,7 @@ The decoded video as an MP4, for video pipelines.
 - **LTX2 and MiniMax-H3** give an MP4 with a sound track when the latent carries the generated sound. The sound is generated together with the picture and joined here. When there is a sound track, the node always encodes at the model's own frame rate, even if you set `fps` to something else, because another rate would put sound and picture out of step. A latent without the sound gives a silent video at `fps`. LTX2's HDR path does not make audio.
 - **LTX, WAN and HunyuanVideo 1.5** give a silent MP4 at `fps`.
 - **WAN Animate 2.** Long clips are generated in segments, and the node uses the stored segment information to rebuild the clip with its original overlaps. If that information is missing, it decodes in a single pass. This happens with a fresh Create Empty Latent output or a cancelled run. The frame count stays the same, but frames near the segment joins can differ. Live previews during generation also have no segment information and can differ from the final result.
+- **Qwen Image 2.1 and Qwen Image 2.1 Turbo** give an RGBA image. The alpha channel, which holds transparency, is kept through decoding and in the saved image.
 - **Flux3** gives an image. The node unpacks the model's VAE patches, and applies the crop recorded when the latent was encoded from a reference image.
 
 ## Tips

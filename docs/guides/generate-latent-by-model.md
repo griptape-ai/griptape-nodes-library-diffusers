@@ -13,7 +13,7 @@ Masked denoising repaints only part of an image, like using a matte to limit a c
 
 Set `add_noise` to on. Without it, denoising starts from the clean source image instead of noise. See [When noise is added](what-is-a-latent.md#when-noise-is-added). `start_step` is the step the run begins from. Set it to 0 to redo the white areas fully, or raise it to keep more of the original.
 
-Masked denoising works on image models only: Flux, Flux Kontext, Flux2, Flux2 Klein, Flux3, Qwen Image, Qwen Image Edit, Stable Diffusion XL, Stable Diffusion 3 and Z-Image. Flux Fill and all video models stop the run with a message. Set Latent Mask must be given an encoded latent.
+Masked denoising works on image models only: Flux, Flux Kontext, Flux2, Flux2 Klein, Flux3, Qwen Image, Qwen Image 2.1, Qwen Image Edit, Stable Diffusion XL, Stable Diffusion 3 and Z-Image. Flux Fill and all video models stop the run with a message. Set Latent Mask must be given an encoded latent.
 
 - Use a standard scheduler. Schedulers that take more than one model pass per step (Heun, KDPM2 and similar) or that do not produce one timestep per step (PNDM) are refused, and the error names the scheduler.
 - Options that override the schedule or the noise are not supported: custom timesteps and sigmas, partial denoising strength, and a separate random generator. Use `start_step` to choose how much of the original survives.
@@ -78,6 +78,16 @@ A worked example without reference images. The prompt is `A red kite over <1> an
 ```
 
 Each box is `[y_min, x_min, y_max, x_max]`, so the first region covers the top of the picture from 0 to 300 down and 100 to 600 across.
+
+## Qwen Image 2.1
+
+Qwen Image 2.1 and Qwen Image 2.1 Turbo make images. Both support image-to-image, partial denoising with `start_step`, [masked denoising](#masked-denoising) and images with an alpha channel (transparency).
+
+`reference_images` takes up to 10 pictures from a Reference Media node, or one image wired in directly. Only images are accepted, and more than 10 stops the run with a message.
+
+Guidance works through `true_cfg_scale`. It defaults to 1.0, which leaves guidance off. Set it above 1.0 and give a `negative_prompt` to turn it on. `num_inference_steps` defaults to 40.
+
+Turbo follows a fixed 8-step schedule that is saved with the model. It hides `num_inference_steps`, `negative_prompt` and `true_cfg_scale`, so it has no guidance controls.
 
 ## WAN Animate 2
 

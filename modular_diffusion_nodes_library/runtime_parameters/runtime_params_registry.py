@@ -50,6 +50,9 @@ from modular_diffusion_nodes_library.runtime_parameters.minimax_h3_runtime_param
 from modular_diffusion_nodes_library.runtime_parameters.qwen_edit_runtime_parameters import (
     QwenEditPipelineRuntimeParameters,
 )
+from modular_diffusion_nodes_library.runtime_parameters.qwen_image21_runtime_parameters import (
+    QwenImage21PipelineRuntimeParameters,
+)
 from modular_diffusion_nodes_library.runtime_parameters.qwen_runtime_parameters import (
     QwenPipelineRuntimeParameters,
 )
@@ -97,6 +100,7 @@ _RUNTIME_PARAMS_REGISTRY: dict[str, type[DiffusionPipelineRuntimeParameters]] = 
     "MiniMaxH3Ref2VAModularPipeline": MiniMaxH3Ref2VAPipelineRuntimeParameters,
     "QwenImagePipeline": QwenPipelineRuntimeParameters,
     "QwenImageEditPipeline": QwenEditPipelineRuntimeParameters,
+    "QwenImage21Pipeline": QwenImage21PipelineRuntimeParameters,
     "StableDiffusion3Pipeline": StableDiffusion3PipelineRuntimeParameters,
     "StableDiffusionXLPipeline": StableDiffusionXLPipelineRuntimeParameters,
     "WanPipeline": WanPipelineRuntimeParameters,

@@ -21,7 +21,7 @@ from modular_diffusion_nodes_library.mixins.parameter_removal_mixin import Param
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.config_utils import get_config_value
-from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
+from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentStatus, snap_dimensions
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
@@ -207,7 +207,12 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
 
         dimension_result = self._update_compatibility_message(build_if_needed=True)
         auto_resize = get_config_value("modular_diffusion_library.enable_auto_resize")
-        if dimension_result is not None and not auto_resize and dimension_result.message:
+        if (
+            dimension_result is not None
+            and not auto_resize
+            and dimension_result.status is DimensionAlignmentStatus.INVALID
+            and dimension_result.message
+        ):
             return [ValueError(dimension_result.message)]
         return None
 
@@ -239,6 +244,7 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
         result = snap_dimensions(latents_pipeline_driver, image.height, image.width)
         if result.message:
             logger.warning(result.message)
+        if result.status is DimensionAlignmentStatus.INVALID:
             image = image.resize((result.width, result.height), Resampling.LANCZOS)
 
         image_tensor = pipe.image_processor.preprocess(image)
@@ -287,6 +293,7 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
         result = snap_dimensions(latents_pipeline_driver, h, w, num_frames)
         if result.message:
             logger.warning(result.message)
+        if result.status is DimensionAlignmentStatus.INVALID:
             frames_rgb = [frame.resize((result.width, result.height)) for frame in frames_rgb]
             h, w = result.height, result.width
 
@@ -315,7 +322,7 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
         if isinstance(image_artifact, ImageUrlArtifact):
             image_artifact = load_image_from_url_artifact(image_artifact)
 
-        return image_artifact_to_pil(image_artifact).convert("RGB")
+        return image_artifact_to_pil(image_artifact)
 
     def _update_compatibility_message(self, *, build_if_needed: bool = False):
         pipeline_value = self.get_parameter_value("pipeline")

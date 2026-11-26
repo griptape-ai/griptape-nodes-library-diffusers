@@ -223,6 +223,7 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
             height = image.shape[-2]
             width = image.shape[-1]
         else:
+            image = image.convert("RGB")
             height = image.height
             width = image.width
         generator = generator_state.to_generator()

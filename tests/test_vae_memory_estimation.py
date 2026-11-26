@@ -26,6 +26,7 @@ from diffusers.models.autoencoders.autoencoder_kl_ltx import AutoencoderKLLTXVid
 from diffusers.models.autoencoders.autoencoder_kl_ltx2 import AutoencoderKLLTX2Video  # noqa: E402
 from diffusers.models.autoencoders.autoencoder_kl_minimax_h3 import AutoencoderKLMiniMaxH3  # noqa: E402
 from diffusers.models.autoencoders.autoencoder_kl_qwenimage import AutoencoderKLQwenImage  # noqa: E402
+from diffusers.models.autoencoders.autoencoder_kl_qwenimage21 import AutoencoderKLQwenImage21  # noqa: E402
 from diffusers.models.autoencoders.autoencoder_kl_wan import AutoencoderKLWan  # noqa: E402
 from diffusers.modular_pipelines.flux2.decoders import Flux2DecodeStep  # noqa: E402
 
@@ -90,6 +91,7 @@ _VAE_CASES: list[tuple[str, type[Any], dict[str, Any], tuple[int, ...], tuple[in
         (1, 24, 7, 4, 4),
     ),
     ("AutoencoderKLQwenImage", AutoencoderKLQwenImage, {}, (1, 3, 17, 32, 32), (1, 16, 5, 4, 4)),
+    ("AutoencoderKLQwenImage21", AutoencoderKLQwenImage21, {}, (1, 4, 32, 32), (1, 64, 2, 2)),
     ("AutoencoderKLWan", AutoencoderKLWan, {}, (1, 3, 17, 32, 32), (1, 16, 5, 4, 4)),
 ]
 
@@ -129,6 +131,7 @@ _TILED_CASES: dict[str, tuple[dict[str, Any], tuple[int, ...], tuple[int, ...]]]
     ),
     "AutoencoderKLMiniMaxH3": ({}, (1, 3, 34, 320, 320), (1, 24, 7, 20, 20)),
     "AutoencoderKLQwenImage": ({}, (1, 3, 17, 320, 320), (1, 16, 5, 40, 40)),
+    "AutoencoderKLQwenImage21": ({}, (1, 4, 576, 576), (1, 64, 36, 36)),
     "AutoencoderKLWan": ({}, (1, 3, 17, 320, 320), (1, 16, 5, 40, 40)),
 }
 
@@ -160,6 +163,21 @@ def test_public_encode_decode_paths_trace_on_meta(family: str) -> None:
     assert trace.decode_bytes > 0
     assert trace.estimated_bytes == max(trace.encode_bytes, trace.decode_bytes)
     assert all(parameter.device.type == "meta" for parameter in vae.parameters())
+
+
+@pytest.mark.parametrize(
+    ("family", "loaded_channels"),
+    [("AutoencoderKL", 4), ("AutoencoderKLQwenImage", 4), ("AutoencoderKLQwenImage21", 3)],
+)
+def test_trace_encodes_the_vae_input_channels_whatever_the_source_shape_says(family: str, loaded_channels: int) -> None:
+    vae_class, config, source_shape, latent_shape = _case(family)
+    vae = _meta_vae(vae_class, config)
+    expected = trace_vae_activation_memory(vae, _latent(source_shape, latent_shape), BF16)
+    loaded_source_shape = (source_shape[0], loaded_channels, *source_shape[2:])
+
+    actual = trace_vae_activation_memory(vae, _latent(loaded_source_shape, latent_shape), BF16)
+
+    assert actual == expected
 
 
 def test_qwen_image_trace_promotes_public_image_shapes_to_single_frame() -> None:
@@ -582,3 +600,23 @@ def test_unsupported_trace_becomes_weights_only_warning(monkeypatch: pytest.Monk
     assert vae_estimate.is_estimated
     assert vae_estimate.warning is not None
     assert "unsupported meta op" in vae_estimate.warning
+
+
+def test_trace_undoes_wan_patchify_when_reading_the_vae_input_channels() -> None:
+    # Wan 2.2 TI2V-5B ships in_channels=12 with patch_size=2: the encoder sees the patchified image,
+    # so the image itself has 3 channels.
+    config = {"in_channels": 12, "out_channels": 12, "patch_size": 2, "z_dim": 48}
+    vae = _meta_vae(AutoencoderKLWan, config)
+
+    trace = trace_vae_activation_memory(vae, _latent((1, 3, 17, 64, 64), (1, 48, 5, 4, 4)), BF16)
+
+    assert trace.encode_bytes > 0
+
+
+def test_trace_keeps_ltx_in_channels_whatever_its_patch_size() -> None:
+    # LTX multiplies in_channels by patch_size**2 itself, so its config already counts image channels.
+    vae = _meta_vae(AutoencoderKLLTXVideo, {"in_channels": 3, "patch_size": 4})
+
+    shapes = _trace_input_shapes(vae, (1, 3, 17, 32, 32), (1, 128, 3, 1, 1))
+
+    assert shapes[0][1] == 3

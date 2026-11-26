@@ -46,7 +46,7 @@ Building reads the model files from your disk. It does not download anything. Do
 
 ## Memory settings
 
-These settings help a large model fit on your graphics card. They appear when `memory_optimization_strategy` is `Manual`, which is the default. `Automatic` hides them and chooses settings from the graphics card memory available. On an NVIDIA card, `Automatic` always turns on VAE slicing and tiling. On a Mac, it turns on VAE slicing only when the model does not fit in memory.
+These settings help a large model fit on your graphics card. They appear when `memory_optimization_strategy` is `Manual`, which is the default. `Automatic` hides them and chooses settings from the graphics card memory available. On an NVIDIA card, `Automatic` moves the whole pipeline to the graphics card when it fits with 20% spare. If it does not fit, it tries fp8 layerwise casting on the transformer where the model supports it. It then uses model CPU offload if the largest part fits with 20% spare, and sequential CPU offload if not. It always turns on VAE slicing and tiling, and it turns on attention slicing when the card has less than 8 GB free. If the pipeline is still too big after the offload step, `Automatic` stops there and the run can fail with an out-of-memory error. On a Mac, it turns on VAE slicing only when the model does not fit in memory.
 
 MiniMax-H3, Flux3 and WAN Animate 2 manage their own memory. `quantization_mode`, `transformer_layerwise_casting` and `cpu_offload_strategy` do nothing for them. Their notes are in [Build Pipeline by model](build-pipeline-by-model.md).
 
@@ -54,11 +54,11 @@ A model's weights are the numbers it learned in training. Some settings below st
 
 ### attention_slicing
 
-Off by default. Attention is one of the heavy calculations the model repeats at every step. This setting does it in pieces, which lowers peak memory and runs slightly slower.
+Off by default in `Manual`. Attention is one of the heavy calculations the model repeats at every step. This setting does it in pieces, which lowers peak memory and runs slightly slower.
 
 ### vae_slicing
 
-Off by default. The decoder is the part of the [VAE](what-is-a-vae.md) that turns the model's working format, the latent, back into pixels. This setting makes it decode one slice at a time, which lowers peak memory for large images or batches.
+Off by default in `Manual`. The decoder is the part of the [VAE](what-is-a-vae.md) that turns the model's working format, the latent, back into pixels. This setting makes it decode one slice at a time, which lowers peak memory for large images or batches.
 
 ### vae_tiling
 
@@ -82,7 +82,7 @@ These are starting points. Watch the first run and adjust.
 
 **Mac with Apple Silicon.** The graphics and main memory are shared, so the model competes with the OS and your other apps.
 
-- Start with `Automatic`. If the whole pipeline fits in the memory macOS recommends for graphics, it runs there. If it does not fit, `Automatic` turns on VAE slicing and still tries the run. It does not use fp8 casting or CPU offload on a Mac.
+- Start with `Automatic`. If the whole pipeline fits in the memory macOS recommends for graphics, it runs there. If it does not fit, `Automatic` turns on VAE slicing and leaves the pipeline off the GPU, so the run falls back to the CPU. That run is very slow and shows no error. It does not use fp8 casting or CPU offload on a Mac. To stay on the GPU, use `Manual` with quantization or a smaller model.
 - If a run still fails, switch to `Manual` and turn on `vae_slicing` and `vae_tiling`. These lower the memory used when the image or video is decoded.
 - Close other heavy apps before a long video run.
 - LTX2 decodes its audio on the CPU on a Mac. This is automatic.
@@ -90,7 +90,7 @@ These are starting points. Watch the first run and adjust.
 
 **NVIDIA RTX 50-series (the Blackwell generation), such as an RTX 5090.**
 
-- Start with `Automatic`. It moves the whole pipeline to the graphics card when it fits with 20% spare. If not, it tries fp8 layerwise casting on the transformer, then model CPU offload, then sequential CPU offload. It also turns on VAE slicing and tiling.
+- Start with `Automatic`. It moves the whole pipeline to the graphics card when it fits with 20% spare. If not, it tries fp8 layerwise casting on the transformer where supported. It then uses model CPU offload if the largest part fits with 20% spare, and sequential CPU offload if not. It always turns on VAE slicing and tiling, and attention slicing when the card has less than 8 GB free. It can stop at an offload step that is still too small and run out of memory.
 - If the model fits in your card's memory, `Manual` with every option off is the fastest setting, because nothing is converted or moved.
 - On a smaller card, turn on `transformer_layerwise_casting` first, then `cpu_offload_strategy` `Model`. Use `Sequential` only as a last resort because it is the slowest.
 - Flux3 `fp8r` and `nvfp4` are smaller versions of the transformer that use less graphics card memory. `fp8r` is faster only on NVIDIA cards with compute capability 8.9 or higher (RTX 40-series and newer, and data-center cards such as L40S and H100). `nvfp4` is faster only on NVIDIA Blackwell cards (compute capability 10 or higher, which includes the RTX 50-series) with the optional FlashInfer package installed. Elsewhere it still runs by converting the weights back to a larger format, which saves memory but not time. See [Build Pipeline by model](build-pipeline-by-model.md#flux3).

@@ -86,6 +86,7 @@ Choose a provider from the Build Pipeline node's `provider` dropdown. Supported 
 | **MiniMax-H3** | MiniMax-H3 | Joint soundtrack generation<br>First/last image-keyframe conditioning (FL2VA), Text-to-video<br>LoRA |
 | **Qwen-Image** | Base | Text-to-image<br>Image-to-image, Inpainting (native)<br>ControlNet, Masked denoising, LoRA |
 | **Qwen-Image-Edit** | Base, 2509, 2511 | Image editing (native, multi-image editing)<br>Inpainting<br>Masked denoising, LoRA |
+| **Qwen-Image 2.1** | Base, Turbo | Text-to-image, multi-image reference (up to 10)<br>Image-to-image, RGBA latents<br>Masked denoising |
 | **Stable Diffusion 3 / 3.5** | SD3 Medium; SD3.5 Medium, Large and Large Turbo | Text-to-image<br>Image-to-image (native), Inpainting (native)<br>ControlNet, Masked denoising, LoRA |
 | **Stable Diffusion XL** | Base, refiner, inpainting | Text-to-image<br>Image-to-image (native), Inpainting (native)<br>ControlNet, Masked denoising, LoRA |
 | **WAN 2.x** | WAN 2.1 (T2V 1.3B and 14B, I2V 14B 480p and 720p); WAN 2.2 (T2V and I2V A14B) | Text-to-video<br>Image-to-video (first frame required, optional last frame)<br>LoRA |

@@ -21,7 +21,7 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.config_utils import get_config_value
-from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
+from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentStatus, snap_dimensions
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
 
@@ -153,7 +153,12 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         """
         dimension_result = self._update_compatibility_message(build_if_needed=True)
         auto_resize = get_config_value("modular_diffusion_library.enable_auto_resize")
-        if dimension_result is not None and not auto_resize and dimension_result.message:
+        if (
+            dimension_result is not None
+            and not auto_resize
+            and dimension_result.status is DimensionAlignmentStatus.INVALID
+            and dimension_result.message
+        ):
             return [ValueError(dimension_result.message)]
         return None
 
@@ -207,6 +212,7 @@ class VaeMaskEncodeNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         result = snap_dimensions(driver, image_pil.height, image_pil.width)
         if result.message:
             logger.warning(result.message)
+        if result.status is DimensionAlignmentStatus.INVALID:
             image_pil = image_pil.resize((result.width, result.height), PILImage.Resampling.LANCZOS)
             mask_pil = mask_pil.resize((result.width, result.height), PILImage.Resampling.NEAREST)
 

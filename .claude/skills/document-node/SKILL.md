@@ -14,7 +14,8 @@ The docs under `docs/` are shown to artists in the editor's Docs panel. The form
 | A node was added to `modular_diffusion_nodes_library/nodes/` and registered in `griptape-nodes-library.json`. | **Create** `docs/nodes/<ClassName>.md`. |
 | A node's parameters, inputs, outputs, defaults, category or display name changed. | **Update** its page. |
 | Provider-specific or pipeline-type-specific behavior was added or removed. | **Update** the affected `###` entries under `## Parameters`, and the matching section in `docs/guides/how-pipelines-work.md`, `docs/guides/build-pipeline-by-model.md` or `docs/guides/generate-latent-by-model.md`. |
-| A workflow template was added, changed or removed. | **Create, update or delete** `docs/workflows/<TemplateName>.md` (template file name without `.py`). |
+| A workflow template was added, changed or removed. | **Create, update or delete** `docs/workflows/<TemplateName>.md` (template file name without `.py`). Every template in the manifest's `workflows` list needs a page. |
+| A preconfigured workflow node was added or changed, or its manifest `workflow_nodes` entry changed. | **Create or update** `docs/workflow_nodes/<node_type>.md`, and list the node in the manifest's `workflow_nodes`. |
 | A node was renamed or removed. | **Rename or delete** its page, and fix links to it. |
 
 A pure refactor with no user-visible change does not need a page update.
@@ -23,7 +24,7 @@ A pure refactor with no user-visible change does not need a page update.
 
 1. **The code is the source of truth.** Read the node file, the runtime and standard parameters classes it uses, and its `griptape-nodes-library.json` entry before writing. For a workflow page, read the template file under `workflows/templates/`. Never invent parameter names, defaults or model names.
 1. **Name the page after the class.** The file name is the class name from the manifest, spelled exactly. Pages sit flat under `docs/nodes/`.
-1. **Frontmatter first.** Exactly `description` and `when_to_use` on node and workflow pages. No H1, no `Category:` line.
+1. **Frontmatter first.** Exactly `description` and `when_to_use` on node, workflow node and workflow pages. No H1, no `Category:` line.
 1. **Do not list every parameter.** The panel builds the table. Add `## Parameters` with one `###` per parameter, named as the parameter, only where the tooltip is not enough.
 1. **Markdown images only**, from `docs/assets/`, with a relative path. No raw HTML.
 1. **Link other nodes** as `../nodes/<ClassName>.md` and workflows as `../workflows/<TemplateName>.md`. Every link must resolve.

@@ -47,9 +47,12 @@ class HunyuanVideo15ImageToVideoLatentPipelineDriver(HunyuanVideo15TextToVideoLa
             resized_frames = [frame.resize((resized_width, resized_height)) for frame in media.frames]
             preprocessed = VideoMedia(frames=resized_frames, source_shape=media.source_shape)
             return super().encode_media(preprocessed, generator_state)
+        image = media.image
+        if not isinstance(image, torch.Tensor):
+            image = image.convert("RGB")
         output_state = self._call_block(
             HunyuanVideo15VaeEncoderStep(),
-            image=media.image,
+            image=image,
             height=media.source_shape[-2],
             width=media.source_shape[-1],
         )

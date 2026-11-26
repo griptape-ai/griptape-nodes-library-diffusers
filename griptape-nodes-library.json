@@ -67,8 +67,8 @@
         "torchvision==0.22.0",
         "safetensors>=0.8.0rc0",
         "scipy>=1.10.0",
-        "transformers==5.13.0",
-        "tokenizers>=0.22.0,<0.23",
+        "transformers==5.17.0",
+        "tokenizers>=0.23.1,<0.24.0",
         "optimum-quanto>=0.2.7",
         "protobuf>=6.31.0",
         "bitsandbytes>=0.50.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
@@ -350,6 +350,20 @@
                 "family": "Qwen",
                 "key_support": "NO_KEY_REQUIRED",
                 "notes": "Apache-2.0."
+              },
+              "md_qwen_image_21": {
+                "display_name": "Qwen-Image 2.1",
+                "provider_model_id": "Qwen/Qwen-Image-2.1",
+                "family": "Qwen",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Qwen Research License Agreement. Review the model card and license before use."
+              },
+              "md_qwen_image_21_turbo": {
+                "display_name": "Qwen-Image 2.1 Turbo",
+                "provider_model_id": "Qwen/Qwen-Image-2.1-Turbo",
+                "family": "Qwen",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Qwen Research License Agreement. Review the model card and license before use."
               },
               "md_qwen_image_controlnet_union": {
                 "display_name": "Qwen-Image ControlNet Union (InstantX)",
@@ -780,6 +794,8 @@
               "md_qwen_image_edit",
               "md_qwen_image_edit_2509",
               "md_qwen_image_edit_2511",
+              "md_qwen_image_21",
+              "md_qwen_image_21_turbo",
               "md_sd3_5_large",
               "md_sd3_5_large_turbo",
               "md_sd3_5_medium",
@@ -1334,6 +1350,7 @@
     "workflows/templates/WanAnimate2.py",
     "workflows/templates/LatentCompositionWithMaskedDenoising.py",
     "workflows/templates/CleanPlateInpainting.py",
-    "workflows/templates/Minimax-H3-Ref2va.py"
+    "workflows/templates/Minimax-H3-Ref2va.py",
+    "workflows/templates/QwenImage21Panorama.py"
   ]
 }
