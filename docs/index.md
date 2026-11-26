@@ -13,6 +13,7 @@ Download each model in Model Manager before you run a workflow. Build Pipeline s
 ## Where to start
 
 - **Learn the idea.** [What is a latent?](guides/what-is-a-latent.md) explains the start, denoise and decode pattern behind every workflow.
+- **Learn what a VAE is.** [What is a VAE?](guides/what-is-a-vae.md) explains the encoder and decoder that move pictures into latents and back.
 - **Make your first image.** Open [Text2Image](workflows/Text2Image.md). It already has a prompt, a size and a model set.
 - **Rework a picture you already have.** [Image2Image](workflows/Image2Image.md) repaints your image to match a prompt.
 - **Change one part of an image.** [Inpainting](workflows/Inpainting.md) repaints only the area you mask.

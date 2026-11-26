@@ -56,4 +56,4 @@ Because the latent is a separate step you can see and change, you can:
 
 - A latent is shaped for one model. Create it from the pipeline you will run it through, and do not move a latent between different models.
 - A latent has no preview. To see what one holds, decode it.
-- Encoding and decoding go through the model's VAE. An image that is encoded and decoded again can come back slightly different from the original.
+- Encoding and decoding go through the model's VAE. See [What is a VAE?](what-is-a-vae.md). An image that is encoded and decoded again can come back slightly different from the original.
