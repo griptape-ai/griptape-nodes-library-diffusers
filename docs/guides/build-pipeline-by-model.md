@@ -3,7 +3,7 @@ title: Build Pipeline by model
 description: Model-specific and memory notes for the Build Pipeline node.
 ---
 
-This page covers the memory settings in detail, the component override messages, and the notes for MiniMax-H3, Flux3, WAN Animate 2 and LTX2.
+The memory settings and the component override messages apply to every model. The sections for MiniMax-H3, Flux3, WAN Animate 2 and LTX2 cover what is different for those models.
 
 ## Memory settings
 
