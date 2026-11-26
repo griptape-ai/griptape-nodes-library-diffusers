@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from modular_diffusion_nodes_library.component_loading.component_config_badge import component_config_badge_message
+from modular_diffusion_nodes_library.component_loading.config_guidance import component_config_badge_message
 
 
 def test_transformer_port_links_the_selected_model_config_page() -> None:

@@ -6,6 +6,7 @@ from griptape_nodes.exe_types.core_types import Parameter, ParameterMessage
 from griptape_nodes.exe_types.node_types import AsyncResult, BaseNode, SuccessFailureNode
 from griptape_nodes.exe_types.param_components.log_parameter import LogParameter
 
+from modular_diffusion_nodes_library.artifact_utils.component_artifact import HFRepoRef, base_repo_ref
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     BasePipelineIdentity,
     DiffusionPipelineArtifact,
@@ -306,12 +307,28 @@ class LatentDiffusionPipelineBuilderNode(
         self._surface_component_findings(blocking, advisory)
         return blocking, advisory
 
-    def _refresh_component_config_badges(self) -> None:
-        repo_id = None
+    def _base_repo(self) -> HFRepoRef | None:
         pipeline_params = self.params.pipeline_type_parameters.pipeline_type_pipeline_params
-        if pipeline_params is not None and not self._build_pipeline_from_component_overrides_only():
+        if pipeline_params is None or self._build_pipeline_from_component_overrides_only():
+            return None
+
+        try:
+            build_data = pipeline_params.get_build_data()
+        except ModelParamsError:
+            # Not downloaded yet, so there is no cached revision. The repo is still known.
             repo_id = pipeline_params.get_selected_model_repo_id()
-        self.params.component_override_params.refresh_config_badges(repo_id)
+            if repo_id is None:
+                return None
+            return HFRepoRef(repo_id=repo_id)
+
+        return base_repo_ref(build_data)
+
+    def _refresh_component_config_badges(self) -> None:
+        base_repo = self._base_repo()
+        if base_repo is None:
+            self.params.component_override_params.refresh_config_badges(None)
+        else:
+            self.params.component_override_params.refresh_config_badges(base_repo.repo_id, base_repo.revision)
 
     def _evaluate_component_compatibility(self) -> list[ComponentCompatibilityFinding]:
         overrides = self.params.component_override_params.get_component_overrides()
@@ -322,17 +339,12 @@ class LatentDiffusionPipelineBuilderNode(
         if pipeline_params is None:
             return []
 
-        if self._build_pipeline_from_component_overrides_only():
-            base_repo_id = None
-            base_revision = None
-        else:
-            try:
-                build_data = pipeline_params.get_build_data()
-                base_repo_id = build_data.get("base_repo_id")
-                base_revision = build_data.get("base_revision") or build_data.get("revision")
-            except Exception:
-                base_repo_id = None
-                base_revision = None
+        base_repo = self._base_repo()
+        base_repo_id = None
+        base_revision = None
+        if base_repo is not None:
+            base_repo_id = base_repo.repo_id
+            base_revision = base_repo.revision
 
         return evaluate_component_compatibility(
             overrides,

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, override
 
-from modular_diffusion_nodes_library.artifact_utils.component_artifact import ModelComponentArtifact
+from modular_diffusion_nodes_library.artifact_utils.component_artifact import MaterializeContext, ModelComponentArtifact
 from modular_diffusion_nodes_library.component_loading.pipeline_type_registry import get_loadable_component_class
 
 
@@ -13,7 +13,13 @@ class TextEncoderComponentArtifact(ModelComponentArtifact):
     """Descriptor for a text encoder component loaded via diffusers."""
 
     @override
-    def _materialize_single_file(self, *, pipeline_cls: type, effective_slot: str) -> Any:
+    def _materialize_single_file(
+        self,
+        *,
+        pipeline_cls: type,
+        effective_slot: str,
+        context: MaterializeContext = MaterializeContext(),  # noqa: ARG002 - transformers builds the config from the GGUF itself
+    ) -> Any:
         import torch  # type: ignore[reportMissingImports]
 
         if not self.file_path:
@@ -29,8 +35,8 @@ class TextEncoderComponentArtifact(ModelComponentArtifact):
             msg = (
                 f"Attempted to materialize {self.component} as {component_cls.__name__}. "
                 f"Failed with file_path='{self.file_path}' because it is not a file. "
-                f"Provide the path to the GGUF file directly (e.g. /path/to/model-Q4_K_M.gguf); "
-                f"its parent directory must contain a config.json."
+                f"Provide the path to the GGUF file directly (e.g. /path/to/model-Q4_K_M.gguf). "
+                f"Its config is read from the file, so no config.json is needed."
             )
             raise FileNotFoundError(msg)
 

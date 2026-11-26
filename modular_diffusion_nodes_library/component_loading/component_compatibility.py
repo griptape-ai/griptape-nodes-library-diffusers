@@ -38,16 +38,15 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
-from pathlib import Path
 from typing import Any, ClassVar
 
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ComponentArtifact,
+    HFRepoRef,
     ModelComponentArtifact,
 )
 from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact import SchedulerComponentArtifact
-from modular_diffusion_nodes_library.component_loading.component_slots import component_config_filename
-from modular_diffusion_nodes_library.component_loading.config_resolver import try_load_json_dict
+from modular_diffusion_nodes_library.component_loading.config_resolver import read_cached_config
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -99,17 +98,6 @@ def _check_text_conditioning_denoiser(
     return None
 
 
-def _read_base_repo_config(base_repo_id: str, slot: str, revision: str | None) -> dict[str, Any] | None:
-    """Read a non-overridden component's config from the base repo cache."""
-    from huggingface_hub import try_to_load_from_cache
-
-    filename = f"{slot}/{component_config_filename(slot)}"
-    cached = try_to_load_from_cache(base_repo_id, filename, revision=revision)
-    if not isinstance(cached, str):
-        return None
-    return try_load_json_dict(Path(cached))
-
-
 class _ConfigResolver:
     """Memoized reader for component configs.
 
@@ -134,7 +122,7 @@ class _ConfigResolver:
         if slot not in self._override_cache:
             artifact = self._overrides.get(slot)
             if isinstance(artifact, ModelComponentArtifact):
-                self._override_cache[slot] = artifact.try_read_config()
+                self._override_cache[slot] = artifact.try_read_config(base_repo=self._base_ref())
             elif isinstance(artifact, SchedulerComponentArtifact):
                 self._override_cache[slot] = self._try_read_scheduler_config(artifact)
             else:
@@ -148,13 +136,19 @@ class _ConfigResolver:
         except (ValueError, FileNotFoundError, OSError):
             return None
 
+    def _base_ref(self) -> HFRepoRef | None:
+        if self._base_repo_id is None:
+            return None
+        return HFRepoRef(repo_id=self._base_repo_id, revision=self._base_revision)
+
     def base_config(self, slot: str) -> dict[str, Any] | None:
         """Config of ``slot`` from the base repo, or ``None`` if unavailable."""
         if slot not in self._base_cache:
-            if self._base_repo_id is not None:
-                self._base_cache[slot] = _read_base_repo_config(self._base_repo_id, slot, self._base_revision)
-            else:
+            base_repo = self._base_ref()
+            if base_repo is None:
                 self._base_cache[slot] = None
+            else:
+                self._base_cache[slot] = read_cached_config(base_repo.repo_id, slot, slot, base_repo.revision)
         return self._base_cache[slot]
 
     def resolved_config(self, slot: str) -> dict[str, Any] | None:

@@ -43,7 +43,7 @@ _None. All fields are node properties._
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `file_path` | `str` (file) | `""` | Absolute path to a single-file weight (`.gguf`, `.safetensors`, `.ckpt`, `.pt`, `.pth`, `.bin`). A Text Encoder accepts only `.gguf`. |
-| `config_source` | `str` | `""` | **Config (Optional)** this is a json file (e.g. `config.json`) that tells Griptape how to read a single-file model. For first-time use, click the config link in the badge of the matching port on the [Build Pipeline](pipeline_builder.md) node to open its Hugging Face file page, click **Download** there, then select the downloaded file here. This downloads the config only, not the full model. The config must come from the same model as your file. Leave empty only if the matching config is already in the local Hugging Face cache. Text Encoder GGUF reads the `config.json` next to the GGUF, so this field does not apply. |
+| `config_source` | `str` | `""` | **Config (Optional)** this is a json file (e.g. `config.json`) that tells Griptape how to read a single-file model. For first-time use, click the config link in the badge of the matching port on the [Build Pipeline](pipeline_builder.md) node to open its Hugging Face file page, click **Download** there, then select the downloaded file here. This downloads the config only, not the full model. The config must come from the same model as your file. Leave empty only if the matching config is already in the local Hugging Face cache. Not required for Text Encoder: a Text Encoder GGUF reads its config from the file itself. |
 
 ### Local Folder
 

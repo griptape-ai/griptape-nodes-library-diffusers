@@ -11,6 +11,7 @@ from typing import Any, cast
 
 import torch  # type: ignore[reportMissingImports]
 
+from modular_diffusion_nodes_library.artifact_utils.component_artifact import base_repo_ref
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import DiffusionPipelineArtifact
 from modular_diffusion_nodes_library.artifact_utils.scheduler_component_artifact import SchedulerComponentArtifact
@@ -81,16 +82,16 @@ def _source_shape(
 
 def _pipeline_repository(artifact: DiffusionPipelineArtifact) -> tuple[str, str | None]:
     build_data = artifact.build_data
-    repo_id = build_data.get("base_repo_id") or build_data.get("repo_id")
-    revision = build_data.get("base_revision") or build_data.get("revision")
-    if not isinstance(repo_id, str) or not repo_id:
+    base_repo = base_repo_ref(build_data)
+    if base_repo is None or not isinstance(base_repo.repo_id, str):
         raise WorkflowExtractionError(
             f"Could not resolve config for pipeline '{artifact.pipeline_name}'. "
             "The serialized artifact has no base model repository."
         )
+    revision = base_repo.revision
     if revision is not None and not isinstance(revision, str):
         revision = None
-    return repo_id, revision
+    return base_repo.repo_id, revision
 
 
 _SHAPE_COMPONENT_SLOTS = {"vae", "transformer", "transformer_2", "unet", "scheduler"}
@@ -161,7 +162,7 @@ def _build_shape_only_pipe(artifact: DiffusionPipelineArtifact) -> Any:
             components[slot] = override.materialize(pipeline_cls=pipeline_cls, slot=slot)
             continue
         if override is not None:
-            config_dict = override.try_read_config()
+            config_dict = override.try_read_config(base_repo=base_repo_ref(artifact.build_data))
         else:
             repo_id, revision = _pipeline_repository(artifact)
             config_dict = resolve_base_component_config(repo_id, slot, revision)

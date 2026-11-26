@@ -10,7 +10,11 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from griptape_nodes.exe_types.node_types import BaseNode
 from griptape_nodes.exe_types.param_components.huggingface.huggingface_model_parameter import HuggingFaceModelParameter
 
-from modular_diffusion_nodes_library.artifact_utils.component_artifact import ComponentArtifact
+from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
+    ComponentArtifact,
+    MaterializeContext,
+    base_repo_ref,
+)
 from modular_diffusion_nodes_library.component_loading.component_slots import ALLOWED_COMPONENT_SLOTS
 
 if TYPE_CHECKING:
@@ -173,8 +177,19 @@ class ModularDiffusionPipelineTypePipelineParameters(ABC):
     @classmethod
     def _materialize_overrides(cls, build_data: dict[str, Any], *, pipeline_cls: type) -> dict[str, Any]:
         """Extract and materialize component overrides from build_data."""
+        # Imported here, not at module scope: pipelinetype_parameters imports this module, so a module-level
+        # import would be circular.
+        from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import config_repos_for_pipeline
+
         raw: dict[str, ComponentArtifact] = build_data.get("_component_overrides", {})
-        return {slot: artifact.materialize(pipeline_cls=pipeline_cls, slot=slot) for slot, artifact in raw.items()}
+        context = MaterializeContext(
+            base_repo=base_repo_ref(build_data),
+            config_repos=config_repos_for_pipeline(pipeline_cls.__name__),
+        )
+        return {
+            slot: artifact.materialize(pipeline_cls=pipeline_cls, slot=slot, context=context)
+            for slot, artifact in raw.items()
+        }
 
     @classmethod
     def supports_build_from_overrides_only(cls) -> bool:

@@ -6,6 +6,7 @@ returns the next pipe. `run_build_steps()` folds a list of steps.
 
 from __future__ import annotations
 
+import logging
 from contextlib import contextmanager
 from importlib import import_module
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
@@ -16,6 +17,8 @@ from modular_diffusion_nodes_library.utils.pipeline_utils import optimize_diffus
 if TYPE_CHECKING:
     from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+
+logger = logging.getLogger("modular_diffusers_nodes_library")
 
 # `type` rather than a plain assignment: the right-hand side is evaluated only when something
 # introspects the alias, so naming a pipe does not import diffusers.
@@ -92,10 +95,12 @@ class LoadPipelineStep:
 
                 msg = f"Failed to build pipeline. Pipeline type: {pipeline_type}, Repo: {repo_info}"
                 if revision_info:
-                    msg += f", Revision: {revision_info}"
-                msg += f". Original error: {e!s}"
+                    msg += f", Revision: {revision_info[:8]}"
+                msg += f". \n**Original error:** {e!s}"
 
-                raise RuntimeError(msg) from e
+                # The full traceback is in the log; chaining it here buries the message in the node's error.
+                logger.exception("Failed to build pipeline %s from '%s'.", pipeline_type, repo_info)
+                raise RuntimeError(msg) from None
 
 
 class FuseLorasStep:

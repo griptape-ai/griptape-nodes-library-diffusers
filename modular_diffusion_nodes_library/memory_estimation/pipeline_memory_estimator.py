@@ -19,7 +19,9 @@ from huggingface_hub import try_to_load_from_cache
 from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ComponentArtifact,
     ComponentSourceType,
+    HFRepoRef,
     ModelComponentArtifact,
+    base_repo_ref,
 )
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import ControlNetDiffusionPipelineArtifact
 from modular_diffusion_nodes_library.component_loading.component_slots import slot_component_kind
@@ -642,7 +644,7 @@ def _weight_bearing_slots(
 
 
 def _stored_bytes_for_override(
-    override: ComponentArtifact, effective_slot: str, pipeline_cls: type
+    override: ComponentArtifact, effective_slot: str, pipeline_cls: type, base_repo: HFRepoRef | None
 ) -> tuple[int, int, torch.nn.Module | None]:
     """Return (weight_bytes, stored_bytes_per_element, meta_component_or_None) for an
     override component, at its own declared dtype -- before any dynamic-quantization
@@ -666,7 +668,7 @@ def _stored_bytes_for_override(
         )
         raise TypeError(msg)
     torch_dtype = getattr(torch, override.torch_dtype)
-    config_dict = override.try_read_config()
+    config_dict = override.try_read_config(base_repo=base_repo)
     meta_component = None
     if config_dict is not None:
         component_cls = get_component_class(pipeline_cls, effective_slot)
@@ -806,8 +808,12 @@ def estimate_pipeline_memory_from_build_data(
 
     component_overrides: dict[str, ComponentArtifact] = build_data.get("_component_overrides", {})
     is_all_overrides = bool(build_data.get("_all_overrides"))
-    base_repo_id = str(build_data.get("base_repo_id") or build_data.get("repo_id") or "")
-    base_revision = build_data.get("base_revision") or build_data.get("revision")
+    base_repo = base_repo_ref(build_data)
+    base_repo_id = ""
+    base_revision = None
+    if base_repo is not None:
+        base_repo_id = base_repo.repo_id
+        base_revision = base_repo.revision
 
     if not is_all_overrides and not base_repo_id:
         msg = (
@@ -839,7 +845,7 @@ def estimate_pipeline_memory_from_build_data(
         try:
             if override is not None:
                 weight_bytes, stored_bytes_per_element, meta_component = _stored_bytes_for_override(
-                    override, slot, pipeline_cls
+                    override, slot, pipeline_cls, base_repo
                 )
             else:
                 weight_bytes, stored_bytes_per_element, meta_component = _stored_bytes_for_base_component(

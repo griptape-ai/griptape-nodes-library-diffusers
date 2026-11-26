@@ -64,10 +64,12 @@ class FilePathParameter:
         picker = next(iter(param.find_elements_by_type(FileSystemPicker)), None)
         if picker is None:
             return
-        picker.file_types = file_types
-        # _ui_options overrides traits in the ui_options property, so both stores must stay in sync.
+        # Change the picker through the ui_options write, not on the trait first. The setter tells the editor
+        # only if the options differ before and after the write, and a trait changed beforehand already shows
+        # the new types in both, so the editor would never hear of it. The write adopts the types into the trait.
+        picker_options = {**picker.ui_options_for_trait()["fileSystemPicker"], "fileTypes": file_types}
         existing = {k: v for k, v in param.ui_options.items() if k != "fileSystemPicker"}
-        existing["fileSystemPicker"] = picker.ui_options_for_trait()["fileSystemPicker"]
+        existing["fileSystemPicker"] = picker_options
         param.ui_options = existing
 
     def on_after_value_set(self, parameter: Parameter, value: Any) -> None:

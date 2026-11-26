@@ -9,6 +9,7 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     ComponentArtifact,
     ComponentSourceType,
     HFRepoRef,
+    MaterializeContext,
 )
 
 
@@ -29,7 +30,13 @@ class SchedulerComponentArtifact(ComponentArtifact):
     text_config: dict[str, Any] | None = None  # RAW_CONFIG: inline dict supplied directly
 
     @override
-    def materialize(self, *, pipeline_cls: type, slot: str | None = None) -> Any:  # noqa: ARG002
+    def materialize(
+        self,
+        *,
+        pipeline_cls: type,
+        slot: str | None = None,
+        context: MaterializeContext = MaterializeContext(),  # noqa: ARG002
+    ) -> Any:
         scheduler_cls = self._resolve_scheduler_class()
         config = self._load_config_dict()
         return scheduler_cls.from_config(config)

@@ -546,7 +546,8 @@ def test_pipeline_builder_shows_config_badges_with_nothing_connected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     node: Any = _create("LatentDiffusionPipelineBuilderNode", "builder")
-    _edit(node, {"provider": "Qwen"})
+    # QwenImage21Pipeline is the provider's default and declares no tokenizer slot, so pin the type that does.
+    _edit(node, {"provider": "Qwen", "pipeline_type": "QwenImagePipeline"})
 
     def no_cached_revision() -> tuple[str, str]:
         msg = "Model is not downloaded."

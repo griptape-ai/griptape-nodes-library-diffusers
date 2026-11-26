@@ -7,8 +7,8 @@ Resolution order:
    disk, use it directly.
 2. **config_source as HF repo** - if ``config_source`` looks like an HF repo_id
    (not a path on disk), try the warm HF cache for that repo.
-3. **Canonical HF cache** - look up the canonical repo for this ``model_type``
-   via ``DIFFUSERS_DEFAULT_PIPELINE_PATHS`` and try the warm HF cache.
+3. **Base repo** - the repo the pipeline is built from, if cached.
+4. **Canonical repo** - the default repo for ``model_type`` (``DIFFUSERS_DEFAULT_PIPELINE_PATHS``), if cached.
 
 The subfolder is derived from ``pipeline_slot`` / ``artifact_component`` candidates,
 so this function works for any component regardless of ``SINGLE_FILE_LOADABLE_CLASSES`` registration.
@@ -19,8 +19,12 @@ from __future__ import annotations
 import json
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from modular_diffusion_nodes_library.component_loading.component_slots import component_config_filename
+from modular_diffusion_nodes_library.component_loading.config_guidance import missing_config_message
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
@@ -107,25 +111,71 @@ def loadable_class_name(component_cls: type) -> str | None:
     return None
 
 
+class ConfigLoadError(ValueError):
+    """A single file failed to load for a reason the user can fix. The message already says why and how."""
+
+
+@dataclass(frozen=True)
+class ResolvedConfig:
+    """A config found for a single file, and where it came from."""
+
+    path: Path
+    source: str
+    repo_id: str | None = None
+
+
+def _cached_config_dir(repo_id: str, pipeline_slot: str, artifact_component: str, revision: str | None) -> Path | None:
+    """Return the folder holding this component's downloaded config in ``repo_id``, if any."""
+    from huggingface_hub import try_to_load_from_cache
+
+    config_name = component_config_filename(pipeline_slot)
+    subfolder = resolve_hf_repo_config_subfolder(
+        repo_id, pipeline_slot, artifact_component, revision=revision, config_filename=config_name
+    )
+    if subfolder is None:
+        return None
+
+    filename = config_name
+    if subfolder:
+        filename = f"{subfolder}/{config_name}"
+    cached = try_to_load_from_cache(repo_id, filename=filename, revision=revision)
+    if not isinstance(cached, str):
+        return None
+    return Path(cached).parent
+
+
+def read_cached_config(
+    repo_id: str, pipeline_slot: str, artifact_component: str, revision: str | None
+) -> dict[str, Any] | None:
+    """Return the config dict a repo's warm cache holds for this component, or ``None``. Never downloads.
+
+    The one reader of a repo's cached config. Every caller that needs a single file's base config goes through it,
+    so they all look in the same places in the same order.
+    """
+    cached_dir = _cached_config_dir(repo_id, pipeline_slot, artifact_component, revision)
+    if cached_dir is None:
+        return None
+    return try_load_json_dict(cached_dir / component_config_filename(pipeline_slot))
+
+
 def resolve_config_path(
     model_type: str,
-    component_cls: type,
     config_source: str | None,
     *,
     pipeline_slot: str = "",
     artifact_component: str = "",
-) -> Path:
-    """Return a config path suitable for ``from_single_file(config=...)``.
+    base_repo_id: str | None = None,
+    base_revision: str | None = None,
+) -> ResolvedConfig:
+    """Return a config suitable for ``from_single_file(config=...)``, with where it came from.
 
     Parameters
     ----------
     model_type:
         The diffusers ``model_type`` string from ``infer_diffusers_model_type``.
-    component_cls:
-        The concrete component class (e.g. ``FluxTransformer2DModel``).
     config_source:
         A local path to a JSON file or directory, an HF repo_id, or ``None``
-        to go straight to the canonical HF cache.
+        to use the base repo, then the canonical repo.
     pipeline_slot:
         The slot name in the target pipeline (e.g. ``"vae"``, ``"text_encoder_2"``).
         Used as the first subfolder candidate when probing HF repos.
@@ -133,72 +183,63 @@ def resolve_config_path(
         The component name the artifact declared itself as (e.g. ``"text_encoder"``
         when ``pipeline_slot`` is ``"text_encoder_2"``). Used as a secondary
         subfolder candidate.
+    base_repo_id, base_revision:
+        The repo the pipeline is built from. Tried before the canonical repo, because it is the model the
+        user picked and the canonical repo may be a different release of the family.
     """
     from diffusers.loaders.single_file_utils import (
         DIFFUSERS_DEFAULT_PIPELINE_PATHS,  # type: ignore[reportMissingImports]
     )
-    from huggingface_hub import try_to_load_from_cache
-
-    config_filename = ""
 
     # Config_source supplied by caller. An explicit value must resolve.
     if config_source is not None:
         config_path = Path(config_source)
         if config_path.exists():
-            if config_path.is_file():
+            if config_path.is_file() or (config_path / "config.json").is_file():
                 logger.info("Resolved config: source=USER_PATH path=%s", config_path)
-                return config_path
-            candidate = config_path / "config.json"
-            if candidate.is_file():
-                logger.info("Resolved config: source=USER_PATH path=%s", candidate)
-                return config_path
+                return ResolvedConfig(path=config_path, source="the 'Config' you set")
             msg = (
                 f"Attempted to resolve config path. "
                 f"Failed with config_source='{config_source}' because it is a directory "
                 f"that does not contain a 'config.json'."
             )
-            raise FileNotFoundError(msg)
+            raise ConfigLoadError(msg)
 
         if HF_REPO_ID_PATTERN.match(config_source):
-            subfolder = resolve_hf_repo_config_subfolder(config_source, pipeline_slot, artifact_component)
-            config_filename = f"{subfolder}/config.json" if subfolder else "config.json"
-            cached = try_to_load_from_cache(config_source, filename=config_filename)
-            if isinstance(cached, str):
-                cached_dir = Path(cached).parent
+            cached_dir = _cached_config_dir(config_source, pipeline_slot, artifact_component, revision=None)
+            if cached_dir is not None:
                 logger.info("Resolved config: source=USER_REPO repo=%s path=%s", config_source, cached_dir)
-                return cached_dir
+                return ResolvedConfig(
+                    path=cached_dir, source=f"the 'Config' you set ('{config_source}')", repo_id=config_source
+                )
             msg = (
                 f"Attempted to resolve config path. "
-                f"Failed with config_source='{config_source}' because '{config_filename}' "
-                f"is not in the local HuggingFace cache for that repo."
+                f"Failed with config_source='{config_source}' because no config for '{pipeline_slot}' "
+                f"is in the local HuggingFace cache for that repo."
             )
-            raise FileNotFoundError(msg)
+            raise ConfigLoadError(msg)
 
         msg = (
             f"Attempted to resolve config path. "
             f"Failed with config_source='{config_source}' because it is neither an existing "
             f"local path nor a valid HuggingFace repo id."
         )
-        raise ValueError(msg)
+        raise ConfigLoadError(msg)
 
-    # Canonical HF cache for this model_type.
+    candidate_repos: list[tuple[str, str | None, str]] = []
+    if base_repo_id is not None and HF_REPO_ID_PATTERN.match(base_repo_id):
+        candidate_repos.append((base_repo_id, base_revision, f"the Build Pipeline's model '{base_repo_id}'"))
     paths_entry = DIFFUSERS_DEFAULT_PIPELINE_PATHS.get(model_type)
-    if paths_entry is not None:
-        repo_id = paths_entry["pretrained_model_name_or_path"]
-        subfolder = resolve_hf_repo_config_subfolder(repo_id, pipeline_slot, artifact_component)
-        config_filename = f"{subfolder}/config.json" if subfolder else "config.json"
-        cached = try_to_load_from_cache(repo_id, filename=config_filename)
-        if isinstance(cached, str):
-            cached_dir = Path(cached).parent
-            logger.info("Resolved config: source=HF_CACHE repo=%s path=%s", repo_id, cached_dir)
-            return cached_dir
+    if paths_entry is not None and paths_entry["pretrained_model_name_or_path"] != base_repo_id:
+        default_repo_id = paths_entry["pretrained_model_name_or_path"]
+        candidate_repos.append((default_repo_id, None, f"the default repo '{default_repo_id}' for '{model_type}'"))
 
-    canonical_repo = paths_entry["pretrained_model_name_or_path"] if paths_entry else "<no canonical repo>"
-    msg = (
-        f"Attempted to resolve config path. "
-        f"Failed with model_type='{model_type}' component='{component_cls.__name__}' "
-        f"because no config was found: "
-        f"HF_CACHE (repo='{canonical_repo}' file='{config_filename}' not cached). "
-        f"Set 'Config Source' to a local config directory or HuggingFace repo_id for this component."
-    )
-    raise FileNotFoundError(msg)
+    for repo_id, revision, source in candidate_repos:
+        cached_dir = _cached_config_dir(repo_id, pipeline_slot, artifact_component, revision)
+        if cached_dir is not None:
+            logger.info("Resolved config: repo=%s path=%s", repo_id, cached_dir)
+            return ResolvedConfig(path=cached_dir, source=source, repo_id=repo_id)
+
+    tried_repos = [repo for repo, _, _ in candidate_repos]
+    msg = missing_config_message(pipeline_slot=pipeline_slot, tried_repos=tried_repos, example_repos=tried_repos)
+    raise ConfigLoadError(msg)

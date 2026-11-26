@@ -11,12 +11,12 @@ from modular_diffusion_nodes_library.artifact_utils.component_artifact import (
     is_encoded_component_artifact,
     structure_component_artifact,
 )
-from modular_diffusion_nodes_library.component_loading.component_config_badge import component_config_badge_message
 from modular_diffusion_nodes_library.component_loading.component_slots import (
     ALLOWED_COMPONENT_SLOTS,
     SLOT_DISPLAY_NAMES,
     slot_artifact_type_name,
 )
+from modular_diffusion_nodes_library.component_loading.config_guidance import component_config_badge_message
 
 if TYPE_CHECKING:
     from modular_diffusion_nodes_library.nodes.latent_diffusion_pipeline_builder_node import (

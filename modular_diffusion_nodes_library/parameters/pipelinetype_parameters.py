@@ -457,3 +457,18 @@ def find_provider_for_pipeline_type(pipeline_type: str) -> str | None:
         if pipeline_type in params_cls.get_pipeline_type_dict():
             return provider
     return None
+
+
+def config_repos_for_pipeline(pipeline_name: str) -> list[str]:
+    """The repos Build Pipeline offers for the pipeline class named ``pipeline_name``.
+
+    Walks every pipeline type the provider map reaches and reads each one's class-level ``_repo_ids``, so a
+    pipeline class served by more than one type (e.g. LTX-2 and LTX-2.5) collects the repos of all of them.
+    """
+    repos: list[str] = []
+    for params_cls in MODULAR_PIPELINE_TYPE_PROVIDER_MAP.values():
+        for pipeline_type_cls in params_cls.get_pipeline_type_dict().values():
+            if pipeline_type_cls.pipeline_name() != pipeline_name:
+                continue
+            repos.extend(getattr(pipeline_type_cls, "_repo_ids", []))
+    return list(dict.fromkeys(repos))

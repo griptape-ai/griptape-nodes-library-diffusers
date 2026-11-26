@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from modular_diffusion_nodes_library.artifact_utils.component_artifact import HFRepoRef, MaterializeContext
 from modular_diffusion_nodes_library.parameters.modular_pipeline_type_parameters import (
     ModularDiffusionPipelineTypePipelineParameters,
 )
@@ -31,3 +32,19 @@ def test_overrides_only_build_resolves_pipeline_class_without_build_data_entry()
 
     assert isinstance(pipe, _FakePipeline)
     assert pipe.components == {"vae": "the-vae"}
+
+
+def test_overrides_are_materialized_with_the_base_repo() -> None:
+    class _FakeArtifact:
+        def materialize(self, *, pipeline_cls: type, slot: str, context: MaterializeContext) -> Any:  # noqa: ARG002
+            return context.base_repo
+
+    build_data = {
+        "base_repo_id": "org/model",
+        "base_revision": "abc",
+        "_component_overrides": {"transformer": _FakeArtifact()},
+    }
+
+    overrides = _FakePipelineParameters._materialize_overrides(build_data, pipeline_cls=_FakePipeline)  # noqa: SLF001
+
+    assert overrides == {"transformer": HFRepoRef(repo_id="org/model", revision="abc")}

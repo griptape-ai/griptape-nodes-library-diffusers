@@ -24,6 +24,17 @@ from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_factory impo
 # Entries are sourced from ``diffusers.loaders.single_file_utils`` -
 # specifically the branches inside ``infer_diffusers_model_type`` and the
 # ``DIFFUSERS_DEFAULT_PIPELINE_PATHS`` table.
+#
+# This table decides which config a single file gets when its key names are sniffed
+# (``ModelComponentArtifact._infer_single_file_model_type``). When the sniffed type is not one of the
+# builder pipeline's own entries here:
+#
+# - A pipeline with exactly one entry uses that entry. The sniffed type is wrong, as when diffusers
+#   calls LTX-2 keys LTX-Video, because no other variant of the pipeline exists.
+# - A pipeline with several entries keeps the sniffed type if it is in this table at all (a Flux Fill
+#   file in a Flux build gets Flux Fill's config), and otherwise uses its first entry.
+#
+# So register a new pipeline's single-file variants together, and list its default variant first.
 MODEL_TYPE_TO_PIPELINE_TYPE: dict[str, str] = {
     # Flux family (Black Forest Labs).
     "flux-dev": "FluxPipeline",
@@ -119,3 +130,15 @@ def get_loadable_component_class(pipeline_cls: type, component: str) -> type:
     if component_cls is PreTrainedModel:
         component_cls = AutoModel
     return component_cls
+
+
+def default_repo_for_model_type(model_type: str) -> str | None:
+    """Return the repo diffusers uses for ``model_type`` when it has to guess a config, if it has one."""
+    from diffusers.loaders.single_file_utils import (
+        DIFFUSERS_DEFAULT_PIPELINE_PATHS,  # type: ignore[reportMissingImports]
+    )
+
+    entry = DIFFUSERS_DEFAULT_PIPELINE_PATHS.get(model_type)
+    if entry is None:
+        return None
+    return entry["pretrained_model_name_or_path"]

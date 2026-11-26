@@ -124,9 +124,8 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             type="str",
             default_value="",
             tooltip=(
-                "Choose the matching config file (usually config.json) for a Transformer, UNet or VAE file. Text "
-                "Encoder files need none. Leave empty if the matching config is already in the local Hugging "
-                "Face cache."
+                "Choose the matching config file (usually config.json) for a Transformer, UNet or VAE file. "
+                "Leave empty if the matching config is already in the local Hugging Face cache."
             ),
             allowed_modes={ParameterMode.PROPERTY},
             traits={
@@ -152,7 +151,6 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 "connects to, follow the link, then click **Download** on that page. This downloads only the config "
                 "file, not the full model. Back here, click **Config** and select the downloaded file. "
                 "The config must come from the same model as your single file.\n\n"
-                "**Text Encoder file?** It needs no config. Leave **Config** empty.\n\n"
                 "Leave **Config** empty if the matching config is already in the local "
                 "Hugging Face cache."
             ),
@@ -193,7 +191,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 "- `diffusion_pytorch_model.bin`\n"
                 "- Sharded index (`diffusion_pytorch_model.safetensors.index.json` + shards)\n\n"
                 "**Not supported here:** a `.gguf` file next to `config.json`. "
-                "For GGUF weights, use **Single File** mode and point **Config Source** at "
+                "For GGUF weights, use **Single File** mode and point **Config** at "
                 "the folder (or its `config.json`)."
             ),
         )
@@ -282,13 +280,18 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             skip_before_value_set=skip_before_value_set,
         )
 
+        if param_name == "component":
+            # A saved workflow loads here too, and the picker's file types are not saved with it.
+            self._update_file_types_for_component(value)
+            if initial_setup and self._is_text_encoder_selected():
+                self.hide_parameter_by_name("config_source")
+
         if initial_setup:
             return
 
         if param_name == "component":
             self._update_output_type_and_drop_connections()
             self._update_source_type_choices(value)
-            self._update_file_types_for_component(value)
         if param_name == "source_type" and isinstance(value, str):
             self._apply_source_type_visibility(value)
         if param_name != "component_output":
@@ -303,6 +306,9 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             else:
                 for name in param_names:
                     self.hide_parameter_by_name(name)
+        if self._is_text_encoder_selected():
+            # transformers builds a GGUF text encoder's config from the file, so there is nothing to set.
+            self.hide_parameter_by_name("config_source")
         if source_type == _SOURCE_HF_REPO:
             self._repo_param.refresh_parameters()
 
@@ -330,6 +336,10 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             self.set_parameter_value("source_type", _SOURCE_LOCAL_FOLDER)
         else:
             self.set_parameter_value("source_type", current_source)
+
+    def _is_text_encoder_selected(self) -> bool:
+        component_slot = _LOADABLE_COMPONENTS.get(self.get_parameter_value("component"), "")
+        return slot_component_kind(component_slot) == "text_encoder"
 
     def _update_file_types_for_component(self, component_display_name: str) -> None:
         component_slot = _LOADABLE_COMPONENTS.get(component_display_name, "")
@@ -426,6 +436,16 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         if not file_path.exists():
             errors.append(
                 FileNotFoundError(f"Attempted to run LoadComponent. Failed because no file exists at '{file_path}'.")
+            )
+            return errors
+
+        if self._is_text_encoder_selected() and file_path.suffix.lower() not in _TEXT_ENCODER_FILE_TYPES:
+            errors.append(
+                ValueError(
+                    f"Attempted to run LoadComponent. Failed with file_path='{file_path}' because a text encoder "
+                    f"loaded from a single file must be a {' or '.join(_TEXT_ENCODER_FILE_TYPES)} file. "
+                    f"Use Local Folder or HuggingFace Repo for other formats."
+                )
             )
         return errors
 
@@ -539,11 +559,12 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
             return None
 
         file_path = self._file_path_param.get_file_path()
-        raw_config_source = self.get_parameter_value("config_source")
-        if isinstance(raw_config_source, str) and raw_config_source:
-            config_source = expand_path_macros(raw_config_source)
-        else:
-            config_source = None
+        # A Text Encoder reads its config from the GGUF, so a Config value left over from another component is ignored.
+        config_source = None
+        if not self._is_text_encoder_selected():
+            raw_config_source = self.get_parameter_value("config_source")
+            if isinstance(raw_config_source, str) and raw_config_source:
+                config_source = expand_path_macros(raw_config_source)
 
         load_id = _compute_load_id(
             source_type=_SOURCE_SINGLE_FILE,
