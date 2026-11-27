@@ -30,9 +30,13 @@ Build Pipeline → [Create Empty Latent] → Composite Latents with Mask → Gen
 
 Connect the pipeline you will generate with. The latent only works with that kind of pipeline.
 
-### width and height
+### width
 
-Size in pixels. Both default to 1024. They must be at least 1. Some pipelines need sizes that are a multiple of a set number. If yours does and your size does not fit, the run stops with a message. Turn on **Auto Resize** under Library Settings > Diffusion Library to round the size up automatically.
+Width in pixels. The default is 1024. It must be at least 1. Some pipelines need a width that is a multiple of a set number. If yours does and the width does not fit, the run stops with a message. Turn on **Auto Resize** under Library Settings > Diffusion Library to round it up automatically.
+
+### height
+
+Height in pixels. The default is 1024. It must be at least 1. Some pipelines need a height that is a multiple of a set number. If yours does and the height does not fit, the run stops with a message. Turn on **Auto Resize** under Library Settings > Diffusion Library to round it up automatically.
 
 ### num_frames
 

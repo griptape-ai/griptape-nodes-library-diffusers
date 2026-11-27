@@ -42,7 +42,7 @@ This workflow makes an image from a text description, called a prompt, and follo
 ## Tips
 
 - `controlnet_conditioning_scale` is how strongly a guide image steers. Higher follows it more closely. See [controlnet_conditioning_scale](../nodes/ControlNetNode.md#controlnet_conditioning_scale).
-- `control_guidance_start` and `control_guidance_end` set which part of the run the guide image applies to. Both ControlNets here stop at 0.5, so the second half of the steps fills in detail freely. See [control_guidance_start and control_guidance_end](../nodes/ControlNetNode.md#control_guidance_start-and-control_guidance_end).
+- `control_guidance_start` and `control_guidance_end` set which part of the run the guide image applies to. Both ControlNets here stop at 0.5, so the second half of the steps fills in detail freely. See [control_guidance_start](../nodes/ControlNetNode.md#control_guidance_start) and [control_guidance_end](../nodes/ControlNetNode.md#control_guidance_end).
 - Set a strength to 0 to turn that ControlNet off and see what the other one does alone.
 - Apply ControlNet does not work with every pipeline type. See [Apply ControlNet](../nodes/ControlNetDiffusionPipelineBuilderNode.md) for the list.
 - Add Noise is off on Generate Latent, so the seed that matters is the one on Create Noise Latent. See [When noise is added](../guides/what-is-a-latent.md#when-noise-is-added).

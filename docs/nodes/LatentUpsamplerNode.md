@@ -17,8 +17,10 @@ Use it when you generated a low-resolution video latent and want it larger befor
 ## Where it fits
 
 ```text
-Generate Latent (low-res) → [Upsample Latent] → Generate Latent (refine) → Convert Latent to Media
+Generate Latent (low-res) → [Upsample Latent] → Generate Latent (refine) → Decode Media
 ```
+
+Connect Decode Media to the same pipeline that made the latent. Decode Media works for both the `LTX` and `LTX2` providers. For an `LTX2` latent you can use [Convert Latent to Media](LatentToMediaNode.md) instead, which decodes with its own LTX-2.5 decoder. It is not meant for `LTX` latents.
 
 ## Preview
 

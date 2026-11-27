@@ -17,7 +17,7 @@ The prompt describes a translucent jellyfish drifting through a blue ocean.
 1. [Create Empty Latent](../nodes/EmptyLatentNode.md) sets the size and length. It makes a blank [latent](../guides/what-is-a-latent.md), the compressed form of a video that the model works in.
 1. Two Text Input nodes hold the prompt and the negative prompt, which lists what to steer away from.
 1. [Generate Latent](../nodes/DiffusionPipelineGenerateLatentNode.md) makes the video. See [LTX2](../guides/generate-latent-by-model.md#ltx2) for the settings specific to this model.
-1. [Decode Media](../nodes/VaeDecodeNode.md) turns the result into a video. In the template it is named VAE Decode Latents.
+1. [Decode Media](../nodes/VaeDecodeNode.md) turns the result into a video with its soundtrack. In the template it is named VAE Decode Latents.
 
 ## Steps
 
@@ -32,8 +32,8 @@ The prompt describes a translucent jellyfish drifting through a blue ocean.
 - Model: LTX 2.3 Distilled (`dg845/LTX-2.3-Distilled-Diffusers`), with the `LTX2Pipeline` type.
 - LoRA: `ltx-2.3-22b-ic-lora-union-control-ref0.5.safetensors`, weight 1.0.
 - Size: 1536 x 1024, set on Create Empty Latent.
-- Length: 121 frames, set as `num_frames` on Create Empty Latent. About 4.8 seconds at 25 frames per second.
-- Frame rate: 25 frames per second, set as `fps` on Decode Media.
+- Length: 121 frames, set as `num_frames` on Create Empty Latent. About 5.0 seconds at 24 frames per second.
+- Frame rate: the template saves `fps` as 25 on Decode Media, but the video plays at 24 frames per second. LTX2 makes a soundtrack with the video, and Decode Media then uses the model's own rate so sound and picture stay together.
 - Steps: 8.
 - Guidance: 1.0.
 - Seed: 42.

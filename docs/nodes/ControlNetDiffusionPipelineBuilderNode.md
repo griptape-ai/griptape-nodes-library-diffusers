@@ -19,10 +19,12 @@ You have a pipeline from [Build Pipeline](LatentDiffusionPipelineBuilderNode.md)
 ## Where it fits
 
 ```text
-Build Pipeline ────→ [Apply ControlNet] → Generate Latent → Convert Latent to Media
+Build Pipeline ────→ [Apply ControlNet] → Generate Latent → Decode Media
 Load ControlNet ───┘                  └──→ control_parameters → Generate Latent
 Load ControlNet ───┘
 ```
+
+Connect the same `controlnet_pipeline` to the `pipeline` input of [Decode Media](VaeDecodeNode.md).
 
 ## Preview
 

@@ -44,6 +44,6 @@ White areas are repainted and black areas are kept. Paint the mask at the same a
 ## Tips
 
 - Raise `controlnet_conditioning_scale` on Load ControlNet to follow the guide image more closely. See [controlnet_conditioning_scale](../nodes/ControlNetNode.md#controlnet_conditioning_scale).
-- Lower `control_guidance_end` to let the model fill in detail freely in the last steps. See [control_guidance_start and control_guidance_end](../nodes/ControlNetNode.md#control_guidance_start-and-control_guidance_end).
+- Lower `control_guidance_end` to let the model fill in detail freely in the last steps. See [control_guidance_end](../nodes/ControlNetNode.md#control_guidance_end).
 - The mask decides where the image changes. The guide image decides the structure inside that area.
 - Encode Masked Media prepares the noise itself, so Generate Latent hides its own Add Noise switch. See [When noise is added](../guides/what-is-a-latent.md#when-noise-is-added).

@@ -50,8 +50,8 @@ SDR-to-HDR:
 - Model: LTX 2.3 Distilled (`dg845/LTX-2.3-Distilled-Diffusers`), with the `LTX2Pipeline` type.
 - First-stage size: 768 x 512, set on Create Noise Latent.
 - HDR-stage size: 1536 x 1024, set on Create Empty Latent.
-- Length: 121 frames on both. About 4.8 seconds at 25 frames per second.
-- Frame rate: 25 frames per second on Decode Media and Decode HDR Media.
+- Length: 121 frames on both.
+- Frame rate: the template saves `fps` as 25 on both decoders. Decode HDR Media makes no sound, so the HDR frames play at 25 frames per second, about 4.8 seconds. When the first-stage latent carries a generated soundtrack, Decode Media instead encodes the first-stage video at LTX2's own 24 frames per second, about 5.0 seconds.
 - Steps: 8 for each stage.
 - First-stage guidance: 3.0. HDR-stage guidance: 1.0.
 - Seed: 42.

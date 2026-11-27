@@ -15,7 +15,7 @@ The template comes with two sample images. The first is a futuristic soldier and
 1. [Create Noise Latent](../nodes/NoiseLatentNode.md) sets the video size, the length and the seed. It makes random noise as a [latent](../guides/what-is-a-latent.md), the compressed form of a video that the model works in.
 1. A Text Input node holds the prompt.
 1. [Generate Latent](../nodes/DiffusionPipelineGenerateLatentNode.md) makes the video. See [MiniMax-H3 reference-to-video](../guides/generate-latent-by-model.md#minimax-h3-reference-to-video) for the settings specific to this pipeline type.
-1. [Decode Media](../nodes/VaeDecodeNode.md) turns the result into a video with its soundtrack. Set the playback speed in its `fps` parameter.
+1. [Decode Media](../nodes/VaeDecodeNode.md) turns the result into a video with its soundtrack. The video always plays at 24 frames per second. The `fps` parameter has no effect here, because Decode Media uses the model's own rate whenever there is a soundtrack.
 
 ## Hardware
 
@@ -33,7 +33,7 @@ The model's authors recommend one graphics card with 80 GB of memory. The transf
 - Model: MiniMax-H3 (`MiniMaxAI/MiniMax-H3`), with the `MiniMaxH3Ref2VAModularPipeline` type.
 - Size: 512 x 512, set on Create Noise Latent.
 - Length: 124 frames, set as `num_frames` on Create Noise Latent. About 5.2 seconds at 24 frames per second.
-- Frame rate: 24 frames per second, set as `fps` on Decode Media.
+- Frame rate: 24 frames per second, fixed by the model.
 - Steps: 20.
 - Reference image short edge: 1024 in the template. The node default is 2048. This sets the shorter side of the image references in pixels. It does not change the output size.
 - Seed: 42.

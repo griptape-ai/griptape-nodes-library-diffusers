@@ -15,9 +15,11 @@ Both latents must be connected and must be the same size. Latents from different
 
 ```text
 Generate Latent (A) ─┐
-                     ├─→ [Add Latents] → Generate Latent / Convert Latent to Media
+                     ├─→ [Add Latents] → Generate Latent / Decode Media
 Generate Latent (B) ─┘
 ```
+
+To view the sum, connect it to [Decode Media](VaeDecodeNode.md) with the pipeline that made the latents. [Convert Latent to Media](LatentToMediaNode.md) only accepts compatible LTX-2 video latents.
 
 ## Preview
 

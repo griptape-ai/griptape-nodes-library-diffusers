@@ -37,9 +37,15 @@ Drag the source box over the destination, or pick a position preset. It writes `
 
 The editor shows the latent sizes only after the node has run once. Until then it is blank. Place the source in the editor and the sizes are saved with the workflow.
 
-### x_offset and y_offset
+### x_offset
 
-Where the source goes, in pixels, default 0. The sliders run from -2000 to 2000 and larger values are accepted. The node divides them by 8 to get latent units. Negative values let the source hang off the top or left edge.
+How far across the destination the source goes, in pixels. The default is 0. The slider runs from -2000 to 2000 and larger values are accepted. The node divides the value by 8 to get latent units. A negative value lets the source hang off the left edge.
+
+Only the part of the source that overlaps the destination is used. If the source misses the destination entirely, nothing is composited and `output_latent` is not updated.
+
+### y_offset
+
+How far down the destination the source goes, in pixels. The default is 0. The slider runs from -2000 to 2000 and larger values are accepted. The node divides the value by 8 to get latent units. A negative value lets the source hang off the top edge.
 
 Only the part of the source that overlaps the destination is used. If the source misses the destination entirely, nothing is composited and `output_latent` is not updated.
 

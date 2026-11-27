@@ -37,7 +37,7 @@ Shown as `input_latent`. The latent to decode.
 
 ### fps
 
-Shown only for video pipelines. The output frame rate. The field is limited to 1 to 120, and a value of 0 or less stops the run with a message. When the node switches from image to video, it starts at the rate the model generates at, so leaving it alone plays at the right speed. If you then swap one video pipeline for another, the value you have stays, so check it.
+Shown only for video pipelines. The output frame rate. The field is limited to 1 to 120, and a value of 0 or less stops the run with a message. When the node switches from image to video, it starts at the rate the model generates at, so leaving it alone plays at the right speed. When the result has a generated sound track, the value is ignored and the model's own rate from the table is used. If you then swap one video pipeline for another, the value you have stays, so check it.
 
 | Model | Default fps |
 |-------|-------------|

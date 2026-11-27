@@ -44,7 +44,7 @@ Video height in pixels. The default is 1024.
 
 ### num_frames
 
-How many frames the video has. The default is 41. The workflow plays the video at 25 frames per second, so 41 frames last about 1.6 seconds.
+How many frames the video has. The default is 41. The workflow plays the video at 25 frames per second, so 41 frames last about 1.6 seconds. Pipelines that make their own soundtrack, such as LTX2 and MiniMax-H3, play at 24 frames per second instead, so 41 frames last about 1.7 seconds.
 
 ### output_video
 

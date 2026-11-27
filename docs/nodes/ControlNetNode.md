@@ -52,9 +52,13 @@ Slider from 0.0 to 1.0, default 1.0. Higher values follow the control image more
 
 Flux only. The kind of control image you are supplying: `canny` (default), `tile`, `depth`, `blur`, `pose`, `gray` or `low_quality`. It must match what the image shows.
 
-### control_guidance_start and control_guidance_end
+### control_guidance_start
 
-Every provider except Z-Image. The part of the denoising steps where the ControlNet applies, as a fraction from 0.0 to 1.0. The defaults are 0.0 and 1.0, which covers the whole run. Lowering `control_guidance_end` lets the model fill in detail freely in the last steps.
+Every provider except Z-Image. Where in the denoising steps the ControlNet starts to apply, as a fraction from 0.0 to 1.0. The default is 0.0, which starts at the first step. Raise it to let the model set the layout on its own before the guide image takes over.
+
+### control_guidance_end
+
+Every provider except Z-Image. Where in the denoising steps the ControlNet stops applying, as a fraction from 0.0 to 1.0. The default is 1.0, which keeps the guide image active to the last step. Lower it to let the model fill in detail freely in the last steps.
 
 ### control_net
 
