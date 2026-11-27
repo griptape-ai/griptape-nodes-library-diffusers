@@ -32,6 +32,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
+_INPUT_TYPE_BY_PARAMETER = {"image": "image", "input_video": "video"}
+_STALE_INPUT_BY_ADDED_PARAMETER = {"image": "input_video", "input_video": "image"}
+
 
 class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, SuccessFailureNode):
     def __init__(self, **kwargs) -> None:
@@ -87,9 +90,31 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
         if not is_input_media_param:
             return
 
-        if not self.does_name_exist(param.name):
-            param.user_defined = True
-            super().add_parameter(param)
+        if self.does_name_exist(param.name):
+            return
+        param.user_defined = True
+        super().add_parameter(param)
+        self._drop_stale_input_after_add(param.name)
+        self._move_input_media_above_output(param.name)
+
+    def _drop_stale_input_after_add(self, added_name: str) -> None:
+        """Keep a single input type when a saved workflow re-adds one without restoring ``pipeline``."""
+        stale_name = _STALE_INPUT_BY_ADDED_PARAMETER[added_name]
+        # `initial_setup=True` removes locally, without dropping connections, because loading must not
+        # edit the graph. That is safe because this only finds something to remove on load: a runtime
+        # swap in `_update_input_parameter` removes the old input (and its connections) before adding
+        # the new one, so nothing stale is left. A stale input found on load has no loaded connections.
+        with self.removing_locally_while_loading(initial_setup=True):
+            if self.does_name_exist(stale_name):
+                self.remove_parameter_element_by_name(stale_name)
+        self._current_input_type = _INPUT_TYPE_BY_PARAMETER[added_name]
+
+    def _move_input_media_above_output(self, media_name: str) -> None:
+        """Put the input media where ``image`` sits after ``__init__``, above the output latent."""
+        all_params = [element.name for element in self.root_ui_element.children]
+        all_params.remove(media_name)
+        all_params.insert(all_params.index("latent_tensor"), media_name)
+        self.reorder_elements(all_params)
 
     def set_parameter_value(
         self,

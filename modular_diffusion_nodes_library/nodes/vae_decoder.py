@@ -22,6 +22,9 @@ from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
+_OUTPUT_TYPE_BY_PARAMETER = {"output_image": "image", "output_video": "video"}
+_PARAMETERS_BY_OUTPUT_TYPE = {"image": ("output_image",), "video": ("output_video", "fps")}
+
 
 class VaeDecodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, SuccessFailureNode):
     def __init__(self, **kwargs) -> None:
@@ -81,8 +84,31 @@ class VaeDecodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
         elif param.name in {"output_image", "output_video"}:
             param.user_defined = True
 
-        if not self.does_name_exist(param.name):
-            super().add_parameter(param)
+        if self.does_name_exist(param.name):
+            return
+        super().add_parameter(param)
+        if not self._initializing:
+            self._drop_stale_output_after_add(param.name)
+            self._reorder_parameters_for_dynamic_output()
+
+    def _drop_stale_output_after_add(self, added_name: str) -> None:
+        """Keep a single output type when a saved workflow re-adds one without restoring ``pipeline``."""
+        new_output_type = _OUTPUT_TYPE_BY_PARAMETER.get(added_name)
+        if new_output_type is None:
+            return
+
+        # `initial_setup=True` removes locally, without dropping connections, because loading must not
+        # edit the graph. That is safe because this only finds something to remove on load: a runtime
+        # swap in `_update_output_parameter` removes the old output (and its connections) before adding
+        # the new one, so nothing stale is left. A stale output found on load has no loaded connections.
+        with self.removing_locally_while_loading(initial_setup=True):
+            for output_type, parameter_names in _PARAMETERS_BY_OUTPUT_TYPE.items():
+                if output_type == new_output_type:
+                    continue
+                for stale_name in parameter_names:
+                    if self.does_name_exist(stale_name):
+                        self.remove_parameter_element_by_name(stale_name)
+        self._current_output_type = new_output_type
 
     def set_parameter_value(
         self,
