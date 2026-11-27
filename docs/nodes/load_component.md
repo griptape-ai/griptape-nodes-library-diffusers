@@ -1,11 +1,11 @@
 # Load Component
 
-**Load a single pipeline component (transformer / unet / vae / tokenizer / text encoder) from disk or the local HuggingFace cache.**
+**Loads a single pipeline component (transformer / unet / vae / tokenizer / text encoder) from disk or the local HuggingFace cache.**
 
-Category: `ModularDiffusion/Pipeline`
+Category: `Diffusion/Pipeline`
 
 ## TL;DR
-- Emits a `ComponentArtifact` describing where the weights live; the weights themselves are loaded lazily by the pipeline builder at build time.
+- Emits a `ComponentArtifact` that points to the component weights. The Build Pipeline node loads them when building the pipeline.
 - Three source modes: a single-file checkpoint (`.gguf` / `.safetensors` / …), a diffusers-format component folder, or a HuggingFace repo id already in your local cache.
 - All modes run with local files in the cache only, nothing is downloaded. Use the model manager UI to download models & repo you might need.
 - Connect this output to the component override port on the Build Pipeline node that matches your selection (Transformer / UNet / VAE / Tokenizer / Text Encoder).
@@ -56,8 +56,8 @@ _None. All fields are node properties._
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `repo_id` | `str` | `""` | HuggingFace repo id in `repo/id` form, e.g. `black-forest-labs/FLUX.1-dev`. Must already be in the local HF cache; no downloads are triggered from here. A refresh (↺) button next to the field re-checks the local cache. If the repo is not cached, an **Open Model Manager to Download** button appears below the field — clicking it opens Model Management pre-filtered to that repo. Run-time validation fails if the repo is not cached. |
-| `revision` | `str` | `"main"` | Repo revision i.e. branch, tag, or commit hash. |
-| `subfolder` | `str` | `""` | Subfolder inside the repo containing the component. Blank means auto-derived from the selected `component` (`transformer`, `unet`, `vae`, `tokenizer`, `text_encoder`). Note that, in some cases you might want a numbered variant (e.g. `transformer_2`, `tokenizer_2`), you will have to specify this manually. |
+| `revision` | `str` | `"main"` | Repo revision, e.g. a branch, tag, or commit hash. |
+| `subfolder` | `str` | `""` | Subfolder inside the repo containing the component. Blank means auto-derived from the selected `component` (`transformer`, `unet`, `vae`, `tokenizer`, `text_encoder`). For numbered variants (e.g. `transformer_2`, `tokenizer_2`), specify the subfolder manually. |
 
 ## Tips & pitfalls
 
@@ -71,4 +71,4 @@ _None. All fields are node properties._
 
 ## See also
 
-- [pipeline_builder.md](pipeline_builder.md) · [load_lora.md](load_lora.md)
+- [Build Pipeline](pipeline_builder.md) · [Load LoRA](load_lora.md)

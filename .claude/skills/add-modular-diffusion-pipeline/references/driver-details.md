@@ -20,7 +20,7 @@ Progressive-load reference for the `LatentPipelineDriver` subclass. Load this wh
 >
 > Drivers translate between pixel-space dims (`source_shape`) and divided latent-space tensor dims when calling underlying pipelines.
 >
-> **Space.** Latents are **normalised**: each channel ~N(0, 1), matching `torch.randn`. For VAEs whose raw latents are not unit-variance (e.g. WAN, Flux2), drivers must apply per-channel whitening `(z - latents_mean) / latents_std` inside `encode_media` and the inverse inside `decode_latent`.
+> **Space.** Latents are **normalized**: each channel ~N(0, 1), matching `torch.randn`. For VAEs whose raw latents are not unit-variance (e.g. WAN, Flux2), drivers must apply per-channel whitening `(z - latents_mean) / latents_std` inside `encode_media` and the inverse inside `decode_latent`.
 >
 > Any model-specific *packing* (e.g. Flux, Qwen) is applied transiently inside `_prepare_input_latent` / `prepare_output_latent` and never appears on the public surface.
 
@@ -117,7 +117,7 @@ Classmethod. Return `False` unless ControlNet support is being implemented in th
 
 ### `create_noise_latent(source_shape, generator_state) -> LatentArtifact`
 
-Return pure noise latents in the **public contract** (unpacked, normalised, correct rank for image/video), wrapped in a `LatentArtifact` via `_make_latent_artifact`.
+Return pure noise latents in the **public contract** (unpacked, normalized, correct rank for image/video), wrapped in a `LatentArtifact` via `_make_latent_artifact`.
 
 **Preferred — modular blocks**:
 
@@ -146,7 +146,7 @@ def create_noise_latent(
         generator=generator,
     )
     latents = output_state.get("latents")
-    # Apply any model-specific normalisation here (e.g. divide by init_noise_sigma for SDXL).
+    # Apply any model-specific normalization here (e.g. divide by init_noise_sigma for SDXL).
     meta = GeneratorState.from_generator(generator).as_meta()
     return self._make_latent_artifact(latents, source_shape=source_shape, meta=meta)
 ```

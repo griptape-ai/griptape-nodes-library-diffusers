@@ -1,9 +1,9 @@
 ---
-name: add-modular-pipeline
+name: add-modular-diffusion-pipeline
 description: 'Add a new diffusion model or pipeline TYPE to modular_diffusion_nodes_library, only when `<NewPipelineClass>.from_pipe(base_pipe)` cannot produce a working pipeline from the base pipe''s loaded components (needs a new component or differently trained weights, e.g. Wan I2V, Flux Fill, Qwen Edit). For ControlNet, inpaint, or other runtime variants, use add-pipeline-variants instead.'
 ---
 
-# Add a Model to the Modular Diffusion Library
+# Add a Model to the Diffusion Library
 
 This skill guides the agent through adding a new diffusion model (image or video) to `modular_diffusion_nodes_library/` in this repo.
 
@@ -22,7 +22,7 @@ Read these rules before doing anything. Violating them invalidates the work.
 
 ### Rule 0 — Update affected node docs in the same change
 
-Adding a new pipeline type rarely creates new nodes, but it almost always changes what existing nodes expose for the new provider. Before finishing, update the `Provider / model behavior` section of every node whose dynamic parameters now branch on the new pipeline type — typically Pipeline Builder, Generate Latent, and any encode/decode/conditioning node involved. Follow [docs/node-doc-format.md](../../../docs/node-doc-format.md); for any doc work beyond a one-line tweak, use the `document-node` skill. Report doc changes alongside code in your final summary.
+Adding a new pipeline type rarely creates new nodes, but it almost always changes what existing nodes expose for the new provider. Before finishing, update the `Provider / model behavior` section of every node whose dynamic parameters now branch on the new pipeline type — typically Build Pipeline, Generate Latent, and any encode/decode/conditioning node involved. Follow [docs/node-doc-format.md](../../../docs/node-doc-format.md); for any doc work beyond a one-line tweak, use the `document-node` skill. Report doc changes alongside code in your final summary.
 
 ### Rule 1 — Classify the change, then get approval before coding
 
@@ -90,13 +90,13 @@ If a parameter is **absent from `__call__` entirely** — for example because th
 
 ### Rule 5 — Adhere to the LatentPipelineDriver contract
 
-The latent shape & space contract is documented in the `LatentPipelineDriver` docstring in [`modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py). **Read it before designing the driver — it is the source of truth.** Public latents are unpacked and normalised; packing is transient (see CLAUDE.md). [`references/driver-details.md`](./references/driver-details.md) has the method-by-method guide. Also honour:
+The latent shape & space contract is documented in the `LatentPipelineDriver` docstring in [`modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py). **Read it before designing the driver — it is the source of truth.** Public latents are unpacked and normalized; packing is transient (see CLAUDE.md). [`references/driver-details.md`](./references/driver-details.md) has the method-by-method guide. Also honor:
 
 - **Public methods exchange `LatentArtifact`**, never raw tensors. The four forwardable methods (`encode_media`, `decode_latent`, `create_noise_latent`, `add_noise_to_latent`) return `LatentArtifact` (or `DecodeResult` for `decode_latent`) and accept input artifacts / media dataclasses. Build outputs via `_make_latent_artifact(...)`.
-- **`encode_media` for image and video drivers**: Prioritise modular implementation — verify whether a VAE encoder block exists for the pipeline before writing inline encode logic. Image-only drivers implement `encode_media` for `ImageMedia` and raise `NotImplementedError` for `VideoMedia`; video drivers raise for `ImageMedia`. Check the Variants checklist (V2V item) before deciding.
-- **`add_noise_to_latent` for image and video drivers**: I2I and V2V workflows (encoding a source video, adding noise at a given `strength`, then denoising) require a working `add_noise_to_latent`. Prioritise modular implementation and verify whether relevant blocks exist to achieve this flow. If no modular blocks exist, for flow-matching schedulers (`FlowMatchEulerDiscreteScheduler`) use `scheduler.scale_noise`; for DDPM-family schedulers use `scheduler.add_noise`. Only raise `NotImplementedError` when you have verified the underlying pipeline has no I2I for image pipelines or V2V support for video pipelines and have cited the diffusers source proving it.
+- **`encode_media` for image and video drivers**: Prioritize modular implementation — verify whether a VAE encoder block exists for the pipeline before writing inline encode logic. Image-only drivers implement `encode_media` for `ImageMedia` and raise `NotImplementedError` for `VideoMedia`; video drivers raise for `ImageMedia`. Check the Variants checklist (V2V item) before deciding.
+- **`add_noise_to_latent` for image and video drivers**: I2I and V2V workflows (encoding a source video, adding noise at a given `strength`, then denoising) require a working `add_noise_to_latent`. Prioritize modular implementation and verify whether relevant blocks exist to achieve this flow. If no modular blocks exist, for flow-matching schedulers (`FlowMatchEulerDiscreteScheduler`) use `scheduler.scale_noise`; for DDPM-family schedulers use `scheduler.add_noise`. Only raise `NotImplementedError` when you have verified the underlying pipeline has no I2I for image pipelines or V2V support for video pipelines and have cited the diffusers source proving it.
 - **Forwardable signature is enforced**: those four methods MUST match [`FORWARDABLE_METHOD_POSITIONAL`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/_base_driver_forwardable_signature.py) exactly — same names, same order, no extra positional or kw-only parameters, no `*args`/`**kwargs`. `__init_subclass__` raises `TypeError` at import time otherwise. Route driver-specific tunables through the driver-namespaced sub-bag on `LatentArtifact.meta` (`META_DRIVER_KEY`, `read_driver_meta` in [`driver_types.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_types.py); SDXL `_KIND_META_KEY` is the canonical precedent).
-- **Public latents are normalised** (~N(0, 1)). If the VAE config publishes per-channel `latents_mean` / `latents_std`, apply whitening `(z - mean) / std` inside `encode_media` and the inverse inside `decode_latent`. If it publishes only scalar `scaling_factor` (and optional `shift_factor`), the standard `(z - shift) * scaling` transform is sufficient — no whitening. Verify on the actual VAE config of the model you are adding; do not assume from family name. Mirror the closest existing driver.
+- **Public latents are normalized** (~N(0, 1)). If the VAE config publishes per-channel `latents_mean` / `latents_std`, apply whitening `(z - mean) / std` inside `encode_media` and the inverse inside `decode_latent`. If it publishes only scalar `scaling_factor` (and optional `shift_factor`), the standard `(z - shift) * scaling` transform is sufficient — no whitening. Verify on the actual VAE config of the model you are adding; do not assume from family name. Mirror the closest existing driver.
 - **`source_shape` rides on the artifact / media dataclass** (pixel-space), not as a separate parameter. `LatentArtifact.source_shape`, `ImageMedia.source_shape`, `VideoMedia.source_shape`, `MaskMedia.source_shape` are the only sources of truth. Drivers translate to latent-space dims internally.
 - **RNG flows via `GeneratorState`**, not raw `seed`. Build a generator with `generator_state.to_generator()`; stamp the post-call state onto the returned artifact via `_make_latent_artifact(..., meta=GeneratorState.from_generator(g).as_meta())` so downstream same-driver calls can resume with `GeneratorState.from_artifact(latent)`. See [`driver_types.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_types.py).
 - **Packing:** mirror the closest existing driver that packs, and keep it inside `_prepare_input_latent` / `prepare_output_latent`.
@@ -187,7 +187,7 @@ Modular block input contracts are NOT consistent across pipelines, and they are 
 3. Identify the closest existing model/driver to the one being added:
    - Image, no packing, no extra encoders → SDXL
    - Image, packed latents, dual text encoders → Flux
-   - Image, normalised whitening, single transformer → Z-Image
+   - Image, normalized whitening, single transformer → Z-Image
    - Video → WAN (t2v) or WAN i2v
    - Edit → Qwen Edit
 4. Read that driver, its standard_parameters, and its runtime_parameters fully.
@@ -230,7 +230,7 @@ Load [`./references/new-pipeline-plan-template.md`](./references/new-pipeline-pl
 | <other> | <value> | <citation> | <citation> |
 
 ## Open questions for the user
-- <model-specific decisions, e.g. quantisation, default repo>
+- <model-specific decisions, e.g. quantization, default repo>
 ```
 
 If any variant capability is in scope, load the `/add-pipeline-variants` skill for that portion of the implementation. The base process still owns Provider/StandardParams/RuntimeParams/Driver-skeleton/Registration; the variant skill owns ControlNet/inpaint/pipe-swap specifics.
@@ -246,7 +246,7 @@ All `uv run ...` commands below must be executed from the repo root. `make check
 1. **Provider enum entry** (only for the new-Provider shape) added to [`parameters/providers.py`](../../../modular_diffusion_nodes_library/parameters/providers.py) → verify: `uv run python -c "from modular_diffusion_nodes_library.parameters.providers import Provider; Provider.<NEW_NAME>"` exits 0.
 2. **Standard parameters** file created → verify: `uv run ruff format --check` + `uv run ruff check .` pass for the new file.
 3. **Runtime parameters** file created (or reuse declared) → verify: every parameter default and tooltip cites an upstream source per Rule 4; `uv run ruff format --check` + `uv run ruff check .` pass.
-4. **Driver** file created → verify: file imports cleanly (the `__init_subclass__` forwardable-signature check raises at import if any of `encode_media`/`decode_latent`/`create_noise_latent`/`add_noise_to_latent` deviate from the contract); every `_call_block(...)` site passes every `required=True` input enumerated in Phase B's table; latent contract (Rule 5) is honoured (unpacked, normalised, public methods return `LatentArtifact`, `source_shape` rides on the artifact / media dataclass); `uv run ruff format --check` + `uv run ruff check .` pass.
+4. **Driver** file created → verify: file imports cleanly (the `__init_subclass__` forwardable-signature check raises at import if any of `encode_media`/`decode_latent`/`create_noise_latent`/`add_noise_to_latent` deviate from the contract); every `_call_block(...)` site passes every `required=True` input enumerated in Phase B's table; latent contract (Rule 5) is honored (unpacked, normalized, public methods return `LatentArtifact`, `source_shape` rides on the artifact / media dataclass); `uv run ruff format --check` + `uv run ruff check .` pass.
 5. **Registration edits**:
    - Always: one entry in [`driver_factory.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/driver_factory.py) `_DRIVER_REGISTRY`; one or more `case` clauses in [`pipeline_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipeline_parameters.py) `set_runtime_parameters`; `memory_family` set on the driver class; plus (unless the family is UNET_SDPA) one entry — new or reused — in [`memory_estimation/family_registry.py`](../../../modular_diffusion_nodes_library/memory_estimation/family_registry.py) `_DENOISER_FIELD_ADAPTERS` (Rule 9).
    - **New-Provider shape**: a new `Provider` enum entry in [`providers.py`](../../../modular_diffusion_nodes_library/parameters/providers.py), a new `LatentPipelineTypeParameters` subclass AND a `MODULAR_PIPELINE_TYPE_PROVIDER_MAP` entry in [`pipelinetype_parameters.py`](../../../modular_diffusion_nodes_library/parameters/pipelinetype_parameters.py).
@@ -260,9 +260,9 @@ All `uv run ...` commands below must be executed from the repo root. `make check
    - For the new-Provider shape only: `uv run python -c "from modular_diffusion_nodes_library.parameters.pipelinetype_parameters import MODULAR_PIPELINE_TYPE_PROVIDER_MAP; from modular_diffusion_nodes_library.parameters.providers import Provider; assert MODULAR_PIPELINE_TYPE_PROVIDER_MAP[Provider.<NEW_NAME>] is not None"`
    - `uv run ruff format --check` and `uv run ruff check .` pass.
 
-   **Surgical-edits check**: diff each shared file — including `family_registry.py` — and confirm only added lines / one inserted block are present — no reformatted neighbours, no reordered entries, no touched sibling cases.
-6. **Smoke test in UI** → verify with the user: drop a builder node, select the new provider/type, build, wire to generate + decode, confirm an image/video comes out.
-7. **Node docs updated** (Rule 0) → verify: every node whose dynamic parameters now branch on the new pipeline type (typically Pipeline Builder, Generate Latent, and affected encode/decode/conditioning nodes) has its `docs/nodes/<name>.md` updated and passes the `/document-node` skill's drift check.
+   **Surgical-edits check**: diff each shared file — including `family_registry.py` — and confirm only added lines / one inserted block are present — no reformatted neighbors, no reordered entries, no touched sibling cases.
+6. **Smoke test in UI** → verify with the user: add a Build Pipeline node, select the new provider/type, build, connect it to Generate Latent + Decode Media, confirm an image/video comes out.
+7. **Node docs updated** (Rule 0) → verify: every node whose dynamic parameters now branch on the new pipeline type (typically Build Pipeline, Generate Latent, and affected encode/decode/conditioning nodes) has its `docs/nodes/<name>.md` updated and passes the `/document-node` skill's drift check.
 8. **Model catalog** → declare every repo id the new standard parameters offer in `model_catalog` in [`griptape-nodes-library.json`](../../../griptape-nodes-library.json), and add each catalog key to the owning node's `model_usage` list (see Step 6 of [docs/adding-new-model.md](../../../docs/adding-new-model.md)) → verify: `uv run pytest tests/test_model_catalog_consistency.py` passes.
 9. **Single-file loader metadata** → if the new pipeline supports single-file component loading (GGUF / safetensors), add entries for every relevant `model_type` string to [`component_loading/pipeline_type_registry.py`](../../../modular_diffusion_nodes_library/component_loading/pipeline_type_registry.py) `MODEL_TYPE_TO_PIPELINE_TYPE`.
 

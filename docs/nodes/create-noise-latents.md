@@ -2,10 +2,10 @@
 
 **Generates a random-noise latent tensor matching the connected pipeline's expected shape — the typical starting point for text-to-image / text-to-video flows.**
 
-Category: `ModularDiffusion/Create`
+Category: `Diffusion/Create`
 
 ## TL;DR
-- In text-to-image and text-to-video workflows, place this node after the **Build Pipeline** node and before the **Generate Latent** node.
+- In text-to-image and text-to-video workflows, place this node between the **Build Pipeline** and **Generate Latent** nodes.
 - `width` / `height` are pixel-space; the node handles VAE down-scaling internally.
 - `num_frames` appears only when the connected pipeline produces video (LTX, LTX2, WAN). It's hidden otherwise.
 - `seed` controls reproducibility — same seed + same pipeline + same dimensions → identical latent.
@@ -23,7 +23,7 @@ Build Pipeline → [Create Noise Latent] → Generate Latent → Decode Media
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `pipeline` | `Pipeline Config` | Yes | Connect the `pipeline` output from the Build Pipeline node. The selected pipeline determines the latent shape, VAE scale factor, and whether `num_frames` appears. |
+| `pipeline` | `Pipeline Config` | Yes | Connect the `pipeline` output from the Build Pipeline node. The selected pipeline determines the latent shape and VAE scale factor, and whether `num_frames` is available. |
 
 ## Outputs
 
@@ -49,6 +49,7 @@ Build Pipeline → [Create Noise Latent] → Generate Latent → Decode Media
 | WAN Animate 2 (and Distilled) | This node sets the output size and length: Generate Latent has no dimensions of its own, and stretches the character image and every driving-video frame to this `width` × `height`. **Match the character image's aspect ratio** to avoid a squashed or stretched character. Width and height must be multiples of **16**, and `num_frames` must be 4N + 1 (e.g. 81). The driving video must have at least `num_frames` frames at 24 fps. Clips up to `segment_frame_length` (default 81) frames run in one segment; longer ones run in overlapping segments. |
 | MiniMax-H3 | This node sets the generated geometry — Generate Latent exposes no dimensions of its own. **The defaults do not work:** set `width`/`height` to a MiniMax-H3 canvas (a 768-pixel short edge, e.g. **1344x768** for 16:9, or **960x544** for roughly 2.3x faster steps) and `num_frames` to **124–345**. Both axes must be positive multiples of **32**, the area must not exceed 1032192 pixels, the aspect ratio must sit between 1:4 and 4:1, and `num_frames` is snapped up to the next `17 * n + 5` (124, 141, … 345), which must land between 5 and 15 seconds at the fixed 24 fps. Anything outside that is rejected with an error naming the value and the constraint. The noise latent also carries the audio noise for the jointly generated soundtrack. |
 | Flux3 | `width` and `height` must be multiples of **16**. The resulting public latent is unpatchified and can be passed directly to Generate Latent. |
+| Qwen Image 2.1 / Turbo | `width` and `height` must be multiples of **32**. The model card lists seven supported sizes: 1:1 2048x2048, 4:3 2400x1792, 3:4 1792x2400, 3:2 2528x1696, 2:3 1696x2528, 16:9 2752x1536, 9:16 1536x2752. Any other size still runs, but the node shows a warning naming the closest supported size. |
 
 ## Tips & pitfalls
 

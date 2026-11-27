@@ -2,7 +2,7 @@
 
 **Elementwise difference of two latent tensors.**
 
-Category: `ModularDiffusion/Transform`
+Category: `Diffusion/Transform`
 
 ## TL;DR
 - `output = left_latent - right_latent` elementwise.
@@ -12,7 +12,7 @@ Category: `ModularDiffusion/Transform`
 ## Typical workflow position
 ```text
 Latent A ─┐
-          ├─→ [Subtract Latents] → Latent Math / Generate
+          ├─→ [Subtract Latents] → Generate Latent
 Latent B ─┘
 ```
 

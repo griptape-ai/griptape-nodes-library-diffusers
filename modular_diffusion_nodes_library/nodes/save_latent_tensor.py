@@ -27,13 +27,14 @@ class SaveLatentTensorNode(DataNode):
                 display_name="input_latent",
                 type="LatentArtifact",
                 input_types=["LatentArtifact"],
-                tooltip="Latent artifact to serialise to disk as a torch .pt file.",
+                tooltip="Latent artifact to serialize to disk as a torch .pt file.",
                 allowed_modes={ParameterMode.INPUT},
             )
         )
         self.add_parameter(
             Parameter(
                 name="file_path",
+                display_name="output_file",
                 type="str",
                 default_value="debug/latent.pt",
                 tooltip="Destination .pt file path. Relative paths are resolved against the workspace directory.",

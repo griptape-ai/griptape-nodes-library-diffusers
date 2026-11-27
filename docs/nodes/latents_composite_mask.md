@@ -2,7 +2,7 @@
 
 **Pastes a source latent onto a destination latent at a given pixel offset, blended through an optional image mask.**
 
-Category: `ModularDiffusion/Transform`
+Category: `Diffusion/Transform`
 
 ## TL;DR
 - Drop a source latent into a destination latent at `(x_offset, y_offset)`. White mask pixels → source; black → destination.
@@ -28,7 +28,7 @@ Paint Mask (mask) ─────────┘
 | --- | --- | --- | --- |
 | `destination_latent` | `LatentArtifact` | Yes | Base canvas. |
 | `source_latent` | `LatentArtifact` | Yes | Latent to paste in. |
-| `mask_image` | `ImageArtifact` / `ImageUrlArtifact` | No | Blend mask. If omitted, the source replaces the destination wholesale within its placement region. |
+| `mask_image` | `ImageUrlArtifact` | No | Blend mask. If omitted, the source replaces the destination wholesale within its placement region. The parameter also has an output mode, so the mask painted in the node can be wired to other nodes. |
 
 ## Outputs
 
@@ -51,7 +51,7 @@ Paint Mask (mask) ─────────┘
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `channel` | choice | `alpha` | Which channel of `mask_image` to use as blend weight. |
+| `channel` | choice | `red` | Which channel of `mask_image` to use as blend weight. |
 | `invert_mask` | bool | `False` | Swap source/destination regions. |
 | `grow_shrink` | float (-100..100) | `0` | Dilate (+) or erode (-) the mask edge. |
 | `blur_mask` | float (0..100) | `0` | Feather the mask edge. |

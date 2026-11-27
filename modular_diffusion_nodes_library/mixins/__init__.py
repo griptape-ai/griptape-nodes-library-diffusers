@@ -1,1 +1,1 @@
-"""Mixins for modular diffusion nodes library."""
+"""Mixins for diffusion nodes library."""

@@ -8,10 +8,11 @@
 # node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.2.0"], ["Griptape Nodes Library", "0.75.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "MediaGenConditioningNode"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Library", "ExtendCanvas"], ["Griptape Nodes Library", "Group"], ["Griptape Nodes Library", "IntegerInput"], ["Griptape Nodes Library", "LoadImage"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
 # description = "Video inpainting and outpainting workflow using WAN VACE via the Modular Diffusion Library Nodes"
-# image = "https://raw.githubusercontent.com/griptape-ai/griptape-nodes-library-diffusers/main/workflows/templates/VideoInpaintingAndOutpaintingWANVace.png"
+# image = "https://raw.githubusercontent.com/griptape-ai/griptape-nodes-library-diffusers/main/workflows/templates/VideoInpaintingAndOutpaintingWANVace.avif"
 # is_griptape_provided = true
 # is_template = true
-# creation_date = 2026-06-24T21:49:13.702164Z
+# creation_date = 2026-07-01T16:57:18.612460Z
+# last_modified_date = 2026-09-23T11:13:09.596150Z
 # 
 # ///
 

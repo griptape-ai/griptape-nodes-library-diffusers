@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import dataclasses
 import logging
+import math
 from typing import TYPE_CHECKING, Any, ClassVar, override
 
 from griptape_nodes.files.path_utils import canonicalize_for_io
@@ -54,6 +56,62 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 #: Key under which the audio latent rides in this driver's namespaced ``meta`` sub-bag.
 AUDIO_LATENTS_META_KEY = "audio_latents"
+
+
+def _fit_reference_frame_count[T](frames: list[T], num_frames: int, temporal_ratio: int) -> list[T]:
+    """Fit an IC-LoRA reference video to a frame count the LTX-2 VAE can encode.
+
+    The causal VAE only encodes ``1 + k * temporal_ratio`` frames. The reference is rounded up to the
+    next such count by repeating its last frame, and trimmed to the longest such count within
+    ``num_frames``, the output length.
+    """
+    max_frame_count = (num_frames - 1) // temporal_ratio * temporal_ratio + 1
+    rounded_up_count = math.ceil((len(frames) - 1) / temporal_ratio) * temporal_ratio + 1
+    valid_frame_count = min(rounded_up_count, max_frame_count)
+    if valid_frame_count != len(frames):
+        logger.warning(
+            "LTX2: fitting reference video from %d to %d frames. The VAE encodes 1 + %d*k frames, "
+            "and the reference can't be longer than the %d-frame output.",
+            len(frames),
+            valid_frame_count,
+            temporal_ratio,
+            num_frames,
+        )
+
+    fitted = frames[:valid_frame_count]
+    fitted = fitted + [fitted[-1]] * (valid_frame_count - len(fitted))
+    return fitted
+
+
+def _fit_hdr_references_to_shared_length[C](reference_conditions: list[C]) -> list[C]:
+    """Pad HDR reference videos to the longest one by repeating their last frame, so all references must encode to
+    the same length. An image can't be padded, so image + video is rejected.
+    """
+    video_lengths = [len(condition.frames) for condition in reference_conditions if isinstance(condition.frames, list)]  # type: ignore[reportAttributeAccessIssue]
+    image_count = len(reference_conditions) - len(video_lengths)
+    shared_length = max(video_lengths, default=1)
+
+    if image_count > 0 and shared_length > 1:
+        msg = (
+            f"LTX2: HDR can't mix image references with video references (found {image_count} "
+            f"image(s)). Use only images, only videos, or a single reference."
+        )
+        raise ValueError(msg)
+
+    fitted: list[C] = []
+    for condition in reference_conditions:
+        frames = condition.frames  # type: ignore[reportAttributeAccessIssue]
+        if isinstance(frames, list) and len(frames) < shared_length:
+            logger.warning(
+                "LTX2: padding HDR reference video from %d to %d frames by repeating its last frame, "
+                "so every reference encodes to the same length.",
+                len(frames),
+                shared_length,
+            )
+            padded = frames + [frames[-1]] * (shared_length - len(frames))
+            condition = dataclasses.replace(condition, frames=padded)  # type: ignore[reportArgumentType]  # noqa: PLW2901
+        fitted.append(condition)
+    return fitted
 
 
 class LTX2PipelineDriver(LatentPipelineDriver):
@@ -249,7 +307,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     def prepare_output_latent(
         self, latents_from_pipe: torch.Tensor, latents_source_shape: tuple[int, ...]
     ) -> torch.Tensor:
-        """Pass through: the pipeline already unpacks (3-D→5-D) and denormalises before returning output latents.
+        """Pass through: the pipeline already unpacks (3-D→5-D) and denormalizes before returning output latents.
         Also handles 3-D callbacks latents from mid-loop callbacks for preview.
         """
         import torch  # type: ignore[reportMissingImports]
@@ -272,7 +330,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     ) -> torch.Tensor:
         """Unpack mid-loop callback latents from ``[B, S, D]`` to ``[B, C, F, H, W]``.
 
-        The LTX2 pipeline keeps latents packed and normalised throughout the denoise loop.
+        The LTX2 pipeline keeps latents packed and normalized throughout the denoise loop.
         """
         pixel_num_frames = latents_source_shape[-3]
         pixel_height = latents_source_shape[-2]
@@ -453,7 +511,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         if isinstance(media, ImageMedia):
             if not isinstance(media.image, Image):
                 raise TypeError(f"{self.driver_namespace}: Expected a PIL Image, got {type(media.image).__name__}.")
-            frames = [media.image]
+            frames = [media.image.convert("RGB")]
         else:
             frames = media.frames
         device, dtype = self._get_device_and_type()
@@ -688,8 +746,9 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         target_height = latent.source_shape[-2]
         target_width = latent.source_shape[-1]
         reference_conditions = self._build_hdr_reference_conditions(
-            media_gen_conditioning_payloads, target_height, target_width
+            media_gen_conditioning_payloads, target_height, target_width, latent.source_shape[-3]
         )
+        reference_conditions = _fit_hdr_references_to_shared_length(reference_conditions)
         kwargs = self._set_default_kwargs_hdr(kwargs)
 
         if text_embeddings_path:
@@ -751,6 +810,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
         media_gen_conditioning_payloads: list[MediaGenConditioningPayload] | None,
         target_height: int,
         target_width: int,
+        num_frames: int,
     ) -> list[LTX2HDRReferenceCondition]:
         from diffusers.pipelines.ltx2.pipeline_ltx2_hdr_lora import (  # type: ignore[reportMissingImports]
             LTX2HDRReferenceCondition,
@@ -760,12 +820,14 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             msg = "Failed to build LTX2 HDR conditioning because no conditioning was provided."
             raise ValueError(msg)
 
+        temporal_ratio = getattr(self.pipe.vae, "temporal_compression_ratio", 8)
         reference_conditions: list[LTX2HDRReferenceCondition] = []
         for payload in media_gen_conditioning_payloads:
             if payload.mode is ConditioningMode.VIDEO:
                 entry = payload.entries[0]
                 frames = resolve_conditioning_video(entry.artifact)
                 frames = resize_frames_scale_to_fill(frames, target_height, target_width)
+                frames = _fit_reference_frame_count(frames, num_frames, temporal_ratio)
                 reference_conditions.append(LTX2HDRReferenceCondition(frames=frames, strength=entry.strength))
                 continue
 
@@ -792,12 +854,12 @@ class LTX2PipelineDriver(LatentPipelineDriver):
 
         logger.info("LTX2: IC-LoRA path active - denoising with LTX2InContextPipeline.")
         ref_payloads = normalize_to_payloads(kwargs.pop(self._IC_LORA_REFERENCE_KEY, None))
-        reference_conditions = self._build_ic_reference_conditions(ref_payloads)
+        temporal_ratio = getattr(self.pipe.vae, "temporal_compression_ratio", 8)
+        pixel_num_frames = latent.source_shape[-3]
+        reference_conditions = self._build_ic_reference_conditions(ref_payloads, pixel_num_frames, temporal_ratio)
 
         frame_payloads = normalize_to_payloads(kwargs.pop(MediaGenConditioningKey.OUTPUT, None))
         if frame_payloads is not None:
-            temporal_ratio = getattr(self.pipe.vae, "temporal_compression_ratio", 8)
-            pixel_num_frames = latent.source_shape[-3]
             conditions = self._build_video_conditions_from_payloads(frame_payloads, pixel_num_frames, temporal_ratio)
             if conditions:
                 kwargs["conditions"] = conditions
@@ -822,6 +884,8 @@ class LTX2PipelineDriver(LatentPipelineDriver):
     def _build_ic_reference_conditions(
         self,
         media_gen_conditioning_payloads: list[MediaGenConditioningPayload] | None,
+        num_frames: int,
+        temporal_ratio: int,
     ) -> list[LTX2ReferenceCondition]:
         from diffusers.pipelines.ltx2.pipeline_ltx2_ic_lora import (  # type: ignore[reportMissingImports]
             LTX2ReferenceCondition,
@@ -835,6 +899,7 @@ class LTX2PipelineDriver(LatentPipelineDriver):
             if payload.mode is ConditioningMode.VIDEO:
                 entry = payload.entries[0]
                 frames = resolve_conditioning_video(entry.artifact)
+                frames = _fit_reference_frame_count(frames, num_frames, temporal_ratio)
                 reference_conditions.append(LTX2ReferenceCondition(frames=frames, strength=entry.strength))
                 continue
 

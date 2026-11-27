@@ -16,6 +16,7 @@ from modular_diffusion_nodes_library.utils.torch_utils import (
 
 if TYPE_CHECKING:
     import torch  # type: ignore[reportMissingImports]
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
     from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
@@ -408,10 +409,10 @@ def optimize_diffusion_pipeline(  # noqa: PLR0913
         logger.debug("sdp_kernel not supported, continuing without")
 
 
-def clear_diffusion_pipeline(
+def _clear_diffusion_pipeline(
     pipe: DiffusionPipeline,
 ) -> None:
-    """Clear pipeline from memory."""
+    """Clear a DiffusionPipeline from memory."""
     _remove_pipeline_hooks(pipe)
 
     for component_name in get_pipeline_component_names(pipe):
@@ -425,6 +426,54 @@ def clear_diffusion_pipeline(
 
     del pipe
     cleanup_memory_caches()
+
+
+def _detach_manager_components(pipe: ModularPipeline, manager: Any) -> None:
+    """Drop a pipe's components from its ComponentsManager without the CPU copy.
+
+    Mirrors `ComponentsManager.remove` minus its `.to("cpu")`, so it reads the manager's bookkeeping directly.
+    """
+    for user_hook in manager.model_hooks or []:
+        user_hook.remove()
+    manager.model_hooks = None
+    manager.disable_auto_cpu_offload()  # No hooks left, so this only clears the flag.
+
+    held = {id(component) for component in pipe.components.values() if component is not None}
+    for component_id in [cid for cid, component in manager.components.items() if id(component) in held]:
+        del manager.components[component_id]
+        manager.added_time.pop(component_id, None)
+        for collection in manager.collections.values():
+            collection.discard(component_id)
+
+
+def _clear_modular_pipeline(
+    pipe: ModularPipeline,
+) -> None:
+    """Clear a ModularPipeline and its manager-held components from memory."""
+    manager = getattr(pipe, "_components_manager", None)  # diffusers exposes no public getter
+    if manager is not None:
+        _detach_manager_components(pipe, manager)
+
+    pipe.unload_components([name for name, component in pipe.components.items() if component is not None])
+    del pipe
+    cleanup_memory_caches()
+
+
+def clear_pipeline(pipe: DiffusionPipeline | ModularPipeline) -> None:
+    """Clear a supported Diffusers pipeline type from memory."""
+    from diffusers.modular_pipelines.modular_pipeline import ModularPipeline  # type: ignore[reportMissingImports]
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline  # type: ignore[reportMissingImports]
+
+    if isinstance(pipe, ModularPipeline):
+        _clear_modular_pipeline(pipe)
+    elif isinstance(pipe, DiffusionPipeline):
+        _clear_diffusion_pipeline(pipe)
+    else:
+        msg = (
+            f"Attempted to clear pipeline of type '{type(pipe).__name__}'. Failed because only "
+            "DiffusionPipeline and ModularPipeline instances are supported."
+        )
+        raise TypeError(msg)
 
 
 def cleanup_memory_caches() -> None:

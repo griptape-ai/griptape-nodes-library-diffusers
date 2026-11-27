@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from urllib.parse import unquote, urlparse
 
 from griptape.artifacts.video_url_artifact import VideoUrlArtifact
@@ -11,6 +11,10 @@ from griptape_nodes.files.file import File
 
 if TYPE_CHECKING:
     import numpy as np  # type: ignore[reportMissingImports]
+    import torch  # type: ignore[reportMissingImports]
+    from PIL import Image  # type: ignore[reportMissingImports]
+
+    from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import VideoMedia
 
 
 def resize_video_frames_torch(frames: np.ndarray, height: int, width: int) -> np.ndarray:
@@ -73,8 +77,60 @@ def download_video_to_temp_file(video_url_artifact: VideoUrlArtifact) -> Path:
     return temp_path
 
 
+def load_video_media_from_url_artifact(video_url_artifact: VideoUrlArtifact) -> VideoMedia:
+    """Load a video artifact as frames, frame rate and soundtrack.
+
+    Frames and fps come from the same decoder as `load_video_frames_from_url_artifact`, so
+    orientation and frame content match what the frame-only path produces. The soundtrack is
+    decoded separately, and is None when the file has no audio stream. Drivers that do not
+    use audio simply ignore it.
+    """
+    import diffusers.utils  # type: ignore[reportMissingImports]
+
+    from modular_diffusion_nodes_library.latent_pipeline_drivers.driver_types import VideoMedia
+
+    temp_path = download_video_to_temp_file(video_url_artifact)
+    try:
+        # load_video returns a bare list unless return_fps is set, so the tuple is narrowed explicitly.
+        frames, fps = cast(
+            "tuple[list[Image.Image], float]",
+            diffusers.utils.load_video(str(temp_path), return_fps=True),  # type: ignore[reportPrivateImportUsage]
+        )
+        audio, sample_rate = _load_soundtrack(temp_path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+    if not frames:
+        return VideoMedia(
+            frames=frames, source_shape=(1, 3, 0, 0, 0), audio=None, audio_sample_rate=None, fps=float(fps)
+        )
+    height, width = frames[0].height, frames[0].width
+    return VideoMedia(
+        frames=frames,
+        source_shape=(1, 3, len(frames), height, width),
+        audio=audio,
+        audio_sample_rate=sample_rate,
+        fps=float(fps),
+    )
+
+
+def _load_soundtrack(video_path: Path) -> tuple[torch.Tensor | None, int | None]:
+    """Decode a video's soundtrack as a float32 `(channels, samples)` waveform and its sample rate."""
+    import av
+    import torch  # type: ignore[reportMissingImports]
+    from diffusers.modular_pipelines.minimax_h3.references import MiniMaxH3AudioReference
+
+    with av.open(str(video_path)) as container:
+        has_audio = bool(container.streams.audio)
+    if not has_audio:
+        return None, None
+
+    reference = MiniMaxH3AudioReference.from_file(video_path)
+    return reference.audio.to(dtype=torch.float32).contiguous(), reference.sample_rate
+
+
 def load_video_frames_from_url_artifact(video_url_artifact: VideoUrlArtifact) -> list:
-    """Load a VideoUrlArtifact as a list of PIL frames.
+    """Load a VideoUrlArtifact as a list of PIL frames without decoding its soundtrack.
 
     Resolves Griptape path macros (e.g. `{inputs}/foo.mp4`) and HTTP URLs via
     `File(...)`, then decodes frames with `diffusers.utils.load_video`.

@@ -21,16 +21,19 @@ from modular_diffusion_nodes_library.mixins.parameter_removal_mixin import Param
 from modular_diffusion_nodes_library.mixins.success_failure_execution_mixin import SuccessFailureExecutionMixin
 from modular_diffusion_nodes_library.parameters.pipeline_parameters import ModularDiffusionPipelineParameters
 from modular_diffusion_nodes_library.utils.config_utils import get_config_value
-from modular_diffusion_nodes_library.utils.dimension_alignment import snap_dimensions
+from modular_diffusion_nodes_library.utils.dimension_alignment import DimensionAlignmentStatus, snap_dimensions
 from modular_diffusion_nodes_library.utils.image_utils import load_image_from_url_artifact
 from modular_diffusion_nodes_library.utils.pillow_utils import image_artifact_to_pil
 from modular_diffusion_nodes_library.utils.pipeline_utils import cleanup_memory_caches
-from modular_diffusion_nodes_library.utils.video_utils import load_video_frames_from_url_artifact
+from modular_diffusion_nodes_library.utils.video_utils import load_video_media_from_url_artifact
 
 if TYPE_CHECKING:
     from PIL.Image import Image  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
+
+_INPUT_TYPE_BY_PARAMETER = {"image": "image", "input_video": "video"}
+_STALE_INPUT_BY_ADDED_PARAMETER = {"image": "input_video", "input_video": "image"}
 
 
 class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, SuccessFailureNode):
@@ -87,9 +90,31 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
         if not is_input_media_param:
             return
 
-        if not self.does_name_exist(param.name):
-            param.user_defined = True
-            super().add_parameter(param)
+        if self.does_name_exist(param.name):
+            return
+        param.user_defined = True
+        super().add_parameter(param)
+        self._drop_stale_input_after_add(param.name)
+        self._move_input_media_above_output(param.name)
+
+    def _drop_stale_input_after_add(self, added_name: str) -> None:
+        """Keep a single input type when a saved workflow re-adds one without restoring ``pipeline``."""
+        stale_name = _STALE_INPUT_BY_ADDED_PARAMETER[added_name]
+        # `initial_setup=True` removes locally, without dropping connections, because loading must not
+        # edit the graph. That is safe because this only finds something to remove on load: a runtime
+        # swap in `_update_input_parameter` removes the old input (and its connections) before adding
+        # the new one, so nothing stale is left. A stale input found on load has no loaded connections.
+        with self.removing_locally_while_loading(initial_setup=True):
+            if self.does_name_exist(stale_name):
+                self.remove_parameter_element_by_name(stale_name)
+        self._current_input_type = _INPUT_TYPE_BY_PARAMETER[added_name]
+
+    def _move_input_media_above_output(self, media_name: str) -> None:
+        """Put the input media where ``image`` sits after ``__init__``, above the output latent."""
+        all_params = [element.name for element in self.root_ui_element.children]
+        all_params.remove(media_name)
+        all_params.insert(all_params.index("latent_tensor"), media_name)
+        self.reorder_elements(all_params)
 
     def set_parameter_value(
         self,
@@ -207,7 +232,12 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
 
         dimension_result = self._update_compatibility_message(build_if_needed=True)
         auto_resize = get_config_value("modular_diffusion_library.enable_auto_resize")
-        if dimension_result is not None and not auto_resize and dimension_result.message:
+        if (
+            dimension_result is not None
+            and not auto_resize
+            and dimension_result.status is DimensionAlignmentStatus.INVALID
+            and dimension_result.message
+        ):
             return [ValueError(dimension_result.message)]
         return None
 
@@ -239,6 +269,7 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
         result = snap_dimensions(latents_pipeline_driver, image.height, image.width)
         if result.message:
             logger.warning(result.message)
+        if result.status is DimensionAlignmentStatus.INVALID:
             image = image.resize((result.width, result.height), Resampling.LANCZOS)
 
         image_tensor = pipe.image_processor.preprocess(image)
@@ -263,26 +294,46 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
             msg = "Attempted to encode video. Failed with data input_video=None because input video was missing."
             raise ValueError(msg)
 
-        frames = load_video_frames_from_url_artifact(video_artifact)
-        if not frames:
+        media = load_video_media_from_url_artifact(video_artifact)
+        if not media.frames:
             msg = "Attempted to encode video. Failed because no frames could be loaded from the input video."
             raise ValueError(msg)
 
-        frames_rgb = [f.convert("RGB") for f in frames]
-        num_frames = len(frames_rgb)
+        # TODO: Video frames should be resampled to the model's fps (`latents_pipeline_driver.video_fps`) before
+        # validation and encoding, so the frame count and duration checks apply to the frames the model sees.
+        # Decide what happens to the audio when the video is resampled.
+        model_fps = latents_pipeline_driver.video_fps
+        if media.fps is not None and media.fps != model_fps:
+            logger.warning(
+                "%s: Attempted to encode video. Source frame rate does not match the model, so frames are encoded "
+                "without resampling. Source is %s fps and the model runs at %s fps.",
+                self.name,
+                media.fps,
+                model_fps,
+            )
+        frames_rgb = [frame.convert("RGB") for frame in media.frames]
         h, w = frames_rgb[0].height, frames_rgb[0].width
+        num_frames = len(frames_rgb)
 
         result = snap_dimensions(latents_pipeline_driver, h, w, num_frames)
         if result.message:
             logger.warning(result.message)
-            frames_rgb = [f.resize((result.width, result.height)) for f in frames_rgb]
+        if result.status is DimensionAlignmentStatus.INVALID:
+            frames_rgb = [frame.resize((result.width, result.height)) for frame in frames_rgb]
             h, w = result.height, result.width
 
         source_shape = (1, 3, num_frames, h, w)
 
         generator_state = GeneratorState.from_seed(42)
         latent_artifact = latents_pipeline_driver.encode_media(
-            VideoMedia(frames=frames_rgb, source_shape=source_shape), generator_state
+            VideoMedia(
+                frames=frames_rgb,
+                source_shape=source_shape,
+                audio=media.audio,
+                audio_sample_rate=media.audio_sample_rate,
+                fps=media.fps,
+            ),
+            generator_state,
         )
         self.set_parameter_value("latent_tensor", latent_artifact)
         self.parameter_output_values["latent_tensor"] = latent_artifact
@@ -296,7 +347,7 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
         if isinstance(image_artifact, ImageUrlArtifact):
             image_artifact = load_image_from_url_artifact(image_artifact)
 
-        return image_artifact_to_pil(image_artifact).convert("RGB")
+        return image_artifact_to_pil(image_artifact)
 
     def _update_compatibility_message(self, *, build_if_needed: bool = False):
         pipeline_value = self.get_parameter_value("pipeline")
@@ -327,17 +378,16 @@ class VaeEncodeNode(ParameterRemovalMixin, SuccessFailureExecutionMixin, Success
                 self._set_compatibility_message(None)
                 return None
 
-            frames = load_video_frames_from_url_artifact(video_artifact)
-            if not frames:
+            media = load_video_media_from_url_artifact(video_artifact)
+            if not media.frames:
                 self._set_compatibility_message(None)
                 return None
 
-            num_frames = len(frames)
-            height = frames[0].height
-            width = frames[0].width
+            height = media.frames[0].height
+            width = media.frames[0].width
             pipe = self.pipe_params.get_pipeline()
             driver = create_driver(pipe, pipeline_class)
-            result = snap_dimensions(driver, height, width, num_frames)
+            result = snap_dimensions(driver, height, width, len(media.frames))
             self._set_compatibility_message(result.message)
             return result
 

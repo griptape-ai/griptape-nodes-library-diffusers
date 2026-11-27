@@ -47,9 +47,13 @@ from modular_diffusion_nodes_library.standard_parameters.ltx_parameters import (
 from modular_diffusion_nodes_library.standard_parameters.minimax_h3_parameters import (
     MiniMaxH3PipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.minimax_h3_ref2va_parameters import (
+    MiniMaxH3Ref2VAPipelineParameters,
+)
 from modular_diffusion_nodes_library.standard_parameters.qwen_edit_parameters import (
     QwenEditPipelineParameters,
 )
+from modular_diffusion_nodes_library.standard_parameters.qwen_image21_parameters import QwenImage21PipelineParameters
 from modular_diffusion_nodes_library.standard_parameters.qwen_parameters import (
     QwenPipelineParameters,
 )
@@ -313,14 +317,17 @@ class LatentMiniMaxH3PipelineTypeParameters(LatentPipelineTypeParameters):
             "Fixed 24 fps, 5 to 15 seconds. Frame count is snapped up to the next `17 * n + 5` "
             "(124, 141, 158, … 345). Height and width must be multiples of 32 and default to "
             "MiniMax-H3's own canvas. Guidance is baked into the weights, so there is no "
-            "`guidance_scale` and no `negative_prompt`. Image-to-video, video-to-video, ControlNet "
-            "and inpainting are not supported."
+            "`guidance_scale` and no `negative_prompt`. Image-to-video, ControlNet and inpainting are not "
+            "supported. Video-to-video works from a MiniMax-H3 encoded video latent.\n"
+            "- `MiniMaxH3Ref2VAModularPipeline` — Reference-to-video generation with a jointly generated soundtrack, "
+            "conditioned on up to 9 images and up to 3 video clips. Clip audio is discarded."
         )
 
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
             "MiniMaxH3ModularPipeline": MiniMaxH3PipelineParameters,
+            "MiniMaxH3Ref2VAModularPipeline": MiniMaxH3Ref2VAPipelineParameters,
         }
 
 
@@ -328,6 +335,9 @@ class LatentQwenPipelineTypeParameters(LatentPipelineTypeParameters):
     @property
     def pipeline_type_badge_message(self) -> str:
         return (
+            "- `QwenImage21Pipeline` — Text-to-image and image-conditioned generation with Qwen Image 2.1 or "
+            "Qwen Image 2.1 Turbo. Supports up to 10 reference images, alpha-channel latents, Image-to-Image, "
+            "partial denoising, and masked denoising; ControlNet and inpainting are not supported.\n"
             "- `QwenImagePipeline` — Text-to-image generation. "
             "Supports ***ControlNet***, ***inpainting***, and ***ControlNet + inpainting*** via the "
             "Apply ControlNet and VAE Mask Encode nodes.\n"
@@ -339,6 +349,7 @@ class LatentQwenPipelineTypeParameters(LatentPipelineTypeParameters):
     @classmethod
     def get_pipeline_type_dict(cls) -> dict[str, type[ModularDiffusionPipelineTypePipelineParameters]]:
         return {
+            "QwenImage21Pipeline": QwenImage21PipelineParameters,
             "QwenImagePipeline": QwenPipelineParameters,
             "QwenImageEditPipeline": QwenEditPipelineParameters,
         }

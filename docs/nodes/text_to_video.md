@@ -2,10 +2,10 @@
 
 **A preconfigured, self-contained workflow that generates a video from a text prompt — dropped in as a single node.**
 
-Category: `ModularDiffusion/Preconfigured`
+Category: `Diffusion/Preconfigured`
 
 ## TL;DR
-- The sub-flow uses Build Pipeline, Create Noise Latent, Generate Latent, and Decode Media to create a video from a text prompt.
+- The sub-flow uses the Build Pipeline, Create Noise Latent, Generate Latent, and Decode Media nodes to create a video from a text prompt.
 - Pipeline defaults to a supported model; open the sub-flow to change the model repo or any hidden parameter.
 - Outputs `output_video` (`VideoUrlArtifact`).
 
@@ -43,7 +43,7 @@ Each `pipeline_type` has a default model. Changing the type updates the model se
 
 ## Tips & pitfalls
 
-- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to inspect or change the Create Noise Latent, Build Pipeline, Generate Latent, and Decode Media nodes, including hidden settings such as the model repo and optimization toggles.
+- **This is a complete sub-flow, not a single primitive.** Double-click the node (or open its sub-flow) to inspect or change the Create Noise Latent, Build Pipeline, Generate Latent, and Decode Media nodes it contains, including hidden settings such as the model repo and optimization toggles.
 - **Fixed model selection.** You cannot change the model selection or other internal parameters directly from the top-level node; you must open the sub-flow to make changes.
 - **No download status visibility.** There is no visual indication within the node itself whether the required model has been downloaded or if it needs to be installed via the Model Manager.
 - **`guidance_scale` and `num_inference_steps` are fixed inside the sub-flow.** They are not exposed as top-level inputs; edit the internal Generate Latent node to change them.

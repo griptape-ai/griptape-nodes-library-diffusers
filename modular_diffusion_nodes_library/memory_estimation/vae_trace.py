@@ -35,6 +35,8 @@ from diffusers.models.autoencoders.autoencoder_kl_flux2 import AutoencoderKLFlux
 from diffusers.models.autoencoders.autoencoder_kl_hunyuanvideo15 import HunyuanVideo15AttnBlock
 from diffusers.models.autoencoders.autoencoder_kl_ltx import AutoencoderKLLTXVideo
 from diffusers.models.autoencoders.autoencoder_kl_qwenimage import AutoencoderKLQwenImage
+from diffusers.models.autoencoders.autoencoder_kl_qwenimage21 import AutoencoderKLQwenImage21
+from diffusers.models.autoencoders.autoencoder_kl_wan import AutoencoderKLWan
 from diffusers.modular_pipelines.flux2.decoders import Flux2DecodeStep
 from diffusers.modular_pipelines.qwenimage.modular_pipeline import QwenImagePachifier
 
@@ -108,13 +110,36 @@ def _meta_dtype(element_size: int) -> torch.dtype:
     return torch.float32
 
 
+def _vae_input_channels(vae: torch.nn.Module) -> int | None:
+    """Return the number of image channels the VAE encodes, or None if its config does not say."""
+    config = _config_dict(vae)
+    channels = config.get("in_channels")
+    if channels is None:
+        channels = config.get("input_channels")
+    # Some models patchify the image before encoding
+    patch_size = config.get("patch_size")
+    if channels is not None and patch_size is not None and isinstance(vae, AutoencoderKLWan):
+        channels = channels // patch_size**2
+    return channels
+
+
 def _trace_input_shapes(
     vae: torch.nn.Module,
     source_shape: tuple[int, ...],
     latent_shape: tuple[int, ...],
 ) -> tuple[tuple[int, ...], tuple[int, ...]]:
-    """Apply pipeline encode/decode shape transforms to public artifact shapes."""
-    source = torch.empty(source_shape, device="meta")
+    """Apply pipeline encode/decode shape transforms to public artifact shapes.
+
+    The source channel count comes from the VAE rather than from `source_shape`: the artifact's
+    channel count reflects the image that was loaded, which a driver may convert (RGB models drop
+    alpha, RGBA models adds it) before encoding.
+    """
+    encode_shape: tuple[int, ...] = source_shape
+    input_channels = _vae_input_channels(vae)
+    source_rank = len(source_shape)
+    if input_channels is not None and source_rank >= 2:
+        encode_shape = (source_shape[0], input_channels, *source_shape[2:])
+    source = torch.empty(encode_shape, device="meta")
     vae_latents = torch.empty(latent_shape, device="meta")
 
     if isinstance(vae, AutoencoderKLQwenImage):
@@ -129,6 +154,11 @@ def _trace_input_shapes(
                 source_shape[-1],
                 vae_scale_factor=vae.spatial_compression_ratio,
             )
+    elif isinstance(vae, AutoencoderKLQwenImage21):
+        if source.ndim == 4:
+            source = source.unsqueeze(2)
+        if vae_latents.ndim == 4:
+            vae_latents = vae_latents.unsqueeze(2)
     elif isinstance(vae, AutoencoderKLFlux2) and vae_latents.shape[1] == vae.config["latent_channels"] * 4:
         vae_latents = Flux2DecodeStep._unpatchify_latents(vae_latents)
 

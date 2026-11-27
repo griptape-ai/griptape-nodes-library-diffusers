@@ -2,7 +2,7 @@
 
 **Writes a `LatentArtifact` to disk as a torch `.pt` file. Useful for debugging, or building offline test fixtures.**
 
-Category: `ModularDiffusion/IO`
+Category: `Diffusion/IO`
 
 ## TL;DR
 - Saves the raw latent tensor — not a decoded image. To round-trip back into a workflow, load the `.pt` with `torch.load(...)` and wrap it in a `LatentArtifact` (or use it directly in custom code).
@@ -34,7 +34,7 @@ Generate Latent ──┬→ [Save Latent]
 
 | Name | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `file_path` | str | `debug/latent.pt` | Output path. Relative paths resolve from the workspace directory; parent folders are created automatically. |
+| `output_file` | str | `debug/latent.pt` | Output path. Relative paths resolve from the workspace directory; parent folders are created automatically. |
 
 ## Tips & pitfalls
 

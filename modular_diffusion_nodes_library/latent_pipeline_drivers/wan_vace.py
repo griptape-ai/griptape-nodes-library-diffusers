@@ -14,6 +14,13 @@ from modular_diffusion_nodes_library.utils.conditioning_utils import (
     resolve_conditioning_video,
     resolve_frame_index,
 )
+from modular_diffusion_nodes_library.wan_vace_constants import (
+    GRAY_MASKED_SOURCE_KEY,
+    MASK_KEY,
+    MAX_REFERENCE_IMAGES,
+    REFERENCE_IMAGES_KEY,
+    SOURCE_VIDEO_KEY,
+)
 
 if TYPE_CHECKING:
     import PIL.Image  # type: ignore[reportMissingImports]
@@ -23,13 +30,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("modular_diffusers_nodes_library")
 
-_SOURCE_VIDEO_KEY = "vace_source_video"
-_MASK_KEY = "vace_mask"
-_REFERENCE_IMAGES_KEY = "vace_reference_images"
+#: Neutral gray: VACE's "no content" value, about 0 once pixels are normalised to [-1, 1].
+_GRAY = (128, 128, 128)
 
-#: Each reference image costs a latent frame of noise and control tokens, so a video
-#: connected to ``reference_images`` (one reference per frame) would balloon the latent.
-_MAX_REFERENCE_IMAGES = 8
+#: Mask pixels above this count as "generate" (white), matching how diffusers binarises the mask.
+_MASK_GENERATE_THRESHOLD = 127
 
 
 def _payload_to_frames(
@@ -85,6 +90,19 @@ def _payload_to_frames(
                 f"Valid range is [0, {num_frames - 1}] or negative indices down to {-num_frames}."
             )
         result[frame_index] = image.resize((width, height)).convert(image_mode)
+    return result
+
+
+def _gray_masked_regions(frames: list[PIL.Image.Image], masks: list[PIL.Image.Image]) -> list[PIL.Image.Image]:
+    """Replace the white (generate) region of each source frame with gray."""
+    import PIL.Image
+
+    gray = PIL.Image.new("RGB", frames[0].size, _GRAY)
+    binarise_table = [255 if value > _MASK_GENERATE_THRESHOLD else 0 for value in range(256)]
+    result: list[PIL.Image.Image] = []
+    for frame, mask in zip(frames, masks, strict=True):
+        binary_mask = mask.point(binarise_table)
+        result.append(PIL.Image.composite(gray, frame, binary_mask))
     return result
 
 
@@ -208,9 +226,10 @@ class WanVaceLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
         **kwargs: Any,
     ) -> LatentArtifact:
         """Denoise a WAN VACE video latent, converting conditioning payloads to pipeline kwargs."""
-        source_media_payload = kwargs.pop(_SOURCE_VIDEO_KEY, None)
-        mask_payload = kwargs.pop(_MASK_KEY, None)
-        reference_payload = kwargs.pop(_REFERENCE_IMAGES_KEY, None)
+        source_media_payload = kwargs.pop(SOURCE_VIDEO_KEY, None)
+        mask_payload = kwargs.pop(MASK_KEY, None)
+        reference_payload = kwargs.pop(REFERENCE_IMAGES_KEY, None)
+        gray_masked_source = kwargs.pop(GRAY_MASKED_SOURCE_KEY, True)
 
         if mask_payload is not None and source_media_payload is None:
             raise ValueError(
@@ -232,21 +251,23 @@ class WanVaceLatentPipelineDriver(WanTextToVideoLatentPipelineDriver):
 
             kwargs["height"] = height
             kwargs["width"] = width
-            kwargs["video"] = _payload_to_frames(source_media_payload, num_frames, height, width, (128, 128, 128))
+            kwargs["video"] = _payload_to_frames(source_media_payload, num_frames, height, width, _GRAY)
 
             if mask_payload is not None:
                 kwargs["mask"] = _payload_to_frames(mask_payload, num_frames, height, width, 255, "L")
+                if gray_masked_source:
+                    kwargs["video"] = _gray_masked_regions(kwargs["video"], kwargs["mask"])
             else:
                 # Derive mask from source video: black (preserve) source frames, white (generate).
                 kwargs["mask"] = _derive_mask_from_source_media(source_media_payload, num_frames, height, width)
 
             if reference_payload is not None:
                 reference_images = _payload_to_reference_images(reference_payload)
-                if len(reference_images) > _MAX_REFERENCE_IMAGES:
+                if len(reference_images) > MAX_REFERENCE_IMAGES:
                     raise ValueError(
                         f"Attempted to denoise with WAN VACE (node '{self.driver_namespace}'). "
                         f"Failed with {len(reference_images)} reference images because at most "
-                        f"{_MAX_REFERENCE_IMAGES} are supported. A video connected to `reference_images` "
+                        f"{MAX_REFERENCE_IMAGES} are supported. A video connected to `reference_images` "
                         "contributes one reference per frame — connect individual images instead."
                     )
                 device, dtype = self._get_device_and_type()

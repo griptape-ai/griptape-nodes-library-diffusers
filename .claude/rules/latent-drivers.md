@@ -11,7 +11,7 @@ paths:
 
 `LatentPipelineDriver` defines the **public latent surface** that all nodes operate on:
 
-> Public latents are **unpacked** (4-D image `[B, C, H/vae, W/vae]`, 5-D video `[B, C, T_lat, H/vae, W/vae]`) and **normalised** (~N(0,1)). Per-VAE whitening `(z - mean) / std` is applied inside `encode_media`; the inverse runs inside `decode_latent`. Model-specific packing (Flux, Qwen) is applied transiently in `_prepare_input_latent` / `prepare_output_latent` and never appears on the public surface.
+> Public latents are **unpacked** (4-D image `[B, C, H/vae, W/vae]`, 5-D video `[B, C, T_lat, H/vae, W/vae]`) and **normalized** (~N(0,1)). Per-VAE whitening `(z - mean) / std` is applied inside `encode_media`; the inverse runs inside `decode_latent`. Model-specific packing (Flux, Qwen) is applied transiently in `_prepare_input_latent` / `prepare_output_latent` and never appears on the public surface.
 
 If you break this invariant, **every downstream node breaks** (latent math, composite, save/load, upscaler). Match the closest existing driver and copy its structure.
 

@@ -2,7 +2,7 @@
 
 **Elementwise sum of two latent tensors.**
 
-Category: `ModularDiffusion/Transform`
+Category: `Diffusion/Transform`
 
 ## TL;DR
 - `output = left_latent + right_latent` elementwise.

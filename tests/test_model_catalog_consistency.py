@@ -96,7 +96,7 @@ def _all_subclasses(cls: type) -> set[type]:
 
 
 def _builder_repo_ids() -> set[str]:
-    """Every repo id reachable from the pipeline builder, across all providers and pipeline types."""
+    """Every repo id reachable from the Build Pipeline node, across all providers and pipeline types."""
     repo_ids: set[str] = set()
     for params_cls in MODULAR_PIPELINE_TYPE_PROVIDER_MAP.values():
         for pipeline_params_cls in params_cls.get_pipeline_type_dict().values():

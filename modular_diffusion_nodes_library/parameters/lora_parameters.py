@@ -26,7 +26,7 @@ class LoraParameters:
                 type="loras",
                 output_type="loras",
                 allowed_modes={ParameterMode.OUTPUT},
-                tooltip="Mapping of LoRA file path to weight. Connect to a Pipeline Builder's loras input to apply.",
+                tooltip="Mapping of LoRA file paths to weights. Connect this output to the Build Pipeline node's `loras` input.",
             )
         )
 

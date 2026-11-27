@@ -9,7 +9,7 @@ Upstream denoises the driving video segment by segment, and each segment conditi
 pixels* of the previous one, so its loop only ever produces pixels. This driver swaps a few blocks in that
 loop so it also yields the public latent contract:
 
-- **Public latent.** One normalised Wan video latent ``[1, 16, T_lat, H/8, W/8]`` for the requested
+- **Public latent.** One normalized Wan video latent ``[1, 16, T_lat, H/8, W/8]`` for the requested
   frames, with no reference slot. Each segment writes its kept latents into it.
 - **Driver meta.** Each segment's reference-slot and overlap latents (the "prefix") ride in meta, so
   ``decode_latent`` can rebuild every segment and decode seams exactly as the loop did. Without meta the
@@ -239,7 +239,7 @@ class _WanAnimate2PrepareNoiseStep(ModularPipelineBlocks):
             OutputParam(
                 "latents",
                 type_hint=torch.Tensor,
-                description="Normalised noise of shape (1, C, num_latent_frames, latent_height, latent_width).",
+                description="Normalized noise of shape (1, C, num_latent_frames, latent_height, latent_width).",
             ),
         ]
 
@@ -755,7 +755,7 @@ class WanAnimate2LatentPipelineDriver(LatentPipelineDriver):
 
     @override
     def encode_media(self, media: ImageMedia | VideoMedia, generator_state: GeneratorState) -> LatentArtifact:
-        """Encode video frames as a normalised Wan video latent (5-D ``[B, C, T, H/8, W/8]``)."""
+        """Encode video frames as a normalized Wan video latent (5-D ``[B, C, T, H/8, W/8]``)."""
         import torch  # type: ignore[reportMissingImports]
         from diffusers.modular_pipelines.wan_animate_2.encoders import (  # type: ignore[reportMissingImports]
             encode_vae,

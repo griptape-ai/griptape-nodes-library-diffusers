@@ -243,7 +243,7 @@ class LoadComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 # No `serializable=False`: the artifact describes where to load a component from -- ids,
                 # paths and a dtype name -- and `materialize` does the loading in whichever process
                 # needs it. Holding it would hand the builder a reference it cannot read.
-                tooltip="Artifact describing this component. Wire into a Pipeline Builder override port.",
+                tooltip="Artifact describing this component. Connect it to a component override input on the Build Pipeline node.",
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
@@ -619,6 +619,6 @@ def _compute_load_id(
     revision: str,
     subfolder: str,
 ) -> str:
-    """Stable hash for cache-invalidation on the pipeline builder side."""
+    """Stable hash for cache-invalidation on the Build Pipeline node side."""
     payload = "|".join([source_type, component, path, config_source, repo_id, revision, subfolder])
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]

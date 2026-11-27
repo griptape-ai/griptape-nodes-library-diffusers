@@ -142,13 +142,14 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
         self.add_parameter(
             Parameter(
                 name="mask_image",
-                input_types=["ImageArtifact", "ImageUrlArtifact"],
+                input_types=["ImageUrlArtifact"],
+                type="ImageUrlArtifact",
                 tooltip=(
                     "Optional mask image controlling the blend. "
                     "White pixels use the source; black pixels keep the destination. "
                     "The mask is resized to match the source latent automatically."
                 ),
-                allowed_modes={ParameterMode.INPUT},
+                allowed_modes={ParameterMode.INPUT, ParameterMode.OUTPUT},
             )
         )
 
@@ -156,7 +157,7 @@ class LatentCompositeMaskNode(SuccessFailureExecutionMixin, SuccessFailureNode):
             channel_param = ParameterString(
                 name="channel",
                 tooltip="Channel to extract from the mask image as blend weight.",
-                default_value="alpha",
+                default_value="red",
                 ui_options={"expander": True, "edit_mask": True, "edit_mask_paint_mask": True},
             )
             channel_param.add_trait(Options(choices=["red", "green", "blue", "alpha"]))

@@ -100,7 +100,7 @@ def modular_diffusion_settings_for(config: WorkflowConfig | None) -> dict[str, A
 def builder_overrides(
     provider: str, pipeline_type: str, repo: str, *, node_name: str = BUILDER_NODE_NAME
 ) -> tuple[ParamOverride, ...]:
-    """Build the ordered provider/pipeline_type/model overrides for a pipeline builder node."""
+    """Build the ordered provider/pipeline_type/model overrides for a Build Pipeline node."""
     return (
         ParamOverride(node_name, "provider", provider),
         ParamOverride(node_name, "pipeline_type", pipeline_type),

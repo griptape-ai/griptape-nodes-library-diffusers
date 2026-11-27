@@ -94,7 +94,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
 
     Schedulers are config-only (no weights): pick a scheduler class and point at a
     ``scheduler_config.json`` (local file/folder or a cached HF repo). The output
-    wires into a Pipeline Builder's ``scheduler`` override port.
+    connects to the ``scheduler`` override input on the Build Pipeline node.
     """
 
     def __init__(self, **kwargs: Any) -> None:
@@ -249,7 +249,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
                 default_value=None,
                 # No `serializable=False`: see the component loader. This artifact is a description of
                 # what to load, not the loaded scheduler.
-                tooltip="Scheduler artifact. Wire into a Pipeline Builder scheduler override port.",
+                tooltip="Scheduler artifact. Connect it to the scheduler override input on the Build Pipeline node.",
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
@@ -538,7 +538,7 @@ class LoadSchedulerComponent(SuccessFailureExecutionMixin, SuccessFailureNode):
         else:
             this_or_these = "these config keys"
         self._show_warning(
-            f"**{scheduler_class_name}** does not recognise {this_or_these}:\n{keys_list}\n\n"
+            f"**{scheduler_class_name}** does not recognize {this_or_these}:\n{keys_list}\n\n"
             f"They will be silently ignored by diffusers."
         )
 
@@ -562,7 +562,7 @@ def _compute_load_id(
     subfolder: str,
     text_config: str = "",
 ) -> str:
-    """Stable hash for cache-invalidation on the pipeline builder side."""
+    """Stable hash for cache-invalidation on the Build Pipeline node side."""
     payload = "|".join(
         [source_type, _SCHEDULER_SLOT, scheduler_class, config_source, repo_id, revision, subfolder, text_config]
     )

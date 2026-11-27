@@ -44,6 +44,7 @@ _SUPPORTED_VAES = {
     "AutoencoderKLLTX2Video",
     "AutoencoderKLMiniMaxH3",
     "AutoencoderKLQwenImage",
+    "AutoencoderKLQwenImage21",
     "AutoencoderKLWan",
 }
 
@@ -275,7 +276,13 @@ def spatial_tile_strides(vae: Any, operation: str) -> tuple[int, int] | None:
                 sizes = (vae.tile_latent_min_height, vae.tile_latent_min_width)
             overlap = 1 - vae.tile_overlap_factor
             stride_h, stride_w = int(sizes[0] * overlap), int(sizes[1] * overlap)
-        case "AutoencoderKLLTXVideo" | "AutoencoderKLLTX2Video" | "AutoencoderKLQwenImage" | "AutoencoderKLWan":
+        case (
+            "AutoencoderKLLTXVideo"
+            | "AutoencoderKLLTX2Video"
+            | "AutoencoderKLQwenImage"
+            | "AutoencoderKLQwenImage21"
+            | "AutoencoderKLWan"
+        ):
             stride_h, stride_w = vae.tile_sample_stride_height, vae.tile_sample_stride_width
             if encode and name == "AutoencoderKLWan":
                 # Wan 2.2 tiles the patchified input; LTX patchifies inside the encoder instead.

@@ -1,6 +1,6 @@
 ---
 name: add-pipeline-variants
-description: 'Add a runtime variant (ControlNet, inpaint, or input-conditional pipe swap) to an EXISTING driver in modular_diffusion_nodes_library. DEFAULT TO THIS SKILL FIRST when adding any new capability to an existing model. The criterion is: can `<NewPipelineClass>.from_pipe(base_pipe)` produce a working pipeline from the components already loaded on the base pipe (UNet/transformer, VAE, text encoders, scheduler)? If yes — use this skill. Examples: ControlNet (any model), inpaint (any model), LTX media_gen_conditioning → LTXConditionPipeline. DO NOT use when from_pipe cannot produce a working pipeline (variant class needs a component the base does not have, or differently-shaped/-trained weights for an existing component) — that is a new pipeline type and belongs in add-modular-pipeline.'
+description: 'Add a runtime variant (ControlNet, inpaint, or input-conditional pipe swap) to an EXISTING driver in modular_diffusion_nodes_library. DEFAULT TO THIS SKILL FIRST when adding any new capability to an existing model. The criterion is: can `<NewPipelineClass>.from_pipe(base_pipe)` produce a working pipeline from the components already loaded on the base pipe (UNet/transformer, VAE, text encoders, scheduler)? If yes — use this skill. Examples: ControlNet (any model), inpaint (any model), LTX media_gen_conditioning → LTXConditionPipeline. DO NOT use when from_pipe cannot produce a working pipeline (variant class needs a component the base does not have, or differently-shaped/-trained weights for an existing component) — that is a new pipeline type and belongs in add-modular-diffusion-pipeline.'
 ---
 
 # Add Pipeline Variants to an Existing Driver
@@ -24,22 +24,22 @@ Variants don't add nodes, but they change runtime branches on existing ones. Upd
 
 ### Rule 0 — Variant vs new pipeline type (FIRST CHECK)
 
-**Default to variant.** Try this skill first; only fall back to `/add-modular-pipeline` when the test below fails.
+**Default to variant.** Try this skill first; only fall back to `/add-modular-diffusion-pipeline` when the test below fails.
 
 **The test**: can `<VariantPipelineClass>.from_pipe(base_pipe)` produce a *correct* and *working* pipeline using the components already loaded on `base_pipe` (UNet/transformer, VAE, text encoders, scheduler)?
 
 | Answer | Decision |
 |---|---|
 | **Yes** — the variant class shares the same component architectures and runs against the loaded weights | **Variant** → continue with this skill |
-| **No** — the variant class needs a component the base pipeline does not have, or needs differently-shaped/-trained weights for an existing component (different UNet/transformer weights, an extra image encoder, etc.) | **New pipeline type** → STOP and use `/add-modular-pipeline` instead |
+| **No** — the variant class needs a component the base pipeline does not have, or needs differently-shaped/-trained weights for an existing component (different UNet/transformer weights, an extra image encoder, etc.) | **New pipeline type** → STOP and use `/add-modular-diffusion-pipeline` instead |
 
 **Examples**
 - ControlNet for SDXL: variant. `StableDiffusionXLControlNetPipeline.from_pipe(pipe, controlnet=...)` works against the loaded SDXL components (the ControlNet is supplied separately). → this skill.
 - SDXL Inpaint: variant. `StableDiffusionXLInpaintPipeline.from_pipe(pipe)` works against the loaded SDXL components. A separate inpaint checkpoint also exists in the wild, but that is orthogonal — users who want it load it as a regular SDXL build. → this skill.
 - LTX with `media_gen_conditioning`: variant. `LTXConditionPipeline.from_pipe(pipe)` works against the loaded LTX components. → this skill.
-- **WAN I2V**: **NOT** a variant. `WanImageToVideoPipeline` requires different UNet weights and an image-encoder component the T2V pipe does not have; `from_pipe(t2v)` cannot produce it. → `/add-modular-pipeline`.
-- **Flux Fill**: **NOT** a variant. Different transformer weights from Flux base; `from_pipe` cannot produce a working Fill pipeline from a Flux base pipe. → `/add-modular-pipeline`.
-- **Qwen Edit**: **NOT** a variant. Different transformer weights and extra image conditioning component. → `/add-modular-pipeline`.
+- **WAN I2V**: **NOT** a variant. `WanImageToVideoPipeline` requires different UNet weights and an image-encoder component the T2V pipe does not have; `from_pipe(t2v)` cannot produce it. → `/add-modular-diffusion-pipeline`.
+- **Flux Fill**: **NOT** a variant. Different transformer weights from Flux base; `from_pipe` cannot produce a working Fill pipeline from a Flux base pipe. → `/add-modular-diffusion-pipeline`.
+- **Qwen Edit**: **NOT** a variant. Different transformer weights and extra image conditioning component. → `/add-modular-diffusion-pipeline`.
 
 If you cannot verify the `from_pipe` test from the diffusers source, ask the user. Do not guess.
 
@@ -56,12 +56,12 @@ STOP and wait for explicit confirmation before writing code.
 
 ### Rule 2 — Variant runtime defaults follow the upstream rule too
 
-Any new runtime input added by a variant (e.g. `controlnet_conditioning_scale`, `strength`, `control_guidance_start`/`control_guidance_end`, inpaint `strength`) MUST take its default from the **variant pipeline's** `__call__` signature or `EXAMPLE_DOC_STRING` under `.venv/Lib/site-packages/diffusers/pipelines/<model>/`, and MUST have a clear, descriptive tooltip sourced from the variant pipeline's `__call__` docstring, model card, `EXAMPLE_DOC_STRING`, or a fusion of those — same standard as Rule 4 of [`/add-modular-pipeline`](../add-modular-pipeline/SKILL.md). Do not copy defaults or tooltips across drivers, do not invent values, do not round to a "nice number".
+Any new runtime input added by a variant (e.g. `controlnet_conditioning_scale`, `strength`, `control_guidance_start`/`control_guidance_end`, inpaint `strength`) MUST take its default from the **variant pipeline's** `__call__` signature or `EXAMPLE_DOC_STRING` under `.venv/Lib/site-packages/diffusers/pipelines/<model>/`, and MUST have a clear, descriptive tooltip sourced from the variant pipeline's `__call__` docstring, model card, `EXAMPLE_DOC_STRING`, or a fusion of those — same standard as Rule 4 of [`/add-modular-diffusion-pipeline`](../add-modular-diffusion-pipeline/SKILL.md). Do not copy defaults or tooltips across drivers, do not invent values, do not round to a "nice number".
 
 ### Rule 3 — Adhere to the LatentPipelineDriver contract
 
 Variants must preserve the public latent contract in [`base_driver.py`](../../../modular_diffusion_nodes_library/latent_pipeline_drivers/base_driver.py) docstring:
-- Latents passed across the public surface remain **unpacked + normalised**
+- Latents passed across the public surface remain **unpacked + normalized**
 - Any packing required by the variant pipeline happens inside `_prepare_input_latent`/`prepare_output_latent` (or transiently inside the overridden `denoise_latent`), never on the public surface
 - Never bypass `super().denoise_latent()` for callback / partial-denoise / cancellation concerns
 
@@ -77,7 +77,7 @@ Memory estimation looks up `_FAMILY_BY_PIPELINE_NAME` / `_DENOISER_FIELD_ADAPTER
 - **Pattern B (inpaint)**: `_get_inpaint_pipe()` (`base_driver.py` line 522) swaps `self.pipe` transiently inside `denoise_latent()`; it never touches the artifact, so `artifact.pipeline_name` is untouched.
 - **Pattern C (runtime pipe-swap)**: same story — `ltx.py` line 385 and `qwen_edit.py` line 136 reassign `self._pipe`, not the artifact's `pipeline_name`.
 
-**Conclusion**: do not add a `_FAMILY_BY_PIPELINE_NAME` / `_DENOISER_FIELD_ADAPTERS` entry for a variant pipeline class as part of this skill's normal flow, because `get_memory_family()` / `get_denoiser_config_fields()` are always called with the base pipeline's registered name, and the variant shares the base's denoiser weights/config by construction (Rule 0's `from_pipe` test). If you are implementing a case where the variant pipeline class name genuinely becomes its own `artifact.pipeline_name` — i.e. you are giving it a distinct `_DRIVER_REGISTRY` entry and a separate builder path rather than reusing the base pipeline's artifact — that is no longer a pure runtime variant in this skill's sense; stop and re-classify against `/add-modular-pipeline` Rule 9 instead of adding an ad-hoc family entry here.
+**Conclusion**: do not add a `_FAMILY_BY_PIPELINE_NAME` / `_DENOISER_FIELD_ADAPTERS` entry for a variant pipeline class as part of this skill's normal flow, because `get_memory_family()` / `get_denoiser_config_fields()` are always called with the base pipeline's registered name, and the variant shares the base's denoiser weights/config by construction (Rule 0's `from_pipe` test). If you are implementing a case where the variant pipeline class name genuinely becomes its own `artifact.pipeline_name` — i.e. you are giving it a distinct `_DRIVER_REGISTRY` entry and a separate builder path rather than reusing the base pipeline's artifact — that is no longer a pure runtime variant in this skill's sense; stop and re-classify against `/add-modular-diffusion-pipeline` Rule 9 instead of adding an ad-hoc family entry here.
 
 ---
 
@@ -86,7 +86,7 @@ Memory estimation looks up `_FAMILY_BY_PIPELINE_NAME` / `_DENOISER_FIELD_ADAPTER
 ### Pattern A — ControlNet (build-time variant)
 
 **Trigger**: `control_net_model_lists` argument supplied during pipeline build.
-**Mechanism**: Two classmethods on the driver, called by the pipeline builder.
+**Mechanism**: Two classmethods on the driver, called by the Build Pipeline node.
 
 Override:
 - `can_make_control_pipe_from_standard(cls, control_net_model_lists) -> bool` — return True if you support ControlNet for this list
@@ -149,7 +149,7 @@ The `finally` block that restores `self._pipe` is non-negotiable; skipping it le
 - <Concrete code changes, citing the reference pattern>
 
 ## Verification
-- <How to smoke-test, e.g., wire ControlNet input on builder node, etc.>
+- <How to smoke-test, e.g., connect the ControlNet input and the Build Pipeline node, etc.>
 ```
 
 STOP. Wait for confirmation.
@@ -159,14 +159,14 @@ STOP. Wait for confirmation.
 State the verification check **before** making each change.
 
 1. **Apply the variant pattern verbatim** from the reference (Pattern A / B / C) → verify: the new code matches the reference shape; for Pattern C, the `finally` block restores `self._pipe`; `make check` passes. **Surgical-edits check**: diff the driver and confirm only the variant-related lines changed — no reformatted methods, no reordered code, no "improved" sibling code.
-2. **Smoke test in UI** → verify with the user: (Pattern A) wire a controlnet input on the builder node and confirm the wrapped pipe builds; (Pattern B) supply an inpaint mask and confirm the inpaint pipeline class is used at denoise time; (Pattern C) confirm the trigger kwarg activates the variant pipeline and `self._pipe` is restored on success and on error.
+2. **Smoke test in UI** → verify with the user: (Pattern A) connect a ControlNet input and the Build Pipeline node and confirm the wrapped pipe builds; (Pattern B) supply an inpaint mask and confirm the inpaint pipeline class is used at denoise time; (Pattern C) confirm the trigger kwarg activates the variant pipeline and `self._pipe` is restored on success and on error.
 3. **Single-file loader metadata** → if the variant pipeline class is a fresh entry in `_DRIVER_REGISTRY` and users may load its transformer from a single `.gguf`/`.safetensors` file, add the relevant `model_type` → variant-pipeline-class-name entries to [`component_loading/pipeline_type_registry.py`](../../../modular_diffusion_nodes_library/component_loading/pipeline_type_registry.py) `MODEL_TYPE_TO_PIPELINE_TYPE`. Skip this step for pure runtime pipe-swaps that share the base pipeline's transformer weights.
-4. **Memory-estimation family registry — confirm no entry is needed (Rule 5)** → verify: `artifact.pipeline_name` for the built pipeline is unchanged from the base pipeline's registered name (inspect the artifact constructed by the pipeline builder node for this variant, or trace `ControlNetDiffusionPipelineArtifact.metadata`/`base_artifact.pipeline_name` for Pattern A); confirm no new key was added to `_FAMILY_BY_PIPELINE_NAME` / `_DENOISER_FIELD_ADAPTERS` in [`memory_estimation/family_registry.py`](../../../modular_diffusion_nodes_library/memory_estimation/family_registry.py). If the variant work you implemented turned out to require the variant pipeline class to carry its own distinct `pipeline_name` (i.e. it stopped being a pure runtime variant per Rule 0), stop and re-classify against `/add-modular-pipeline` Rule 9 instead of registering it here.
+4. **Memory-estimation family registry — confirm no entry is needed (Rule 5)** → verify: `artifact.pipeline_name` for the built pipeline is unchanged from the base pipeline's registered name (inspect the artifact constructed by the pipeline builder node for this variant, or trace `ControlNetDiffusionPipelineArtifact.metadata`/`base_artifact.pipeline_name` for Pattern A); confirm no new key was added to `_FAMILY_BY_PIPELINE_NAME` / `_DENOISER_FIELD_ADAPTERS` in [`memory_estimation/family_registry.py`](../../../modular_diffusion_nodes_library/memory_estimation/family_registry.py). If the variant work you implemented turned out to require the variant pipeline class to carry its own distinct `pipeline_name` (i.e. it stopped being a pure runtime variant per Rule 0), stop and re-classify against `/add-modular-diffusion-pipeline` Rule 9 instead of registering it here.
 
 ---
 
 ## References
 
 - [`./references/variant-patterns.md`](./references/variant-patterns.md) — detailed templates for each pattern, including kwargs handling and pitfalls.
-- [`../add-modular-pipeline/SKILL.md`](../add-modular-pipeline/SKILL.md) — use this instead when adding a new pipeline type with different weights.
+- [`../add-modular-diffusion-pipeline/SKILL.md`](../add-modular-diffusion-pipeline/SKILL.md) — use this instead when adding a new pipeline type with different weights.
 - [`../../../docs/adding-new-model.md`](../../../docs/adding-new-model.md) — the broader contributor doc covering full new-model integration.

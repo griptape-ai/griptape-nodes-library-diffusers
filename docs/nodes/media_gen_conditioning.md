@@ -2,12 +2,12 @@
 
 **Packages one or more conditioning images (or a video) with per-frame placement and strength, ready to connect into any pipeline that supports media-driven conditioning.**
 
-Category: `ModularDiffusion/Conditioning`
+Category: `Diffusion/Conditioning`
 
 ## TL;DR
 - Connect a pipeline to get preset layouts tailored to that model (e.g. first/last frame slots for WAN Image-to-Video).
 - Without a pipeline, a flexible image-or-video layout is shown with a "Preset" dropdown; a number of images slider is shown in "Custom" preset mode.
-- Connect the `conditioning` output to the matching conditioning input on Generate Latent — the input's name and count depend on the connected pipeline, e.g. `conditioning_images` for WAN Image-to-Video, `media_conditions` for LTX / LTX2 or `reference_images` for Flux2 Klein. The input appears only once the pipeline is connected to Generate Latent too.
+- Connect the `conditioning` output to the matching conditioning input on Generate Latent — the input's name and count depend on the connected pipeline, e.g. `conditioning_images` for WAN Image-to-Video, `media_conditions` for LTX / LTX2, `reference_images` for Flux2 Klein or `references` for MiniMax-H3 ref2va. The input appears only once the pipeline is connected to Generate Latent too.
 
 ## Typical workflow position
 ```text
@@ -66,6 +66,7 @@ Load Image (last)  ───┴→ [Reference Media] ───┘
 | No pipeline connected (default) | Both image and video modes are available. `Preset` choices: **Custom** (default), First + Middle + Last, First + Last, First frame. In Custom mode, `num_images` (0–8), `frame_index`, and `strength` are all adjustable. In video mode, a single `video` input with `frame_index` and `video_strength` is shown. |
 | Flux2 Klein | Image mode only. Flexible image slots (1–8). The `reference_images` input on Generate Latent is active only when an inpaint mask is also connected. |
 | LTX / LTX2 | Same as "No pipeline connected" but in image mode, **First + Middle + Last** is default. |
+| MiniMax-H3 ref2va | Image and video modes; image is the default. Image mode has flexible slots for **1–9** images. Video mode holds **one** clip per node, so use one node per clip (up to 3) and connect them all to `references` on Generate Latent. Clips must be at least 2s long, and their audio is discarded. |
 | WAN Image-to-Video | Image mode only. `Preset` choices: **First + Last** (default), First frame. |
 | WAN VACE | Image mode only. `Preset` choices: **First + Middle + Last** (default), First + Last, First frame — feeds the `source_media` input on Generate Latent. The same node can also feed `mask` and `reference_images`; `reference_images` accepts up to 8 images. |
 
@@ -73,7 +74,7 @@ Load Image (last)  ───┴→ [Reference Media] ───┘
 
 - **Connect the pipeline first.** The layout swaps immediately on connection, replacing slots with the correct preset arrangement for that model.
 - **Named presets lock frame positions.** When you select a named preset, each slot's output position is fixed by the preset's definition — you cannot override it. For example, with "First + Last", slot 0 is pinned to frame 0 and slot 1 is pinned to the final frame; the `frame_index` control is hidden because there is nothing to adjust. Switch to **Custom** preset if you need to place an image at a specific frame.
-- **`frame_index` controls *where in the output video* the conditioning image appears**. `0` places the image at the very first frame of the generated video; -1 set it to the last frame number to anchor it at the end.
+- **`frame_index` controls *where in the output video* the conditioning image appears**. `0` places the image at the first frame; `-1` places it at the last.
 
 ## See also
 

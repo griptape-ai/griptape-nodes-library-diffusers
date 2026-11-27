@@ -67,6 +67,7 @@ class FluxFillLatentPipelineDriver(FluxLatentPipelineDriver):
         return {
             "image": source_pil,
             "mask_image": artifact.mask_image,
+            "strength": artifact.strength,
         }
 
     @override

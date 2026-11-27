@@ -7,7 +7,7 @@
 # engine_version_created_with = "0.89.0"
 # node_libraries_referenced = [["Griptape Modular Diffusion Nodes Library", "0.1.1"], ["Griptape Nodes Library", "0.75.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Modular Diffusion Nodes Library", "VaeMaskEncodeNode"], ["Griptape Nodes Library", "LoadImage"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
-# description = "Inpainting workflow template using Griptape diffusers library"
+# description = "Inpainting workflow template using the Diffusion Library"
 # image = "https://raw.githubusercontent.com/griptape-ai/griptape-nodes-library-diffusers/main/workflows/templates/Inpainting.png"
 # is_griptape_provided = true
 # is_template = true

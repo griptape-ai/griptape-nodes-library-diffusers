@@ -38,7 +38,7 @@ logger = logging.getLogger("modular_diffusers_nodes_library")
 
 
 class _HunyuanVideo15EncodeVideoStep(ModularPipelineBlocks):
-    """Encode a list of PIL frames into a normalised HunyuanVideo 1.5 video latent [B, C, T_lat, H/vsf, W/vsf]."""
+    """Encode a list of PIL frames into a normalized HunyuanVideo 1.5 video latent [B, C, T_lat, H/vsf, W/vsf]."""
 
     model_name = "hunyuan_video1_5"
 
@@ -61,7 +61,7 @@ class _HunyuanVideo15EncodeVideoStep(ModularPipelineBlocks):
             OutputParam(
                 "video_latents",
                 type_hint=torch.Tensor,
-                description="Normalised video latent in the HunyuanVideo 1.5 VAE's output space.",
+                description="Normalized video latent in the HunyuanVideo 1.5 VAE's output space.",
             ),
         ]
 

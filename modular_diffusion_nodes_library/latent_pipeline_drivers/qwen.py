@@ -23,6 +23,7 @@ from griptape_nodes.exe_types.param_components.huggingface.huggingface_model_par
 
 from modular_diffusion_nodes_library.artifact_utils.inpaint_mask_artifact import InpaintMaskArtifact
 from modular_diffusion_nodes_library.artifact_utils.latent_artifact import LatentArtifact
+from modular_diffusion_nodes_library.artifact_utils.masked_latent_artifact import MaskedLatentArtifact
 from modular_diffusion_nodes_library.artifact_utils.pipeline_artifact import (
     ControlNetDiffusionPipelineArtifact,
     DiffusionPipelineArtifact,
@@ -222,6 +223,7 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
             height = image.shape[-2]
             width = image.shape[-1]
         else:
+            image = image.convert("RGB")
             height = image.height
             width = image.width
         generator = generator_state.to_generator()
@@ -253,7 +255,7 @@ class QwenLatentPipelineDriver(LatentPipelineDriver):
     def validate_run_configuration(
         cls,
         pipeline_artifact: DiffusionPipelineArtifact,
-        input_latent: LatentArtifact | None,
+        input_latent: LatentArtifact | InpaintMaskArtifact | MaskedLatentArtifact | None,
     ) -> list[Exception] | None:
         errors = super().validate_run_configuration(pipeline_artifact, input_latent)
         if errors is not None:

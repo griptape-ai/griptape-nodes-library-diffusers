@@ -7,7 +7,7 @@
 # engine_version_created_with = "0.100.2"
 # node_libraries_referenced = [["Griptape Nodes Library", "0.87.0"], ["Griptape Modular Diffusion Nodes Library", "0.7.0"]]
 # node_types_used = [["Griptape Modular Diffusion Nodes Library", "ControlNetDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "ControlNetNode"], ["Griptape Modular Diffusion Nodes Library", "DiffusionPipelineGenerateLatentNode"], ["Griptape Modular Diffusion Nodes Library", "LatentDiffusionPipelineBuilderNode"], ["Griptape Modular Diffusion Nodes Library", "LoadComponent"], ["Griptape Modular Diffusion Nodes Library", "NoiseLatentNode"], ["Griptape Modular Diffusion Nodes Library", "VaeDecodeNode"], ["Griptape Nodes Library", "Group"], ["Griptape Nodes Library", "LoadImage"], ["Griptape Nodes Library", "Note"], ["Griptape Nodes Library", "TextInput"]]
-# description = "Controlnet assisted Text2Image workflow using the Modular Diffusion Library Nodes"
+# description = "Controlnet assisted Text2Image workflow using the Diffusion Library nodes"
 # image = "https://raw.githubusercontent.com/griptape-ai/griptape-nodes-library-diffusers/main/workflows/templates/ControlnetText2Image.webp"
 # is_griptape_provided = true
 # is_template = true

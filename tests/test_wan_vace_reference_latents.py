@@ -15,6 +15,8 @@ driver instance.
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -25,9 +27,11 @@ import PIL.Image  # noqa: E402
 import torch  # noqa: E402
 from griptape.artifacts import ImageUrlArtifact  # noqa: E402
 
+from modular_diffusion_nodes_library.latent_pipeline_drivers.wan import WanTextToVideoLatentPipelineDriver
 from modular_diffusion_nodes_library.latent_pipeline_drivers.wan_vace import (
     WanVaceLatentPipelineDriver,
     _derive_mask_from_source_media,
+    _gray_masked_regions,
     _payload_to_frames,
     _payload_to_reference_images,
     _prepend_reference_noise,
@@ -46,6 +50,7 @@ _SOURCE_SHAPE = (1, 3, 49, 720, 1280)
 
 _RED = (255, 0, 0)
 _BLACK = (0, 0, 0)
+_GRAY = (128, 128, 128)
 
 
 def _driver() -> WanVaceLatentPipelineDriver:
@@ -167,6 +172,71 @@ def test_derive_mask_from_source_media_marks_placed_frame_black(tmp_path: Path) 
     # Black (0) marks the frame to preserve; white (255) marks frames to generate.
     assert mask[2].getpixel((0, 0)) == 0
     assert mask[0].getpixel((0, 0)) == 255
+
+
+def test_gray_masked_regions_grays_white_half_and_keeps_black_half() -> None:
+    frame = PIL.Image.new("RGB", (10, 10), _RED)
+    mask = PIL.Image.new("L", (10, 10), 0)
+    mask.paste(255, (5, 0, 10, 10))
+
+    [result] = _gray_masked_regions([frame], [mask])
+
+    assert result.getpixel((7, 5)) == _GRAY
+    assert result.getpixel((2, 5)) == _RED
+
+
+def test_gray_masked_regions_binarises_mask_like_diffusers() -> None:
+    frame = PIL.Image.new("RGB", (10, 10), _RED)
+
+    [below] = _gray_masked_regions([frame], [PIL.Image.new("L", (10, 10), 127)])
+    [above] = _gray_masked_regions([frame], [PIL.Image.new("L", (10, 10), 128)])
+
+    assert below.getpixel((5, 5)) == _RED
+    assert above.getpixel((5, 5)) == _GRAY
+
+
+def _denoise_pipe_kwargs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, extra_kwargs: dict[str, Any]
+) -> dict[str, Any]:
+    """Run the VACE driver's kwarg conversion and return what it hands the WAN driver."""
+    captured: dict[str, Any] = {}
+
+    def fake_denoise(_self: Any, _latent: Any, _steps: int, **kwargs: Any) -> None:
+        captured.update(kwargs)
+
+    monkeypatch.setattr(WanTextToVideoLatentPipelineDriver, "denoise_latent", fake_denoise)
+    (tmp_path / "source").mkdir()
+    (tmp_path / "mask").mkdir()
+    source = _image_payload(0, PIL.Image.new("RGB", (8, 8), _RED), tmp_path / "source")
+    mask = _image_payload(0, PIL.Image.new("L", (8, 8), 255), tmp_path / "mask")
+    latent = SimpleNamespace(source_shape=(1, 3, 2, 8, 8))
+
+    _driver().denoise_latent(
+        latent,  # type: ignore[arg-type]
+        1,
+        generator_state=None,  # type: ignore[arg-type]
+        vace_source_video=source,
+        vace_mask=mask,
+        **extra_kwargs,
+    )
+    return captured
+
+
+def test_denoise_latent_grays_masked_source_by_default(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    kwargs = _denoise_pipe_kwargs(monkeypatch, tmp_path, {})
+
+    assert kwargs["video"][0].getpixel((4, 4)) == _GRAY
+    assert "vace_gray_masked_source" not in kwargs
+
+
+def test_denoise_latent_keeps_masked_source_when_graying_is_off(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    kwargs = _denoise_pipe_kwargs(monkeypatch, tmp_path, {"vace_gray_masked_source": False})
+
+    assert kwargs["video"][0].getpixel((4, 4)) == _RED
+    assert kwargs["video"][1].getpixel((4, 4)) == _GRAY
+    assert "vace_gray_masked_source" not in kwargs
 
 
 def test_payload_to_reference_images_returns_image_entries_directly(tmp_path: Path) -> None:

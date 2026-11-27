@@ -2,7 +2,7 @@
 
 **Elementwise product of two latent tensors.**
 
-Category: `ModularDiffusion/Transform`
+Category: `Diffusion/Transform`
 
 ## TL;DR
 - `output = left_latent * right_latent` elementwise.
@@ -11,7 +11,7 @@ Category: `ModularDiffusion/Transform`
 ## Typical workflow position
 ```text
 Latent A ─┐
-          ├─→ [Multiply Latents] → Add Latents / Generate
+          ├─→ [Multiply Latents] → Add Latents / Generate Latent
 Latent B ─┘
 ```
 

@@ -2,10 +2,10 @@
 
 **Wraps a built pipeline so it accepts ControlNet inputs at generation time.**
 
-Category: `ModularDiffusion/Pipeline`
+Category: `Diffusion/Pipeline`
 
 ## TL;DR
-- Connect the output of the [Build Pipeline](pipeline_builder.md) node to this node, then connect this node's output to [Generate Latent](generate_media_latents.md). This wraps the cached pipeline in a ControlNet variant.
+- Connect the [Build Pipeline](pipeline_builder.md) output to this node, then connect its output to [Generate Latent](generate_media_latents.md). This wraps the cached pipeline in a ControlNet variant.
 - Accepts a list of `control_net` configs (from one or more [Load ControlNet](configure_controlnet.md) nodes). Stacked ControlNets are supported where the model allows it (e.g. Flux Union).
 - Output type: `Pipeline Config` — drop-in replacement for the base pipeline downstream.
 
@@ -40,7 +40,7 @@ Load ControlNet ───┘
 - **Provider must match.** Each ControlNet's `provider` must equal the base pipeline's provider — the node validates this before running.
 - **Pipeline class compatibility.** Not every base pipeline supports ControlNet stacking; the node validates the driver before running and surfaces which combination is unsupported.
 - **Stack multiple ControlNets within a single node.** Use multiple `control_nets` entries on one Apply ControlNet node rather than chaining two Apply ControlNet nodes — the second node will error if the input is already a ControlNet artifact.
-- **Pipeline reuse** ControlNet weights may be loaded for the selected control_nets; the base pipeline itself is reused from cache when available.
+- **Pipeline reuse.** ControlNet weights may be loaded for the selected control_nets; the base pipeline itself is reused from cache when available.
 - **Memory estimation.** Wire `controlnet_pipeline` into [Estimate Pipeline Memory](estimate_pipeline_memory.md) to see each stacked ControlNet's own weight/activation cost, before or after this node has actually built the pipeline.
 
 ## See also
